@@ -15,6 +15,14 @@ export default function NotificationProvider() {
       try {
         const res = await api.getDueReminders();
         if (res.success && res.data) {
+          const dueIds = new Set(res.data.map((r: any) => r._id));
+          activeToasts.current.forEach((id) => {
+            if (!dueIds.has(id)) {
+              toast.dismiss(id);
+              activeToasts.current.delete(id);
+            }
+          });
+
           res.data.forEach((reminder: any) => {
             if (!activeToasts.current.has(reminder._id)) {
               activeToasts.current.add(reminder._id);

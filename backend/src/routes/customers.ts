@@ -51,7 +51,7 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
       query.customerType = customerType;
     }
 
-    const customers = await Customer.find(query).sort({ createdAt: -1 });
+    const customers = await Customer.find(query).populate('bdmId', 'name email phoneNumber').sort({ createdAt: -1 });
     return res.json({ success: true, count: customers.length, data: customers });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
@@ -78,6 +78,7 @@ customerRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthR
       customerType,
       leadSource,
       assignedEmployee,
+      bdmId,
       whatsappOptIn,
       optInSource,
       notes,
@@ -96,6 +97,8 @@ customerRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthR
     const count = await Customer.countDocuments();
     const customerId = `CUST-${String(count + 1).padStart(3, '0')}`;
 
+    const assignedBdmId = req.user?.role === 'BDM' ? req.user._id : (bdmId || undefined);
+
     const newCustomer = await Customer.create({
       customerId,
       fullName: fullName.trim(),
@@ -112,6 +115,7 @@ customerRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthR
       customerType: customerType || 'Residential',
       leadSource: leadSource || 'Direct Inquiry',
       assignedEmployee: assignedEmployee || req.user?.name,
+      bdmId: assignedBdmId,
       whatsappOptIn: whatsappOptIn !== undefined ? !!whatsappOptIn : true,
       optInDate: new Date(),
       optInSource: optInSource || 'PROJECT_CONFIRMATION',
@@ -130,7 +134,7 @@ customerRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthR
  */
 customerRouter.get('/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const customer = await Customer.findById(req.params.id);
+    const customer = await Customer.findById(req.params.id).populate('bdmId', 'name email phoneNumber');
     if (!customer) {
       return res.status(404).json({ success: false, message: 'Customer not found' });
     }

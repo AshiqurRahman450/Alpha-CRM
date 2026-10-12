@@ -1,5 +1,5 @@
 import cron from 'node-cron';
-import { Project, Customer, WhatsAppMessage, WhatsAppTemplate, IProject, WhatsAppChannel } from '../../models';
+import { Project, Customer, WhatsAppMessage, WhatsAppTemplate, IProject, WhatsAppChannel, User, Reminder } from '../../models';
 import { whatsappService } from '../whatsapp';
 import { logProjectActivity } from '../activity/activityService';
 
@@ -300,6 +300,122 @@ export async function processDueWhatsAppUpdates(): Promise<{
 }
 
 /**
+ * Triggers initial reminder for CRM users when Advance Payment Received is marked executed,
+ * provided Site Visit schedule date is not yet fixed.
+ */
+export async function triggerAdvancePaymentReminderForCRM(projectId: any): Promise<void> {
+  try {
+    const project = await Project.findById(projectId);
+    if (!project || !project.stageDates) return;
+
+    const paymentStage = project.stageDates.get('PAYMENT_RECEIVED');
+    const siteVisitStage = project.stageDates.get('SITE_MEASUREMENT');
+
+    const isAdvanceExecuted = paymentStage && paymentStage.executedDate;
+    const isSiteVisitScheduled = siteVisitStage && siteVisitStage.scheduleDate;
+
+    if (isAdvanceExecuted && !isSiteVisitScheduled) {
+      const crmUsers = await User.find({ role: 'CRM', isActive: { $ne: false } });
+      const now = new Date();
+      for (const crmUser of crmUsers) {
+        const existing = await Reminder.findOne({
+          userId: crmUser._id,
+          relatedProjectId: project._id,
+          status: 'PENDING',
+          title: { $regex: /Update Schedule Date/i },
+        });
+
+        if (!existing) {
+          await Reminder.create({
+            userId: crmUser._id,
+            title: `Update Schedule Date - ${project.projectName}`,
+            notes: `Advance payment received has been recorded. Please update the schedule date (Site Visit) for ${project.projectName}.`,
+            dueAt: now,
+            relatedProjectId: project._id,
+            status: 'PENDING',
+          });
+          console.log(`[Scheduler] Dispatched initial schedule date update reminder for CRM (${crmUser.name}) on project ${project.projectName}`);
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error('[Scheduler] Error triggering advance payment reminder for CRM:', err);
+  }
+}
+
+/**
+ * Dismisses pending "Update Schedule Date" reminders for a project once Site Visit schedule date is set.
+ */
+export async function dismissScheduleDateRemindersForProject(projectId: any): Promise<void> {
+  try {
+    await Reminder.updateMany(
+      {
+        relatedProjectId: projectId,
+        status: 'PENDING',
+        title: { $regex: /Update Schedule Date/i },
+      },
+      { status: 'DISMISSED' }
+    );
+  } catch (err: any) {
+    console.error('[Scheduler] Error dismissing schedule date reminders:', err);
+  }
+}
+
+/**
+ * Checks for projects where Advance Payment Received executedDate is set,
+ * but Site Visit scheduleDate is not set. Sends/creates a reminder for CRM
+ * every 3 hours until the schedule date is updated.
+ */
+export async function checkScheduleDateReminders(): Promise<void> {
+  try {
+    const now = new Date();
+    const projects = await Project.find({
+      projectStatus: { $nin: ['COMPLETED', 'CANCELLED'] },
+    });
+
+    const crmUsers = await User.find({ role: 'CRM', isActive: { $ne: false } });
+    if (!crmUsers || crmUsers.length === 0) return;
+
+    for (const project of projects) {
+      if (!project.stageDates) continue;
+
+      const paymentStage = project.stageDates.get('PAYMENT_RECEIVED');
+      const siteVisitStage = project.stageDates.get('SITE_MEASUREMENT');
+
+      const isAdvanceExecuted = paymentStage && paymentStage.executedDate;
+      const isSiteVisitScheduled = siteVisitStage && siteVisitStage.scheduleDate;
+
+      if (isAdvanceExecuted && !isSiteVisitScheduled) {
+        for (const crmUser of crmUsers) {
+          const lastReminder = await Reminder.findOne({
+            userId: crmUser._id,
+            relatedProjectId: project._id,
+            title: { $regex: /Update Schedule Date/i },
+          }).sort({ createdAt: -1 });
+
+          const threeHoursMs = 3 * 60 * 60 * 1000;
+          if (!lastReminder || (now.getTime() - new Date(lastReminder.createdAt).getTime()) >= threeHoursMs) {
+            await Reminder.create({
+              userId: crmUser._id,
+              title: `Update Schedule Date - ${project.projectName}`,
+              notes: `Reminder: Please update the schedule date for project ${project.projectName}. Advance payment has been received.`,
+              dueAt: now,
+              relatedProjectId: project._id,
+              status: 'PENDING',
+            });
+            console.log(`[Scheduler] Dispatched 3-hour schedule date update reminder for CRM (${crmUser.name}) on project ${project.projectName}`);
+          }
+        }
+      } else if (isSiteVisitScheduled) {
+        await dismissScheduleDateRemindersForProject(project._id);
+      }
+    }
+  } catch (err: any) {
+    console.error('[Scheduler] Error checking schedule date reminders:', err);
+  }
+}
+
+/**
  * Initializes server-side scheduler (runs every morning at 09:00, with a periodic 15-minute check)
  */
 export function initScheduler(): void {
@@ -317,10 +433,14 @@ export function initScheduler(): void {
     }
   );
 
-  // Periodic heartbeat: Checks every 15 minutes for any manually triggered, scheduled, or newly un-postponed updates
+  // Periodic heartbeat: Checks every 15 minutes for any manually triggered, scheduled, or newly un-postponed updates, plus 3-hour CRM reminders
   cron.schedule('*/15 * * * *', async () => {
     await processDueWhatsAppUpdates();
+    await checkScheduleDateReminders();
   });
+
+  // Initial check on server start
+  checkScheduleDateReminders().catch((err) => console.error('[Scheduler] Initial checkScheduleDateReminders error:', err));
 
   console.log('[Scheduler] Daily 09:00 AM IST & 15-minute heartbeat scheduler active.');
 }

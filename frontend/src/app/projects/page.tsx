@@ -16,7 +16,7 @@ import {
   AlertCircle,
   X,
 } from 'lucide-react';
-import { api } from '../../lib/api';
+import { api, getStoredUser } from '../../lib/api';
 import { formatProjectStatus, STAGES_ORDER } from '../../components/Timeline';
 
 export default function ProjectsPage() {
@@ -26,6 +26,19 @@ export default function ProjectsPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [paymentFilter, setPaymentFilter] = useState('');
+
+  // User role
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    const u = getStoredUser();
+    setCurrentUser(u);
+    api.getCurrentUser().then(res => {
+      if (res?.user) setCurrentUser(res.user);
+    }).catch(() => {});
+  }, []);
+
+  const isCrm = currentUser?.role === 'CRM';
 
   // Add Project Modal State
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -102,6 +115,8 @@ export default function ProjectsPage() {
 
       await api.createProject({ 
         ...newProject, 
+        dispatchMaterialsPercent: isCrm ? '0' : newProject.dispatchMaterialsPercent,
+        afterInstallationPercent: isCrm ? '0' : newProject.afterInstallationPercent,
         liftAmount: computedLiftAmount,
         shaftAmount: computedShaftAmount,
         orderValue: computedOrderValue 
@@ -549,7 +564,7 @@ export default function ProjectsPage() {
               {/* Payment Schedule */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                 <h4 className="text-[11px] font-bold text-slate-700 mb-3 uppercase tracking-wider">Payment Schedule (%)</h4>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <div className={`grid gap-3 ${isCrm ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-2 md:grid-cols-5'}`}>
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 mb-1 truncate" title="Booking Advance">
                       Advance: *
@@ -586,30 +601,34 @@ export default function ProjectsPage() {
                       className="w-full p-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:outline-none"
                     />
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-1 truncate" title="Dispatch Materials">
-                      Dispatch: *
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      value={newProject.dispatchMaterialsPercent}
-                      onChange={(e) => setNewProject({ ...newProject, dispatchMaterialsPercent: e.target.value })}
-                      className="w-full p-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-1 truncate" title="After Installation">
-                      Installation: *
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      value={newProject.afterInstallationPercent}
-                      onChange={(e) => setNewProject({ ...newProject, afterInstallationPercent: e.target.value })}
-                      className="w-full p-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:outline-none"
-                    />
-                  </div>
+                  {!isCrm && (
+                    <>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 mb-1 truncate" title="Dispatch Materials">
+                          Dispatch: *
+                        </label>
+                        <input
+                          type="number"
+                          required
+                          value={newProject.dispatchMaterialsPercent}
+                          onChange={(e) => setNewProject({ ...newProject, dispatchMaterialsPercent: e.target.value })}
+                          className="w-full p-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 mb-1 truncate" title="After Installation">
+                          Installation: *
+                        </label>
+                        <input
+                          type="number"
+                          required
+                          value={newProject.afterInstallationPercent}
+                          onChange={(e) => setNewProject({ ...newProject, afterInstallationPercent: e.target.value })}
+                          className="w-full p-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 

@@ -10,7 +10,11 @@ import {
 } from '../models';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { logProjectActivity } from '../services/activity/activityService';
-import { calculateNextUpdateDate } from '../services/scheduler/schedulerService';
+import {
+  calculateNextUpdateDate,
+  triggerAdvancePaymentReminderForCRM,
+  dismissScheduleDateRemindersForProject,
+} from '../services/scheduler/schedulerService';
 import multer from 'multer';
 import path from 'path';
 
@@ -254,11 +258,31 @@ projectRouter.get('/:id', async (req: AuthRequest, res: Response) => {
  */
 projectRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthRequest, res: Response) => {
   try {
-    const updated = await Project.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!updated) {
+    const project = await Project.findById(req.params.id);
+    if (!project) {
       return res.status(404).json({ success: false, message: 'Project not found' });
     }
-    return res.json({ success: true, data: updated });
+
+    Object.assign(project, req.body);
+
+    // If orderValue or schedule percentages are modified, recalculate financials
+    const orderVal = Number(project.orderValue) || 0;
+    const advPct = Number(project.advancePercentage) || 0;
+    project.advanceAmount = Math.round((orderVal * advPct) / 100);
+    project.balanceAmount = Math.max(0, orderVal - (project.totalPaid || 0));
+
+    if (project.totalPaid >= orderVal && orderVal > 0) {
+      project.paymentStatus = 'FULLY_PAID';
+    } else if (project.totalPaid >= project.advanceAmount && project.advanceAmount > 0) {
+      project.paymentStatus = 'ADVANCE_PAID';
+    } else if (project.totalPaid > 0) {
+      project.paymentStatus = 'PARTIAL_PAID';
+    } else {
+      project.paymentStatus = 'PENDING';
+    }
+
+    await project.save();
+    return res.json({ success: true, data: project });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -347,6 +371,12 @@ projectRouter.patch('/:id/stage-dates', authorize('ADMIN', 'CRM', 'MANAGER', 'BD
     project.stageDates.set(stageKey, currentDates);
     await project.save();
 
+    if (stageKey === 'PAYMENT_RECEIVED' && executedDate) {
+      await triggerAdvancePaymentReminderForCRM(project._id);
+    } else if (stageKey === 'SITE_MEASUREMENT' && scheduleDate) {
+      await dismissScheduleDateRemindersForProject(project._id);
+    }
+
     return res.json({ success: true, data: project });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
@@ -396,6 +426,16 @@ projectRouter.patch('/:id/stage-dates-bulk', authorize('ADMIN', 'CRM', 'MANAGER'
     }
     
     await project.save();
+
+    const hasPaymentExecuted = updates.some((u: any) => u.stageKey === 'PAYMENT_RECEIVED' && u.executedDate);
+    const hasSiteVisitScheduled = updates.some((u: any) => u.stageKey === 'SITE_MEASUREMENT' && u.scheduleDate);
+
+    if (hasPaymentExecuted) {
+      await triggerAdvancePaymentReminderForCRM(project._id);
+    }
+    if (hasSiteVisitScheduled) {
+      await dismissScheduleDateRemindersForProject(project._id);
+    }
 
     return res.json({ success: true, data: project });
   } catch (err: any) {

@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { IndianRupee, CreditCard, CheckCircle2, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { api } from '../lib/api';
+import { api, getStoredUser } from '../lib/api';
 
 interface RecordPaymentModalProps {
   isOpen: boolean;
@@ -61,12 +61,19 @@ export default function RecordPaymentModal({
     }
   };
 
+  const currentUser = getStoredUser();
+  const isCrm = currentUser?.role === 'CRM';
+
   const stages = [
     { name: 'Advance', percent: project.advancePercentage || 0 },
     { name: 'Production', percent: project.productionPaymentPercent || 0 },
     { name: 'Readiness', percent: project.readinessNotificationPercent || 0 },
-    { name: 'Dispatch', percent: project.dispatchMaterialsPercent || 0 },
-    { name: 'Installation', percent: project.afterInstallationPercent || 0 },
+    ...((Number(project.dispatchMaterialsPercent) > 0 || !isCrm) ? [
+      { name: 'Dispatch', percent: project.dispatchMaterialsPercent || 0 },
+    ] : []),
+    ...((Number(project.afterInstallationPercent) > 0 || !isCrm) ? [
+      { name: 'Installation', percent: project.afterInstallationPercent || 0 },
+    ] : []),
   ];
 
   let remainingPaid = project.totalPaid || 0;
@@ -185,8 +192,12 @@ export default function RecordPaymentModal({
                 <option value="Booking Advance">Booking Advance</option>
                 <option value="Production Payment">Production Payment</option>
                 <option value="Rediness Notification">Rediness Notification</option>
-                <option value="Dispatch Materials">Dispatch Materials</option>
-                <option value="After Installation">After Installation</option>
+                {(Number(project.dispatchMaterialsPercent) > 0 || !isCrm) && (
+                  <option value="Dispatch Materials">Dispatch Materials</option>
+                )}
+                {(Number(project.afterInstallationPercent) > 0 || !isCrm) && (
+                  <option value="After Installation">After Installation</option>
+                )}
               </select>
             </div>
 

@@ -22,6 +22,8 @@ import {
   ChevronLeft,
   Link2,
   Bell,
+  Edit2,
+  Trash2,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { api, getStoredUser } from '../../../lib/api';
@@ -29,6 +31,8 @@ import Timeline, { formatProjectStatus, STAGES_ORDER } from '../../../components
 import SendUpdateModal from '../../../components/SendUpdateModal';
 import PostponeModal from '../../../components/PostponeModal';
 import RecordPaymentModal from '../../../components/RecordPaymentModal';
+import EditPaymentModal from '../../../components/EditPaymentModal';
+import EditScheduleModal from '../../../components/EditScheduleModal';
 
 export default function ProjectDetailPage() {
   const params = useParams();
@@ -39,11 +43,15 @@ export default function ProjectDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
+  const isCrm = user?.role === 'CRM';
 
   // Modals
   const [isSendModalOpen, setIsSendModalOpen] = useState(false);
   const [isPostponeModalOpen, setIsPostponeModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isEditPaymentModalOpen, setIsEditPaymentModalOpen] = useState(false);
+  const [selectedPaymentToEdit, setSelectedPaymentToEdit] = useState<any>(null);
+  const [isEditScheduleModalOpen, setIsEditScheduleModalOpen] = useState(false);
 
   // Quick reply input
   const [replyText, setReplyText] = useState('');
@@ -87,7 +95,11 @@ export default function ProjectDetailPage() {
   };
 
   useEffect(() => {
-    setUser(getStoredUser());
+    const stored = getStoredUser();
+    setUser(stored);
+    api.getCurrentUser().then(res => {
+      if (res?.user) setUser(res.user);
+    }).catch(() => {});
     if (projectId) {
       fetchProject();
     }
@@ -667,27 +679,81 @@ export default function ProjectDetailPage() {
 
       {/* SECTION 7: PAYMENT MANAGEMENT & PROGRESS */}
       <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-200 shadow-sm space-y-6">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-sky-600 text-white flex items-center justify-center">
+            <div className="w-10 h-10 rounded-2xl bg-sky-600 text-white flex items-center justify-center shadow-sm">
               <IndianRupee className="w-5 h-5" />
             </div>
             <div>
               <h3 className="text-base font-extrabold text-slate-900">Payment Schedule & Collection</h3>
-              <p className="text-xs text-slate-500">30% advance confirmation + milestone tracking</p>
+              <p className="text-xs text-slate-500">Milestone allocation, schedule configuration & collection entries</p>
             </div>
           </div>
-          <button
-            onClick={() => setIsPaymentModalOpen(true)}
-            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
-          >
-            <IndianRupee className="w-3.5 h-3.5" />
-            <span>Record Payment</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {!isCrm && (
+              <button
+                onClick={() => setIsEditScheduleModalOpen(true)}
+                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border border-slate-200"
+              >
+                <Calendar className="w-3.5 h-3.5 text-slate-600" />
+                <span>Edit Schedule</span>
+              </button>
+            )}
+            <button
+              onClick={() => setIsPaymentModalOpen(true)}
+              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 active:scale-95"
+            >
+              <IndianRupee className="w-3.5 h-3.5" />
+              <span>Record Payment</span>
+            </button>
+          </div>
         </div>
 
+        {/* Milestone Schedule Cards */}
+        {(() => {
+          const milestones = [
+            { label: 'Booking Advance', pct: project.advancePercentage || 30 },
+            { label: 'Production', pct: project.productionPaymentPercent || 0 },
+            { label: 'Readiness', pct: project.readinessNotificationPercent || 0 },
+            ...((Number(project.dispatchMaterialsPercent) > 0 || !isCrm) ? [
+              { label: 'Dispatch', pct: project.dispatchMaterialsPercent || 0 },
+            ] : []),
+            ...((Number(project.afterInstallationPercent) > 0 || !isCrm) ? [
+              { label: 'Installation', pct: project.afterInstallationPercent || 0 },
+            ] : []),
+          ];
+
+          const gridColsClass =
+            milestones.length >= 5
+              ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
+              : milestones.length === 4
+              ? 'grid-cols-2 sm:grid-cols-4'
+              : 'grid-cols-1 sm:grid-cols-3';
+
+          return (
+            <div className={`grid gap-3 ${gridColsClass}`}>
+              {milestones.map((m, idx) => {
+                const milestoneAmt = Math.round(((project.orderValue || 0) * m.pct) / 100);
+                return (
+                  <div key={idx} className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-3 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">{m.label}</span>
+                        <span className="text-[11px] font-extrabold text-slate-700 bg-white px-1.5 py-0.5 rounded-md border border-slate-200/60">{m.pct}%</span>
+                      </div>
+                      <div className="text-xs font-bold text-slate-900">
+                        ₹{milestoneAmt.toLocaleString('en-IN')}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
+
         {/* Visual Payment Progress Bar */}
-        <div className="space-y-2">
+        <div className="space-y-2 pt-1">
           <div className="flex justify-between text-xs font-semibold">
             <span className="text-slate-600">Total Collected: ₹{project.totalPaid?.toLocaleString('en-IN')}</span>
             <span className="text-rose-600">Remaining Balance: ₹{project.balanceAmount?.toLocaleString('en-IN')}</span>
@@ -711,25 +777,64 @@ export default function ProjectDetailPage() {
                 <th className="pb-2.5 font-bold">Reference</th>
                 <th className="pb-2.5 font-bold">Amount Paid</th>
                 <th className="pb-2.5 font-bold">Status</th>
+                <th className="pb-2.5 font-bold text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {payments.map((p: any) => (
-                <tr key={p._id} className="text-slate-700">
-                  <td className="py-3 font-medium">
-                    {new Date(p.paymentDate).toLocaleDateString('en-GB')}
-                  </td>
-                  <td className="py-3 font-semibold text-slate-900">{p.paymentType}</td>
-                  <td className="py-3">{p.paymentMethod}</td>
-                  <td className="py-3 font-mono text-[11px] text-slate-500">{p.transactionReference}</td>
-                  <td className="py-3 font-bold text-emerald-700">₹{p.amountPaid?.toLocaleString('en-IN')}</td>
-                  <td className="py-3">
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      {p.paymentStatus}
-                    </span>
+              {payments.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-6 text-center text-slate-400">
+                    No payment records found. Click &quot;Record Payment&quot; to add one.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                payments.map((p: any) => (
+                  <tr key={p._id} className="text-slate-700 hover:bg-slate-50/50 transition-colors">
+                    <td className="py-3 font-medium">
+                      {new Date(p.paymentDate).toLocaleDateString('en-GB')}
+                    </td>
+                    <td className="py-3 font-semibold text-slate-900">{p.paymentType}</td>
+                    <td className="py-3">{p.paymentMethod}</td>
+                    <td className="py-3 font-mono text-[11px] text-slate-500">{p.transactionReference}</td>
+                    <td className="py-3 font-bold text-emerald-700">₹{p.amountPaid?.toLocaleString('en-IN')}</td>
+                    <td className="py-3">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                        p.paymentStatus === 'SUCCESS'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : p.paymentStatus === 'FAILED'
+                          ? 'bg-rose-50 text-rose-700 border-rose-200'
+                          : 'bg-amber-50 text-amber-700 border-amber-200'
+                      }`}>
+                        {p.paymentStatus}
+                      </span>
+                    </td>
+                    <td className="py-3 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {!isCrm && (
+                          <button
+                            onClick={() => {
+                              setSelectedPaymentToEdit(p);
+                              setIsEditPaymentModalOpen(true);
+                            }}
+                            className="px-2.5 py-1 bg-white hover:bg-amber-50 hover:text-amber-700 text-slate-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1 border border-slate-200 shadow-sm"
+                            title="Edit recorded amount and payment details"
+                          >
+                            <Edit2 className="w-3 h-3 text-amber-600" />
+                            <span>Edit</span>
+                          </button>
+                        )}
+                        <Link
+                          href={`/projects/${projectId}/invoice/${p._id}`}
+                          className="p-1 hover:bg-sky-50 hover:text-sky-600 text-slate-400 rounded-lg transition-colors border border-transparent hover:border-sky-200"
+                          title="View Receipt"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -764,13 +869,28 @@ export default function ProjectDetailPage() {
                   <p className="text-[11px] text-slate-500 mt-1 font-mono">Ref: {p.transactionReference}</p>
                   <p className="text-[11px] text-slate-500 font-mono">Receipt: {p.receiptNumber || 'N/A'}</p>
                 </div>
-                <Link
-                  href={`/projects/${projectId}/invoice/${p._id}`}
-                  className="w-full py-2 bg-white border border-slate-300 hover:border-sky-500 hover:text-sky-600 rounded-xl text-xs font-bold text-slate-700 transition-colors flex items-center justify-center gap-2 shadow-sm"
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>View Receipt</span>
-                </Link>
+                <div className="flex items-center gap-2">
+                  {!isCrm && (
+                    <button
+                      onClick={() => {
+                        setSelectedPaymentToEdit(p);
+                        setIsEditPaymentModalOpen(true);
+                      }}
+                      className="py-2 px-3 bg-white border border-slate-300 hover:border-amber-500 hover:text-amber-600 rounded-xl text-xs font-bold text-slate-700 transition-colors flex items-center justify-center gap-1 shadow-sm"
+                      title="Edit payment amount"
+                    >
+                      <Edit2 className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Edit</span>
+                    </button>
+                  )}
+                  <Link
+                    href={`/projects/${projectId}/invoice/${p._id}`}
+                    className="flex-1 py-2 bg-white border border-slate-300 hover:border-sky-500 hover:text-sky-600 rounded-xl text-xs font-bold text-slate-700 transition-colors flex items-center justify-center gap-2 shadow-sm"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>View Receipt</span>
+                  </Link>
+                </div>
               </div>
             ))}
           </div>
@@ -860,6 +980,32 @@ export default function ProjectDetailPage() {
           onClose={() => setIsPaymentModalOpen(false)}
           project={project}
           onSuccess={(paymentData) => {
+            fetchProject();
+          }}
+        />
+      )}
+
+      {isEditPaymentModalOpen && selectedPaymentToEdit && (
+        <EditPaymentModal
+          isOpen={isEditPaymentModalOpen}
+          onClose={() => {
+            setIsEditPaymentModalOpen(false);
+            setSelectedPaymentToEdit(null);
+          }}
+          payment={selectedPaymentToEdit}
+          project={project}
+          onSuccess={() => {
+            fetchProject();
+          }}
+        />
+      )}
+
+      {isEditScheduleModalOpen && (
+        <EditScheduleModal
+          isOpen={isEditScheduleModalOpen}
+          onClose={() => setIsEditScheduleModalOpen(false)}
+          project={project}
+          onSuccess={() => {
             fetchProject();
           }}
         />

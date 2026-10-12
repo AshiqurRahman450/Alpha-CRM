@@ -64,8 +64,10 @@ export default function Timeline({
     
     await onDateChange(key, type, val);
 
-    if (key === 'PAYMENT_RECEIVED' && type === 'executedDate' && val) {
-      const baseDate = new Date(val);
+    // If user sets scheduleDate manually at Site Visit (SITE_MEASUREMENT),
+    // automatically calculate and fix all balance milestone schedule dates from Site Visit.
+    if (key === 'SITE_MEASUREMENT' && type === 'scheduleDate' && val) {
+      const siteVisitDate = new Date(val);
       
       const addDays = (d: Date, days: number) => {
         const r = new Date(d);
@@ -79,11 +81,7 @@ export default function Timeline({
         return r.toISOString().split('T')[0];
       };
 
-      const isChennai = customerCity?.toLowerCase().includes('chennai');
-      const siteVisitDays = isChennai ? 2 : 4;
-
-      const d1_siteVisit = addDays(baseDate, siteVisitDays);
-      const d2_design = addDays(new Date(d1_siteVisit), 4);
+      const d2_design = addDays(siteVisitDate, 4);
       const d3_approval = addDays(new Date(d2_design), 4);
       const d4_production = addDays(new Date(d3_approval), 3);
       const d5_factory = addDays(new Date(d4_production), 1);
@@ -94,7 +92,6 @@ export default function Timeline({
       const d10_handover = addMonths(new Date(d9_install), 1);
 
       const updates = [
-        { key: 'SITE_MEASUREMENT', val: d1_siteVisit },
         { key: 'DESIGN', val: d2_design },
         { key: 'CUSTOMER_APPROVAL', val: d3_approval },
         { key: 'ENGINEERING', val: d4_production },

@@ -33,7 +33,6 @@ export default function CustomerDetailPage() {
   const [uploadingDoc, setUploadingDoc] = useState(false);
 
   const [bdms, setBdms] = useState<any[]>([]);
-  const [assigning, setAssigning] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   const fetchCustomer = async () => {
@@ -53,20 +52,6 @@ export default function CustomerDetailPage() {
       setError(err.message || 'Failed to load customer');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleAssignBDM = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-    if (!data?.customer) return;
-    const bdmId = e.target.value === '' ? null : e.target.value;
-    try {
-      setAssigning(true);
-      await api.assignBDM(data.customer._id, bdmId);
-      fetchCustomer();
-    } catch (err: any) {
-      alert(`Error assigning BDM: ${err.message}`);
-    } finally {
-      setAssigning(false);
     }
   };
 
@@ -198,7 +183,9 @@ export default function CustomerDetailPage() {
               <Mail className="w-3.5 h-3.5 text-slate-400" /> Email & Representative
             </span>
             <div className="font-bold text-slate-800 truncate">{customer.email || 'None registered'}</div>
-            <div className="text-[11px] text-slate-500">Assigned: {customer.assignedEmployee || 'Unassigned'}</div>
+            <div className="text-[11px] text-slate-500">
+              Assigned BDM: <span className="font-semibold text-slate-800">{customer.bdmId?.name || (typeof customer.bdmId === 'string' && bdms.find(b => b._id === customer.bdmId)?.name) || customer.assignedEmployee || 'Unassigned'}</span>
+            </div>
           </div>
 
           <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1">
@@ -209,29 +196,6 @@ export default function CustomerDetailPage() {
             <div className="text-[11px] text-slate-500">{customer.city}, {customer.state} {customer.pincode}</div>
           </div>
         </div>
-
-        {/* BDM Assignment (Admin/CRM only) */}
-        {currentUser?.role !== 'BDM' && (
-          <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
-            <div>
-              <div className="text-xs font-bold text-slate-800">Assigned BDM</div>
-              <div className="text-[11px] text-slate-500">
-                Select the Business Development Manager responsible for this customer and their projects.
-              </div>
-            </div>
-            <select
-              value={customer.bdmId || ''}
-              onChange={handleAssignBDM}
-              disabled={assigning}
-              className="text-xs font-medium border border-slate-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-sky-500 outline-none"
-            >
-              <option value="">-- Unassigned --</option>
-              {bdms.map(bdm => (
-                <option key={bdm._id} value={bdm._id}>{bdm.name}</option>
-              ))}
-            </select>
-          </div>
-        )}
       </div>
 
       {/* Documents Section */}

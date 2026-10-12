@@ -168,6 +168,10 @@ export const api = {
     fetchWithAuth(`/api/payments/${id}`),
   recordPayment: (data: any) =>
     fetchWithAuth('/api/payments', { method: 'POST', body: JSON.stringify(data) }),
+  updatePayment: (id: string, data: any) =>
+    fetchWithAuth(`/api/payments/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deletePayment: (id: string) =>
+    fetchWithAuth(`/api/payments/${id}`, { method: 'DELETE' }),
 
   // WhatsApp Controls
   getChannels: () => fetchWithAuth('/api/whatsapp/channels'),

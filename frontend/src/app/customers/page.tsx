@@ -23,6 +23,10 @@ export default function CustomersPage() {
   const [search, setSearch] = useState('');
   const [optInFilter, setOptInFilter] = useState('');
 
+  // BDM assignment support
+  const [bdms, setBdms] = useState<any[]>([]);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
   // Add Customer modal
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newCust, setNewCust] = useState({
@@ -39,6 +43,7 @@ export default function CustomersPage() {
     pincode: '',
     customerType: 'Residential',
     leadSource: 'Architect Referral',
+    bdmId: '',
     whatsappOptIn: true,
     notes: '',
   });
@@ -58,6 +63,22 @@ export default function CustomersPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const fetchInit = async () => {
+      try {
+        const userRes = await api.getCurrentUser();
+        setCurrentUser(userRes?.user);
+        if (userRes?.user?.role !== 'BDM') {
+          const bdmRes = await api.getBDMs();
+          setBdms(bdmRes.data || []);
+        }
+      } catch (err) {
+        console.error('Failed to load user or BDMs', err);
+      }
+    };
+    fetchInit();
+  }, []);
 
   useEffect(() => {
     fetchCustomers();
@@ -83,6 +104,7 @@ export default function CustomersPage() {
       await api.createCustomer({
         ...newCust,
         address: combinedAddress || newCust.address,
+        bdmId: newCust.bdmId || undefined,
       });
       setIsAddOpen(false);
       setNewCust({
@@ -99,6 +121,7 @@ export default function CustomersPage() {
         pincode: '',
         customerType: 'Residential',
         leadSource: 'Architect Referral',
+        bdmId: '',
         whatsappOptIn: true,
         notes: '',
       });
@@ -196,7 +219,14 @@ export default function CustomersPage() {
                       <Link href={`/customers/${c._id}`} className="font-extrabold text-slate-900 hover:text-sky-600 block">
                         {c.fullName}
                       </Link>
-                      <span className="text-[10px] text-slate-400">{c.email || 'No email'}</span>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-[10px] text-slate-400">{c.email || 'No email'}</span>
+                        {c.bdmId && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 rounded-md">
+                            BDM: {c.bdmId.name || 'Assigned'}
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     <td className="py-4 px-4">
@@ -313,17 +343,46 @@ export default function CustomersPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Email Address:
-                </label>
-                <input
-                  type="email"
-                  value={newCust.email}
-                  onChange={(e) => setNewCust({ ...newCust, email: e.target.value })}
-                  placeholder="kumar@example.com"
-                  className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Email Address:
+                  </label>
+                  <input
+                    type="email"
+                    value={newCust.email}
+                    onChange={(e) => setNewCust({ ...newCust, email: e.target.value })}
+                    placeholder="kumar@example.com"
+                    className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Assigned BDM:
+                  </label>
+                  {currentUser?.role === 'BDM' ? (
+                    <input
+                      type="text"
+                      disabled
+                      value={`${currentUser?.name || 'Current User'} (You)`}
+                      className="w-full p-2.5 text-xs border border-slate-200 bg-slate-100 rounded-xl text-slate-600 font-medium cursor-not-allowed"
+                    />
+                  ) : (
+                    <select
+                      value={newCust.bdmId}
+                      onChange={(e) => setNewCust({ ...newCust, bdmId: e.target.value })}
+                      className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none bg-white font-medium"
+                    >
+                      <option value="">-- Unassigned --</option>
+                      {bdms.map((b) => (
+                        <option key={b._id} value={b._id}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
               </div>
 
               {/* Site / Residence Address */}

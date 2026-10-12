@@ -153,3 +153,141 @@ paymentRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthRe
     return res.status(500).json({ success: false, message: err.message });
   }
 });
+
+/**
+ * PUT /api/payments/:id
+ */
+paymentRouter.put('/:id', authorize('ADMIN', 'MANAGER'), async (req: AuthRequest, res: Response) => {
+  try {
+    const {
+      amountPaid,
+      paymentMethod,
+      transactionReference,
+      paymentType,
+      receiptNumber,
+      paymentDate,
+      paymentStatus,
+      notes,
+    } = req.body;
+
+    const payment = await Payment.findById(req.params.id);
+    if (!payment) {
+      return res.status(404).json({ success: false, message: 'Payment not found' });
+    }
+
+    const project = await Project.findById(payment.projectId);
+    if (!project) {
+      return res.status(404).json({ success: false, message: 'Associated project not found' });
+    }
+
+    // Update payment fields
+    if (amountPaid !== undefined) payment.amountPaid = Number(amountPaid);
+    if (paymentMethod !== undefined) payment.paymentMethod = paymentMethod;
+    if (transactionReference !== undefined) payment.transactionReference = transactionReference.trim();
+    if (paymentType !== undefined) payment.paymentType = paymentType;
+    if (receiptNumber !== undefined) payment.receiptNumber = receiptNumber.trim();
+    if (paymentDate !== undefined) payment.paymentDate = new Date(paymentDate);
+    if (paymentStatus !== undefined) payment.paymentStatus = paymentStatus;
+    if (notes !== undefined) payment.notes = notes;
+
+    await payment.save();
+
+    // Recalculate project payments based on all SUCCESS payments
+    const allSuccessfulPayments = await Payment.find({
+      projectId: project._id,
+      paymentStatus: 'SUCCESS',
+    });
+
+    const newTotalPaid = allSuccessfulPayments.reduce((acc, p) => acc + (p.amountPaid || 0), 0);
+    const newBalance = Math.max(0, project.orderValue - newTotalPaid);
+
+    let newPaymentStatus: any = 'PARTIAL_PAID';
+    if (newTotalPaid >= project.orderValue) {
+      newPaymentStatus = 'FULLY_PAID';
+    } else if (newTotalPaid >= project.advanceAmount) {
+      newPaymentStatus = 'ADVANCE_PAID';
+    } else if (newTotalPaid === 0) {
+      newPaymentStatus = 'PENDING';
+    }
+
+    project.totalPaid = newTotalPaid;
+    project.balanceAmount = newBalance;
+    project.paymentStatus = newPaymentStatus;
+    await project.save();
+
+    payment.balanceAmount = newBalance;
+    await payment.save();
+
+    // Log Activity
+    await logProjectActivity({
+      projectId: project._id,
+      projectCode: project.projectId,
+      type: 'PAYMENT',
+      description: `Payment record updated: ₹${payment.amountPaid?.toLocaleString('en-IN')} (${payment.paymentType}, Ref: ${payment.transactionReference}). Total paid: ₹${newTotalPaid.toLocaleString('en-IN')}, Remaining balance: ₹${newBalance.toLocaleString('en-IN')}`,
+      userId: req.user?._id,
+      userName: req.user?.name,
+      metadata: { amount: payment.amountPaid, balance: newBalance, reference: payment.transactionReference },
+    });
+
+    return res.json({ success: true, data: payment, project });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * DELETE /api/payments/:id
+ */
+paymentRouter.delete('/:id', authorize('ADMIN', 'MANAGER'), async (req: AuthRequest, res: Response) => {
+  try {
+    const payment = await Payment.findById(req.params.id);
+    if (!payment) {
+      return res.status(404).json({ success: false, message: 'Payment not found' });
+    }
+
+    const project = await Project.findById(payment.projectId);
+    const deletedAmount = payment.amountPaid;
+    const ref = payment.transactionReference;
+
+    await Payment.findByIdAndDelete(req.params.id);
+
+    if (project) {
+      const allSuccessfulPayments = await Payment.find({
+        projectId: project._id,
+        paymentStatus: 'SUCCESS',
+      });
+
+      const newTotalPaid = allSuccessfulPayments.reduce((acc, p) => acc + (p.amountPaid || 0), 0);
+      const newBalance = Math.max(0, project.orderValue - newTotalPaid);
+
+      let newPaymentStatus: any = 'PARTIAL_PAID';
+      if (newTotalPaid >= project.orderValue) {
+        newPaymentStatus = 'FULLY_PAID';
+      } else if (newTotalPaid >= project.advanceAmount) {
+        newPaymentStatus = 'ADVANCE_PAID';
+      } else if (newTotalPaid === 0) {
+        newPaymentStatus = 'PENDING';
+      }
+
+      project.totalPaid = newTotalPaid;
+      project.balanceAmount = newBalance;
+      project.paymentStatus = newPaymentStatus;
+      await project.save();
+
+      await logProjectActivity({
+        projectId: project._id,
+        projectCode: project.projectId,
+        type: 'PAYMENT',
+        description: `Payment record deleted: ₹${deletedAmount?.toLocaleString('en-IN')} (Ref: ${ref}). Total paid: ₹${newTotalPaid.toLocaleString('en-IN')}, Remaining balance: ₹${newBalance.toLocaleString('en-IN')}`,
+        userId: req.user?._id,
+        userName: req.user?.name,
+        metadata: { deletedAmount, balance: newBalance, reference: ref },
+      });
+    }
+
+    return res.json({ success: true, message: 'Payment deleted successfully', project });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
