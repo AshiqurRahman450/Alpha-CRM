@@ -52,7 +52,10 @@ const upload = multer({ storage });
  * Dispatches a 1-to-1 WhatsApp message to the assigned BDM
  * requesting Drawing and Cabin Design Approval.
  * Prioritizes connected WhatsApp Web Bot (zero 24-hour Meta limitation)
- * with graceful fallback to WATI.
+/**
+ * Helper: Automatically dispatch 1-to-1 WhatsApp notification to assigned BDM
+ * Primary: Dispatched directly via WhatsApp Web Bot (without WATI dependency).
+ * Fallback: Graceful fallback to WATI if Web Bot is disconnected.
  */
 async function sendBdmApprovalNotification(project: any, currentUserId?: any, currentUserName?: string, note?: string) {
   try {
@@ -98,49 +101,74 @@ async function sendBdmApprovalNotification(project: any, currentUserId?: any, cu
 
     let sentSuccess = false;
     let providerMessageId: string | undefined;
-    let usedProvider = 'WATI';
+    let usedProvider = 'WhatsApp Bot';
     let sendError: string | undefined;
 
-    console.log(`[BDMApproval] Dispatching 1-to-1 WhatsApp message to BDM ${bdmName} (+${bdmPhone}) via WATI`);
+    const botStatus = whatsAppWebBot.getStatus();
 
-    // 1. Send the WATI template message ('new_chat_v1' with 'Customer') to display:
-    // "Hi Customer, This is an auto-reply message. We have received your message and we have an update for you."
-    const tplRes = await watiService.sendTemplateMessage({
-      whatsappNumber: bdmPhone,
-      templateName: 'new_chat_v1',
-      broadcastName: 'BdmApprovalNotification',
-      parameters: [{ name: 'name', value: 'Customer' }],
-    });
+    // 1. Primary: Dispatch directly via WhatsApp Web Bot (Zero WATI dependency)
+    if (botStatus.isConnected) {
+      console.log(`[BDMApproval] Dispatching 1-to-1 WhatsApp message to BDM ${bdmName} (+${bdmPhone}) via WhatsApp Web Bot`);
+      const botRes = await whatsAppWebBot.sendDirectMessage(bdmPhone, bdmMessage);
+      if (botRes.success) {
+        sentSuccess = true;
+        providerMessageId = botRes.messageId;
+        usedProvider = 'WhatsApp Bot';
+        console.log(`[BDMApproval] 1-to-1 message sent directly to BDM (+${bdmPhone}) via WhatsApp Web Bot! ID: ${botRes.messageId}`);
 
-    if (tplRes.success) {
+        // If local drawing file exists, also send the actual drawing attachment directly to BDM!
+        if (project.drawingUrl) {
+          try {
+            const filename = path.basename(project.drawingUrl);
+            const candidatePath = path.resolve(__dirname, '../../uploads', filename);
+            if (fs.existsSync(candidatePath)) {
+              await whatsAppWebBot.sendDirectDocument(
+                bdmPhone,
+                candidatePath,
+                filename,
+                `📄 Drawing & Cabin Design Document for ${project.projectName}`
+              );
+              console.log(`[BDMApproval] Drawing attachment also sent directly to BDM (+${bdmPhone}) via WhatsApp Web Bot!`);
+            }
+          } catch (fileErr: any) {
+            console.warn('[BDMApproval] Notice sending drawing file to BDM via Web Bot:', fileErr.message);
+          }
+        }
+      } else {
+        sendError = botRes.error || 'Failed to dispatch via WhatsApp Web Bot';
+      }
+    } else if (config.wati.dryRun) {
       sentSuccess = true;
-      providerMessageId = tplRes.messageId;
-      console.log(`[BDMApproval] WATI template 'new_chat_v1' dispatched successfully to BDM (+${bdmPhone})`);
+      providerMessageId = `DRY_BDM_${Date.now()}`;
+      usedProvider = 'Dry-Run Bot';
+      console.log(`[BDMApproval] [Dry-Run] 1-to-1 message simulated to BDM ${bdmName} (+${bdmPhone})`);
     } else {
-      console.warn(`[BDMApproval] WATI template dispatch returned notice: ${tplRes.error}`);
-    }
-
-    // 2. Also dispatch the detailed Drawing and Cabin approval specifications via WATI text
-    const textRes = await watiService.sendGroupText({
-      groupId: `BDM_${project.projectId}`,
-      customerPhone: bdmPhone,
-      contactName: bdmName,
-      text: bdmMessage,
-      targetType: 'DIRECT',
-    });
-
-    if (textRes.success) {
-      sentSuccess = true;
-      providerMessageId = textRes.messageId || providerMessageId;
-      console.log(`[BDMApproval] WATI detailed text message also dispatched successfully to BDM (+${bdmPhone})`);
-    } else if (!sentSuccess) {
-      sendError = textRes.error || tplRes.error || 'Failed to dispatch 1-to-1 message via WATI';
+      // Graceful fallback to WATI if Web Bot is not connected
+      console.warn(`[BDMApproval] WhatsApp Web Bot not connected (${botStatus.status}). Attempting fallback to WATI...`);
+      try {
+        const textRes = await watiService.sendGroupText({
+          groupId: `BDM_${project.projectId}`,
+          customerPhone: bdmPhone,
+          contactName: bdmName,
+          text: bdmMessage,
+          targetType: 'DIRECT',
+        });
+        if (textRes.success) {
+          sentSuccess = true;
+          providerMessageId = textRes.messageId;
+          usedProvider = 'WATI (Fallback)';
+        } else {
+          sendError = textRes.error || 'WhatsApp Web Bot is not connected. Scan QR code in WhatsApp settings to enable 1-to-1 bot messaging.';
+        }
+      } catch (watiErr: any) {
+        sendError = 'WhatsApp Web Bot is not connected. Scan QR code in WhatsApp settings to enable 1-to-1 bot messaging.';
+      }
     }
 
     await WhatsAppMessageLog.create({
       projectId: project._id,
       groupId: `BDM_${bdmPhone}`,
-      messageText: `[WATI 1-to-1 Template]\nHi Customer, This is an auto-reply message.\nWe have received your message and we have an update for you.\n\n[Project Update Details]\n${bdmMessage}`,
+      messageText: bdmMessage,
       messageType: 'text',
       scheduledAt: new Date(),
       attemptedAt: new Date(),
@@ -149,7 +177,7 @@ async function sendBdmApprovalNotification(project: any, currentUserId?: any, cu
       status: sentSuccess ? 'SENT' : 'FAILED',
       lastError: sendError,
       attemptCount: 1,
-      isDryRun: config.wati.dryRun,
+      isDryRun: !botStatus.isConnected && config.wati.dryRun,
     });
 
     if (sentSuccess) {
@@ -157,7 +185,7 @@ async function sendBdmApprovalNotification(project: any, currentUserId?: any, cu
         projectId: project._id,
         projectCode: project.projectId,
         type: 'WHATSAPP_SENT',
-        description: `1-to-1 WhatsApp approval request sent to BDM ${bdmName} (+${bdmPhone}) via WATI for Drawing and Cabin Design Approval.`,
+        description: `1-to-1 WhatsApp approval request sent to BDM ${bdmName} (+${bdmPhone}) via ${usedProvider} for Drawing and Cabin Design Approval.`,
         userId: currentUserId,
         userName: currentUserName,
       });
@@ -170,7 +198,7 @@ async function sendBdmApprovalNotification(project: any, currentUserId?: any, cu
       error: sendError,
     };
   } catch (err: any) {
-    console.error('[BDMApproval] Error sending 1-to-1 WATI message to BDM:', err.message);
+    console.error('[BDMApproval] Error sending 1-to-1 message to BDM:', err.message);
     return { success: false, error: err.message };
   }
 }

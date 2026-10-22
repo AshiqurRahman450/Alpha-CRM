@@ -497,7 +497,7 @@ export default function ProjectDetailPage() {
                 )}
               </p>
               <p className="text-[11px] text-amber-800/80 leading-relaxed">
-                A 1-to-1 WhatsApp notification is automatically sent via WATI to the BDM to review and obtain customer design approval.
+                A 1-to-1 WhatsApp notification is automatically sent via WhatsApp Web Bot to the BDM to review and obtain customer design approval.
               </p>
             </div>
           </div>
@@ -507,17 +507,17 @@ export default function ProjectDetailPage() {
               type="button"
               onClick={async () => {
                 try {
-                  toast.loading('Sending 1:1 WhatsApp approval request to BDM via WATI...', { id: 'bdm-notify-btn' });
+                  toast.loading('Sending 1:1 WhatsApp approval request to BDM via WhatsApp Bot...', { id: 'bdm-notify-btn' });
                   const res = await api.notifyBdmApproval(projectId);
-                  toast.success(res?.message || '1:1 WhatsApp approval request sent to BDM via WATI!', { id: 'bdm-notify-btn' });
+                  toast.success(res?.message || '1:1 WhatsApp approval request sent to BDM via WhatsApp Bot!', { id: 'bdm-notify-btn' });
                 } catch (err: any) {
-                  toast.error(err.message || 'Failed to dispatch BDM approval message via WATI', { id: 'bdm-notify-btn' });
+                  toast.error(err.message || 'Failed to dispatch BDM approval message via WhatsApp Bot', { id: 'bdm-notify-btn' });
                 }
               }}
-              className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-2"
+              className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-2 cursor-pointer"
             >
               <Send className="w-3.5 h-3.5" />
-              <span>Send BDM Approval Alert (1:1 WATI)</span>
+              <span>Send BDM Approval Alert (1:1 Bot)</span>
             </button>
           </div>
         </div>
