@@ -17,11 +17,17 @@ import {
   AlertTriangle,
   Play,
   RotateCcw,
+  Handshake,
+  IndianRupee,
+  Bell,
+  Lock,
 } from 'lucide-react';
 import { api, getStoredUser } from '../lib/api';
 import { formatProjectStatus } from '../components/Timeline';
 import SendUpdateModal from '../components/SendUpdateModal';
 import PostponeModal from '../components/PostponeModal';
+import RecordPaymentModal from '../components/RecordPaymentModal';
+import QCInspectionForm from '../components/QCInspectionForm';
 
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null);
@@ -33,6 +39,7 @@ export default function DashboardPage() {
   const [activeProject, setActiveProject] = useState<any>(null);
   const [isSendModalOpen, setIsSendModalOpen] = useState(false);
   const [isPostponeModalOpen, setIsPostponeModalOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
   const fetchDashboard = async () => {
     try {
@@ -48,8 +55,13 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    setUser(getStoredUser());
-    fetchDashboard();
+    const stored = getStoredUser();
+    setUser(stored);
+    if (stored?.role === 'QC') {
+      setLoading(false);
+    } else {
+      fetchDashboard();
+    }
   }, []);
 
   const handleOpenSend = (project: any) => {
@@ -61,6 +73,15 @@ export default function DashboardPage() {
     setActiveProject(project);
     setIsPostponeModalOpen(true);
   };
+
+  const handleOpenPayment = (project: any) => {
+    setActiveProject(project);
+    setIsPaymentModalOpen(true);
+  };
+
+  if (user?.role === 'QC') {
+    return <QCInspectionForm />;
+  }
 
   if (loading) {
     return (
@@ -141,6 +162,296 @@ export default function DashboardPage() {
             </div>
           </Link>
         </div>
+      ) : user?.role === 'ACCOUNTANT' ? (
+        <div className="space-y-6">
+          {/* Accountant Top Metric Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Card 1: CRM Payment Requests */}
+            <div className="bg-gradient-to-br from-amber-500 via-amber-600 to-orange-600 text-white p-6 rounded-3xl shadow-lg shadow-amber-950/10 border border-amber-400/40 relative overflow-hidden">
+              <div className="absolute right-3 top-3 opacity-15">
+                <Bell className="w-24 h-24" />
+              </div>
+              <div className="flex items-center justify-between text-amber-100 text-xs font-extrabold uppercase tracking-wider">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
+                  CRM Payment Requests
+                </span>
+                <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-sm text-white flex items-center justify-center">
+                  <Bell className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="text-4xl font-black text-white mt-3 font-poppins">
+                {cards.crmPaymentRequestsCount ?? 0}
+              </div>
+              <div className="text-xs text-amber-100 mt-1 font-medium">
+                Customer payments requested by CRM ready for recording
+              </div>
+              <div className="mt-4 pt-3 border-t border-white/20 flex items-center justify-between text-xs">
+                <span className="text-amber-100/90 font-medium">Eligible for Accountant:</span>
+                <span className="font-extrabold bg-white/20 text-white px-2 py-0.5 rounded-md text-[11px]">
+                  {cards.crmPaymentRequestsCount ?? 0} Customer{cards.crmPaymentRequestsCount === 1 ? '' : 's'}
+                </span>
+              </div>
+            </div>
+
+            {/* Card 2: Total Projects Pending Payment */}
+            <Link href="/projects" className="block">
+              <div className="bg-gradient-to-br from-slate-50 via-white to-slate-100/80 p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer h-full flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between text-slate-700 text-xs font-bold">
+                    <span>Projects with Outstanding Balance</span>
+                    <div className="w-8 h-8 rounded-xl bg-slate-200/80 text-slate-700 flex items-center justify-center">
+                      <IndianRupee className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="text-3xl font-black text-slate-900 mt-3 font-poppins">
+                    {cards.projectsAwaitingPayment ?? 0}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1 font-medium">
+                    Total projects with unsettled customer balance
+                  </div>
+                </div>
+                {cards.totalPendingBalance !== undefined && (
+                  <div className="mt-4 pt-3 border-t border-slate-200 flex items-center justify-between text-xs">
+                    <span className="text-slate-500 font-medium">Total Balance Amount:</span>
+                    <span className="font-extrabold text-slate-900 font-mono">
+                      ₹{Number(cards.totalPendingBalance).toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </Link>
+          </div>
+
+          {/* SECTION 1: CRM PAYMENT REQUESTS AWAITING RECORDING (PRIMARY ACCOUNTANT WORKFLOW) */}
+          <div className="bg-white rounded-3xl p-6 border-2 border-amber-300 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-sm">
+                  <Bell className="w-5 h-5 animate-bounce" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-extrabold text-slate-900">Payment Requests from CRM</h3>
+                    <span className="px-2 py-0.5 rounded-full text-xs font-black bg-amber-100 text-amber-800 border border-amber-300">
+                      {cards.crmPaymentRequestsCount ?? 0} Awaiting Recording
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Customers requested by CRM from Payment Schedule. You can record payment and dispatch receipts for these requests.
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/projects"
+                className="px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 rounded-xl text-xs font-bold transition-all border border-amber-200 shrink-0 text-center"
+              >
+                View Projects
+              </Link>
+            </div>
+
+            {(!data?.crmPaymentRequests || data.crmPaymentRequests.length === 0) ? (
+              <div className="p-8 text-center bg-amber-50/40 rounded-2xl border border-dashed border-amber-200">
+                <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                <p className="text-xs font-bold text-slate-800">No Pending CRM Payment Requests</p>
+                <p className="text-[11px] text-slate-500 mt-1 max-w-md mx-auto">
+                  When CRM requests payment collection for a customer from their Payment Schedule & Collection section, it will appear here immediately for you to record and generate receipts.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-slate-400 uppercase text-[10px]">
+                      <th className="pb-2.5 font-bold">Customer & Project</th>
+                      <th className="pb-2.5 font-bold">Milestone / Stage</th>
+                      <th className="pb-2.5 font-bold">Requested Amount</th>
+                      <th className="pb-2.5 font-bold">Requested By</th>
+                      <th className="pb-2.5 font-bold">CRM Notes</th>
+                      <th className="pb-2.5 font-bold text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {data.crmPaymentRequests.map((proj: any) => (
+                      <tr key={proj._id} className="text-slate-700 hover:bg-amber-50/40 transition-colors">
+                        <td className="py-3">
+                          <span className="font-extrabold text-slate-900 block">{proj.customerName}</span>
+                          <span className="text-[11px] text-slate-600 block">{proj.projectName}</span>
+                          <span className="font-mono text-[10px] text-sky-600 font-bold">{proj.projectId}</span>
+                          {proj.customerPhone && (
+                            <span className="text-[10px] text-slate-400 block">{proj.customerPhone}</span>
+                          )}
+                        </td>
+                        <td className="py-3">
+                          <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-200 inline-block">
+                            {proj.paymentRequest?.paymentType || 'Milestone Payment'}
+                          </span>
+                        </td>
+                        <td className="py-3 font-extrabold text-amber-900 text-sm font-mono">
+                          ₹{(proj.paymentRequest?.requestedAmount || 0).toLocaleString('en-IN')}
+                        </td>
+                        <td className="py-3">
+                          <span className="font-bold text-slate-800 block">
+                            {proj.paymentRequest?.requestedBy || 'CRM'}
+                          </span>
+                          {proj.paymentRequest?.requestedAt && (
+                            <span className="text-[10px] text-slate-400">
+                              {new Date(proj.paymentRequest.requestedAt).toLocaleDateString('en-GB')}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 max-w-xs">
+                          {proj.paymentRequest?.notes ? (
+                            <span className="text-[11px] text-slate-600 italic bg-white px-2 py-1 rounded-md border border-slate-200 block truncate">
+                              &ldquo;{proj.paymentRequest.notes}&rdquo;
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 text-[11px]">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleOpenPayment(proj)}
+                              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold transition-all shadow-sm flex items-center gap-1 active:scale-95 ring-2 ring-emerald-400/20"
+                            >
+                              <IndianRupee className="w-3.5 h-3.5" />
+                              <span>Record Payment</span>
+                            </button>
+                            <Link
+                              href={`/projects/${proj._id}`}
+                              className="px-3 py-1.5 border border-slate-300 hover:border-slate-400 text-slate-700 rounded-xl text-xs font-bold transition-colors"
+                            >
+                              View
+                            </Link>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* SECTION 2: ALL PROJECTS WITH OUTSTANDING BALANCE */}
+          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-slate-800 text-white flex items-center justify-center shadow-sm">
+                  <IndianRupee className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">All Customers with Outstanding Balance</h3>
+                  <p className="text-xs text-slate-500">
+                    Payment recording is enabled only for customers with an active CRM payment collection request
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/projects"
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all"
+              >
+                View All Projects
+              </Link>
+            </div>
+
+            {(!data?.pendingPaymentProjects || data.pendingPaymentProjects.length === 0) ? (
+              <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                <p className="text-xs font-bold text-slate-700">All payments are fully settled!</p>
+                <p className="text-[11px] text-slate-400 mt-1">There are no projects with pending balance amounts.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-slate-400 uppercase text-[10px]">
+                      <th className="pb-2.5 font-bold">Project</th>
+                      <th className="pb-2.5 font-bold">Customer</th>
+                      <th className="pb-2.5 font-bold">Order Value</th>
+                      <th className="pb-2.5 font-bold">Advance Required</th>
+                      <th className="pb-2.5 font-bold">Total Paid</th>
+                      <th className="pb-2.5 font-bold">Balance</th>
+                      <th className="pb-2.5 font-bold">CRM Request</th>
+                      <th className="pb-2.5 font-bold text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {data.pendingPaymentProjects.map((proj: any) => {
+                      const isRequested = proj.paymentRequest?.status === 'REQUESTED';
+                      return (
+                        <tr key={proj._id} className="text-slate-700 hover:bg-slate-50/60 transition-colors">
+                          <td className="py-3">
+                            <span className="font-extrabold text-slate-900 block">{proj.projectName}</span>
+                            <span className="font-mono text-[10px] text-sky-600 font-bold">{proj.projectId}</span>
+                          </td>
+                          <td className="py-3">
+                            <span className="font-medium text-slate-800 block">{proj.customerName}</span>
+                            <span className="text-[10px] text-slate-400">{proj.customerPhone}</span>
+                          </td>
+                          <td className="py-3 font-semibold text-slate-800">
+                            ₹{proj.orderValue?.toLocaleString('en-IN')}
+                          </td>
+                          <td className="py-3 font-medium text-amber-700">
+                            ₹{(proj.advanceAmount || 0).toLocaleString('en-IN')}
+                          </td>
+                          <td className="py-3 font-bold text-emerald-600">
+                            ₹{(proj.totalPaid || 0).toLocaleString('en-IN')}
+                          </td>
+                          <td className="py-3 font-bold text-rose-600">
+                            ₹{(proj.balanceAmount || 0).toLocaleString('en-IN')}
+                          </td>
+                          <td className="py-3">
+                            {isRequested ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300 inline-flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                                Requested (₹{(proj.paymentRequest.requestedAmount || 0).toLocaleString('en-IN')})
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-500 inline-flex items-center gap-1">
+                                <Lock className="w-2.5 h-2.5" />
+                                Awaiting CRM
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              {isRequested ? (
+                                <button
+                                  onClick={() => handleOpenPayment(proj)}
+                                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1 active:scale-95"
+                                >
+                                  <IndianRupee className="w-3 h-3" />
+                                  <span>Record Payment</span>
+                                </button>
+                              ) : (
+                                <button
+                                  disabled
+                                  className="px-3 py-1.5 bg-slate-100 text-slate-400 rounded-lg text-xs font-bold transition-all border border-slate-200 flex items-center gap-1 cursor-not-allowed opacity-75"
+                                  title="Awaiting CRM collection request before payment can be recorded"
+                                >
+                                  <Lock className="w-3 h-3 text-slate-400" />
+                                  <span>Awaiting CRM</span>
+                                </button>
+                              )}
+                              <Link
+                                href={`/projects/${proj._id}`}
+                                className="px-3 py-1.5 border border-slate-300 hover:border-slate-400 text-slate-700 rounded-lg text-xs font-bold transition-colors"
+                              >
+                                View
+                              </Link>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
       ) : (
         <React.Fragment>
           {/* 9 Core Metric Cards */}
@@ -205,6 +516,16 @@ export default function DashboardPage() {
             <div className="text-[11px] text-slate-400 mt-1">Shaft rigging & testing</div>
           </div>
 
+          {/* Handover */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-slate-300 transition-all">
+            <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
+              <span>Handover</span>
+              <Handshake className="w-4 h-4 text-teal-600" />
+            </div>
+            <div className="text-2xl font-black text-teal-600 mt-2">{cards.handoverCount ?? 0}</div>
+            <div className="text-[11px] text-slate-400 mt-1">Final testing & client handover</div>
+          </div>
+
           {/* Updates Due Today */}
           <div className="bg-gradient-to-br from-emerald-50 to-teal-50/40 p-5 rounded-2xl border border-emerald-200 shadow-sm">
             <div className="flex items-center justify-between text-emerald-800 text-xs font-bold">
@@ -238,7 +559,9 @@ export default function DashboardPage() {
         </React.Fragment>
       )}
 
-      {/* TODAY'S ACTIONS SECTION (CRITICAL REQUIREMENT) */}
+      {/* TODAY'S ACTIONS SECTION (CRITICAL REQUIREMENT - Hidden for Accountant & BDM) */}
+      {user?.role !== 'ACCOUNTANT' && user?.role !== 'BDM' && (
+      <React.Fragment>
       <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-2.5">
@@ -436,6 +759,8 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+      </React.Fragment>
+      )}
 
       {/* Confirmation Modals */}
       {isSendModalOpen && activeProject && (
@@ -453,6 +778,20 @@ export default function DashboardPage() {
           onClose={() => setIsPostponeModalOpen(false)}
           project={activeProject}
           onSuccess={fetchDashboard}
+        />
+      )}
+
+      {isPaymentModalOpen && activeProject && (
+        <RecordPaymentModal
+          isOpen={isPaymentModalOpen}
+          onClose={() => {
+            setIsPaymentModalOpen(false);
+            setActiveProject(null);
+          }}
+          project={activeProject}
+          onSuccess={() => {
+            fetchDashboard();
+          }}
         />
       )}
     </div>

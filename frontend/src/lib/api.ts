@@ -130,11 +130,25 @@ export const api = {
     fetchWithAuth('/api/projects', { method: 'POST', body: JSON.stringify(data) }),
   updateProject: (id: string, data: any) =>
     fetchWithAuth(`/api/projects/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  updateProjectStatus: (id: string, status: string, notes?: string) =>
-    fetchWithAuth(`/api/projects/${id}/status`, {
+  updateProjectStatus: (
+    id: string,
+    status: string,
+    notes?: string,
+    trackingData?: { vrlLrNumber?: string; trackingNumber?: string } | string
+  ) => {
+    const payload: any = { status, notes };
+    if (typeof trackingData === 'string') {
+      payload.vrlLrNumber = trackingData;
+      payload.trackingNumber = trackingData;
+    } else if (trackingData) {
+      if (trackingData.vrlLrNumber) payload.vrlLrNumber = trackingData.vrlLrNumber;
+      if (trackingData.trackingNumber) payload.trackingNumber = trackingData.trackingNumber;
+    }
+    return fetchWithAuth(`/api/projects/${id}/status`, {
       method: 'PATCH',
-      body: JSON.stringify({ status, notes }),
-    }),
+      body: JSON.stringify(payload),
+    });
+  },
   updateProjectStageDates: (id: string, stageKey: string, scheduleDate?: string | null, executedDate?: string | null) =>
     fetchWithAuth(`/api/projects/${id}/stage-dates`, {
       method: 'PATCH',
@@ -144,6 +158,11 @@ export const api = {
     fetchWithAuth(`/api/projects/${id}/stage-dates-bulk`, {
       method: 'PATCH',
       body: JSON.stringify({ updates }),
+    }),
+  notifyBdmApproval: (id: string, note?: string) =>
+    fetchWithAuth(`/api/projects/${id}/notify-bdm`, {
+      method: 'POST',
+      body: JSON.stringify({ note }),
     }),
   uploadProjectDrawing: async (id: string, file: File) => {
     const token = getAuthToken();
@@ -160,6 +179,15 @@ export const api = {
   },
   addProjectNote: (id: string, note: string) =>
     fetchWithAuth(`/api/projects/${id}/notes`, { method: 'POST', body: JSON.stringify({ note }) }),
+  requestProjectPayment: (id: string, data: { requestedAmount?: number; paymentType?: string; notes?: string }) =>
+    fetchWithAuth(`/api/projects/${id}/request-payment`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  cancelProjectPaymentRequest: (id: string) =>
+    fetchWithAuth(`/api/projects/${id}/request-payment`, {
+      method: 'DELETE',
+    }),
 
   // Payments
   getPayments: (projectId?: string) =>
@@ -172,12 +200,50 @@ export const api = {
     fetchWithAuth(`/api/payments/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deletePayment: (id: string) =>
     fetchWithAuth(`/api/payments/${id}`, { method: 'DELETE' }),
+  sendPaymentReceiptToGroup: (id: string) =>
+    fetchWithAuth(`/api/payments/${id}/send-receipt`, { method: 'POST' }),
 
-  // WhatsApp Controls
+  // WhatsApp Controls & WATI Group Automation
   getChannels: () => fetchWithAuth('/api/whatsapp/channels'),
   linkWhatsAppGroup: (data: { projectId: string; whatsappGroupId: string; groupName?: string }) =>
     fetchWithAuth('/api/whatsapp/link', { method: 'POST', body: JSON.stringify(data) }),
-  sendWhatsAppUpdate: (data: { projectId: string; templateNameOverride?: string; customNote?: string }) =>
+  createWhatsAppGroup: (
+    projectId: string,
+    data: {
+      groupNameOverride?: string;
+      intervalDays?: number;
+      dryRun?: boolean;
+      existingGroupId?: string;
+      inviteLink?: string;
+      forceRelink?: boolean;
+    }
+  ) => fetchWithAuth(`/api/whatsapp/projects/${projectId}/group`, { method: 'POST', body: JSON.stringify(data) }),
+  unlinkWhatsAppGroup: (projectId: string) =>
+    fetchWithAuth(`/api/whatsapp/projects/${projectId}/group`, { method: 'DELETE' }),
+  getWhatsAppGroup: (projectId: string) =>
+    fetchWithAuth(`/api/whatsapp/projects/${projectId}/group`),
+  inviteWhatsAppContacts: (projectId: string) =>
+    fetchWithAuth(`/api/whatsapp/projects/${projectId}/group/invite`, { method: 'POST' }),
+  updateWhatsAppConfig: (projectId: string, data: { intervalDays?: number; updatesEnabled?: boolean }) =>
+    fetchWithAuth(`/api/whatsapp/projects/${projectId}/config`, { method: 'PATCH', body: JSON.stringify(data) }),
+  previewWhatsAppUpdate: (projectId: string, customNote?: string) =>
+    fetchWithAuth(`/api/whatsapp/projects/${projectId}/preview${customNote ? `?customNote=${encodeURIComponent(customNote)}` : ''}`),
+  sendTestWhatsAppMessage: (projectId: string, data: { customNote?: string; dryRun?: boolean; targetType?: 'GROUP' | 'DIRECT' }) =>
+    fetchWithAuth(`/api/whatsapp/projects/${projectId}/send-test`, { method: 'POST', body: JSON.stringify(data) }),
+  getWhatsAppProjectMessages: (projectId: string) =>
+    fetchWithAuth(`/api/whatsapp/projects/${projectId}/messages`),
+  getProjectParticipants: (projectId: string) =>
+    fetchWithAuth(`/api/whatsapp/projects/${projectId}/participants`),
+  addProjectParticipant: (projectId: string, data: { phoneNumber: string; name?: string; role?: string }) =>
+    fetchWithAuth(`/api/whatsapp/projects/${projectId}/participants`, { method: 'POST', body: JSON.stringify(data) }),
+  removeProjectParticipant: (projectId: string, phone: string) =>
+    fetchWithAuth(`/api/whatsapp/projects/${projectId}/participants/${encodeURIComponent(phone)}`, { method: 'DELETE' }),
+  retryWhatsAppMessage: (messageId: string) =>
+    fetchWithAuth(`/api/whatsapp/messages/${messageId}/retry`, { method: 'POST' }),
+  validateWatiConfig: () =>
+    fetchWithAuth('/api/whatsapp/config/validate'),
+
+  sendWhatsAppUpdate: (data: { projectId: string; templateNameOverride?: string; customNote?: string; variables?: Record<string, string> }) =>
     fetchWithAuth('/api/whatsapp/send', { method: 'POST', body: JSON.stringify(data) }),
   postponeWhatsAppUpdate: (data: { projectId: string; postponeDays: number; reason?: string }) =>
     fetchWithAuth('/api/whatsapp/postpone', { method: 'POST', body: JSON.stringify(data) }),
@@ -197,12 +263,21 @@ export const api = {
     return fetchWithAuth(`/api/whatsapp/messages?${q.toString()}`);
   },
 
+  // WhatsApp Web Bot
+  getWhatsAppBotStatus: () => fetchWithAuth('/api/whatsapp/bot/status'),
+  initWhatsAppBot: () => fetchWithAuth('/api/whatsapp/bot/initialize', { method: 'POST' }),
+  logoutWhatsAppBot: () => fetchWithAuth('/api/whatsapp/bot/logout', { method: 'POST' }),
+
   // Templates
   getTemplates: () => fetchWithAuth('/api/templates'),
   createTemplate: (data: any) =>
     fetchWithAuth('/api/templates', { method: 'POST', body: JSON.stringify(data) }),
+  updateTemplate: (id: string, data: any) =>
+    fetchWithAuth(`/api/templates/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   updateTemplateStatus: (id: string, status: string) =>
     fetchWithAuth(`/api/templates/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  syncTemplateStages: () =>
+    fetchWithAuth('/api/templates/sync-timeline-stages', { method: 'POST' }),
 
   // Reports
   getReports: () => fetchWithAuth('/api/reports'),
@@ -224,4 +299,61 @@ export const api = {
     fetchWithAuth('/api/reminders', { method: 'POST', body: JSON.stringify(data) }),
   dismissReminder: (id: string) =>
     fetchWithAuth(`/api/reminders/${id}/dismiss`, { method: 'PATCH' }),
+
+  // QC Pre-Production Site Inspection
+  generateQCPdf: async (data: any): Promise<Blob> => {
+    const token = getAuthToken();
+    const res = await fetch(`${API_BASE_URL}/api/qc/generate-pdf?download=true`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/pdf',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Failed to generate PDF');
+    }
+    return res.blob();
+  },
+  saveQCReport: (data: any) =>
+    fetchWithAuth('/api/qc/reports', { method: 'POST', body: JSON.stringify(data) }),
+  getQCReports: (params?: { search?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.search) q.append('search', params.search);
+    return fetchWithAuth(`/api/qc/reports?${q.toString()}`);
+  },
+  getQCReport: (id: string) => fetchWithAuth(`/api/qc/reports/${id}`),
+
+  // Installation Programme Stages
+  getInstallationStages: (projectId: string) =>
+    fetchWithAuth(`/api/projects/${projectId}/installation-stages`),
+  updateInstallationStage: (
+    projectId: string,
+    data: {
+      stageKey: string;
+      startDate?: string;
+      completeDate?: string;
+      status?: string;
+      reason?: 'HOLIDAY' | 'TECHNICAL_ISSUE' | 'COMPLETED' | null;
+      notes?: string;
+      sendWhatsApp?: boolean;
+    }
+  ) =>
+    fetchWithAuth(`/api/projects/${projectId}/installation-stages/update-stage`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  initializeInstallationStages: (
+    projectId: string,
+    data?: string | { installationStartDate?: string; stage1CompleteDate?: string; customStages?: any[] }
+  ) => {
+    const payload = typeof data === 'string' ? { installationStartDate: data } : data || {};
+    return fetchWithAuth(`/api/projects/${projectId}/installation-stages/initialize`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
 };

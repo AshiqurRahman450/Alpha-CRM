@@ -3,12 +3,14 @@ import { config } from '../config';
 import {
   WebhookEvent,
   WhatsAppMessage,
+  WhatsAppMessageLog,
   WhatsAppChannel,
   Project,
+  Customer,
   SystemSettings,
 } from '../models';
 import { logProjectActivity } from '../services/activity/activityService';
-import { whatsappService } from '../services/whatsapp';
+import { whatsappService, watiService } from '../services/whatsapp';
 
 export const webhookRouter = Router();
 
@@ -236,3 +238,158 @@ async function handleIncomingMessage(messageObj: any, contacts: any[] = []): Pro
     console.warn(`[Webhook:POST] Unlinked WhatsApp message received from ${senderPhone} (Group: ${groupId}). Content: "${messageContent}"`);
   }
 }
+
+/**
+ * GET /api/webhooks/wati
+ * WATI Webhook Health / Ping Verification
+ */
+webhookRouter.get('/wati', (req: Request, res: Response) => {
+  return res.status(200).json({ status: 'HEALTHY', provider: 'WATI' });
+});
+
+/**
+ * POST /api/webhooks/wati
+ * Ingest official WATI Delivery, Failure, and Inbound-Message Webhooks
+ */
+webhookRouter.post('/wati', async (req: Request, res: Response) => {
+  // Validate webhook authenticity if configured
+  if (!watiService.verifyWebhook(req)) {
+    console.warn('[WatiWebhook] Rejected webhook with invalid signature.');
+    return res.status(403).json({ error: 'Forbidden: Signature mismatch' });
+  }
+
+  // Acknowledge receipt to WATI immediately
+  res.status(200).json({ result: true, status: 'EVENT_RECEIVED' });
+
+  try {
+    const body = req.body;
+    if (!body) return;
+
+    const eventType = body.eventType || body.event || body.type;
+    const providerMsgId = body.whatsappMessageId || body.messageId || body.id;
+    const statusStr = (body.status || eventType || '').toUpperCase();
+    const eventId = `WATI_${providerMsgId || Date.now()}_${statusStr}`;
+
+    // Idempotency check via WebhookEvent collection
+    const existing = await WebhookEvent.findOne({ eventId });
+    if (existing) return;
+
+    await WebhookEvent.create({
+      eventId,
+      eventType: eventType || 'wati_event',
+      payload: body,
+      status: 'PROCESSED',
+    });
+
+    // 1. Process delivery / read / failure status updates
+    if (providerMsgId) {
+      const log = await WhatsAppMessageLog.findOne({
+        $or: [{ providerMessageId: providerMsgId }, { idempotencyKey: providerMsgId }],
+      });
+
+      if (log) {
+        if (statusStr.includes('DELIVER') || statusStr === 'DELIVERED') {
+          log.status = 'DELIVERED';
+        } else if (statusStr.includes('READ') || statusStr === 'READ') {
+          log.status = 'READ';
+        } else if (statusStr.includes('FAIL') || statusStr === 'FAILED') {
+          log.status = 'FAILED';
+          log.lastError = body.error || body.message || 'Delivery failed';
+        } else if (statusStr.includes('SENT') || statusStr === 'SENT') {
+          if (log.status === 'SCHEDULED' || log.status === 'SENDING') {
+            log.status = 'SENT';
+            log.sentAt = new Date();
+          }
+        }
+        await log.save();
+      }
+
+      // Also update legacy WhatsAppMessage
+      const msg = await WhatsAppMessage.findOne({
+        $or: [{ metaMessageId: providerMsgId }, { idempotencyKey: providerMsgId }],
+      });
+      if (msg) {
+        if (statusStr.includes('DELIVER')) {
+          msg.status = 'DELIVERED';
+          msg.deliveredAt = new Date();
+        } else if (statusStr.includes('READ')) {
+          msg.status = 'READ';
+          msg.readAt = new Date();
+        } else if (statusStr.includes('FAIL')) {
+          msg.status = 'FAILED';
+          msg.failedAt = new Date();
+          msg.errorMessage = body.error || body.message;
+        }
+        await msg.save();
+      }
+    }
+
+    // 2. Process incoming messages (e.g. from customer or group)
+    if (eventType === 'message' || eventType === 'messageCreated' || body.text || body.messageText) {
+      const incomingText = body.text || body.messageText || body.data?.text || '';
+      const senderPhone = body.waId || body.senderId || body.from || '';
+      const senderName = body.senderName || body.name || senderPhone || 'Customer';
+      const groupId = body.groupId || body.conversationId;
+
+      // Find matching project
+      let project = null;
+      if (groupId) {
+        project = await Project.findOne({
+          $or: [{ 'whatsapp.groupId': groupId }, { whatsappGroupId: groupId }],
+        });
+      }
+      if (!project && senderPhone) {
+        const cleanPhone = senderPhone.replace(/\D/g, '');
+        const cust = await Customer.findOne({
+          $or: [
+            { phoneNumber: { $regex: cleanPhone } },
+            { whatsappNumber: { $regex: cleanPhone } },
+          ],
+        });
+        if (cust) {
+          project = await Project.findOne({ customerId: cust._id });
+        }
+      }
+
+      if (project) {
+        await WhatsAppMessageLog.create({
+          projectId: project._id,
+          groupId: groupId || project.whatsapp?.groupId || 'DIRECT',
+          messageText: incomingText,
+          messageType: 'text',
+          status: 'READ',
+          attemptCount: 1,
+          metadata: { direction: 'INCOMING', senderName, senderPhone },
+        });
+
+        await WhatsAppMessage.create({
+          projectId: project._id,
+          projectCode: project.projectId,
+          customerId: project.customerId,
+          customerName: senderName,
+          groupId: groupId || project.whatsapp?.groupId || 'DIRECT',
+          metaMessageId: providerMsgId || `WATI_IN_${Date.now()}`,
+          messageType: 'text',
+          recipientType: groupId ? 'group' : 'individual',
+          direction: 'INCOMING',
+          senderName,
+          senderPhone,
+          messageContent: incomingText,
+          status: 'READ',
+          isAutomated: false,
+          readAt: new Date(),
+        });
+
+        await logProjectActivity({
+          projectId: project._id,
+          projectCode: project.projectId,
+          type: 'WHATSAPP_RECEIVED',
+          description: `Message received via WATI from ${senderName}: "${incomingText}"`,
+          metadata: { providerMsgId, senderPhone },
+        });
+      }
+    }
+  } catch (err: any) {
+    console.error('[WatiWebhook:POST] Error processing WATI webhook:', err);
+  }
+});

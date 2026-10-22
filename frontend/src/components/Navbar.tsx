@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { usePathname } from 'next/navigation';
-import { Play, Sparkles, CheckCircle, AlertTriangle, ShieldCheck, RefreshCw } from 'lucide-react';
+import { Play, Sparkles, CheckCircle, AlertTriangle, ShieldCheck, RefreshCw, Menu } from 'lucide-react';
 import { api } from '../lib/api';
 
 export default function Navbar() {
@@ -28,21 +28,35 @@ export default function Navbar() {
   };
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200/90 px-6 flex items-center justify-between sticky top-0 z-20">
-      <div className="flex items-center space-x-3">
-        <h1 className="text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
-          <span className="text-slate-400 font-normal">Alpha CRM /</span>
-          {pathname === '/'
-            ? 'Dashboard'
-            : pathname.startsWith('/projects/') && pathname !== '/projects'
-            ? 'Project Details'
-            : pathname.slice(1).charAt(0).toUpperCase() + pathname.slice(2)}
+    <header className="h-16 bg-white border-b border-slate-200/90 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-20">
+      <div className="flex items-center space-x-2.5 sm:space-x-3">
+        {/* Mobile Hamburger Drawer Toggle */}
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent('toggle-mobile-sidebar'))}
+          className="p-1.5 -ml-1 text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-xl md:hidden transition-colors"
+          aria-label="Open Navigation Menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+
+        <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight flex items-center gap-1.5 sm:gap-2">
+          <span className="text-slate-400 font-normal hidden sm:inline">Alpha CRM /</span>
+          <span className="truncate max-w-[170px] sm:max-w-none">
+            {pathname === '/'
+              ? 'Dashboard'
+              : pathname === '/qc'
+              ? 'QC Pre-Production Site Inspection'
+              : pathname.startsWith('/projects/') && pathname !== '/projects'
+              ? 'Project Details'
+              : pathname.slice(1).charAt(0).toUpperCase() + pathname.slice(2)}
+          </span>
         </h1>
       </div>
 
-      <div className="flex items-center space-x-3">
+      <div className="flex items-center space-x-2 sm:space-x-3">
         {/* Test Mode pill */}
-        <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+        <div className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
           <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
           <span>TEST MODE ENABLED</span>
         </div>

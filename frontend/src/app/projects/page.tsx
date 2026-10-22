@@ -58,7 +58,8 @@ export default function ProjectsPage() {
     shaftBaseAmount: '0',
     shaftCashAmount: '0',
     shaftNonCashAmount: '0',
-    advancePercentage: '30',
+    advanceAmount: '',
+    advancePercentage: '',
     productionPaymentPercent: '40',
     readinessNotificationPercent: '20',
     dispatchMaterialsPercent: '5',
@@ -99,17 +100,19 @@ export default function ProjectsPage() {
     fetchProjects();
   };
 
+  const calcTotalAmount = (liftWithGst: string | number, shaftWithGst: string | number, shaftModel: string) => {
+    const lift = Number(liftWithGst || 0);
+    const shaft = shaftModel === 'Customer Scope' ? 0 : Number(shaftWithGst || 0);
+    return Math.round(lift + shaft);
+  };
+
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       setSubmitting(true);
-      const liftCash = Number(newProject.liftCashAmount || 0);
-      const liftNonCash = Number(newProject.liftNonCashAmount || 0);
-      const computedLiftAmount = liftCash + liftNonCash + (liftNonCash * 0.18);
+      const computedLiftAmount = Number(newProject.liftNonCashAmount || 0);
 
-      const shaftCash = newProject.shaftModel === 'Customer Scope' ? 0 : Number(newProject.shaftCashAmount || 0);
-      const shaftNonCash = newProject.shaftModel === 'Customer Scope' ? 0 : Number(newProject.shaftNonCashAmount || 0);
-      const computedShaftAmount = shaftCash + shaftNonCash + (shaftNonCash * 0.18);
+      const computedShaftAmount = newProject.shaftModel === 'Customer Scope' ? 0 : Number(newProject.shaftNonCashAmount || 0);
 
       const computedOrderValue = computedLiftAmount + computedShaftAmount;
 
@@ -119,7 +122,9 @@ export default function ProjectsPage() {
         afterInstallationPercent: isCrm ? '0' : newProject.afterInstallationPercent,
         liftAmount: computedLiftAmount,
         shaftAmount: computedShaftAmount,
-        orderValue: computedOrderValue 
+        orderValue: computedOrderValue,
+        advanceAmount: newProject.advanceAmount ? Number(newProject.advanceAmount) : undefined,
+        advancePercentage: newProject.advancePercentage ? Number(newProject.advancePercentage) : undefined,
       });
       setIsAddOpen(false);
       setNewProject({
@@ -138,7 +143,8 @@ export default function ProjectsPage() {
         shaftBaseAmount: '0',
         shaftCashAmount: '0',
         shaftNonCashAmount: '0',
-        advancePercentage: '30',
+        advanceAmount: '',
+        advancePercentage: '',
         productionPaymentPercent: '40',
         readinessNotificationPercent: '20',
         dispatchMaterialsPercent: '5',
@@ -270,6 +276,12 @@ export default function ProjectsPage() {
                         <div className="text-[10px] text-slate-400">
                           of ₹{p.orderValue?.toLocaleString('en-IN')}
                         </div>
+                        {p.paymentRequest?.status === 'REQUESTED' && (
+                          <span className="mt-1 px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-amber-100 text-amber-900 border border-amber-300 inline-flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                            CRM Req: ₹{(p.paymentRequest.requestedAmount || 0).toLocaleString('en-IN')}
+                          </span>
+                        )}
                       </td>
 
                       <td className="py-4 px-4">
@@ -393,7 +405,7 @@ export default function ProjectsPage() {
               {/* Lift & Shaft Info */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                     <div>
                       <label className="block text-[11px] font-bold text-slate-700 mb-1">
                         Lift Model: *
@@ -436,37 +448,53 @@ export default function ProjectsPage() {
                       <input
                         type="number"
                         value={newProject.liftBaseAmount || ''}
-                        onChange={(e) => setNewProject({ ...newProject, liftBaseAmount: e.target.value })}
+                        onChange={(e) => {
+                          const base = e.target.value;
+                          const withGst = base !== '' ? String(Math.round(Number(base) * 1.18)) : '';
+                          const totalVal = calcTotalAmount(withGst, newProject.shaftNonCashAmount, newProject.shaftModel);
+                          let advAmt = newProject.advanceAmount;
+                          if (newProject.advancePercentage !== '' && totalVal > 0) {
+                            advAmt = String(Math.round((totalVal * Number(newProject.advancePercentage)) / 100));
+                          }
+                          setNewProject({
+                            ...newProject,
+                            liftBaseAmount: base,
+                            liftNonCashAmount: withGst,
+                            advanceAmount: advAmt,
+                          });
+                        }}
                         className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none font-bold"
                       />
                     </div>
                     <div>
                       <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                        Cash Amount (₹): *
-                      </label>
-                      <input
-                        type="number"
-                        required
-                        value={newProject.liftCashAmount || ''}
-                        onChange={(e) => setNewProject({ ...newProject, liftCashAmount: e.target.value })}
-                        className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none font-bold"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                        Non Cash +18% GST (₹): *
+                        +18% GST (₹): *
                       </label>
                       <input
                         type="number"
                         required
                         value={newProject.liftNonCashAmount || ''}
-                        onChange={(e) => setNewProject({ ...newProject, liftNonCashAmount: e.target.value })}
+                        onChange={(e) => {
+                          const withGst = e.target.value;
+                          const base = withGst !== '' ? String(Math.round(Number(withGst) / 1.18)) : '';
+                          const totalVal = calcTotalAmount(withGst, newProject.shaftNonCashAmount, newProject.shaftModel);
+                          let advAmt = newProject.advanceAmount;
+                          if (newProject.advancePercentage !== '' && totalVal > 0) {
+                            advAmt = String(Math.round((totalVal * Number(newProject.advancePercentage)) / 100));
+                          }
+                          setNewProject({
+                            ...newProject,
+                            liftNonCashAmount: withGst,
+                            liftBaseAmount: base,
+                            advanceAmount: advAmt,
+                          });
+                        }}
                         className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none font-bold"
                       />
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
                       <label className="block text-[11px] font-bold text-slate-700 mb-1">
                         Shaft Model: *
@@ -474,7 +502,19 @@ export default function ProjectsPage() {
                       <select
                         required
                         value={newProject.shaftModel}
-                        onChange={(e) => setNewProject({ ...newProject, shaftModel: e.target.value })}
+                        onChange={(e) => {
+                          const model = e.target.value;
+                          const totalVal = calcTotalAmount(newProject.liftNonCashAmount, newProject.shaftNonCashAmount, model);
+                          let advAmt = newProject.advanceAmount;
+                          if (newProject.advancePercentage !== '' && totalVal > 0) {
+                            advAmt = String(Math.round((totalVal * Number(newProject.advancePercentage)) / 100));
+                          }
+                          setNewProject({
+                            ...newProject,
+                            shaftModel: model,
+                            advanceAmount: advAmt,
+                          });
+                        }}
                         className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none"
                       >
                         <option value="">-- Select Shaft Model --</option>
@@ -493,31 +533,47 @@ export default function ProjectsPage() {
                           <input
                             type="number"
                             value={newProject.shaftBaseAmount || ''}
-                            onChange={(e) => setNewProject({ ...newProject, shaftBaseAmount: e.target.value })}
+                            onChange={(e) => {
+                              const base = e.target.value;
+                              const withGst = base !== '' ? String(Math.round(Number(base) * 1.18)) : '';
+                              const totalVal = calcTotalAmount(newProject.liftNonCashAmount, withGst, newProject.shaftModel);
+                              let advAmt = newProject.advanceAmount;
+                              if (newProject.advancePercentage !== '' && totalVal > 0) {
+                                advAmt = String(Math.round((totalVal * Number(newProject.advancePercentage)) / 100));
+                              }
+                              setNewProject({
+                                ...newProject,
+                                shaftBaseAmount: base,
+                                shaftNonCashAmount: withGst,
+                                advanceAmount: advAmt,
+                              });
+                            }}
                             className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none font-bold"
                           />
                         </div>
                         <div>
                           <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                            Shaft Cash (₹):
-                          </label>
-                          <input
-                            type="number"
-                            required={newProject.shaftModel !== 'Customer Scope' && newProject.shaftModel !== ''}
-                            value={newProject.shaftCashAmount || ''}
-                            onChange={(e) => setNewProject({ ...newProject, shaftCashAmount: e.target.value })}
-                            className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none font-bold"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                            Shaft Non Cash + GST (₹):
+                            Shaft + GST (₹):
                           </label>
                           <input
                             type="number"
                             required={newProject.shaftModel !== 'Customer Scope' && newProject.shaftModel !== ''}
                             value={newProject.shaftNonCashAmount || ''}
-                            onChange={(e) => setNewProject({ ...newProject, shaftNonCashAmount: e.target.value })}
+                            onChange={(e) => {
+                              const withGst = e.target.value;
+                              const base = withGst !== '' ? String(Math.round(Number(withGst) / 1.18)) : '';
+                              const totalVal = calcTotalAmount(newProject.liftNonCashAmount, withGst, newProject.shaftModel);
+                              let advAmt = newProject.advanceAmount;
+                              if (newProject.advancePercentage !== '' && totalVal > 0) {
+                                advAmt = String(Math.round((totalVal * Number(newProject.advancePercentage)) / 100));
+                              }
+                              setNewProject({
+                                ...newProject,
+                                shaftNonCashAmount: withGst,
+                                shaftBaseAmount: base,
+                                advanceAmount: advAmt,
+                              });
+                            }}
                             className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none font-bold"
                           />
                         </div>
@@ -535,13 +591,7 @@ export default function ProjectsPage() {
                     <input
                       type="number"
                       readOnly
-                      value={
-                        Number(newProject.liftCashAmount || 0) + 
-                        (Number(newProject.liftNonCashAmount || 0) * 1.18) +
-                        (newProject.shaftModel === 'Customer Scope' ? 0 : 
-                          Number(newProject.shaftCashAmount || 0) + 
-                          (Number(newProject.shaftNonCashAmount || 0) * 1.18))
-                      }
+                      value={calcTotalAmount(newProject.liftNonCashAmount, newProject.shaftNonCashAmount, newProject.shaftModel)}
                       className="w-full p-2.5 text-xs border border-slate-300 rounded-xl bg-slate-50 text-slate-500 font-bold cursor-not-allowed"
                     />
                   </div>
@@ -563,23 +613,51 @@ export default function ProjectsPage() {
 
               {/* Payment Schedule */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <h4 className="text-[11px] font-bold text-slate-700 mb-3 uppercase tracking-wider">Payment Schedule (%)</h4>
-                <div className={`grid gap-3 ${isCrm ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-2 md:grid-cols-5'}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Payment Schedule</h4>
+                  <span className="text-[10px] text-slate-500">Manually enter advance amount or %</span>
+                </div>
+                <div className={`grid gap-3 ${isCrm ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 md:grid-cols-6'}`}>
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-1 truncate" title="Booking Advance">
-                      Advance: *
+                    <label className="block text-[10px] font-bold text-slate-700 mb-1 truncate" title="Booking Advance Amount">
+                      Advance (₹): *
                     </label>
                     <input
                       type="number"
                       required
+                      placeholder="e.g. 250000"
+                      value={newProject.advanceAmount}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const numVal = Number(val) || 0;
+                        const totalVal = calcTotalAmount(newProject.liftNonCashAmount, newProject.shaftNonCashAmount, newProject.shaftModel);
+                        const pct = totalVal > 0 && val !== '' ? String(Math.round((numVal / totalVal) * 100)) : '';
+                        setNewProject({ ...newProject, advanceAmount: val, advancePercentage: pct });
+                      }}
+                      className="w-full p-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:outline-none font-bold text-slate-900 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 mb-1 truncate" title="Booking Advance %">
+                      Advance (%):
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="e.g. 25"
                       value={newProject.advancePercentage}
-                      onChange={(e) => setNewProject({ ...newProject, advancePercentage: e.target.value })}
+                      onChange={(e) => {
+                        const pct = e.target.value;
+                        const numPct = Number(pct) || 0;
+                        const totalVal = calcTotalAmount(newProject.liftNonCashAmount, newProject.shaftNonCashAmount, newProject.shaftModel);
+                        const amt = totalVal > 0 && pct !== '' ? String(Math.round((totalVal * numPct) / 100)) : '';
+                        setNewProject({ ...newProject, advancePercentage: pct, advanceAmount: amt });
+                      }}
                       className="w-full p-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:outline-none"
                     />
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 mb-1 truncate" title="Production Payment">
-                      Production: *
+                      Production (%): *
                     </label>
                     <input
                       type="number"
@@ -655,6 +733,7 @@ export default function ProjectsPage() {
                     onChange={(e) => setNewProject({ ...newProject, updateFrequencyDays: e.target.value })}
                     className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none"
                   >
+                    <option value="1">Every 1 Day (Daily)</option>
                     <option value="10">Every 10 Days</option>
                     <option value="15">Every 15 Days</option>
                     <option value="20">Every 20 Days (Standard)</option>

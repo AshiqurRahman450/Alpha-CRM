@@ -48,8 +48,11 @@ export interface IProject extends Document {
   assignedEmployee?: string;
   projectManager?: string;
   bdmId?: Types.ObjectId;
+  bdmPhone?: string;
   notes?: string;
   drawingUrl?: string;
+  vrlLrNumber?: string;
+  trackingNumber?: string;
 
   // WhatsApp Automation Fields
   whatsappGroupId?: string;
@@ -60,12 +63,80 @@ export interface IProject extends Document {
   nextUpdateAt?: Date;
   postponedUntil?: Date;
   pauseReason?: string;
+  productionStage?: number; // 1: Stage 1 due, 2: Stage 2 due, 3: Stage 3 due, 4: All 3 stages completed
+
+  // Dedicated WATI WhatsApp Group Data Model
+  whatsapp?: {
+    provider: string; // 'WATI'
+    groupId?: string;
+    groupName?: string;
+    inviteLink?: string;
+    botPhoneNumber?: string;
+    participants?: Array<{
+      phoneNumber: string;
+      name?: string;
+      role?: string;
+    }>;
+    invitationStatus: 'NOT_INVITED' | 'PENDING' | 'SENT' | 'ACCEPTED' | 'FAILED';
+    groupStatus: 'NOT_LINKED' | 'ACTIVE' | 'PAUSED' | 'FAILED' | 'DISCONNECTED' | 'AWAITING_OBA_APPROVAL';
+    updatesEnabled: boolean;
+    paused: boolean;
+    intervalDays: 1 | 10 | 15 | 20;
+    nextUpdateAt?: Date;
+    lastUpdateAt?: Date;
+    createdAt?: Date;
+    updatedAt?: Date;
+  };
 
   stageDates?: Map<string, { scheduleDate?: Date | null; executedDate?: Date | null }>;
+
+  installationStages?: IInstallationStage[];
+
+  paymentRequest?: {
+    status: 'NONE' | 'REQUESTED' | 'RECORDED';
+    requestedAmount?: number;
+    paymentType?: string;
+    requestedBy?: string;
+    requestedAt?: Date;
+    notes?: string;
+  };
 
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface IInstallationStage {
+  slNo: number; // 1 to 11
+  stageKey: string;
+  stageName: string;
+  startDate: string; // YYYY-MM-DD
+  completeDate: string; // YYYY-MM-DD
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'DELAYED';
+  durationWorkingDays: number;
+  delayReason?: 'HOLIDAY' | 'TECHNICAL_ISSUE' | null;
+  delayNotes?: string;
+  lastUpdatedBy?: string;
+  lastUpdatedAt?: Date;
+}
+
+export const DEFAULT_INSTALLATION_STAGES: Array<{
+  slNo: number;
+  stageKey: string;
+  stageName: string;
+  defaultWorkingDays: number;
+}> = [
+  { slNo: 1, stageKey: 'SHAFT_READINESS', stageName: 'Shaft readiness,', defaultWorkingDays: 2 },
+  { slNo: 2, stageKey: 'SITE_SURVEY', stageName: 'Site survey, shaft measurement', defaultWorkingDays: 1 },
+  { slNo: 3, stageKey: 'BRACKETS_GUIDE_RAILS', stageName: 'Installation of brackets and guide rails Alingment', defaultWorkingDays: 2 },
+  { slNo: 4, stageKey: 'MACHINE_CAR_CWT', stageName: 'Machine , Car and Cwt Frame Instalation', defaultWorkingDays: 1 },
+  { slNo: 5, stageKey: 'BELT_STARTUP', stageName: 'Belt installation And Startup Prepration', defaultWorkingDays: 1 },
+  { slNo: 6, stageKey: 'PLATFORM_ALIGNMENT', stageName: 'Platform Instalation and Alignment', defaultWorkingDays: 1 },
+  { slNo: 7, stageKey: 'DOOR_FRAME', stageName: 'Door Frame Instalation', defaultWorkingDays: 1 },
+  { slNo: 8, stageKey: 'CABIN_DOOR_ALIGNMENT', stageName: 'Cabin Installation  and Door Alignment', defaultWorkingDays: 1 },
+  { slNo: 9, stageKey: 'SHAFT_GLASS_FIXING', stageName: 'Shaft Glass Fixing', defaultWorkingDays: 2 },
+  { slNo: 10, stageKey: 'HIGH_SPEED_OPERATION', stageName: 'Preparing for high speed operation', defaultWorkingDays: 2 },
+  { slNo: 11, stageKey: 'HANDOVER', stageName: 'HANDOVER', defaultWorkingDays: 1 },
+];
 
 const ProjectSchema = new Schema<IProject>(
   {
@@ -224,11 +295,23 @@ const ProjectSchema = new Schema<IProject>(
       type: Schema.Types.ObjectId,
       ref: 'User',
     },
+    bdmPhone: {
+      type: String,
+      trim: true,
+    },
     notes: {
       type: String,
     },
     drawingUrl: {
       type: String,
+    },
+    vrlLrNumber: {
+      type: String,
+      trim: true,
+    },
+    trackingNumber: {
+      type: String,
+      trim: true,
     },
     whatsappGroupId: {
       type: String,
@@ -258,6 +341,45 @@ const ProjectSchema = new Schema<IProject>(
     pauseReason: {
       type: String,
     },
+    productionStage: {
+      type: Number,
+      default: 1,
+    },
+    whatsapp: {
+      provider: { type: String, default: 'WATI' },
+      groupId: { type: String, trim: true },
+      groupName: { type: String, trim: true },
+      inviteLink: { type: String, trim: true },
+      botPhoneNumber: { type: String, trim: true, default: '+91 93848 20316' },
+      participants: [
+        {
+          name: { type: String, trim: true },
+          phoneNumber: { type: String, required: true, trim: true },
+          role: { type: String, default: 'MEMBER' },
+        },
+      ],
+      invitationStatus: {
+        type: String,
+        enum: ['NOT_INVITED', 'PENDING', 'SENT', 'ACCEPTED', 'FAILED'],
+        default: 'NOT_INVITED',
+      },
+      groupStatus: {
+        type: String,
+        enum: ['NOT_LINKED', 'ACTIVE', 'PAUSED', 'FAILED', 'DISCONNECTED', 'AWAITING_OBA_APPROVAL'],
+        default: 'NOT_LINKED',
+      },
+      updatesEnabled: { type: Boolean, default: false },
+      paused: { type: Boolean, default: false },
+      intervalDays: {
+        type: Number,
+        enum: [1, 10, 15, 20],
+        default: 15,
+      },
+      nextUpdateAt: { type: Date },
+      lastUpdateAt: { type: Date },
+      createdAt: { type: Date, default: Date.now },
+      updatedAt: { type: Date, default: Date.now },
+    },
     stageDates: {
       type: Map,
       of: new Schema(
@@ -269,15 +391,113 @@ const ProjectSchema = new Schema<IProject>(
       ),
       default: {},
     },
+    installationStages: [
+      {
+        slNo: { type: Number, required: true },
+        stageKey: { type: String, required: true },
+        stageName: { type: String, required: true },
+        startDate: { type: String, required: true },
+        completeDate: { type: String, required: true },
+        status: {
+          type: String,
+          enum: ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'DELAYED'],
+          default: 'PENDING',
+        },
+        durationWorkingDays: { type: Number, default: 1 },
+        delayReason: {
+          type: String,
+          enum: ['HOLIDAY', 'TECHNICAL_ISSUE', null],
+          default: null,
+        },
+        delayNotes: { type: String, trim: true },
+        lastUpdatedBy: { type: String, trim: true },
+        lastUpdatedAt: { type: Date },
+      },
+    ],
+    paymentRequest: {
+      status: {
+        type: String,
+        enum: ['NONE', 'REQUESTED', 'RECORDED'],
+        default: 'NONE',
+      },
+      requestedAmount: { type: Number },
+      paymentType: { type: String, trim: true },
+      requestedBy: { type: String, trim: true },
+      requestedAt: { type: Date },
+      notes: { type: String, trim: true },
+    },
   },
   { timestamps: true }
 );
+
+// Two-way synchronization hook between legacy flat fields and whatsapp subdocument
+ProjectSchema.pre('save', function (next) {
+  if (this.vrlLrNumber && !this.trackingNumber) {
+    this.trackingNumber = this.vrlLrNumber;
+  } else if (this.trackingNumber && !this.vrlLrNumber) {
+    this.vrlLrNumber = this.trackingNumber;
+  }
+  if (this.whatsapp) {
+    if (this.whatsappGroupId && !this.whatsapp.groupId) {
+      this.whatsapp.groupId = this.whatsappGroupId;
+    }
+    if (this.whatsappGroupName && !this.whatsapp.groupName) {
+      this.whatsapp.groupName = this.whatsappGroupName;
+    }
+    if (this.automationEnabled !== undefined && (this.whatsapp.updatesEnabled === undefined || this.whatsapp.updatesEnabled === false)) {
+      if (this.automationEnabled) {
+        this.whatsapp.updatesEnabled = true;
+        this.whatsapp.paused = false;
+        this.whatsapp.groupStatus = 'ACTIVE';
+      }
+    }
+    if (this.whatsapp.groupId) this.whatsappGroupId = this.whatsapp.groupId;
+    if (this.whatsapp.groupName) this.whatsappGroupName = this.whatsapp.groupName;
+    if (typeof this.whatsapp.updatesEnabled === 'boolean') {
+      this.automationEnabled = this.whatsapp.updatesEnabled && !this.whatsapp.paused;
+    }
+    if (this.whatsapp.intervalDays) this.updateFrequencyDays = this.whatsapp.intervalDays;
+    if (this.whatsapp.nextUpdateAt) {
+      this.nextUpdateAt = this.whatsapp.nextUpdateAt;
+    } else if (this.nextUpdateAt) {
+      this.whatsapp.nextUpdateAt = this.nextUpdateAt;
+    }
+    if (this.whatsapp.lastUpdateAt) {
+      this.lastUpdateAt = this.whatsapp.lastUpdateAt;
+    } else if (this.lastUpdateAt) {
+      this.whatsapp.lastUpdateAt = this.lastUpdateAt;
+    }
+    this.whatsapp.updatedAt = new Date();
+  } else if (this.whatsappGroupId) {
+    const days = [1, 10, 15, 20].includes(this.updateFrequencyDays)
+      ? (this.updateFrequencyDays as 1 | 10 | 15 | 20)
+      : 15;
+    this.whatsapp = {
+      provider: 'WATI',
+      groupId: this.whatsappGroupId,
+      groupName: this.whatsappGroupName,
+      invitationStatus: 'PENDING',
+      groupStatus: this.automationEnabled ? 'ACTIVE' : 'PAUSED',
+      updatesEnabled: this.automationEnabled,
+      paused: !this.automationEnabled,
+      intervalDays: days,
+      nextUpdateAt: this.nextUpdateAt,
+      lastUpdateAt: this.lastUpdateAt,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+  }
+  next();
+});
 
 // Indexes
 ProjectSchema.index({ customerId: 1 });
 ProjectSchema.index({ nextUpdateAt: 1 });
 ProjectSchema.index({ projectStatus: 1 });
 ProjectSchema.index({ whatsappGroupId: 1 });
+ProjectSchema.index({ 'whatsapp.groupId': 1 });
+ProjectSchema.index({ 'whatsapp.updatesEnabled': 1, 'whatsapp.nextUpdateAt': 1 });
 ProjectSchema.index({ automationEnabled: 1, nextUpdateAt: 1, projectStatus: 1 });
+ProjectSchema.index({ 'paymentRequest.status': 1 });
 
 export const Project = model<IProject>('Project', ProjectSchema);

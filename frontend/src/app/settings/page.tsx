@@ -11,7 +11,14 @@ import {
   Building,
   Key,
   RotateCcw,
+  Bot,
+  QrCode,
+  LogOut,
+  PhoneCall,
+  Check,
+  X,
 } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import { api } from '../../lib/api';
 
 export default function SettingsPage() {
@@ -20,6 +27,18 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  // WhatsApp Web Bot state for group automation
+  const [botStatus, setBotStatus] = useState<any>({ isConnected: false, botPhoneNumber: null, qrCode: null });
+  const [botLoading, setBotLoading] = useState(false);
+  const [isBotModalOpen, setIsBotModalOpen] = useState(false);
+
+  const fetchBotStatus = async () => {
+    try {
+      const res = await api.getWhatsAppBotStatus();
+      if (res && res.success) setBotStatus(res);
+    } catch {}
+  };
 
   const fetchSettings = async () => {
     try {
@@ -36,6 +55,9 @@ export default function SettingsPage() {
 
   useEffect(() => {
     fetchSettings();
+    fetchBotStatus();
+    const interval = setInterval(fetchBotStatus, 4000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -75,6 +97,190 @@ export default function SettingsPage() {
         <div className="p-3 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-2xl text-xs font-semibold flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
           <span>{message}</span>
+        </div>
+      )}
+
+      {/* SECTION: WHATSAPP WEB BOT FOR GROUP AUTOMATION */}
+      <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-200 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-3">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-sm">
+              <Bot className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-extrabold text-slate-900">
+                WhatsApp Web Bot (Direct Group Automation)
+              </h3>
+              <p className="text-xs text-slate-500">
+                Sends drawing uploads, stage updates, and payment receipts directly inside WhatsApp groups
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span
+              className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 ${
+                botStatus.isConnected
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'bg-amber-50 text-amber-700 border border-amber-200'
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${botStatus.isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+              {botStatus.isConnected ? `Connected (+${botStatus.botPhoneNumber || 'Active'})` : 'Not Linked'}
+            </span>
+          </div>
+        </div>
+
+        <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="text-xs font-bold text-slate-800">
+              Active Linked Phone Number: <span className="font-mono text-emerald-700">{botStatus.botPhoneNumber ? `+${botStatus.botPhoneNumber}` : 'None'}</span>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              This WhatsApp account connects via WhatsApp Web session to post directly inside your project groups without user interaction.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {botStatus.isConnected ? (
+              <button
+                type="button"
+                onClick={() => setIsBotModalOpen(true)}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+              >
+                <PhoneCall className="w-3.5 h-3.5" />
+                <span>Change Linked Number</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsBotModalOpen(true)}
+                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+              >
+                <QrCode className="w-3.5 h-3.5" />
+                <span>Link WhatsApp Bot (QR Code)</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* QR Code / Change Number Modal */}
+      {isBotModalOpen && (
+        <div className="fixed inset-0 z-[120] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Bot className="w-5 h-5 text-emerald-600" />
+                <h3 className="text-sm font-extrabold text-slate-900">
+                  {botStatus.isConnected ? 'Manage WhatsApp Bot Number' : 'Pair WhatsApp Bot'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBotModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col items-center justify-center min-h-[250px]">
+              {botStatus.isConnected ? (
+                <div className="space-y-4 py-2 text-center w-full max-w-xs mx-auto">
+                  <div className="w-14 h-14 bg-emerald-500 text-white rounded-full flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/30">
+                    <Check className="w-7 h-7" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-slate-900 text-sm">Bot Connected</h4>
+                    <p className="text-sm font-black text-emerald-700 font-mono mt-1">
+                      +{botStatus.botPhoneNumber}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-2">
+                      Ready to automatically post updates, drawing files, and payment receipts.
+                    </p>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-200">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const confirmed = window.confirm(
+                          `Do you want to unlink +${botStatus.botPhoneNumber} and pair a new phone number?`
+                        );
+                        if (!confirmed) return;
+                        try {
+                          setBotLoading(true);
+                          await api.logoutWhatsAppBot();
+                          toast.success('Bot unlinked. Generating fresh QR code for your new number...');
+                          await fetchBotStatus();
+                        } catch (err: any) {
+                          toast.error(err.message || 'Failed to unlink');
+                        } finally {
+                          setBotLoading(false);
+                        }
+                      }}
+                      disabled={botLoading}
+                      className="w-full py-2.5 px-4 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs"
+                    >
+                      <LogOut className={`w-4 h-4 ${botLoading ? 'animate-spin' : ''}`} />
+                      <span>{botLoading ? 'Disconnecting...' : 'Unlink & Change Phone Number'}</span>
+                    </button>
+                  </div>
+                </div>
+              ) : botStatus.qrCode ? (
+                <div className="space-y-3 text-center">
+                  <img
+                    src={botStatus.qrCode}
+                    alt="WhatsApp QR Code"
+                    className="w-56 h-56 mx-auto rounded-xl shadow-md border border-white"
+                  />
+                  <div className="flex items-center justify-center gap-1.5 text-xs text-slate-500">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                    <span>Point your phone camera at the QR code</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    WhatsApp &gt; Settings &gt; Linked Devices &gt; Link a Device
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2 py-8 text-center">
+                  <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                  <p className="text-xs text-slate-500">Generating WhatsApp QR code for new number...</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    setBotLoading(true);
+                    await api.initWhatsAppBot();
+                    await fetchBotStatus();
+                    toast.success('QR Code refreshed');
+                  } catch (err: any) {
+                    toast.error(err.message || 'Failed to refresh QR');
+                  } finally {
+                    setBotLoading(false);
+                  }
+                }}
+                disabled={botLoading}
+                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs flex items-center gap-1.5"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${botLoading ? 'animate-spin' : ''}`} />
+                <span>Refresh QR</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsBotModalOpen(false)}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-xs"
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -193,6 +399,7 @@ export default function SettingsPage() {
                 onChange={(e) => setSettings({ ...settings, defaultUpdateFrequencyDays: Number(e.target.value) })}
                 className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none"
               >
+                <option value="1">1 Day (Daily)</option>
                 <option value="10">10 Days</option>
                 <option value="15">15 Days</option>
                 <option value="20">20 Days (Default)</option>

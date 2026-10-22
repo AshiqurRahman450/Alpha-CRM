@@ -9,3 +9,5 @@ export * from './WebhookEvent';
 export * from './ProjectActivity';
 export * from './SystemSettings';
 export * from './Reminder';
+export * from './WhatsAppMessageLog';
+export * from './QCReport';

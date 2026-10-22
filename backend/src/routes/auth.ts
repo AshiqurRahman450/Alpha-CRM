@@ -87,7 +87,7 @@ authRouter.get('/me', authenticate, (req: AuthRequest, res: Response) => {
  */
 authRouter.get('/bdms', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const bdms = await User.find({ role: 'BDM', isActive: true }).select('name email role');
+    const bdms = await User.find({ role: 'BDM', isActive: true }).select('name email role phone');
     return res.json({ success: true, data: bdms });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });

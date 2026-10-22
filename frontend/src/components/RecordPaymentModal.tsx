@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { IndianRupee, CreditCard, CheckCircle2, X } from 'lucide-react';
+import { IndianRupee, CreditCard, CheckCircle2, X, AlertCircle, Bell } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { api, getStoredUser } from '../lib/api';
+import { toast } from 'react-hot-toast';
 
 interface RecordPaymentModalProps {
   isOpen: boolean;
@@ -21,17 +22,53 @@ export default function RecordPaymentModal({
   const [amountPaid, setAmountPaid] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('BANK_TRANSFER');
   const [transactionReference, setTransactionReference] = useState('');
-  const [paymentType, setPaymentType] = useState('Production Payment');
+  const [paymentType, setPaymentType] = useState('Booking Advance');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   const router = useRouter();
+  const currentUser = getStoredUser();
+  const isCrm = currentUser?.role === 'CRM';
+  const isAccountant = currentUser?.role === 'ACCOUNTANT';
+  const isRequestedByCrm = project?.paymentRequest?.status === 'REQUESTED';
+  const isAccountantBlocked = isAccountant && !isRequestedByCrm;
+
+  React.useEffect(() => {
+    if (project && isOpen) {
+      if (project.paymentRequest?.status === 'REQUESTED') {
+        if (project.paymentRequest.paymentType) {
+          setPaymentType(project.paymentRequest.paymentType);
+        }
+        if (project.paymentRequest.requestedAmount) {
+          setAmountPaid(String(project.paymentRequest.requestedAmount));
+        } else {
+          setAmountPaid('');
+        }
+        setNotes(project.paymentRequest.notes ? `CRM Request: ${project.paymentRequest.notes}` : '');
+      } else if ((project.totalPaid || 0) < (project.advanceAmount || 0)) {
+        setPaymentType('Booking Advance');
+        const pendingAdv = Math.max(0, (project.advanceAmount || 0) - (project.totalPaid || 0));
+        setAmountPaid(pendingAdv > 0 ? String(pendingAdv) : '');
+        setNotes('');
+      } else {
+        setPaymentType('Production Payment');
+        setAmountPaid('');
+        setNotes('');
+      }
+      setTransactionReference('');
+      setError(null);
+    }
+  }, [project, isOpen]);
 
   if (!isOpen || !project) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isAccountantBlocked) {
+      setError('Payment recording is restricted for Accountant. CRM must request payment collection for this customer first.');
+      return;
+    }
     if (!amountPaid || !transactionReference) {
       setError('Please provide amount and transaction reference');
       return;
@@ -49,6 +86,12 @@ export default function RecordPaymentModal({
         notes,
       });
       
+      if (response && response.receiptSentToGroup) {
+        toast.success(`Payment recorded and official receipt (${response.data?.receiptNumber || 'PDF'}) sent directly to the WhatsApp group!`);
+      } else {
+        toast.success(response?.message || 'Payment recorded successfully!');
+      }
+
       onSuccess(response.data);
       onClose();
       
@@ -56,22 +99,20 @@ export default function RecordPaymentModal({
       router.push(`/projects/${project._id}/invoice/${response.data._id}`);
     } catch (err: any) {
       setError(err.message || 'Failed to record payment');
+      toast.error(err.message || 'Failed to record payment');
     } finally {
       setLoading(false);
     }
   };
 
-  const currentUser = getStoredUser();
-  const isCrm = currentUser?.role === 'CRM';
-
   const stages = [
     { name: 'Advance', percent: project.advancePercentage || 0 },
     { name: 'Production', percent: project.productionPaymentPercent || 0 },
     { name: 'Readiness', percent: project.readinessNotificationPercent || 0 },
-    ...((Number(project.dispatchMaterialsPercent) > 0 || !isCrm) ? [
+    ...((Number(project.dispatchMaterialsPercent) > 0 || !isCrm || isAccountant) ? [
       { name: 'Dispatch', percent: project.dispatchMaterialsPercent || 0 },
     ] : []),
-    ...((Number(project.afterInstallationPercent) > 0 || !isCrm) ? [
+    ...((Number(project.afterInstallationPercent) > 0 || !isCrm || isAccountant) ? [
       { name: 'Installation', percent: project.afterInstallationPercent || 0 },
     ] : []),
   ];
@@ -121,6 +162,41 @@ export default function RecordPaymentModal({
           {error && (
             <div className="p-3 bg-rose-50 text-rose-700 rounded-xl border border-rose-200">
               {error}
+            </div>
+          )}
+
+          {isAccountantBlocked && (
+            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 space-y-1">
+              <div className="flex items-center gap-2 font-bold text-xs">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>Accountant Restricted</span>
+              </div>
+              <p className="text-[11px] text-rose-700 leading-relaxed">
+                Payment recording is restricted for Accountant. CRM must first send a collection request from the Payment Schedule for this customer before you can record payment.
+              </p>
+            </div>
+          )}
+
+          {isRequestedByCrm && (
+            <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-950 space-y-1.5 shadow-sm">
+              <div className="flex items-center justify-between font-bold text-xs">
+                <div className="flex items-center gap-1.5 text-amber-900">
+                  <Bell className="w-3.5 h-3.5 text-amber-600 animate-bounce" />
+                  <span>CRM Collection Request Active</span>
+                </div>
+                <span className="font-mono text-xs font-black text-amber-800">
+                  ₹{(project.paymentRequest.requestedAmount || 0).toLocaleString('en-IN')}
+                </span>
+              </div>
+              <div className="text-[11px] text-amber-800 flex items-center justify-between">
+                <span>Milestone: <strong>{project.paymentRequest.paymentType || 'Milestone'}</strong></span>
+                <span>By: <strong>{project.paymentRequest.requestedBy || 'CRM'}</strong></span>
+              </div>
+              {project.paymentRequest.notes && (
+                <div className="text-[10px] text-amber-900/90 bg-white/80 p-2 rounded-lg border border-amber-200/60 italic">
+                  &ldquo;{project.paymentRequest.notes}&rdquo;
+                </div>
+              )}
             </div>
           )}
 
@@ -192,10 +268,10 @@ export default function RecordPaymentModal({
                 <option value="Booking Advance">Booking Advance</option>
                 <option value="Production Payment">Production Payment</option>
                 <option value="Rediness Notification">Rediness Notification</option>
-                {(Number(project.dispatchMaterialsPercent) > 0 || !isCrm) && (
+                {(Number(project.dispatchMaterialsPercent) > 0 || !isCrm || isAccountant) && (
                   <option value="Dispatch Materials">Dispatch Materials</option>
                 )}
-                {(Number(project.afterInstallationPercent) > 0 || !isCrm) && (
+                {(Number(project.afterInstallationPercent) > 0 || !isCrm || isAccountant) && (
                   <option value="After Installation">After Installation</option>
                 )}
               </select>
@@ -213,7 +289,6 @@ export default function RecordPaymentModal({
                 <option value="BANK_TRANSFER">Bank Transfer (NEFT/RTGS)</option>
                 <option value="UPI">UPI</option>
                 <option value="CHEQUE">Cheque</option>
-                <option value="CASH">Cash</option>
               </select>
             </div>
           </div>
@@ -256,10 +331,10 @@ export default function RecordPaymentModal({
             </button>
             <button
               type="submit"
-              disabled={loading}
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 disabled:opacity-50"
+              disabled={loading || isAccountantBlocked}
+              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Recording...' : 'Record Payment'}
+              {loading ? 'Recording...' : isAccountantBlocked ? 'Awaiting CRM Request' : 'Record Payment'}
             </button>
           </div>
         </form>

@@ -12,7 +12,13 @@ import {
   CheckCheck,
   Sparkles,
   ClipboardCheck,
+  AlertTriangle,
+  X,
+  Send,
+  MessageSquare,
 } from 'lucide-react';
+
+import InstallationProgrammeTable from './InstallationProgrammeTable';
 
 export const STAGES_ORDER = [
   { key: 'PAYMENT_RECEIVED', label: 'Advance Payment Received', icon: CheckCircle2 },
@@ -22,8 +28,8 @@ export const STAGES_ORDER = [
   { key: 'ENGINEERING', label: 'Production Payment', icon: Wrench },
   { key: 'MANUFACTURING', label: 'Approval Drawing to factory', icon: Wrench },
   { key: 'QUALITY_CHECK', label: 'Rediness Payment', icon: PackageCheck },
+  { key: 'DELIVERY', label: 'Pre Site Visit', icon: ClipboardCheck },
   { key: 'DISPATCH', label: 'Expected Delivery', icon: Truck },
-  { key: 'DELIVERY', label: 'Pre Site Visit', icon: Truck },
   { key: 'INSTALLATION', label: 'Installation Start Date', icon: Wrench },
   { key: 'TESTING', label: 'Handover', icon: CheckCircle2 },
   { key: 'COMPLETED', label: 'Project Completed', icon: CheckCheck },
@@ -38,13 +44,23 @@ export function formatProjectStatus(status: string): string {
 
 interface TimelineProps {
   currentStatus: string;
-  onStatusChange?: (newStatus: string) => void;
+  onStatusChange?: (newStatus: string, trackingNumber?: string) => Promise<void> | void;
   isEditable?: boolean;
   stageDates?: Record<string, { scheduleDate?: string | null; executedDate?: string | null }>;
   onDateChange?: (stageKey: string, type: 'scheduleDate' | 'executedDate', date: string) => Promise<void> | void;
   onBulkDateChange?: (updates: { stageKey: string, scheduleDate?: string | null, executedDate?: string | null }[]) => Promise<void> | void;
   currentUserRole?: string;
   customerCity?: string;
+  projectId?: string;
+  projectName?: string;
+  projectCode?: string;
+  customerName?: string;
+  customerPhone?: string;
+  whatsappGroupName?: string;
+  vrlLrNumber?: string;
+  trackingNumber?: string;
+  onHandoverDateChanged?: (newHandoverDate: string) => void;
+  initiallyOpenInstallation?: boolean;
 }
 
 export default function Timeline({
@@ -56,8 +72,73 @@ export default function Timeline({
   onBulkDateChange,
   currentUserRole,
   customerCity,
+  projectId,
+  projectName,
+  projectCode,
+  customerName,
+  customerPhone,
+  whatsappGroupName,
+  vrlLrNumber,
+  trackingNumber,
+  onHandoverDateChanged,
+  initiallyOpenInstallation,
 }: TimelineProps) {
   const currentIndex = STAGES_ORDER.findIndex((s) => s.key === currentStatus);
+  const [showInstallationTable, setShowInstallationTable] = React.useState<boolean>(
+    Boolean(initiallyOpenInstallation || currentUserRole === 'TECHNICAL_LEAD')
+  );
+  const [showVrlAlertModal, setShowVrlAlertModal] = React.useState<boolean>(false);
+  const [vrlTrackingInput, setVrlTrackingInput] = React.useState<string>('');
+  const [vrlInputError, setVrlInputError] = React.useState<string>('');
+  const [isSubmittingDispatch, setIsSubmittingDispatch] = React.useState<boolean>(false);
+  const lastTapRef = React.useRef<number>(0);
+
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showVrlAlertModal && !isSubmittingDispatch) {
+        setShowVrlAlertModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showVrlAlertModal, isSubmittingDispatch]);
+
+  const handleConfirmVrlDispatch = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = vrlTrackingInput.trim();
+    if (!trimmed) {
+      setVrlInputError('Please enter a valid VRL Tracking Number to proceed.');
+      return;
+    }
+
+    try {
+      setIsSubmittingDispatch(true);
+      setVrlInputError('');
+      if (onStatusChange) {
+        await onStatusChange('DISPATCH', trimmed);
+      }
+      setShowVrlAlertModal(false);
+    } catch (err: any) {
+      setVrlInputError(err?.message || 'Failed to update Expected Delivery stage');
+    } finally {
+      setIsSubmittingDispatch(false);
+    }
+  };
+
+  const handleTouchEndStage = (stageKey: string, e: React.TouchEvent) => {
+    if (stageKey === 'INSTALLATION') {
+      const now = Date.now();
+      if (now - lastTapRef.current < 350) {
+        // Double tap detected!
+        e.preventDefault();
+        e.stopPropagation();
+        setShowInstallationTable((prev) => !prev);
+        lastTapRef.current = 0;
+        return;
+      }
+      lastTapRef.current = now;
+    }
+  };
 
   const handleDateChangeLocal = async (key: string, type: 'scheduleDate' | 'executedDate', val: string) => {
     if (!onDateChange) return;
@@ -151,12 +232,29 @@ export default function Timeline({
               <div
                 key={stage.key}
                 onClick={() => {
-                  if (canEditThisStage && onStatusChange && stage.key !== currentStatus) {
-                    if (confirm(`Update project status to "${stage.label}"?`)) {
-                      onStatusChange(stage.key);
+                  if (canEditThisStage && onStatusChange) {
+                    if (stage.key === 'DISPATCH') {
+                      // Expected Delivery stage: first get the VRL Tracking No through alert pop-up
+                      setVrlTrackingInput(vrlLrNumber || trackingNumber || '');
+                      setVrlInputError('');
+                      setShowVrlAlertModal(true);
+                      return;
+                    }
+
+                    if (stage.key !== currentStatus) {
+                      if (confirm(`Update project status to "${stage.label}"?`)) {
+                        onStatusChange(stage.key);
+                      }
                     }
                   }
                 }}
+                onDoubleClick={(e) => {
+                  if (stage.key === 'INSTALLATION') {
+                    e.stopPropagation();
+                    setShowInstallationTable((prev) => !prev);
+                  }
+                }}
+                onTouchEnd={(e) => handleTouchEndStage(stage.key, e)}
                 className={`flex flex-col items-center group relative z-10 transition-transform ${
                   canEditThisStage ? 'cursor-pointer hover:scale-105' : 'cursor-not-allowed opacity-80'
                 }`}
@@ -197,6 +295,26 @@ export default function Timeline({
                   <div className="text-[10px] text-slate-400 mt-0.5">
                     {isCompleted ? '✓ Done' : isCurrent ? '● Active' : '○ Pending'}
                   </div>
+
+                  {/* Special Badge for Installation Start Date (Intermediate 11 Stages Programme) */}
+                  {stage.key === 'INSTALLATION' && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowInstallationTable((prev) => !prev);
+                      }}
+                      className={`mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black tracking-wide border shadow-2xs transition-all active:scale-95 ${
+                        showInstallationTable
+                          ? 'bg-amber-500 text-white border-amber-600 ring-2 ring-amber-200'
+                          : 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'
+                      }`}
+                      title="Double-tap or click to reveal 11-Stage Installation Programme (Installation Start Date ➔ Handover)"
+                    >
+                      <span>⚡ 11 Stages</span>
+                      <span>{showInstallationTable ? '▲' : '▼'}</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Mindmap Hover Options */}
@@ -275,6 +393,205 @@ export default function Timeline({
           />
         </div>
       </div>
+
+      {/* Intermediate Stages Table between Installation Start Date and Handover */}
+      {showInstallationTable && projectId && (
+        <div className="mt-8 pt-6 border-t border-slate-200/90">
+          <div className="flex items-center justify-between mb-4 px-1">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                Intermediate Stages: Installation Start Date ➔ Handover (11 Stages Programme)
+              </h4>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowInstallationTable(false)}
+              className="text-xs text-slate-400 hover:text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 font-medium transition-colors"
+            >
+              Hide 11 Stages ▲
+            </button>
+          </div>
+          <InstallationProgrammeTable
+            projectId={projectId}
+            projectName={projectName}
+            projectCode={projectCode}
+            customerName={customerName}
+            customerCity={customerCity}
+            currentUserRole={currentUserRole}
+            onHandoverDateChanged={onHandoverDateChanged}
+          />
+        </div>
+      )}
+
+      {/* VRL Tracking Number Alert Pop-up Modal for Expected Delivery stage */}
+      {showVrlAlertModal && (
+        <div 
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isSubmittingDispatch) {
+              setShowVrlAlertModal(false);
+            }
+          }}
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="vrl-modal-title"
+        >
+          <div 
+            className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200/90 overflow-hidden transform transition-all animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header with High-Visibility Alert Gradient */}
+            <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 p-5 text-white relative">
+              <div className="flex items-center justify-between">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md text-[11px] font-black tracking-wider uppercase">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>Action Required: Expected Delivery</span>
+                </div>
+                <button
+                  type="button"
+                  disabled={isSubmittingDispatch}
+                  onClick={() => setShowVrlAlertModal(false)}
+                  className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors cursor-pointer"
+                  title="Close (Esc)"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3 mt-3">
+                <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 border border-white/30 shadow-inner">
+                  <Truck className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 id="vrl-modal-title" className="text-base font-extrabold text-white leading-snug">
+                    Enter VRL Tracking Number
+                  </h3>
+                  <p className="text-xs text-amber-100 font-medium">
+                    Material Dispatch & Official WhatsApp Template Message
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleConfirmVrlDispatch} className="p-5 md:p-6 space-y-4">
+              {/* Project & Group metadata strip */}
+              <div className="bg-slate-50 rounded-2xl p-3 border border-slate-200/80 flex items-center justify-between text-xs">
+                <div>
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Project</span>
+                  <span className="font-bold text-slate-800">{projectCode || projectName || 'Alpha Project'}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Target WhatsApp Group</span>
+                  <span className="font-semibold text-emerald-700 flex items-center gap-1 justify-end">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    {whatsappGroupName || 'Dedicated Project Group'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Informational context */}
+              <p className="text-xs text-slate-600 leading-relaxed">
+                When advancing to <strong className="text-slate-900">Expected Delivery</strong>, elevator materials are dispatched via <strong className="text-slate-900">VRL Logistics</strong>. Please enter the tracking number below to attach it to this project and dispatch the approved WhatsApp template to the group.
+              </p>
+
+              {/* Input Field */}
+              <div className="space-y-1.5">
+                <label htmlFor="vrl-tracking-input" className="block text-xs font-bold text-slate-800">
+                  VRL Tracking / LR Number <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    id="vrl-tracking-input"
+                    type="text"
+                    autoFocus
+                    value={vrlTrackingInput}
+                    onChange={(e) => {
+                      setVrlTrackingInput(e.target.value);
+                      if (vrlInputError) setVrlInputError('');
+                    }}
+                    placeholder="e.g. VRL-BLR-987654 or 123456789"
+                    className="w-full px-4 py-3 bg-white border border-slate-300 rounded-2xl text-slate-900 font-mono text-sm tracking-wide focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 transition-all placeholder:text-slate-400 shadow-2xs"
+                    disabled={isSubmittingDispatch}
+                  />
+                  {vrlTrackingInput && !isSubmittingDispatch && (
+                    <button
+                      type="button"
+                      onClick={() => setVrlTrackingInput('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs px-1.5 py-0.5 rounded-md hover:bg-slate-100"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                {vrlInputError && (
+                  <p className="text-xs text-rose-600 font-semibold flex items-center gap-1.5 mt-1 bg-rose-50 border border-rose-200/80 px-3 py-1.5 rounded-xl">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{vrlInputError}</span>
+                  </p>
+                )}
+              </div>
+
+              {/* WhatsApp Template Message Live Preview */}
+              <div className="space-y-1.5 pt-1">
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  <span className="flex items-center gap-1.5">
+                    <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                    WhatsApp Template Preview
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">MATERIAL_DISPATCHED_PM</span>
+                </div>
+                <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-2xl p-3.5 text-xs text-slate-800 space-y-2 relative shadow-2xs font-sans">
+                  <div className="text-emerald-950 leading-relaxed whitespace-pre-line">
+                    Dear Sir/Madam,
+                    {'\n'}Your elevator material has been dispatched through VRL Logistics.
+                    {'\n'}VRL Tracking No.:{' '}
+                    <span className="font-mono font-bold bg-amber-200/80 text-amber-950 px-1.5 py-0.5 rounded border border-amber-300 inline-block">
+                      {vrlTrackingInput.trim() || '[Tracking Number]'}
+                    </span>
+                    {'\n'}You can use the above tracking number to track the material movement. We will keep you updated on the delivery status.
+                    {'\n'}Note: Kindly ensure proper space and access for safe unloading and material storage.
+                  </div>
+                  <div className="text-[10px] text-emerald-700/80 text-right font-medium">
+                    ✓✓ Automated Group Delivery
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={isSubmittingDispatch}
+                  onClick={() => setShowVrlAlertModal(false)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingDispatch}
+                  className="px-5 py-2.5 rounded-xl text-xs font-black text-white bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 shadow-md shadow-emerald-600/20 active:scale-95 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {isSubmittingDispatch ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                      <span>Dispatching Update...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Confirm & Send to WhatsApp</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

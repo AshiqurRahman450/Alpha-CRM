@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../../lib/api';
 import { formatProjectStatus } from '../../../components/Timeline';
+import InstallationProgrammeTable from '../../../components/InstallationProgrammeTable';
 
 export default function CustomerDetailPage() {
   const params = useParams();
@@ -34,10 +35,12 @@ export default function CustomerDetailPage() {
 
   const [bdms, setBdms] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
 
-  const fetchCustomer = async () => {
+  const fetchCustomer = async (showSpinner = false) => {
     try {
-      setLoading(true);
+      if (showSpinner || !data) setLoading(true);
+      setError(null);
       const res = await api.getCustomerById(customerId);
       setData(res.data);
       
@@ -56,7 +59,7 @@ export default function CustomerDetailPage() {
   };
 
   useEffect(() => {
-    if (customerId) fetchCustomer();
+    if (customerId) fetchCustomer(true);
   }, [customerId]);
 
   const handleToggleOptIn = async () => {
@@ -185,6 +188,11 @@ export default function CustomerDetailPage() {
             <div className="font-bold text-slate-800 truncate">{customer.email || 'None registered'}</div>
             <div className="text-[11px] text-slate-500">
               Assigned BDM: <span className="font-semibold text-slate-800">{customer.bdmId?.name || (typeof customer.bdmId === 'string' && bdms.find(b => b._id === customer.bdmId)?.name) || customer.assignedEmployee || 'Unassigned'}</span>
+              {(customer.bdmPhone || customer.bdmId?.phone) && (
+                <span className="block text-[10px] text-emerald-700 font-mono font-bold mt-0.5">
+                  WA: +{String(customer.bdmPhone || customer.bdmId?.phone).replace(/\D/g, '')}
+                </span>
+              )}
             </div>
           </div>
 
@@ -271,40 +279,73 @@ export default function CustomerDetailPage() {
           <p className="text-xs text-slate-400">No projects associated with this customer.</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {projects.map((p: any) => (
-              <div
-                key={p._id}
-                className="p-4 rounded-2xl border border-slate-200 bg-slate-50/70 hover:bg-white hover:border-sky-300 transition-all shadow-sm space-y-3"
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <span className="text-[11px] font-mono font-bold text-slate-400">{p.projectId}</span>
-                    <h4 className="text-sm font-extrabold text-slate-900">{p.projectName}</h4>
-                    <span className="text-xs text-slate-500">{p.liftModel} ({p.liftType})</span>
+            {projects.map((p: any) => {
+              const isExpanded = expandedProjectId === p._id;
+
+              return (
+                <div
+                  key={p._id}
+                  className={`p-4 rounded-2xl border border-slate-200 bg-slate-50/70 hover:bg-white hover:border-sky-300 transition-all shadow-sm space-y-3 ${
+                    isExpanded ? 'col-span-full ring-2 ring-amber-400 bg-white' : ''
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <span className="text-[11px] font-mono font-bold text-slate-400">{p.projectId}</span>
+                      <h4 className="text-sm font-extrabold text-slate-900">{p.projectName}</h4>
+                      <span className="text-xs text-slate-500">{p.liftModel} ({p.liftType})</span>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                      {formatProjectStatus(p.projectStatus)}
+                    </span>
                   </div>
-                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                    {formatProjectStatus(p.projectStatus)}
-                  </span>
-                </div>
 
-                <div className="flex items-center justify-between text-xs bg-white p-2.5 rounded-xl border border-slate-200/80">
-                  <span>Order: <strong>₹{p.orderValue?.toLocaleString('en-IN')}</strong></span>
-                  <span className="text-emerald-700 font-semibold">
-                    Paid: ₹{p.totalPaid?.toLocaleString('en-IN')}
-                  </span>
-                </div>
+                  <div className="flex items-center justify-between text-xs bg-white p-2.5 rounded-xl border border-slate-200/80">
+                    <span>Order: <strong>₹{p.orderValue?.toLocaleString('en-IN')}</strong></span>
+                    <span className="text-emerald-700 font-semibold">
+                      Paid: ₹{p.totalPaid?.toLocaleString('en-IN')}
+                    </span>
+                  </div>
 
-                <div className="flex justify-end">
-                  <Link
-                    href={`/projects/${p._id}`}
-                    className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-colors"
-                  >
-                    <span>View Project</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </Link>
+                  <div className="flex items-center justify-between pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedProjectId(isExpanded ? null : p._id)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all border ${
+                        isExpanded
+                          ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
+                          : 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100'
+                      }`}
+                    >
+                      <span>⚡ 11-Stage Programme</span>
+                      <span>{isExpanded ? '▲ Hide' : '▼ View Table'}</span>
+                    </button>
+
+                    <Link
+                      href={`/projects/${p._id}`}
+                      className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-colors"
+                    >
+                      <span>View Project</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
+
+                  {isExpanded && (
+                    <div className="pt-3 border-t border-slate-200">
+                      <InstallationProgrammeTable
+                        projectId={p._id}
+                        projectName={p.projectName}
+                        projectCode={p.projectId}
+                        customerName={customer.fullName}
+                        customerCity={customer.city}
+                        currentUserRole={currentUser?.role}
+                        onHandoverDateChanged={() => fetchCustomer(false)}
+                      />
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

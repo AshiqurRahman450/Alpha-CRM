@@ -35,10 +35,15 @@ dashboardRouter.get('/', async (req: AuthRequest, res: Response) => {
       manufacturingCount,
       readyForDeliveryCount,
       installationOngoingCount,
+      handoverCount,
       messagesSentCount,
       messagesFailedCount,
       settings,
       pendingApprovalCount,
+      pendingBalanceAgg,
+      pendingPaymentProjects,
+      crmPaymentRequestsCount,
+      crmPaymentRequests,
     ] = await Promise.all([
       Customer.countDocuments({ ...bdmFilter }),
       Project.countDocuments({ ...bdmFilter }),
@@ -46,12 +51,34 @@ dashboardRouter.get('/', async (req: AuthRequest, res: Response) => {
       Project.countDocuments({ ...bdmFilter, paymentStatus: { $in: ['PENDING', 'PARTIAL_PAID'] } }),
       Project.countDocuments({ ...bdmFilter, projectStatus: 'MANUFACTURING' }),
       Project.countDocuments({ ...bdmFilter, projectStatus: { $in: ['QUALITY_CHECK', 'DISPATCH', 'DELIVERY'] } }),
-      Project.countDocuments({ ...bdmFilter, projectStatus: { $in: ['INSTALLATION', 'TESTING'] } }),
+      Project.countDocuments({ ...bdmFilter, projectStatus: 'INSTALLATION' }),
+      Project.countDocuments({ ...bdmFilter, projectStatus: 'TESTING' }),
       WhatsAppMessage.countDocuments({ status: { $in: ['SENT', 'DELIVERED', 'READ'] } }),
       WhatsAppMessage.countDocuments({ status: 'FAILED' }),
       SystemSettings.findOne({ key: 'GLOBAL_CONFIG' }),
       Project.countDocuments({ ...bdmFilter, projectStatus: { $in: ['DESIGN', 'CUSTOMER_APPROVAL'] } }),
+      Project.aggregate([
+        { $match: { ...bdmFilter, paymentStatus: { $in: ['PENDING', 'PARTIAL_PAID'] } } },
+        { $group: { _id: null, totalBalance: { $sum: '$balanceAmount' } } },
+      ]),
+      Project.find({
+        ...bdmFilter,
+        paymentStatus: { $in: ['PENDING', 'PARTIAL_PAID'] },
+      })
+        .populate('customerId')
+        .sort({ createdAt: -1 })
+        .limit(10),
+      Project.countDocuments({ ...bdmFilter, 'paymentRequest.status': 'REQUESTED' }),
+      Project.find({
+        ...bdmFilter,
+        'paymentRequest.status': 'REQUESTED',
+      })
+        .populate('customerId')
+        .sort({ 'paymentRequest.requestedAt': -1 })
+        .limit(25),
     ]);
+
+    const totalPendingBalance = pendingBalanceAgg[0]?.totalBalance || 0;
 
     // 2. Updates Due Today (Projects with nextUpdateAt <= endOfToday and active)
     const updatesDueTodayProjects = await Project.find({
@@ -106,14 +133,45 @@ dashboardRouter.get('/', async (req: AuthRequest, res: Response) => {
           totalProjects,
           activeProjects: activeProjectsCount,
           projectsAwaitingPayment: awaitingPaymentCount,
+          pendingRecordAmountCount: awaitingPaymentCount,
+          crmPaymentRequestsCount,
+          totalPendingBalance,
           projectsInManufacturing: manufacturingCount,
           projectsReadyForDelivery: readyForDeliveryCount,
           installationOngoing: installationOngoingCount,
+          handoverCount,
           whatsappUpdatesDueToday: updatesDueTodayProjects.length,
           whatsappMessagesSent: messagesSentCount,
           whatsappMessagesFailed: messagesFailedCount,
           pendingApprovalCount,
         },
+        crmPaymentRequests: crmPaymentRequests.map((p) => ({
+          _id: p._id,
+          projectId: p.projectId,
+          projectName: p.projectName,
+          customerName: (p.customerId as any)?.fullName || 'Customer',
+          customerPhone: (p.customerId as any)?.phoneNumber,
+          customerEmail: (p.customerId as any)?.email,
+          orderValue: p.orderValue,
+          advanceAmount: p.advanceAmount,
+          totalPaid: p.totalPaid || 0,
+          balanceAmount: p.balanceAmount,
+          paymentStatus: p.paymentStatus,
+          paymentRequest: p.paymentRequest,
+        })),
+        pendingPaymentProjects: pendingPaymentProjects.map((p) => ({
+          _id: p._id,
+          projectId: p.projectId,
+          projectName: p.projectName,
+          customerName: (p.customerId as any)?.fullName || 'Customer',
+          customerPhone: (p.customerId as any)?.phoneNumber,
+          orderValue: p.orderValue,
+          advanceAmount: p.advanceAmount,
+          totalPaid: p.totalPaid || 0,
+          balanceAmount: p.balanceAmount,
+          paymentStatus: p.paymentStatus,
+          paymentRequest: p.paymentRequest,
+        })),
         todayActions: updatesDueTodayProjects.map((p) => ({
           _id: p._id,
           projectId: p.projectId,

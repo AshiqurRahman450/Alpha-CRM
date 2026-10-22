@@ -18,6 +18,8 @@ import { reportRouter } from './routes/reports';
 import { settingsRouter } from './routes/settings';
 import { webhookRouter } from './routes/webhooks';
 import { reminderRouter } from './routes/reminders';
+import { qcRouter } from './routes/qc';
+import bcrypt from 'bcryptjs';
 
 const app = express();
 
@@ -37,8 +39,8 @@ app.use(
   })
 );
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 if (config.nodeEnv !== 'test') {
   app.use(morgan('dev'));
@@ -70,6 +72,7 @@ app.use('/api/reports', reportRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/webhooks', webhookRouter);
 app.use('/api/reminders', reminderRouter);
+app.use('/api/qc', qcRouter);
 
 // 404 Handler
 app.use((req: Request, res: Response) => {
@@ -87,8 +90,9 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   });
 });
 
-import { User } from './models';
+import { User, Customer, Project } from './models';
 import { seed } from './scripts/seed';
+import { autoSyncTimelineTemplates } from './routes/templates';
 
 export async function startServer() {
   try {
@@ -100,12 +104,133 @@ export async function startServer() {
       if (userCount === 0) {
         console.log('[Server] Database is empty. Bootstrapping Admin, CRM users & templates...');
         await seed();
+      } else {
+        // Synchronize WhatsApp template stage names with Project Execution Timeline
+        await autoSyncTimelineTemplates();
+      }
+
+      // Ensure default QC inspector exists
+      const qcUser = await User.findOne({ email: 'qc@alphaelevators.com' });
+      if (!qcUser) {
+        const hash = await bcrypt.hash('qc123', 10);
+        await User.create({
+          name: 'Dinesh Kumar S (QC Inspector)',
+          email: 'qc@alphaelevators.com',
+          passwordHash: hash,
+          role: 'QC',
+          phone: '+91 98400 11223',
+          isActive: true,
+        });
+        console.log('[Server] Created default QC user: qc@alphaelevators.com / qc123');
+      }
+
+      // Ensure default Technical Team Lead exists
+      const techLeadUser = await User.findOne({ email: 'techlead@alphaelevators.com' });
+      if (!techLeadUser) {
+        const hash = await bcrypt.hash('tech123', 10);
+        await User.create({
+          name: 'Suresh Kumar (Technical Team Lead)',
+          email: 'techlead@alphaelevators.com',
+          passwordHash: hash,
+          role: 'TECHNICAL_LEAD',
+          phone: '+91 98401 55667',
+          isActive: true,
+        });
+        console.log('[Server] Created default Technical Team Lead user: techlead@alphaelevators.com / tech123');
+      }
+
+      // Ensure sample Tamil Nadu clients exist for QC autofill
+      const custCount = await Customer.countDocuments();
+      if (custCount < 3) {
+        const sampleTN = [
+          {
+            customerId: 'CUST-002',
+            fullName: 'Dr. Rajesh Mehra',
+            phoneNumber: '+91 98401 22334',
+            whatsappNumber: '+91 98401 22334',
+            city: 'Chennai',
+            state: 'Tamil Nadu',
+            address: '45, Harrington Road, Chetpet, Chennai',
+            customerType: 'Residential',
+            whatsappOptIn: true,
+          },
+          {
+            customerId: 'CUST-003',
+            fullName: 'Kavitha Sundaram',
+            phoneNumber: '+91 94432 55667',
+            whatsappNumber: '+91 94432 55667',
+            city: 'Coimbatore',
+            state: 'Tamil Nadu',
+            address: '12, Race Course Road, Coimbatore',
+            customerType: 'Residential',
+            whatsappOptIn: true,
+          },
+          {
+            customerId: 'CUST-004',
+            fullName: 'Senthil Kumar',
+            phoneNumber: '+91 98940 33445',
+            whatsappNumber: '+91 98940 33445',
+            city: 'Madurai',
+            state: 'Tamil Nadu',
+            address: '88, KK Nagar, Madurai',
+            customerType: 'Residential',
+            whatsappOptIn: true,
+          },
+          {
+            customerId: 'CUST-005',
+            fullName: 'Venkatesh Prasad',
+            phoneNumber: '+91 94421 88990',
+            whatsappNumber: '+91 94421 88990',
+            city: 'Salem',
+            state: 'Tamil Nadu',
+            address: '24, Fairlands, Salem',
+            customerType: 'Residential',
+            whatsappOptIn: true,
+          },
+        ];
+        for (const c of sampleTN) {
+          const existing = await Customer.findOne({ customerId: c.customerId });
+          if (!existing) {
+            const created = await Customer.create(c);
+            await Project.create({
+              projectId: `ALP-${c.customerId.replace('CUST-', '')}`,
+              customerId: created._id,
+              customerCode: c.customerId,
+              projectName: `${c.fullName.split(' ')[0]} Residence Lift`,
+              siteAddress: c.address,
+              liftModel: 'Gearless Belt Home Series EV',
+              liftType: 'Home Lift',
+              numberOfFloors: 'G+2 (3 Stops)',
+              liftAmount: 1250000,
+              shaftAmount: 0,
+              orderValue: 1250000,
+              advancePercentage: 30,
+              advanceAmount: 375000,
+              totalPaid: 375000,
+              balanceAmount: 875000,
+              paymentStatus: 'ADVANCE_PAID',
+              orderDate: new Date(),
+              expectedDeliveryDate: new Date(Date.now() + 90 * 86400000),
+              projectStatus: 'SITE_MEASUREMENT',
+              automationEnabled: true,
+              updateFrequencyDays: 15,
+            });
+          }
+        }
+        console.log('[Server] Verified Tamil Nadu sample clients & projects for QC inspection autofill.');
       }
     } catch (seedErr: any) {
       console.warn('[Server] Auto-bootstrap warning:', seedErr.message);
     }
 
     initScheduler();
+
+    // Initialize WhatsApp Web Bot for automated inside-group posting
+    import('./services/whatsapp/whatsappWebBot').then(({ whatsAppWebBot }) => {
+      whatsAppWebBot.initialize().catch((err) => {
+        console.warn('[Server] WhatsApp Web Bot init notice:', err.message);
+      });
+    });
 
     const server = app.listen(config.port, () => {
       console.log(`====================================================`);

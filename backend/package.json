@@ -8,9 +8,12 @@
     "start": "node dist/server.js",
     "dev": "nodemon --watch src --exec ts-node src/server.ts",
     "seed": "ts-node src/scripts/seed.ts",
-    "test:acceptance": "ts-node src/scripts/acceptanceTest.ts"
+    "test:acceptance": "ts-node src/scripts/acceptanceTest.ts",
+    "test:wati": "ts-node src/scripts/watiTest.ts"
   },
   "dependencies": {
+    "@types/pdfkit": "^0.17.6",
+    "@whiskeysockets/baileys": "^7.0.0-rc14",
     "axios": "^1.7.7",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
@@ -21,7 +24,9 @@
     "mongoose": "^8.7.0",
     "morgan": "^1.10.0",
     "multer": "^2.4.0",
-    "node-cron": "^3.0.3"
+    "node-cron": "^3.0.3",
+    "pdfkit": "^0.20.2",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -32,6 +37,7 @@
     "@types/multer": "^2.3.0",
     "@types/node": "^20.16.11",
     "@types/node-cron": "^3.0.11",
+    "@types/qrcode": "^1.5.6",
     "mongodb-memory-server": "^9.4.0",
     "nodemon": "^3.1.14",
     "ts-node": "^10.9.2",

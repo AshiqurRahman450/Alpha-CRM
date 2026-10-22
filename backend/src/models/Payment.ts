@@ -15,6 +15,7 @@ export interface IPayment extends Document {
   transactionReference: string;
   paymentStatus: 'SUCCESS' | 'PENDING' | 'FAILED';
   receiptNumber?: string;
+  receiptUrl?: string;
   notes?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -82,6 +83,10 @@ const PaymentSchema = new Schema<IPayment>(
       default: 'SUCCESS',
     },
     receiptNumber: {
+      type: String,
+      trim: true,
+    },
+    receiptUrl: {
       type: String,
       trim: true,
     },

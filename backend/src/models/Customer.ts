@@ -17,6 +17,7 @@ export interface ICustomer extends Document {
   leadSource?: string;
   assignedEmployee?: string;
   bdmId?: Types.ObjectId;
+  bdmPhone?: string;
   whatsappOptIn: boolean;
   optInDate?: Date;
   optInSource?: string; // PROJECT_CONFIRMATION, CONTRACT_SIGNING, DIRECT
@@ -106,6 +107,10 @@ const CustomerSchema = new Schema<ICustomer>(
     bdmId: {
       type: Schema.Types.ObjectId,
       ref: 'User',
+    },
+    bdmPhone: {
+      type: String,
+      trim: true,
     },
     whatsappOptIn: {
       type: Boolean,

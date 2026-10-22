@@ -5,25 +5,29 @@ import {
   Payment,
   WhatsAppChannel,
   WhatsAppMessage,
+  WhatsAppMessageLog,
   WhatsAppTemplate,
   WebhookEvent,
 } from '../models';
 import { processDueWhatsAppUpdates } from '../services/scheduler/schedulerService';
 import axios from 'axios';
 
+import { config } from '../config';
+
 async function runAcceptanceTest() {
+  config.wati.dryRun = true;
   console.log('====================================================');
   console.log('ALPHA ELEVATORS CRM — SECTION 43 ACCEPTANCE TEST');
   console.log('====================================================\n');
 
   await connectDB();
 
-  // Step 1: Ensure approved MANUFACTURING_UPDATE template exists
-  console.log('[Test Step 1] Verifying approved template MANUFACTURING_UPDATE...');
-  let template = await WhatsAppTemplate.findOne({ templateName: 'MANUFACTURING_UPDATE' });
+  // Step 1: Ensure approved PRODUCTION_UPDATE_STAGE_1 template exists
+  console.log('[Test Step 1] Verifying approved template PRODUCTION_UPDATE_STAGE_1...');
+  let template = await WhatsAppTemplate.findOne({ templateName: 'PRODUCTION_UPDATE_STAGE_1' });
   if (!template) {
     template = await WhatsAppTemplate.create({
-      templateName: 'MANUFACTURING_UPDATE',
+      templateName: 'PRODUCTION_UPDATE_STAGE_1',
       displayName: 'Manufacturing Update',
       category: 'UTILITY',
       stageMapping: 'MANUFACTURING',
@@ -33,7 +37,7 @@ async function runAcceptanceTest() {
       variablesList: ['customer_name', 'project_name', 'project_stage', 'next_milestone'],
     });
   }
-  console.log('✓ Template MANUFACTURING_UPDATE confirmed APPROVED\n');
+  console.log('✓ Template PRODUCTION_UPDATE_STAGE_1 confirmed APPROVED\n');
 
   // Step 2: Create Customer Kumar with WhatsApp Opt-In
   console.log('[Test Step 2] Creating Customer: Kumar...');
@@ -60,6 +64,7 @@ async function runAcceptanceTest() {
   await Project.deleteMany({ projectId: 'ALP-TEST-001' });
   await WhatsAppChannel.deleteMany({ whatsappGroupId: 'GROUP_TEST_001' });
   await WhatsAppMessage.deleteMany({ groupId: 'GROUP_TEST_001' });
+  await WhatsAppMessageLog.deleteMany({ groupId: 'GROUP_TEST_001' });
 
   const orderValue = 850000;
   const advanceAmount = 255000; // 30%
@@ -91,6 +96,14 @@ async function runAcceptanceTest() {
     automationEnabled: true,
     updateFrequencyDays: 20,
     nextUpdateAt: dueTime,
+    whatsapp: {
+      groupId: 'GROUP_TEST_001',
+      groupName: 'Kumar Residence — Alpha Updates',
+      updatesEnabled: true,
+      paused: false,
+      intervalDays: 20,
+      nextUpdateAt: dueTime,
+    },
   });
 
   // Link WhatsApp Channel
@@ -119,7 +132,7 @@ async function runAcceptanceTest() {
   // Validate dispatch result
   const sentMessage = await WhatsAppMessage.findOne({
     projectId: project._id,
-    templateName: 'MANUFACTURING_UPDATE',
+    templateName: 'PRODUCTION_UPDATE_STAGE_1',
   });
 
   if (!sentMessage) {
@@ -179,7 +192,7 @@ async function runAcceptanceTest() {
 
   const duplicateCheck = await WhatsAppMessage.find({
     projectId: project._id,
-    templateName: 'MANUFACTURING_UPDATE',
+    templateName: 'PRODUCTION_UPDATE_STAGE_1',
     direction: 'OUTGOING',
   });
 
@@ -187,6 +200,124 @@ async function runAcceptanceTest() {
     throw new Error('FAILED: Duplicate message was sent!');
   }
   console.log(`✓ Duplicate Prevention Verified: Exactly 1 outgoing message exists for cycle (Idempotent count: ${duplicateCheck.length})\n`);
+
+  // Step 8: Test Stage 2 Production Update (Finishing & Assembly)
+  console.log('[Test Step 8] Simulating 10/20 days passing for Stage 2 Production Update...');
+  const updatedProj1 = await Project.findById(project._id);
+  if (!updatedProj1 || updatedProj1.productionStage !== 2) {
+    throw new Error(`FAILED: Expected productionStage to be 2, but got ${updatedProj1?.productionStage}`);
+  }
+  // Simulate time reaching nextUpdateAt
+  updatedProj1.nextUpdateAt = new Date(Date.now() - 1000);
+  if (updatedProj1.whatsapp) updatedProj1.whatsapp.nextUpdateAt = updatedProj1.nextUpdateAt;
+  await updatedProj1.save();
+
+  const stage2RunResult = await processDueWhatsAppUpdates();
+  console.log('Stage 2 Scheduler Run Results:', stage2RunResult);
+
+  const stage2Msg = await WhatsAppMessage.findOne({
+    projectId: project._id,
+    templateName: 'PRODUCTION_UPDATE_STAGE_2',
+  });
+  if (!stage2Msg) {
+    throw new Error('FAILED: Stage 2 production message was not dispatched!');
+  }
+  console.log(`✓ CRM successfully dispatched Stage 2 update: ${stage2Msg.templateName}\n`);
+
+  // Step 9: Test Stage 3 Production Update (Final Inspection)
+  console.log('[Test Step 9] Simulating 10/20 days passing for Stage 3 Production Update...');
+  const updatedProj2 = await Project.findById(project._id);
+  if (!updatedProj2 || updatedProj2.productionStage !== 3) {
+    throw new Error(`FAILED: Expected productionStage to be 3, but got ${updatedProj2?.productionStage}`);
+  }
+  updatedProj2.nextUpdateAt = new Date(Date.now() - 1000);
+  if (updatedProj2.whatsapp) updatedProj2.whatsapp.nextUpdateAt = updatedProj2.nextUpdateAt;
+  await updatedProj2.save();
+
+  const stage3RunResult = await processDueWhatsAppUpdates();
+  console.log('Stage 3 Scheduler Run Results:', stage3RunResult);
+
+  const stage3Msg = await WhatsAppMessage.findOne({
+    projectId: project._id,
+    templateName: 'PRODUCTION_UPDATE_STAGE_3',
+  });
+  if (!stage3Msg) {
+    throw new Error('FAILED: Stage 3 production message was not dispatched!');
+  }
+  console.log(`✓ CRM successfully dispatched Stage 3 update: ${stage3Msg.templateName}`);
+
+  // Step 10: Verify Interval Updates Stopped After Stage 3
+  const updatedProj3 = await Project.findById(project._id);
+  if (updatedProj3?.productionStage !== 4 || updatedProj3?.nextUpdateAt) {
+    throw new Error(`FAILED: Expected all 3 stages completed (productionStage 4, nextUpdateAt undefined), but got stage: ${updatedProj3?.productionStage}, nextUpdateAt: ${updatedProj3?.nextUpdateAt}`);
+  }
+  console.log(`✓ After Stage 3: All 3 stages completed. nextUpdateAt is cleared (no further interval messages).\n`);
+
+  // Step 11: Verify other non-MANUFACTURING stages are excluded from automated interval messages
+  console.log('[Test Step 11] Verifying non-MANUFACTURING projects are ignored by interval scheduler...');
+  const designProj = await Project.create({
+    projectId: 'ALP-TEST-DESIGN',
+    customerId: customer._id,
+    customerCode: customer.customerId,
+    projectName: 'Design Stage Test',
+    siteAddress: customer.address,
+    liftModel: 'Alpha EV',
+    orderValue: 800000,
+    advancePercentage: 30,
+    advanceAmount: 240000,
+    totalPaid: 240000,
+    balanceAmount: 560000,
+    paymentStatus: 'ADVANCE_PAID',
+    orderDate: new Date(),
+    expectedDeliveryDate: new Date(Date.now() + 100 * 24 * 3600 * 1000),
+    projectStatus: 'DESIGN',
+    whatsappGroupId: 'GROUP_TEST_DESIGN',
+    automationEnabled: true,
+    nextUpdateAt: new Date(Date.now() - 1000), // Due now
+  });
+
+  const nonMfgResult = await processDueWhatsAppUpdates();
+  const designMsg = await WhatsAppMessage.findOne({ projectId: designProj._id, isAutomated: true });
+  if (designMsg) {
+    throw new Error('FAILED: Non-manufacturing project received automated interval message!');
+  }
+  console.log('✓ Verified: Pre-production project (DESIGN) ignored by interval scheduler. Zero automated messages sent.');
+  await Project.deleteOne({ _id: designProj._id });
+
+  // Step 12: Verify that post-production payment stage (e.g. QUALITY_CHECK) works with production interval countdown
+  console.log('\n[Test Step 12] Verifying post-production stage (QUALITY_CHECK) works with production interval countdown...');
+  await Project.deleteMany({ projectId: 'ALP-TEST-QC' });
+  await WhatsAppMessage.deleteMany({ groupId: 'GROUP_TEST_QC' });
+  await WhatsAppMessageLog.deleteMany({ groupId: 'GROUP_TEST_QC' });
+  const qcProj = await Project.create({
+    projectId: 'ALP-TEST-QC',
+    customerId: customer._id,
+    customerCode: customer.customerId,
+    projectName: 'QC Post-Prod Test',
+    siteAddress: customer.address,
+    liftModel: 'Alpha EV',
+    orderValue: 800000,
+    advancePercentage: 30,
+    advanceAmount: 240000,
+    totalPaid: 240000,
+    balanceAmount: 560000,
+    paymentStatus: 'ADVANCE_PAID',
+    orderDate: new Date(),
+    expectedDeliveryDate: new Date(Date.now() + 100 * 24 * 3600 * 1000),
+    projectStatus: 'QUALITY_CHECK',
+    whatsappGroupId: 'GROUP_TEST_QC',
+    automationEnabled: true,
+    productionStage: 1,
+    nextUpdateAt: new Date(Date.now() - 1000), // Due now
+  });
+
+  const qcResult = await processDueWhatsAppUpdates();
+  const qcMsg = await WhatsAppMessage.findOne({ projectId: qcProj._id, templateName: 'PRODUCTION_UPDATE_STAGE_1' });
+  if (!qcMsg) {
+    throw new Error('FAILED: Post-production project did not receive production update!');
+  }
+  console.log(`✓ Verified: Project in stage QUALITY_CHECK successfully received ${qcMsg.templateName}\n`);
+  await Project.deleteOne({ _id: qcProj._id });
 
   console.log('====================================================');
   console.log('🎉 ALL SECTION 43 ACCEPTANCE TESTS PASSED SUCCESSFULLY!');

@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { Customer, Project, Payment, WhatsAppMessage, ProjectActivity } from '../models';
+import { Customer, Project, Payment, WhatsAppMessage, ProjectActivity, User } from '../models';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import multer from 'multer';
 import path from 'path';
@@ -51,7 +51,7 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
       query.customerType = customerType;
     }
 
-    const customers = await Customer.find(query).populate('bdmId', 'name email phoneNumber').sort({ createdAt: -1 });
+    const customers = await Customer.find(query).populate('bdmId', 'name email phone').sort({ createdAt: -1 });
     return res.json({ success: true, count: customers.length, data: customers });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
@@ -79,6 +79,7 @@ customerRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthR
       leadSource,
       assignedEmployee,
       bdmId,
+      bdmPhone,
       whatsappOptIn,
       optInSource,
       notes,
@@ -99,6 +100,15 @@ customerRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthR
 
     const assignedBdmId = req.user?.role === 'BDM' ? req.user._id : (bdmId || undefined);
 
+    // Auto-lookup BDM WhatsApp phone if not explicitly provided
+    let finalBdmPhone = bdmPhone ? bdmPhone.trim() : undefined;
+    if (assignedBdmId && !finalBdmPhone) {
+      const bdmUser = await User.findById(assignedBdmId);
+      if (bdmUser?.phone) {
+        finalBdmPhone = bdmUser.phone.trim();
+      }
+    }
+
     const newCustomer = await Customer.create({
       customerId,
       fullName: fullName.trim(),
@@ -116,6 +126,7 @@ customerRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthR
       leadSource: leadSource || 'Direct Inquiry',
       assignedEmployee: assignedEmployee || req.user?.name,
       bdmId: assignedBdmId,
+      bdmPhone: finalBdmPhone,
       whatsappOptIn: whatsappOptIn !== undefined ? !!whatsappOptIn : true,
       optInDate: new Date(),
       optInSource: optInSource || 'PROJECT_CONFIRMATION',
@@ -134,7 +145,7 @@ customerRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthR
  */
 customerRouter.get('/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const customer = await Customer.findById(req.params.id).populate('bdmId', 'name email phoneNumber');
+    const customer = await Customer.findById(req.params.id).populate('bdmId', 'name email phone');
     if (!customer) {
       return res.status(404).json({ success: false, message: 'Customer not found' });
     }

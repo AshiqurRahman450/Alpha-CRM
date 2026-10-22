@@ -1,40 +1,72 @@
 import cron from 'node-cron';
-import { Project, Customer, WhatsAppMessage, WhatsAppTemplate, IProject, WhatsAppChannel, User, Reminder } from '../../models';
-import { whatsappService } from '../whatsapp';
+import {
+  Project,
+  Customer,
+  WhatsAppMessage,
+  WhatsAppMessageLog,
+  WhatsAppTemplate,
+  IProject,
+  WhatsAppChannel,
+  User,
+  Reminder,
+} from '../../models';
+import { whatsappService, watiService, whatsAppWebBot } from '../whatsapp';
 import { logProjectActivity } from '../activity/activityService';
+import { config } from '../../config';
 
 let isJobRunning = false;
 
-// Map Project Status to Approved WhatsApp Template Name
-export const STAGE_TEMPLATE_MAP: Record<string, string> = {
-  PAYMENT_RECEIVED: 'PAYMENT_CONFIRMATION',
-  SITE_MEASUREMENT: 'SITE_MEASUREMENT',
-  DESIGN: 'DESIGN_UPDATE',
-  CUSTOMER_APPROVAL: 'CUSTOMER_APPROVAL',
-  ENGINEERING: 'ENGINEERING_UPDATE',
-  MANUFACTURING: 'MANUFACTURING_UPDATE',
-  QUALITY_CHECK: 'QUALITY_CHECK',
-  DISPATCH: 'DISPATCH_UPDATE',
-  DELIVERY: 'DELIVERY_UPDATE',
-  INSTALLATION: 'INSTALLATION_UPDATE',
-  TESTING: 'PROGRESS_UPDATE',
-  COMPLETED: 'PROJECT_COMPLETED',
+// Project Status to friendly timeline stage names (matching Project Execution Timeline)
+export const PROJECT_STATUS_LABELS: Record<string, string> = {
+  PAYMENT_RECEIVED: 'Advance Payment Received',
+  SITE_MEASUREMENT: 'Site Visit',
+  DESIGN: 'Drawing and Cabin',
+  CUSTOMER_APPROVAL: 'Drawing and Cabin Design Approval',
+  ENGINEERING: 'Production Payment',
+  MANUFACTURING: 'Approval Drawing to factory',
+  QUALITY_CHECK: 'Rediness Payment',
+  DELIVERY: 'Pre Site Visit',
+  DISPATCH: 'Expected Delivery',
+  INSTALLATION: 'Installation Start Date',
+  TESTING: 'Handover',
+  COMPLETED: 'Project Completed',
 };
 
-// Map current stage to Next Milestone description
+export function formatProjectStatus(status: string): string {
+  if (!status) return 'General';
+  return PROJECT_STATUS_LABELS[status] || status.replace(/_/g, ' ');
+}
+
+// Map Project Status to Approved WhatsApp Template Name
+export const STAGE_TEMPLATE_MAP: Record<string, string> = {
+  PAYMENT_RECEIVED: 'SITE_VISIT_SCHEDULE_PM',
+  SITE_MEASUREMENT: 'SITE_VISIT_COMPLETED',
+  DESIGN: 'DRAWING_CABIN_APPROVAL',
+  CUSTOMER_APPROVAL: 'DRAWING_CABIN_APPROVAL_REMINDER',
+  ENGINEERING: 'PRODUCTION_PAYMENT_RECEIVED',
+  MANUFACTURING: 'PRODUCTION_UPDATE_STAGE_1',
+  QUALITY_CHECK: 'READINESS_PAYMENT',
+  DELIVERY: 'PRE_INSTALLATION_SITE_VISIT_PM',
+  DISPATCH: 'MATERIAL_DISPATCHED_PM',
+  INSTALLATION: 'INSTALLATION_TEAM_ARRIVAL_PM',
+  TESTING: 'HAND_OVER_PM',
+  COMPLETED: 'HAND_OVER_PM',
+};
+
+// Map current stage to Next Milestone description based on Project Execution Timeline
 export const STAGE_NEXT_MILESTONE_MAP: Record<string, string> = {
-  PAYMENT_RECEIVED: 'Site Measurement & Shaft Inspection',
-  SITE_MEASUREMENT: '3D Cabin Design & Customer Approval',
-  DESIGN: 'Engineering Drawings & Component Planning',
-  CUSTOMER_APPROVAL: 'Factory Fabrication & Production Scheduling',
-  ENGINEERING: 'Guide Rail & Traction Motor Manufacturing',
-  MANUFACTURING: 'Factory Quality Inspection & Testing',
-  QUALITY_CHECK: 'Safe Crating & Transport Dispatch',
-  DISPATCH: 'Site Delivery & Material Inspection',
-  DELIVERY: 'Site Rigging & Mechanical Installation',
-  INSTALLATION: 'Safety Testing & Electrical Commissioning',
-  TESTING: 'Final Handover & Client Certification',
-  COMPLETED: 'Annual Maintenance Service Kickoff',
+  PAYMENT_RECEIVED: 'Site Visit',
+  SITE_MEASUREMENT: 'Drawing and Cabin',
+  DESIGN: 'Drawing and Cabin Design Approval',
+  CUSTOMER_APPROVAL: 'Production Payment',
+  ENGINEERING: 'Approval Drawing to factory',
+  MANUFACTURING: 'Rediness Payment',
+  QUALITY_CHECK: 'Pre Site Visit',
+  DELIVERY: 'Expected Delivery',
+  DISPATCH: 'Installation Start Date',
+  INSTALLATION: 'Handover',
+  TESTING: 'Project Completed',
+  COMPLETED: 'Project Completed',
 };
 
 /**
@@ -45,48 +77,253 @@ export function formatDateKey(date: Date): string {
 }
 
 /**
- * Calculates next update date given frequency days
+ * Calculates next update date given frequency days (1, 10, 15, 20 or custom days)
  */
-export function calculateNextUpdateDate(days: number = 20, fromDate: Date = new Date()): Date {
+export function calculateNextUpdateDate(days: number = 15, fromDate: Date = new Date()): Date {
+  const validDays = [1, 10, 15, 20].includes(Number(days))
+    ? Number(days)
+    : Number(days) > 0
+    ? Number(days)
+    : 15;
   const nextDate = new Date(fromDate);
-  nextDate.setDate(nextDate.getDate() + days);
+  nextDate.setDate(nextDate.getDate() + validDays);
   // Default to 09:00 AM local time
   nextDate.setHours(9, 0, 0, 0);
   return nextDate;
 }
 
+// Full dictionary of the 20 approved Alpha Elevators WhatsApp milestone templates
+export const APPROVED_MILESTONE_TEMPLATES: Record<string, string> = {
+  SITE_VISIT_SCHEDULE_PM: `Dear Sir/Madam,
+Your site visit has been scheduled for [Date] at [Time]. Our technical team will visit the site for measurement and inspection.
+Kindly ensure site accessibility during the scheduled time.`,
+
+  SITE_VISIT_COMPLETED: `Good Afternoon Sir,
+
+We have successfully completed the site visit on the scheduled date and shared the site visit report with you via email.
+
+Kindly review the report and confirm your approval by replying to the email so that we can initiate the drawing process based on the site measurements.
+
+Thank you for your support and cooperation.
+
+Regards,  
+CRM Department  
+Alpha Elevators`,
+
+  DRAWING_CABIN_APPROVAL: `Dear Sir/Madam,
+The elevator drawing and cabin design are ready for your review and approval. Kindly review and confirm your approval to proceed to the next stage.`,
+
+  DRAWING_CABIN_APPROVAL_REMINDER: `Dear Sir/Madam,
+This is a gentle reminder to kindly review and approves the elevator drawing and cabin design shared with you, so that we can proceed with the next stage without delay.`,
+
+  THANK_YOU_FOR_APPROVAL: `Dear Sir/Madam,
+We have received your drawing and cabin approval. Kindly request you to make the production payment to initiate the production process.`,
+
+  PRODUCTION_PAYMENT: `Dear Sir/Madam,
+Thank you for the production payment. We have received the payment and will proceed with the production process accordingly.`,
+
+  PRODUCTION_PAYMENT_REMINDER: `Dear Sir/Madam,
+This is a gentle reminder to kindly release the production payment to initiate the production process.
+Please note that the production timeline is approximately 60 days from the date of payment and approval. Kindly complete the payment at the earliest to avoid any delay in the production schedule.`,
+
+  PRODUCTION_PAYMENT_RECEIVED: `Dear Sir/Madam,
+Thank you for the production payment. We have received the payment and will proceed with the production process accordingly.`,
+
+  PRODUCTION_UPDATE_STAGE_1: `Dear Sir/Madam,
+Your elevator production is currently in the fabrication and material processing stage, including structure, cabin, and door fabrication.
+We will share the next production update within 10 days.`,
+
+  PRODUCTION_UPDATE_STAGE_2: `Dear Sir/Madam,
+Your elevator is currently in the finishing and assembly stage, including painting, cabin finishing, and electrical & mechanical assembly.
+We will share the next production update within 10 days.`,
+
+  PRODUCTION_UPDATE_STAGE_3: `Dear Sir/Madam,
+Your elevator is in the final inspection stage. Quality checks are being completed, and the material will be prepared for dispatch upon completion.`,
+
+  READINESS_PAYMENT: `Dear Sir/Madam,
+Your elevator is ready for dispatch. Kindly release the readiness payment to proceed with the material dispatch process.
+We request you to complete the payment at the earliest to avoid any delay in dispatch.`,
+
+  READINESS_PAYMENT_REMINDER: `Dear Sir/Madam,
+This is a gentle reminder to kindly release the Readiness payment to proceed with the Material dispatch.
+We request you to complete the payment at the earliest to avoid any delay in the dispatch schedule.`,
+
+  READINESS_PAYMENT_RECEIVED: `Dear Sir/Madam,
+Thank you for the readiness payment. We have received the payment and will proceed with the material dispatch process accordingly.`,
+
+  MATERIAL_DISPATCHED_PM: `Dear Sir/Madam,
+Your elevator material has been dispatched through VRL Logistics.
+VRL Tracking No.: [Tracking Number]
+You can use the above tracking number to track the material movement. We will keep you updated on the delivery status.
+Note: Kindly ensure proper space and access for safe unloading and material storage.`,
+
+  PRE_INSTALLATION_SITE_VISIT_PM: `Dear Sir/Madam,
+Our technical team will visit the site for a pre-installation inspection to verify site readiness and installation requirements.
+Kindly ensure the site is ready and accessible for the scheduled visit.`,
+
+  MATERIAL_UNLOADING: `Dear Sir/Madam,
+Your elevator material has been Delivered to the site and unloading is in progress. We will keep you Updated on our installation team arrival shortly.`,
+
+  INSTALLATION_TEAM_ARRIVAL_PM: `Dear Sir/Madam,
+Our installation team has arrived at the site and will commence the elevator installation work as per the planned schedule.`,
+
+  INSTALLATION_FEEDBACK: `Dear Sir/Madam,
+As the installation work is in progress, kindly share your feedback or any concerns regarding the work. Our team will be happy to assist and address them promptly.`,
+
+  HAND_OVER_PM: `Dear Sir/Madam,
+This is to inform you that the elevator installation work is expected to be completed by tomorrow. Kindly share a convenient date and time for the handover, so that we can plan and complete the necessary handover formalities accordingly.`,
+};
+
+/**
+ * Generates verified, fact-checked project update message text from database attributes
+ * using the 20 approved Alpha Elevators WhatsApp templates.
+ */
+// Stages working after the Production Payment stage
+export const POST_PRODUCTION_PAYMENT_STAGES: string[] = [
+  'MANUFACTURING',
+  'QUALITY_CHECK',
+  'DELIVERY',
+  'DISPATCH',
+  'INSTALLATION',
+  'TESTING',
+];
+
+export function generateProjectUpdateText(
+  project: any,
+  customer: any,
+  customNote?: string,
+  overrideTemplateKey?: string
+): string {
+  const status = project?.projectStatus || 'SITE_MEASUREMENT';
+
+  // Determine corresponding template key
+  let templateKey = overrideTemplateKey;
+  if (!templateKey) {
+    if (status === 'ENGINEERING') {
+      templateKey = 'PRODUCTION_PAYMENT_RECEIVED';
+    } else if (status === 'MANUFACTURING') {
+      const pStage = project?.productionStage || 1;
+      if (pStage === 2) {
+        templateKey = 'PRODUCTION_UPDATE_STAGE_2';
+      } else if (pStage >= 3) {
+        templateKey = 'PRODUCTION_UPDATE_STAGE_3';
+      } else {
+        templateKey = 'PRODUCTION_UPDATE_STAGE_1';
+      }
+    } else if (status === 'SITE_MEASUREMENT') {
+      templateKey = 'SITE_VISIT_COMPLETED';
+    } else {
+      templateKey = STAGE_TEMPLATE_MAP[status] || 'SITE_VISIT_COMPLETED';
+    }
+  }
+
+  let text = APPROVED_MILESTONE_TEMPLATES[templateKey] || APPROVED_MILESTONE_TEMPLATES.SITE_VISIT_COMPLETED;
+
+  // Substitute interval days into production stage 1 & 2 templates if interval is not 10 days
+  const intervalDays = project?.whatsapp?.intervalDays || project?.updateFrequencyDays || 10;
+  const intervalText = intervalDays === 1 ? 'within 1 day' : `within ${intervalDays} days`;
+  text = text.replace(/within 10 days/gi, intervalText);
+
+  // Substitute [Date] placeholder
+  if (text.includes('[Date]')) {
+    const stageDatesAny = project?.stageDates as any;
+    const siteVisitStage = stageDatesAny?.get ? stageDatesAny.get('SITE_MEASUREMENT') : stageDatesAny?.['SITE_MEASUREMENT'];
+    const dateVal = siteVisitStage?.scheduleDate || siteVisitStage?.executedDate || project?.installationDate || new Date();
+    const formattedDate = new Date(dateVal).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    text = text.replace(/\[Date\]/gi, formattedDate);
+  }
+
+  // Substitute [Time] placeholder
+  if (text.includes('[Time]')) {
+    text = text.replace(/\[Time\]/gi, '11:00 AM');
+  }
+
+  // Substitute [Tracking Number] placeholder
+  if (text.includes('[Tracking Number]')) {
+    const tracking = project?.vrlLrNumber || project?.trackingNumber || 'VRL-PENDING';
+    text = text.replace(/\[Tracking Number\]/gi, tracking);
+  }
+
+  if (customNote && customNote.trim()) {
+    text += `\n\nNote: ${customNote.trim()}`;
+  }
+
+  return text;
+}
+
 /**
  * Core automation processor: checks and executes due WhatsApp updates
+ * Features atomic job claiming, MongoDB job persistence, idempotency, and WATI provider integration.
+ * Interval group messages are executed for any stages working after the Production Payment stage
+ * in a 3-stage sequence:
+ * - Interval 1: Production Update – Stage 1 Production & Fabrication
+ * - Interval 2: Production Update – Stage 2 Finishing & Assembly
+ * - Interval 3: Production Update – Stage 3 Final Inspection
+ * After Stage 3, interval updates cease.
  */
 export async function processDueWhatsAppUpdates(): Promise<{
   processed: number;
   sent: number;
+  awaitingCapability: number;
   skipped: number;
   failed: number;
   details: any[];
 }> {
   if (isJobRunning) {
     console.log('[Scheduler] Previous execution still active. Skipping concurrent cycle.');
-    return { processed: 0, sent: 0, skipped: 0, failed: 0, details: [] };
+    return { processed: 0, sent: 0, awaitingCapability: 0, skipped: 0, failed: 0, details: [] };
   }
 
   isJobRunning = true;
   const now = new Date();
   const results: any[] = [];
   let sentCount = 0;
+  let awaitingCapabilityCount = 0;
   let skippedCount = 0;
   let failedCount = 0;
 
   try {
-    // 1. Find eligible projects
+    // 1. Find candidate projects:
+    // Production interval updates work across any active stages after Production Payment
     const dueProjects = await Project.find({
-      automationEnabled: true,
-      whatsappGroupId: { $exists: true, $ne: '' },
-      projectStatus: { $nin: ['COMPLETED', 'CANCELLED', 'ON_HOLD'] },
-      $or: [
-        { nextUpdateAt: { $lte: now } },
-        { nextUpdateAt: { $exists: false } },
-        { nextUpdateAt: null },
+      $and: [
+        { projectStatus: { $in: POST_PRODUCTION_PAYMENT_STAGES } },
+        {
+          $or: [
+            { productionStage: { $in: [1, 2, 3] } },
+            { productionStage: { $exists: false } },
+            { productionStage: null },
+          ],
+        },
+        {
+          $or: [
+            { 'whatsapp.groupId': { $exists: true, $ne: '' } },
+            { whatsappGroupId: { $exists: true, $ne: '' } },
+            { 'whatsapp.inviteLink': { $exists: true, $ne: '' } },
+          ],
+        },
+        {
+          $or: [
+            { 'whatsapp.updatesEnabled': true },
+            { automationEnabled: true },
+          ],
+        },
+        {
+          $or: [
+            { 'whatsapp.paused': false },
+            { 'whatsapp.paused': { $exists: false } },
+            { isPaused: false },
+            { isPaused: { $exists: false } },
+          ],
+        },
+        {
+          $or: [
+            { nextUpdateAt: { $lte: now } },
+            { 'whatsapp.nextUpdateAt': { $lte: now } },
+            { nextUpdateAt: { $exists: false } },
+            { nextUpdateAt: null },
+          ],
+        },
       ],
     }).populate('customerId');
 
@@ -94,6 +331,8 @@ export async function processDueWhatsAppUpdates(): Promise<{
 
     for (const project of dueProjects) {
       const customer = project.customerId as any;
+      const groupId = project.whatsapp?.groupId || project.whatsappGroupId || project.whatsapp?.inviteLink;
+      const intervalDays = project.whatsapp?.intervalDays || project.updateFrequencyDays || 10;
 
       // Ensure customer exists and has opted in
       if (!customer || !customer.whatsappOptIn) {
@@ -119,162 +358,296 @@ export async function processDueWhatsAppUpdates(): Promise<{
         continue;
       }
 
-      // 2. Determine appropriate template
-      const targetTemplateName = STAGE_TEMPLATE_MAP[project.projectStatus] || 'PROGRESS_UPDATE';
-
-      // Verify template is approved in CRM
-      const approvedTemplate = await WhatsAppTemplate.findOne({
-        templateName: targetTemplateName,
-        templateStatus: 'APPROVED',
-      });
-
-      if (!approvedTemplate) {
-        console.warn(`[Scheduler] Template ${targetTemplateName} is not marked APPROVED in CRM. Skipping dispatch.`);
+      // Check pause reason
+      if (project.whatsapp?.paused || project.pauseReason) {
         skippedCount++;
         results.push({
           projectId: project.projectId,
           status: 'SKIPPED',
-          reason: `Template ${targetTemplateName} is not approved`,
+          reason: project.pauseReason || 'Automation paused',
         });
         continue;
       }
 
-      // 3. Build Idempotency Key: `${projectId}_${cycleDate}_${templateName}`
-      const dateKey = formatDateKey(now);
-      const idempotencyKey = `${project.projectId}_${dateKey}_${targetTemplateName}`;
+      // Determine current production update stage (1, 2, or 3)
+      let currentStage = project.productionStage || 1;
+      if (!project.productionStage || project.productionStage === 1) {
+        const stage1Sent = await WhatsAppMessageLog.findOne({
+          projectId: project._id,
+          $or: [
+            { idempotencyKey: new RegExp(`^${project.projectId}_prod_stage_1`) },
+            { messageText: new RegExp('fabrication and material processing', 'i') },
+          ],
+          status: { $in: ['SENT', 'DELIVERED', 'READ'] },
+        });
+        if (stage1Sent) {
+          currentStage = 2;
+        }
+      }
+      if (currentStage === 2) {
+        const stage2Sent = await WhatsAppMessageLog.findOne({
+          projectId: project._id,
+          $or: [
+            { idempotencyKey: new RegExp(`^${project.projectId}_prod_stage_2`) },
+            { messageText: new RegExp('finishing and assembly', 'i') },
+          ],
+          status: { $in: ['SENT', 'DELIVERED', 'READ'] },
+        });
+        if (stage2Sent) {
+          currentStage = 3;
+        }
+      }
+      if (currentStage === 3) {
+        const stage3Sent = await WhatsAppMessageLog.findOne({
+          projectId: project._id,
+          $or: [
+            { idempotencyKey: new RegExp(`^${project.projectId}_prod_stage_3`) },
+            { messageText: new RegExp('final inspection stage', 'i') },
+          ],
+          status: { $in: ['SENT', 'DELIVERED', 'READ'] },
+        });
+        if (stage3Sent) {
+          currentStage = 4;
+        }
+      }
 
-      // 4. Check for duplicate send in this update cycle
-      const existingSuccess = await WhatsAppMessage.findOne({
+      if (currentStage >= 4) {
+        console.log(`[Scheduler] Project ${project.projectId}: All 3 production update stages completed. Clearing nextUpdateAt.`);
+        project.productionStage = 4;
+        project.nextUpdateAt = undefined;
+        if (project.whatsapp) {
+          project.whatsapp.nextUpdateAt = undefined;
+        }
+        await project.save();
+        skippedCount++;
+        results.push({
+          projectId: project.projectId,
+          status: 'SKIPPED',
+          reason: 'All 3 production update stages completed',
+        });
+        continue;
+      }
+
+      const templateKey =
+        currentStage === 1
+          ? 'PRODUCTION_UPDATE_STAGE_1'
+          : currentStage === 2
+          ? 'PRODUCTION_UPDATE_STAGE_2'
+          : 'PRODUCTION_UPDATE_STAGE_3';
+
+      // 2. Build atomic Idempotency Key per stage: `${projectId}_prod_stage_${currentStage}_interval${intervalDays}`
+      const idempotencyKey = `${project.projectId}_prod_stage_${currentStage}_interval${intervalDays}`;
+
+      // Check if already completed in WhatsAppMessageLog
+      const existingSuccess = await WhatsAppMessageLog.findOne({
         idempotencyKey,
         status: { $in: ['SENT', 'DELIVERED', 'READ'] },
       });
 
       if (existingSuccess) {
-        console.log(`[Scheduler] Idempotency protected: Project ${project.projectId} already received update for cycle ${dateKey}.`);
+        console.log(`[Scheduler] Idempotency protected: Project ${project.projectId} stage ${currentStage} already completed.`);
         skippedCount++;
-
-        // Advance nextUpdateAt if stuck
-        project.nextUpdateAt = calculateNextUpdateDate(project.updateFrequencyDays || 20, now);
+        // Advance stage if stuck
+        project.productionStage = currentStage + 1;
+        if (project.productionStage >= 4) {
+          project.nextUpdateAt = undefined;
+          if (project.whatsapp) project.whatsapp.nextUpdateAt = undefined;
+        } else {
+          project.nextUpdateAt = calculateNextUpdateDate(intervalDays, now);
+          if (project.whatsapp) project.whatsapp.nextUpdateAt = project.nextUpdateAt;
+        }
         await project.save();
-
         results.push({
           projectId: project.projectId,
           status: 'IDEMPOTENT_SKIPPED',
-          reason: 'Already sent successfully in this cycle',
+          reason: `Stage ${currentStage} already sent successfully`,
         });
         continue;
       }
 
-      // 5. Construct Template Variables
-      const stageNameFormatted = project.projectStatus.replace(/_/g, ' ');
-      const nextMilestone = STAGE_NEXT_MILESTONE_MAP[project.projectStatus] || 'Next milestone in progress';
+      // 3. Generate Fact-Checked Message Text for this specific stage
+      const messageContent = generateProjectUpdateText(project, customer, undefined, templateKey);
 
-      const variableValues: Record<string, string> = {
-        customer_name: customer.fullName || 'Valued Client',
-        project_name: project.projectName || `${customer.fullName} Residence`,
-        project_stage: stageNameFormatted,
-        next_milestone: nextMilestone,
-        lift_model: project.liftModel || 'Alpha EV',
-      };
+      // 4. Atomic Job Claiming via WhatsAppMessageLog
+      let messageLog: any = null;
+      try {
+        messageLog = await WhatsAppMessageLog.create({
+          projectId: project._id,
+          groupId: groupId!,
+          messageText: messageContent,
+          messageType: 'text',
+          scheduledAt: now,
+          attemptedAt: now,
+          status: 'SENDING',
+          attemptCount: 1,
+          idempotencyKey,
+          isDryRun: config.wati.dryRun,
+        });
+      } catch (err: any) {
+        if (err.code === 11000) {
+          // Another instance concurrently claimed this job
+          console.log(`[Scheduler] Job collision avoided for ${project.projectId} (idempotency key: ${idempotencyKey})`);
+          skippedCount++;
+          continue;
+        }
+        throw err;
+      }
 
-      const components = [
-        {
-          type: 'body' as const,
-          parameters: [
-            { type: 'text' as const, text: variableValues.customer_name },
-            { type: 'text' as const, text: variableValues.project_name },
-            { type: 'text' as const, text: variableValues.project_stage },
-            { type: 'text' as const, text: variableValues.next_milestone },
-          ],
-        },
-      ];
-
-      // Formulate readable text for message record
-      const readableContent = `Hello ${variableValues.customer_name},\n\nProject Update — ${variableValues.project_name}\n\nCurrent Stage: ${variableValues.project_stage}\nNext Milestone: ${variableValues.next_milestone}\n\nWe will continue to keep you updated.\nThank you,\nAlpha Elevators`;
-
-      // 6. Record message as SENDING
-      const messageDoc = await WhatsAppMessage.create({
+      // Also create WhatsAppMessage record for backward-compatibility with UI stream
+      const legacyMessageDoc = await WhatsAppMessage.create({
         projectId: project._id,
         projectCode: project.projectId,
         customerId: customer._id,
         customerName: customer.fullName,
-        groupId: project.whatsappGroupId,
-        templateName: targetTemplateName,
-        messageType: 'template',
+        groupId: groupId!,
+        templateName: templateKey,
+        messageType: 'text',
         recipientType: 'group',
         direction: 'OUTGOING',
-        messageContent: readableContent,
+        messageContent,
         status: 'SENDING',
         isAutomated: true,
         idempotencyKey,
-        variablesPayload: variableValues,
       });
 
-      // 7. Dispatch via WhatsApp Service
-      const sendResult = await whatsappService.sendGroupTemplateMessage({
-        recipientType: 'group',
-        to: project.whatsappGroupId!,
-        templateName: targetTemplateName,
-        languageCode: approvedTemplate.templateLanguage || 'en_US',
-        components,
-      });
+      // 5. Dispatch directly inside group via WhatsApp Web Bot (Use Bot for group interval messages, do not use WATI)
+      const inviteTarget = project.whatsapp?.inviteLink || groupId!;
+      const botStatus = whatsAppWebBot.getStatus();
 
-      if (sendResult.success) {
+      let anySuccess = false;
+      let lastMsgId = '';
+      let sendResult: any = null;
+
+      if (config.wati.dryRun) {
+        anySuccess = true;
+        lastMsgId = `DRY_SCHED_${Date.now()}`;
+        sendResult = { success: true, messageId: lastMsgId };
+      } else if (botStatus.isConnected) {
+        console.log(`[Scheduler] Dispatching automated inside-group update (Stage ${currentStage}) for ${project.projectId} via Web Bot`);
+        sendResult = await whatsAppWebBot.sendMessageToGroup(inviteTarget, messageContent);
+        if (sendResult.success) {
+          anySuccess = true;
+          lastMsgId = sendResult.messageId || `BOT_${Date.now()}`;
+        }
+      } else {
+        // WhatsApp Web Bot is disconnected. Do NOT invoke WATI for group interval messages.
+        console.warn(`[Scheduler] WhatsApp Web Bot not connected for group ${groupId}. Bot status: ${botStatus.status}. Retaining job in AWAITING_PROVIDER_CAPABILITY.`);
+        sendResult = {
+          success: false,
+          status: 'AWAITING_PROVIDER_CAPABILITY',
+          error: 'WhatsApp Web Bot is disconnected. Scan the QR code in WhatsApp settings to enable automated group updates.',
+        };
+      }
+
+      if (anySuccess) {
         sentCount++;
-        messageDoc.status = 'SENT';
-        messageDoc.metaMessageId = sendResult.messageId;
-        messageDoc.sentAt = new Date();
-        messageDoc.rawResponse = sendResult.metaResponse;
-        await messageDoc.save();
+        messageLog.status = 'SENT';
+        messageLog.sentAt = new Date();
+        messageLog.providerMessageId = lastMsgId || `BOT_${Date.now()}`;
+        messageLog.lastError = undefined;
+        await messageLog.save();
 
-        // 8. Update Project dates
+        legacyMessageDoc.status = 'SENT';
+        legacyMessageDoc.metaMessageId = lastMsgId || `BOT_${Date.now()}`;
+        legacyMessageDoc.sentAt = new Date();
+        await legacyMessageDoc.save();
+
+        // Advance to next production update stage
+        const nextStage = currentStage + 1;
+        project.productionStage = nextStage;
         project.lastUpdateAt = new Date();
-        project.nextUpdateAt = calculateNextUpdateDate(project.updateFrequencyDays || 20, now);
         project.postponedUntil = undefined;
+
+        if (nextStage >= 4) {
+          // All 3 stages completed: clear nextUpdateAt so no further interval messages occur!
+          project.nextUpdateAt = undefined;
+          if (project.whatsapp) {
+            project.whatsapp.lastUpdateAt = project.lastUpdateAt;
+            project.whatsapp.nextUpdateAt = undefined;
+          }
+          console.log(`[Scheduler] Project ${project.projectId}: Finished final production stage (Stage 3). Stopped interval updates.`);
+        } else {
+          // Advance nextUpdateAt by configured interval for next stage
+          project.nextUpdateAt = calculateNextUpdateDate(intervalDays, now);
+          if (project.whatsapp) {
+            project.whatsapp.lastUpdateAt = project.lastUpdateAt;
+            project.whatsapp.nextUpdateAt = project.nextUpdateAt;
+          }
+          console.log(`[Scheduler] Project ${project.projectId}: Stage ${currentStage} sent. Stage ${nextStage} scheduled for ${project.nextUpdateAt.toISOString()}`);
+        }
         await project.save();
 
-        // 9. Update WhatsAppChannel lastUpdateDate
+        // Update WhatsAppChannel
         await WhatsAppChannel.findOneAndUpdate(
-          { whatsappGroupId: project.whatsappGroupId },
+          { whatsappGroupId: groupId },
           { lastUpdateDate: new Date(), nextUpdateDate: project.nextUpdateAt }
         );
 
-        // 10. Log Activity
         await logProjectActivity({
           projectId: project._id,
           projectCode: project.projectId,
           type: 'WHATSAPP_SENT',
-          description: `Automated WhatsApp update sent to group (${project.whatsappGroupName || project.whatsappGroupId}) for stage ${project.projectStatus}. Template: ${targetTemplateName}`,
+          description: `Automated WhatsApp update sent to group (${groupId}) for Production Update Stage ${currentStage}`,
           metadata: {
-            metaMessageId: sendResult.messageId,
-            templateName: targetTemplateName,
-            isTestMode: sendResult.isTestMode,
+            providerMessageId: sendResult.messageId,
+            productionStage: currentStage,
+            nextProductionStage: nextStage <= 3 ? nextStage : 'COMPLETED',
+            intervalDays,
           },
         });
 
         results.push({
           projectId: project.projectId,
           status: 'SENT',
-          metaMessageId: sendResult.messageId,
-          template: targetTemplateName,
+          messageId: sendResult.messageId,
+          stage: currentStage,
+        });
+      } else if (sendResult.status === 'AWAITING_PROVIDER_CAPABILITY') {
+        // As per Section 8:
+        // Keep scheduled jobs in awaiting-provider-capability state and appear in the CRM for review.
+        // Do NOT mark them as sent, and DO NOT advance nextUpdateAt.
+        awaitingCapabilityCount++;
+        messageLog.status = 'AWAITING_PROVIDER_CAPABILITY';
+        messageLog.lastError = sendResult.error;
+        await messageLog.save();
+
+        legacyMessageDoc.status = 'FAILED';
+        legacyMessageDoc.errorMessage = sendResult.error;
+        await legacyMessageDoc.save();
+
+        console.log(`[Scheduler] Project ${project.projectId}: Saved update in AWAITING_PROVIDER_CAPABILITY state.`);
+
+        await logProjectActivity({
+          projectId: project._id,
+          projectCode: project.projectId,
+          type: 'STATUS_CHANGE',
+          description: `Scheduled WhatsApp update logged in AWAITING_PROVIDER_CAPABILITY state: ${sendResult.error}`,
+          metadata: { error: sendResult.error },
+        });
+
+        results.push({
+          projectId: project.projectId,
+          status: 'AWAITING_PROVIDER_CAPABILITY',
+          error: sendResult.error,
         });
       } else {
+        // Transient or fatal error: Handle exponential retry
         failedCount++;
-        messageDoc.status = 'FAILED';
-        messageDoc.failedAt = new Date();
-        messageDoc.errorCode = 'META_DISPATCH_ERROR';
-        messageDoc.errorMessage = sendResult.error || 'Failed to dispatch via Meta API';
-        messageDoc.rawResponse = sendResult.metaResponse;
-        messageDoc.retryCount = (messageDoc.retryCount || 0) + 1;
-        messageDoc.lastRetryAt = new Date();
-        await messageDoc.save();
+        messageLog.status = 'FAILED';
+        messageLog.lastError = sendResult.error;
+        messageLog.attemptCount += 1;
+        await messageLog.save();
+
+        legacyMessageDoc.status = 'FAILED';
+        legacyMessageDoc.errorMessage = sendResult.error;
+        await legacyMessageDoc.save();
 
         await logProjectActivity({
           projectId: project._id,
           projectCode: project.projectId,
           type: 'WHATSAPP_FAILED',
-          description: `Failed to dispatch automated WhatsApp update: ${sendResult.error}`,
-          metadata: { templateName: targetTemplateName, error: sendResult.error },
+          description: `Failed to dispatch WhatsApp group update: ${sendResult.error}`,
+          metadata: { error: sendResult.error },
         });
 
         results.push({
@@ -293,6 +666,7 @@ export async function processDueWhatsAppUpdates(): Promise<{
   return {
     processed: results.length,
     sent: sentCount,
+    awaitingCapability: awaitingCapabilityCount,
     skipped: skippedCount,
     failed: failedCount,
     details: results,

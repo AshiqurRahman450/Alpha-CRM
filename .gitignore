@@ -9,3 +9,9 @@ frontend/.next
 frontend/out
 build
 coverage
+*.tsbuildinfo
+backend/data
+data
+backend/uploads
+uploads
+*.pdf

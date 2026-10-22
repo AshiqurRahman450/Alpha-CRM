@@ -24,6 +24,10 @@ import {
   Bell,
   Edit2,
   Trash2,
+  Upload,
+  Sparkles,
+  Lock,
+  Truck,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { api, getStoredUser } from '../../../lib/api';
@@ -33,6 +37,8 @@ import PostponeModal from '../../../components/PostponeModal';
 import RecordPaymentModal from '../../../components/RecordPaymentModal';
 import EditPaymentModal from '../../../components/EditPaymentModal';
 import EditScheduleModal from '../../../components/EditScheduleModal';
+import WhatsAppGroupCard from '../../../components/WhatsAppGroupCard';
+import RequestPaymentModal from '../../../components/RequestPaymentModal';
 
 export default function ProjectDetailPage() {
   const params = useParams();
@@ -44,6 +50,7 @@ export default function ProjectDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
   const isCrm = user?.role === 'CRM';
+  const isAccountant = user?.role === 'ACCOUNTANT';
 
   // Modals
   const [isSendModalOpen, setIsSendModalOpen] = useState(false);
@@ -52,6 +59,22 @@ export default function ProjectDetailPage() {
   const [isEditPaymentModalOpen, setIsEditPaymentModalOpen] = useState(false);
   const [selectedPaymentToEdit, setSelectedPaymentToEdit] = useState<any>(null);
   const [isEditScheduleModalOpen, setIsEditScheduleModalOpen] = useState(false);
+  const [isRequestPaymentModalOpen, setIsRequestPaymentModalOpen] = useState(false);
+  const [requestLoading, setRequestLoading] = useState(false);
+
+  const handleCancelPaymentRequest = async () => {
+    if (!confirm('Are you sure you want to cancel the active payment collection request?')) return;
+    try {
+      setRequestLoading(true);
+      await api.cancelProjectPaymentRequest(projectId);
+      toast.success('Payment collection request cancelled');
+      await fetchProject();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to cancel request');
+    } finally {
+      setRequestLoading(false);
+    }
+  };
 
   // Quick reply input
   const [replyText, setReplyText] = useState('');
@@ -77,10 +100,24 @@ export default function ProjectDetailPage() {
   const [reminderNotes, setReminderNotes] = useState('');
   const [reminderDueAt, setReminderDueAt] = useState('');
   const [creatingReminder, setCreatingReminder] = useState(false);
+  const [sendingReceiptId, setSendingReceiptId] = useState<string | null>(null);
 
-  const fetchProject = async () => {
+  const handleSendReceiptToGroup = async (paymentId: string) => {
     try {
-      setLoading(true);
+      setSendingReceiptId(paymentId);
+      const res = await api.sendPaymentReceiptToGroup(paymentId);
+      toast.success(res?.message || 'Payment receipt sent directly to WhatsApp group!');
+      await fetchProject();
+    } catch (err: any) {
+      toast.error(`Failed to send receipt to group: ${err.message}`);
+    } finally {
+      setSendingReceiptId(null);
+    }
+  };
+
+  const fetchProject = async (isInitial = false) => {
+    try {
+      if (isInitial || !projectData) setLoading(true);
       setError(null);
       const res = await api.getProjectById(projectId);
       setProjectData(res.data);
@@ -105,12 +142,26 @@ export default function ProjectDetailPage() {
     }
   }, [projectId]);
 
-  const handleStatusChange = async (newStatus: string) => {
+  const handleStatusChange = async (newStatus: string, trackingNumber?: string) => {
     try {
-      await api.updateProjectStatus(projectId, newStatus);
+      const res = await api.updateProjectStatus(projectId, newStatus, undefined, trackingNumber);
+      if (res && res.groupMessageDispatched) {
+        toast.success(
+          trackingNumber
+            ? `Stage updated to ${formatProjectStatus(newStatus)}! VRL Tracking No (${trackingNumber}) attached and WhatsApp update dispatched.`
+            : `Stage updated to ${formatProjectStatus(newStatus)}! Automated WhatsApp update dispatched inside group.`
+        );
+      } else if (res && res.groupMessageError) {
+        toast(`Stage updated to ${formatProjectStatus(newStatus)}, but WhatsApp note: ${res.groupMessageError}`, { icon: '⚠️' });
+      } else {
+        toast.success(`Stage updated to ${formatProjectStatus(newStatus)}.`);
+      }
+      if (res && res.bdmNotified) {
+        toast.success('1-to-1 Approval notification dispatched to assigned BDM via WATI!');
+      }
       await fetchProject();
     } catch (err: any) {
-      alert(`Failed to update status: ${err.message}`);
+      toast.error(`Failed to update status: ${err.message}`);
     }
   };
 
@@ -152,10 +203,17 @@ export default function ProjectDetailPage() {
     
     try {
       setUploadingDrawing(true);
-      await api.uploadProjectDrawing(projectId, file);
+      const res = await api.uploadProjectDrawing(projectId, file);
+      if (res && res.documentSentToGroup) {
+        toast.success('Drawing & Cabin Design uploaded and automatically sent directly into the WhatsApp group!');
+      } else if (res && res.documentSendError) {
+        toast.success(`Drawing uploaded! (WhatsApp note: ${res.documentSendError})`);
+      } else {
+        toast.success(res?.message || 'Drawing uploaded successfully!');
+      }
       await fetchProject();
     } catch (err: any) {
-      alert(`Failed to upload drawing: ${err.message}`);
+      toast.error(`Failed to upload drawing: ${err.message}`);
     } finally {
       setUploadingDrawing(false);
       e.target.value = '';
@@ -260,6 +318,8 @@ export default function ProjectDetailPage() {
     }
   };
 
+  const project = projectData?.project || (projectData?._id ? projectData : null);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -271,7 +331,7 @@ export default function ProjectDetailPage() {
     );
   }
 
-  if (error || !projectData?.project) {
+  if (error || !project) {
     return (
       <div className="p-6 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800 text-sm space-y-3">
         <p className="font-bold">{error || 'Project not found'}</p>
@@ -282,7 +342,7 @@ export default function ProjectDetailPage() {
     );
   }
 
-  const { project, channel, payments = [], messages = [], activities = [] } = projectData;
+  const { channel, payments = [], messages = [], activities = [] } = projectData?.project ? projectData : { channel: null, payments: [], messages: [], activities: [] };
   const customer = project.customerId || {};
   const paidPercent = Math.round(((project.totalPaid || 0) / project.orderValue) * 100);
 
@@ -337,6 +397,14 @@ export default function ProjectDetailPage() {
             <div className="px-4 py-2 bg-slate-100 text-slate-700 rounded-2xl text-xs font-bold">
               DELIVERY: {new Date(project.expectedDeliveryDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
             </div>
+
+            {/* VRL Tracking Badge if available */}
+            {(project.vrlLrNumber || project.trackingNumber) && (
+              <div className="px-4 py-2 bg-sky-50 text-sky-800 border border-sky-200 rounded-2xl text-xs font-bold flex items-center gap-1.5 shadow-2xs">
+                <Truck className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                <span>VRL: <strong className="font-mono">{project.vrlLrNumber || project.trackingNumber}</strong></span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -352,7 +420,7 @@ export default function ProjectDetailPage() {
             <span className="text-slate-400 block text-[11px]">Total Contract Value</span>
             <strong className="text-slate-900 text-sm">₹{project.orderValue?.toLocaleString('en-IN')}</strong>
             <span className="text-[10px] text-emerald-600 font-semibold block mt-0.5">
-              Advance 30%: ₹{project.advanceAmount?.toLocaleString('en-IN')}
+              Advance: ₹{project.advanceAmount?.toLocaleString('en-IN')} {project.advancePercentage ? `(${project.advancePercentage}%)` : ''}
             </span>
           </div>
 
@@ -377,20 +445,86 @@ export default function ProjectDetailPage() {
         </div>
       </div>
 
-      {/* SECTION 21: VISUAL PROJECT TIMELINE */}
-      <Timeline 
-        currentStatus={project.projectStatus} 
-        onStatusChange={handleStatusChange} 
-        isEditable={true} 
-        stageDates={project.stageDates}
-        onDateChange={handleDateChange}
-        onBulkDateChange={handleBulkDateChange}
-        currentUserRole={user?.role}
-        customerCity={customer.city}
-      />
+      {/* SECTION 21: VISUAL PROJECT TIMELINE (Hidden for Accountant) */}
+      {!isAccountant && (
+        <Timeline 
+          currentStatus={project.projectStatus} 
+          onStatusChange={handleStatusChange} 
+          isEditable={true} 
+          stageDates={project.stageDates}
+          onDateChange={handleDateChange}
+          onBulkDateChange={handleBulkDateChange}
+          currentUserRole={user?.role}
+          customerCity={customer?.city}
+          projectId={project._id}
+          projectName={project.projectName}
+          projectCode={project.projectId}
+          customerName={customer?.fullName}
+          customerPhone={customer?.phone}
+          whatsappGroupName={project.whatsappGroupName || project.whatsapp?.groupName}
+          vrlLrNumber={project.vrlLrNumber || project.trackingNumber}
+          onHandoverDateChanged={async () => {
+            await fetchProject(false);
+          }}
+          initiallyOpenInstallation={user?.role === 'TECHNICAL_LEAD'}
+        />
+      )}
 
-      {/* DRAWING UPLOAD CONTAINER (Visible if passed SITE_MEASUREMENT and user is not BDM) */}
-      {user?.role !== 'BDM' && STAGES_ORDER.findIndex(s => s.key === project.projectStatus) >= 2 && (
+      {/* BDM APPROVAL ALERT (Drawing and Cabin Design Approval) */}
+      {!isAccountant && project.projectStatus === 'CUSTOMER_APPROVAL' && (
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/90 rounded-3xl p-5 md:p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 border border-amber-300">
+                  Action Required
+                </span>
+                <h3 className="text-sm font-extrabold text-amber-950">
+                  Drawing and Cabin Design Approval Active
+                </h3>
+              </div>
+              <p className="text-xs text-amber-900">
+                Assigned BDM: <strong>{project.bdmId?.name || customer?.bdmId?.name || 'BDM'}</strong>{' '}
+                {project.bdmPhone || customer?.bdmPhone ? (
+                  <span className="font-mono text-emerald-800 font-bold bg-white/70 px-1.5 py-0.5 rounded border border-amber-200">
+                    +{String(project.bdmPhone || customer?.bdmPhone).replace(/\D/g, '')}
+                  </span>
+                ) : (
+                  <span className="text-rose-600 font-medium">(No WhatsApp number assigned)</span>
+                )}
+              </p>
+              <p className="text-[11px] text-amber-800/80 leading-relaxed">
+                A 1-to-1 WhatsApp notification is automatically sent via WATI to the BDM to review and obtain customer design approval.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  toast.loading('Sending 1:1 WhatsApp approval request to BDM via WATI...', { id: 'bdm-notify-btn' });
+                  const res = await api.notifyBdmApproval(projectId);
+                  toast.success(res?.message || '1:1 WhatsApp approval request sent to BDM via WATI!', { id: 'bdm-notify-btn' });
+                } catch (err: any) {
+                  toast.error(err.message || 'Failed to dispatch BDM approval message via WATI', { id: 'bdm-notify-btn' });
+                }
+              }}
+              className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-2"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>Send BDM Approval Alert (1:1 WATI)</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* DRAWING UPLOAD CONTAINER (Visible if passed SITE_MEASUREMENT and user is not BDM or Accountant) */}
+      {!isAccountant && user?.role !== 'BDM' && STAGES_ORDER.findIndex(s => s.key === project.projectStatus) >= 2 && (
         <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-200 shadow-sm space-y-4">
           <div className="flex items-center space-x-3 border-b border-slate-100 pb-4">
             <div className="w-10 h-10 rounded-2xl bg-sky-100 text-sky-600 flex items-center justify-center">
@@ -404,15 +538,32 @@ export default function ProjectDetailPage() {
           
           <div className="flex flex-col md:flex-row md:items-center gap-4">
             {project.drawingUrl ? (
-              <div className="flex-1 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between">
+              <div className="flex-1 p-5 bg-emerald-50 border border-emerald-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3 text-emerald-800 text-sm font-bold">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                  <span>Drawing Uploaded Successfully</span>
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                  <div>
+                    <div className="font-extrabold text-emerald-950">Drawing & Cabin Design Uploaded</div>
+                    <div className="text-xs font-medium text-emerald-700">Dispatched directly to WhatsApp Group</div>
+                  </div>
                 </div>
-                <a href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}${project.drawingUrl}`} target="_blank" rel="noreferrer" className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5">
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  <span>View Drawing</span>
-                </a>
+                <div className="flex items-center gap-2">
+                  <a href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}${project.drawingUrl}`} target="_blank" rel="noreferrer" className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm">
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>View Drawing</span>
+                  </a>
+                  <label htmlFor="drawingUpload" className={`cursor-pointer px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm ${uploadingDrawing ? 'opacity-50 pointer-events-none' : ''}`}>
+                    <Upload className="w-3.5 h-3.5 text-slate-500" />
+                    <span>{uploadingDrawing ? 'Uploading & Sending...' : 'Upload New & Send to Group'}</span>
+                  </label>
+                  <input 
+                    type="file"
+                    id="drawingUpload"
+                    className="hidden"
+                    onChange={handleDrawingUpload}
+                    accept=".pdf,.jpg,.jpeg,.png,.dwg"
+                    disabled={uploadingDrawing}
+                  />
+                </div>
               </div>
             ) : (
               <div className="flex-1 p-6 bg-slate-50 border-2 border-dashed border-slate-300 rounded-2xl flex flex-col items-center justify-center text-center hover:bg-slate-100 transition-colors">
@@ -421,7 +572,7 @@ export default function ProjectDetailPage() {
                   id="drawingUpload"
                   className="hidden"
                   onChange={handleDrawingUpload}
-                  accept=".pdf,.jpg,.jpeg,.png"
+                  accept=".pdf,.jpg,.jpeg,.png,.dwg"
                   disabled={uploadingDrawing}
                 />
                 <label htmlFor="drawingUpload" className={`cursor-pointer flex flex-col items-center gap-2 ${uploadingDrawing ? 'opacity-50' : ''}`}>
@@ -433,251 +584,28 @@ export default function ProjectDetailPage() {
                     )}
                   </div>
                   <span className="text-sm font-bold text-slate-800">
-                    {uploadingDrawing ? 'Uploading...' : 'Click to Upload Drawing'}
+                    {uploadingDrawing ? 'Uploading & Sending to WhatsApp Group...' : 'Click to Upload Drawing & Cabin Design'}
                   </span>
-                  <span className="text-xs text-slate-500">PDF, JPG, or PNG</span>
+                  <span className="text-xs text-slate-500">Auto-sends document directly to WhatsApp Group • PDF, JPG, PNG, or DWG</span>
                 </label>
               </div>
             )}
           </div>
         </div>
       )}
-      {/* SECTION 36 & 8: WHATSAPP COMMUNICATION CARD */}
-      {user?.role !== 'BDM' && (
-      <React.Fragment>
-      <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-200 shadow-sm space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/20">
-              <MessageSquare className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base font-extrabold text-slate-900">Dedicated WhatsApp Communication Group</h3>
-              <p className="text-xs text-slate-500">Official Meta WhatsApp Business Cloud API Group Channel</p>
-            </div>
-          </div>
 
-          {/* Action Buttons from Section 12 */}
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => setIsSendModalOpen(true)}
-              disabled={!project.whatsappGroupId || !customer.whatsappOptIn}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
-            >
-              <Send className="w-3.5 h-3.5" />
-              <span>Send Update Now</span>
-            </button>
-
-            <button
-              onClick={() => setIsPostponeModalOpen(true)}
-              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
-            >
-              <Clock className="w-3.5 h-3.5" />
-              <span>Postpone</span>
-            </button>
-
-            <button
-              onClick={handleToggleAutomation}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                project.automationEnabled
-                  ? 'bg-slate-200 text-slate-800 hover:bg-slate-300'
-                  : 'bg-sky-600 text-white hover:bg-sky-700'
-              }`}
-            >
-              {project.automationEnabled ? (
-                <>
-                  <Pause className="w-3.5 h-3.5" />
-                  <span>Pause Automation</span>
-                </>
-              ) : (
-                <>
-                  <Play className="w-3.5 h-3.5" />
-                  <span>Resume Automation</span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* WhatsApp Group Parameters & Link Status */}
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-xs">
-          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
-            <span className="text-slate-400 block">WhatsApp Group Name</span>
-            <strong className="text-slate-900 text-sm block mt-0.5 truncate">
-              {project.whatsappGroupName || 'Not Assigned'}
-            </strong>
-            <span className="text-[10px] text-slate-500 font-mono mt-1 block">
-              ID: {project.whatsappGroupId || 'Missing'}
-            </span>
-          </div>
-
-          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
-            <span className="text-slate-400 block">Automation Status</span>
-            <div className="flex items-center gap-1.5 mt-1">
-              <span
-                className={`w-2.5 h-2.5 rounded-full ${
-                  project.automationEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
-                }`}
-              ></span>
-              <strong className="text-slate-900 text-sm">
-                {project.automationEnabled ? 'ACTIVE (ON)' : 'PAUSED (OFF)'}
-              </strong>
-            </div>
-            {project.pauseReason && (
-              <span className="text-[10px] text-rose-500 block mt-1">{project.pauseReason}</span>
-            )}
-          </div>
-
-          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
-            <span className="text-slate-400 block">Update Cadence / Frequency</span>
-            <div className="mt-1 flex items-center gap-2">
-              <select
-                value={frequencyDays}
-                onChange={handleFrequencyChange}
-                className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-sky-500"
-              >
-                <option value="10">10 Days</option>
-                <option value="15">15 Days</option>
-                <option value="20">20 Days (Default)</option>
-                <option value="30">30 Days</option>
-              </select>
-            </div>
-            <span className="text-[10px] text-slate-400 block mt-1">Auto-dispatched at 09:00 AM</span>
-          </div>
-
-          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
-            <span className="text-slate-400 block">Next Scheduled Update</span>
-            <strong className="text-sky-700 text-sm block mt-0.5 font-bold">
-              {project.nextUpdateAt
-                ? new Date(project.nextUpdateAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-                : 'Not Scheduled'}
-            </strong>
-            <span className="text-[10px] text-slate-500 block mt-1">
-              Last Sent: {project.lastUpdateAt ? new Date(project.lastUpdateAt).toLocaleDateString('en-GB') : 'None'}
-            </span>
-          </div>
-        </div>
-
-        {/* If group is not linked yet, show Linking Form (Section 38 & 39) */}
-        {!project.whatsappGroupId && (
-          <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-2.5 text-amber-900">
-              <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
-              <span>
-                <strong>WhatsApp group not linked.</strong> Automatic group messaging is disabled until a unique WhatsApp Group ID is linked.
-              </span>
-            </div>
-            <form onSubmit={handleLinkGroup} className="flex items-center gap-2 w-full md:w-auto">
-              <input
-                type="text"
-                placeholder="e.g. GROUP_KUMAR_01"
-                value={newGroupId}
-                onChange={(e) => setNewGroupId(e.target.value)}
-                className="px-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none"
-              />
-              <button
-                type="submit"
-                disabled={linkingGroup}
-                className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold"
-              >
-                {linkingGroup ? 'Linking...' : 'Link Group'}
-              </button>
-            </form>
-          </div>
-        )}
-
-        {/* INTERACTIVE MESSAGE HISTORY & INCOMING REPLIES (Section 16 & 17) */}
-        <div className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/50">
-          <div className="p-4 bg-slate-100/80 border-b border-slate-200 flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <MessageSquare className="w-4 h-4 text-emerald-600" />
-              <h4 className="text-xs font-bold text-slate-800">
-                Live WhatsApp Group Stream ({messages.length} Messages)
-              </h4>
-            </div>
-            <span className="text-[11px] text-slate-500 font-medium">
-              Synchronized via Meta Webhook
-            </span>
-          </div>
-
-          <div className="p-5 max-h-[420px] overflow-y-auto space-y-4 bg-[#EFEAE2]/30">
-            {messages.length === 0 ? (
-              <div className="p-8 text-center text-xs text-slate-400">
-                No WhatsApp messages sent or received yet for this project.
-              </div>
-            ) : (
-              messages.map((msg: any) => {
-                const isIncoming = msg.direction === 'INCOMING';
-                return (
-                  <div
-                    key={msg._id}
-                    className={`flex flex-col ${isIncoming ? 'items-start' : 'items-end'}`}
-                  >
-                    <div
-                      className={`max-w-lg p-3.5 rounded-2xl text-xs shadow-sm space-y-1.5 ${
-                        isIncoming
-                          ? 'bg-white text-slate-900 border border-slate-200 rounded-tl-none'
-                          : 'bg-[#DCF8C6] text-slate-900 border border-emerald-200 rounded-tr-none'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-4 text-[10px] text-slate-500 border-b border-black/5 pb-1 font-semibold">
-                        <span>{isIncoming ? `Customer: ${msg.senderName}` : 'Alpha Elevators Bot'}</span>
-                        <span>
-                          {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-
-                      <p className="whitespace-pre-line text-xs text-slate-800 leading-relaxed font-sans">
-                        {msg.messageContent}
-                      </p>
-
-                      <div className="flex items-center justify-between pt-1 text-[10px] text-slate-500">
-                        {msg.templateName && (
-                          <span className="font-mono text-emerald-800 font-bold">
-                            [{msg.templateName}]
-                          </span>
-                        )}
-                        <span className="font-bold flex items-center gap-1">
-                          {msg.status === 'READ' ? (
-                            <span className="text-sky-600">✓✓ Read</span>
-                          ) : msg.status === 'DELIVERED' ? (
-                            <span className="text-slate-600">✓✓ Delivered</span>
-                          ) : msg.status === 'SENT' ? (
-                            <span className="text-slate-500">✓ Sent</span>
-                          ) : (
-                            <span className="text-rose-600">⚠ {msg.status}</span>
-                          )}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-
-          {/* Quick Reply Form (Section 16) */}
-          <form onSubmit={handleSendReply} className="p-3 bg-white border-t border-slate-200 flex items-center gap-2">
-            <input
-              type="text"
-              value={replyText}
-              onChange={(e) => setReplyText(e.target.value)}
-              placeholder="Type message or reply to customer in WhatsApp group..."
-              className="flex-1 text-xs p-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none"
-            />
-            <button
-              type="submit"
-              disabled={sendingReply || !project.whatsappGroupId}
-              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors disabled:opacity-50"
-            >
-              <Send className="w-3.5 h-3.5" />
-              <span>{sendingReply ? 'Sending...' : 'Reply'}</span>
-            </button>
-          </form>
-        </div>
-      </div>
+      {/* SECTION 36 & 8: WHATSAPP COMMUNICATION CARD (Hidden for Accountant & BDM) */}
+      {!isAccountant && user?.role !== 'BDM' && (
+        <WhatsAppGroupCard
+          project={project}
+          customer={customer}
+          onRefresh={fetchProject}
+        />
+      )}
 
       {/* SECTION 7: PAYMENT MANAGEMENT & PROGRESS */}
+      {user?.role !== 'BDM' && (
+      <React.Fragment>
       <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-200 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
           <div className="flex items-center space-x-3">
@@ -689,8 +617,27 @@ export default function ProjectDetailPage() {
               <p className="text-xs text-slate-500">Milestone allocation, schedule configuration & collection entries</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {!isCrm && (
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            {/* CRM / Admin / Manager: Request payment from Accountant */}
+            {(isCrm || user?.role === 'ADMIN' || user?.role === 'MANAGER') && (
+              <button
+                onClick={() => setIsRequestPaymentModalOpen(true)}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 ${
+                  project.paymentRequest?.status === 'REQUESTED'
+                    ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
+                    : 'bg-sky-600 hover:bg-sky-700 text-white'
+                }`}
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>
+                  {project.paymentRequest?.status === 'REQUESTED'
+                    ? 'Update Collection Request'
+                    : 'Request Payment from Accountant'}
+                </span>
+              </button>
+            )}
+
+            {(!isCrm || isAccountant) && (
               <button
                 onClick={() => setIsEditScheduleModalOpen(true)}
                 className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border border-slate-200"
@@ -699,15 +646,122 @@ export default function ProjectDetailPage() {
                 <span>Edit Schedule</span>
               </button>
             )}
-            <button
-              onClick={() => setIsPaymentModalOpen(true)}
-              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 active:scale-95"
-            >
-              <IndianRupee className="w-3.5 h-3.5" />
-              <span>Record Payment</span>
-            </button>
+
+            {/* Record Payment Button: Enabled for Accountant ONLY IF CRM requested */}
+            {isAccountant ? (
+              project.paymentRequest?.status === 'REQUESTED' ? (
+                <button
+                  onClick={() => setIsPaymentModalOpen(true)}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5 active:scale-95 ring-2 ring-emerald-400/30"
+                  title="CRM has requested payment collection for this customer"
+                >
+                  <IndianRupee className="w-3.5 h-3.5" />
+                  <span>Record Payment</span>
+                </button>
+              ) : (
+                <button
+                  disabled
+                  className="px-4 py-2 bg-slate-100 text-slate-400 rounded-xl text-xs font-bold transition-all border border-slate-200 flex items-center gap-1.5 cursor-not-allowed opacity-75"
+                  title="Payment recording is restricted. CRM must request payment collection for this customer before you can record payment."
+                >
+                  <Lock className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Record Payment (Awaiting CRM)</span>
+                </button>
+              )
+            ) : (
+              <button
+                onClick={() => setIsPaymentModalOpen(true)}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 active:scale-95"
+              >
+                <IndianRupee className="w-3.5 h-3.5" />
+                <span>Record Payment</span>
+              </button>
+            )}
           </div>
         </div>
+
+        {/* Active CRM Request Notification Banner */}
+        {project.paymentRequest?.status === 'REQUESTED' && (
+          <div className="bg-gradient-to-r from-amber-50 via-orange-50/60 to-amber-100/50 border border-amber-200 rounded-2xl p-4.5 flex flex-col md:flex-row md:items-center justify-between gap-4 text-amber-950 shadow-sm animate-fade-in">
+            <div className="flex items-start md:items-center gap-3.5">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                <Bell className="w-5 h-5 animate-bounce" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-amber-200/90 text-amber-900 border border-amber-300">
+                    CRM Payment Request
+                  </span>
+                  <span className="text-xs font-extrabold text-amber-900 font-mono">
+                    ₹{(project.paymentRequest.requestedAmount || 0).toLocaleString('en-IN')}
+                  </span>
+                  <span className="text-xs font-semibold text-amber-800">
+                    ({project.paymentRequest.paymentType || 'Milestone'})
+                  </span>
+                </div>
+                <p className="text-xs text-amber-800">
+                  Requested by <strong className="font-bold text-amber-950">{project.paymentRequest.requestedBy || 'CRM'}</strong>
+                  {project.paymentRequest.requestedAt && (
+                    <span> on {new Date(project.paymentRequest.requestedAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                  )}
+                </p>
+                {project.paymentRequest.notes && (
+                  <p className="text-[11px] text-amber-900 bg-white/80 px-3 py-1 rounded-xl border border-amber-200/60 italic mt-1">
+                    &ldquo;{project.paymentRequest.notes}&rdquo;
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              {isAccountant ? (
+                <button
+                  onClick={() => setIsPaymentModalOpen(true)}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold transition-all shadow-md flex items-center gap-1.5 active:scale-95"
+                >
+                  <IndianRupee className="w-4 h-4" />
+                  <span>Record This Payment</span>
+                </button>
+              ) : (isCrm || user?.role === 'ADMIN' || user?.role === 'MANAGER') ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsRequestPaymentModalOpen(true)}
+                    className="px-3 py-1.5 bg-amber-200/80 hover:bg-amber-200 text-amber-900 rounded-xl text-xs font-bold transition-all border border-amber-300"
+                  >
+                    Modify
+                  </button>
+                  <button
+                    onClick={handleCancelPaymentRequest}
+                    disabled={requestLoading}
+                    className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-bold transition-all border border-rose-200"
+                  >
+                    {requestLoading ? 'Cancelling...' : 'Cancel Request'}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        )}
+
+        {/* Accountant Restriction Notice if no request */}
+        {isAccountant && project.paymentRequest?.status !== 'REQUESTED' && (
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-3 text-slate-700 text-xs">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-slate-200/80 text-slate-600 flex items-center justify-center shrink-0">
+                <Lock className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="font-bold text-slate-800 block">Payment Recording Locked for Accountant</span>
+                <span className="text-[11px] text-slate-500">
+                  CRM must request payment collection from this customer&apos;s Payment Schedule before you can record payment and dispatch receipts.
+                </span>
+              </div>
+            </div>
+            <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-200/80 text-slate-600 uppercase tracking-wide shrink-0">
+              Awaiting CRM Request
+            </span>
+          </div>
+        )}
 
         {/* Milestone Schedule Cards */}
         {(() => {
@@ -810,7 +864,7 @@ export default function ProjectDetailPage() {
                     </td>
                     <td className="py-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        {!isCrm && (
+                        {(!isCrm || isAccountant) && (
                           <button
                             onClick={() => {
                               setSelectedPaymentToEdit(p);
@@ -867,37 +921,64 @@ export default function ProjectDetailPage() {
                   </div>
                   <h4 className="text-lg font-black text-emerald-600">₹{p.amountPaid?.toLocaleString('en-IN')}</h4>
                   <p className="text-[11px] text-slate-500 mt-1 font-mono">Ref: {p.transactionReference}</p>
-                  <p className="text-[11px] text-slate-500 font-mono">Receipt: {p.receiptNumber || 'N/A'}</p>
+                  <div className="flex items-center justify-between mt-1">
+                    <p className="text-[11px] text-slate-500 font-mono">Receipt: {p.receiptNumber || 'N/A'}</p>
+                    {p.receiptUrl && (
+                      <a
+                        href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}${p.receiptUrl}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10px] text-sky-600 hover:text-sky-800 font-bold flex items-center gap-0.5"
+                      >
+                        <ExternalLink className="w-2.5 h-2.5" />
+                        <span>PDF</span>
+                      </a>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {!isCrm && (
-                    <button
-                      onClick={() => {
-                        setSelectedPaymentToEdit(p);
-                        setIsEditPaymentModalOpen(true);
-                      }}
-                      className="py-2 px-3 bg-white border border-slate-300 hover:border-amber-500 hover:text-amber-600 rounded-xl text-xs font-bold text-slate-700 transition-colors flex items-center justify-center gap-1 shadow-sm"
-                      title="Edit payment amount"
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    {(!isCrm || isAccountant) && (
+                      <button
+                        onClick={() => {
+                          setSelectedPaymentToEdit(p);
+                          setIsEditPaymentModalOpen(true);
+                        }}
+                        className="py-2 px-3 bg-white border border-slate-300 hover:border-amber-500 hover:text-amber-600 rounded-xl text-xs font-bold text-slate-700 transition-colors flex items-center justify-center gap-1 shadow-sm"
+                        title="Edit payment amount"
+                      >
+                        <Edit2 className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Edit</span>
+                      </button>
+                    )}
+                    <Link
+                      href={`/projects/${projectId}/invoice/${p._id}`}
+                      className="flex-1 py-2 bg-white border border-slate-300 hover:border-sky-500 hover:text-sky-600 rounded-xl text-xs font-bold text-slate-700 transition-colors flex items-center justify-center gap-2 shadow-sm"
                     >
-                      <Edit2 className="w-3.5 h-3.5 text-amber-600" />
-                      <span>Edit</span>
-                    </button>
-                  )}
-                  <Link
-                    href={`/projects/${projectId}/invoice/${p._id}`}
-                    className="flex-1 py-2 bg-white border border-slate-300 hover:border-sky-500 hover:text-sky-600 rounded-xl text-xs font-bold text-slate-700 transition-colors flex items-center justify-center gap-2 shadow-sm"
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>View Receipt</span>
+                    </Link>
+                  </div>
+                  <button
+                    onClick={() => handleSendReceiptToGroup(p._id)}
+                    disabled={sendingReceiptId === p._id}
+                    className="w-full py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm disabled:opacity-50"
+                    title="Send official receipt document directly to WhatsApp Group"
                   >
-                    <FileText className="w-3.5 h-3.5" />
-                    <span>View Receipt</span>
-                  </Link>
+                    <Send className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{sendingReceiptId === p._id ? 'Dispatching to Group...' : 'Send Receipt to WhatsApp Group'}</span>
+                  </button>
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
+      </React.Fragment>
+      )}
 
-      {/* SECTION 22: PROJECT ACTIVITY LOG & NOTES */}
+      {/* SECTION 22: PROJECT ACTIVITY LOG & NOTES (Hidden for Accountant & BDM) */}
+      {!isAccountant && user?.role !== 'BDM' && (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Customer Notes */}
         <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
@@ -952,7 +1033,6 @@ export default function ProjectDetailPage() {
           </div>
         </div>
       </div>
-      </React.Fragment>
       )}
 
       {/* Modals */}
@@ -1080,6 +1160,14 @@ export default function ProjectDetailPage() {
           </div>
         </div>
       )}
+
+      {/* CRM Request Payment from Accountant Modal */}
+      <RequestPaymentModal
+        isOpen={isRequestPaymentModalOpen}
+        onClose={() => setIsRequestPaymentModalOpen(false)}
+        project={project}
+        onSuccess={fetchProject}
+      />
     </div>
   );
 }

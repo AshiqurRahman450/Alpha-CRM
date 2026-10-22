@@ -26,13 +26,22 @@ export default function LoginPage() {
     }
   };
 
-  const handleQuickFill = (userType: 'admin' | 'crm') => {
+  const handleQuickFill = (userType: 'admin' | 'crm' | 'accountant' | 'qc' | 'techlead') => {
     if (userType === 'admin') {
       setEmail('admin@alphaelevators.com');
       setPassword('admin123');
-    } else {
+    } else if (userType === 'crm') {
       setEmail('crm@alphaelevators.com');
       setPassword('crm123');
+    } else if (userType === 'accountant') {
+      setEmail('vincy@alphaelevators.com');
+      setPassword('vincy123');
+    } else if (userType === 'qc') {
+      setEmail('qc@alphaelevators.com');
+      setPassword('qc123');
+    } else {
+      setEmail('techlead@alphaelevators.com');
+      setPassword('tech123');
     }
   };
 
@@ -104,20 +113,41 @@ export default function LoginPage() {
         {/* 1-Click Demo Login helpers */}
         <div className="pt-4 border-t border-slate-800 text-center space-y-2 text-[11px]">
           <span className="text-slate-400 block font-medium">Quick Demo Credentials:</span>
-          <div className="flex items-center justify-center gap-2">
+          <div className="flex flex-wrap items-center justify-center gap-2">
             <button
               type="button"
               onClick={() => handleQuickFill('admin')}
               className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-sky-300 rounded-lg border border-slate-700 transition-colors"
             >
-              Admin Role (Full Access)
+              Admin (Full)
             </button>
             <button
               type="button"
               onClick={() => handleQuickFill('crm')}
               className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition-colors"
             >
-              CRM Agent Role
+              CRM Agent
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickFill('accountant')}
+              className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-lg border border-slate-700 transition-colors"
+            >
+              Vincy (Accountant)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickFill('qc')}
+              className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-300 rounded-lg border border-slate-700 transition-colors"
+            >
+              Dinesh (QC)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickFill('techlead')}
+              className="px-3 py-1 bg-sky-900/60 hover:bg-sky-800 text-sky-300 rounded-lg border border-sky-600/50 transition-colors font-semibold"
+            >
+              Suresh (Tech Lead)
             </button>
           </div>
         </div>

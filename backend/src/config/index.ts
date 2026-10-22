@@ -22,6 +22,16 @@ export const config = {
     baseUrl: 'https://graph.facebook.com',
   },
 
+  // WATI WhatsApp Business API
+  wati: {
+    baseUrl: process.env.WATI_API_BASE_URL || 'https://live-mt-server.wati.io/10269884',
+    token: (process.env.WATI_API_TOKEN || '').replace(/^Bearer\s+/i, '').trim(),
+    ownerEmail: process.env.WATI_OWNER_EMAIL || 'alphaelevators01@gmail.com',
+    webhookSecret: process.env.WATI_WEBHOOK_SECRET || '',
+    dryRun: process.env.WATI_DRY_RUN === 'true',
+    timeoutMs: parseInt(process.env.WATI_TIMEOUT_MS || '15000', 10),
+  },
+
   // CRM Global Settings
   defaultUpdateFrequencyDays: parseInt(process.env.DEFAULT_UPDATE_FREQUENCY || '20', 10),
   defaultUpdateTime: process.env.DEFAULT_UPDATE_TIME || '09:00',
