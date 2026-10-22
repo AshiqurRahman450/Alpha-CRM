@@ -74,6 +74,10 @@ app.use('/api/webhooks', webhookRouter);
 app.use('/api/reminders', reminderRouter);
 app.use('/api/qc', qcRouter);
 
+app.get('/', (req, res) => {
+  res.send('Hello, backend is running CRM Server!');
+});
+
 // 404 Handler
 app.use((req: Request, res: Response) => {
   res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.url}` });
