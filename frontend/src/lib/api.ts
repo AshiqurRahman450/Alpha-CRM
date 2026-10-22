@@ -179,7 +179,16 @@ export const api = {
   },
   addProjectNote: (id: string, note: string) =>
     fetchWithAuth(`/api/projects/${id}/notes`, { method: 'POST', body: JSON.stringify({ note }) }),
-  requestProjectPayment: (id: string, data: { requestedAmount?: number; paymentType?: string; notes?: string }) =>
+  requestProjectPayment: (
+    id: string,
+    data: {
+      requestedAmount?: number;
+      paymentType?: string;
+      notes?: string;
+      accountantPhone?: string;
+      accountantName?: string;
+    }
+  ) =>
     fetchWithAuth(`/api/projects/${id}/request-payment`, {
       method: 'POST',
       body: JSON.stringify(data),

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { IndianRupee, Send, X, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
+import { IndianRupee, Send, X, AlertCircle, CheckCircle2, Clock, MessageSquare, Phone } from 'lucide-react';
 import { api } from '../lib/api';
 import { toast } from 'react-hot-toast';
 
@@ -20,6 +20,8 @@ export default function RequestPaymentModal({
 }: RequestPaymentModalProps) {
   const [requestedAmount, setRequestedAmount] = useState<string>('');
   const [paymentType, setPaymentType] = useState<string>('Booking Advance');
+  const [accountantName, setAccountantName] = useState<string>('Vincy (Accountant)');
+  const [accountantPhone, setAccountantPhone] = useState<string>('+91 98400 99881');
   const [notes, setNotes] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +32,12 @@ export default function RequestPaymentModal({
         setPaymentType(project.paymentRequest.paymentType || 'Booking Advance');
         setRequestedAmount(project.paymentRequest.requestedAmount ? String(project.paymentRequest.requestedAmount) : '');
         setNotes(project.paymentRequest.notes || '');
+        if (project.paymentRequest.accountantPhone) {
+          setAccountantPhone(project.paymentRequest.accountantPhone);
+        }
+        if (project.paymentRequest.accountantName) {
+          setAccountantName(project.paymentRequest.accountantName);
+        }
       } else {
         // Default to remaining advance or first milestone
         const remainingAdv = Math.max(0, (project.advanceAmount || 0) - (project.totalPaid || 0));
@@ -43,6 +51,18 @@ export default function RequestPaymentModal({
         }
         setNotes('');
       }
+
+      // Try fetching active accountant from system users
+      api.getUsers().then((res) => {
+        if (res?.data && Array.isArray(res.data)) {
+          const accountants = res.data.filter((u: any) => u.role === 'ACCOUNTANT');
+          if (accountants.length > 0 && !project.paymentRequest?.accountantPhone) {
+            setAccountantName(accountants[0].name || 'Vincy (Accountant)');
+            if (accountants[0].phone) setAccountantPhone(accountants[0].phone);
+          }
+        }
+      }).catch(() => {});
+
       setError(null);
     }
   }, [project, isOpen]);
@@ -84,9 +104,11 @@ export default function RequestPaymentModal({
         requestedAmount: numAmt,
         paymentType,
         notes: notes.trim(),
+        accountantPhone: accountantPhone.trim(),
+        accountantName: accountantName.trim(),
       });
 
-      toast.success('Payment collection request sent to Accountant successfully!');
+      toast.success(res.message || 'Payment request sent to Accountant and 1-to-1 WhatsApp alert dispatched!');
       onSuccess(res.data);
       onClose();
     } catch (err: any) {
@@ -232,10 +254,51 @@ export default function RequestPaymentModal({
             </div>
           </div>
 
+          {/* Accountant 1-to-1 WhatsApp Contact Card */}
+          <div className="space-y-1.5 bg-gradient-to-r from-emerald-50/90 to-teal-50/70 p-3.5 rounded-2xl border border-emerald-200/80 shadow-sm">
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-extrabold text-emerald-950 flex items-center gap-1.5">
+                <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Accountant 1-to-1 WhatsApp Alert:</span>
+              </label>
+              <span className="text-[10px] bg-emerald-200/70 text-emerald-800 font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1">
+                <Phone className="w-2.5 h-2.5" />
+                <span>Direct WhatsApp</span>
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <div>
+                <span className="text-[10px] text-emerald-800 font-semibold block mb-0.5">Accountant Name:</span>
+                <input
+                  type="text"
+                  value={accountantName}
+                  onChange={(e) => setAccountantName(e.target.value)}
+                  placeholder="e.g. Vincy (Accountant)"
+                  className="w-full p-2 text-xs border border-emerald-300 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  required
+                />
+              </div>
+              <div>
+                <span className="text-[10px] text-emerald-800 font-semibold block mb-0.5">WhatsApp Number:</span>
+                <input
+                  type="text"
+                  value={accountantPhone}
+                  onChange={(e) => setAccountantPhone(e.target.value)}
+                  placeholder="+91 98400 99881"
+                  className="w-full p-2 text-xs border border-emerald-300 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none font-bold text-emerald-950"
+                  required
+                />
+              </div>
+            </div>
+            <p className="text-[10.5px] text-emerald-700 leading-relaxed pt-0.5">
+              ✓ Upon submission, a personalized 1-to-1 WhatsApp message with project details, collection amount, and CRM notes will be automatically dispatched to this number.
+            </p>
+          </div>
+
           {/* Notes for Accountant */}
           <div className="space-y-1">
             <label className="block text-[11px] font-bold text-slate-700">
-              Notes for Accountant (Vincy):
+              Notes for Accountant:
             </label>
             <textarea
               rows={2}

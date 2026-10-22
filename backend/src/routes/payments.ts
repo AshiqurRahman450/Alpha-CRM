@@ -1,10 +1,10 @@
 import { Router, Response } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { Payment, Project, Customer, WhatsAppMessage, WhatsAppMessageLog } from '../models';
+import { Payment, Project, Customer, WhatsAppMessage, WhatsAppMessageLog, User } from '../models';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { logProjectActivity } from '../services/activity/activityService';
-import { whatsappService, whatsAppWebBot } from '../services/whatsapp';
+import { whatsappService, whatsAppWebBot, watiService } from '../services/whatsapp';
 import { generatePaymentReceiptPdf } from '../services/receipt/receiptGenerator';
 
 export const paymentRouter = Router();
@@ -151,11 +151,12 @@ paymentRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT'), asyn
     let groupDispatchError: string | null = null;
     const inviteTarget = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
 
+    const customerName = customer?.fullName || 'Valued Client';
+    const waCaption = `*Official Payment Receipt* 🧾\n\nDear ${customerName},\nWe have successfully received your payment!\n\n*Project:* ${project.projectName} (${project.projectId})\n*Amount Received:* ₹${paidNum.toLocaleString('en-IN')}\n*Payment Milestone:* ${payment.paymentType || 'Milestone Payment'}\n*Payment Method:* ${paymentMethod || 'Bank Transfer'}\n*Receipt No:* ${payment.receiptNumber}\n*Transaction Ref:* ${transactionReference}\n\n*Total Paid So Far:* ₹${newTotalPaid.toLocaleString('en-IN')}\n*Outstanding Balance:* ₹${newBalance.toLocaleString('en-IN')}\n\nPlease find your official payment receipt document attached above for your records.\n\nThank you for choosing Alpha Elevators!`;
+
+    // 1. Dispatch Receipt to WhatsApp Group
     if (inviteTarget) {
       try {
-        const customerName = customer?.fullName || 'Valued Client';
-        const waCaption = `*Official Payment Receipt* 🧾\n\nDear ${customerName},\nWe have successfully received your payment!\n\n*Project:* ${project.projectName} (${project.projectId})\n*Amount Received:* ₹${paidNum.toLocaleString('en-IN')}\n*Payment Milestone:* ${payment.paymentType || 'Milestone Payment'}\n*Payment Method:* ${paymentMethod || 'Bank Transfer'}\n*Receipt No:* ${payment.receiptNumber}\n*Transaction Ref:* ${transactionReference}\n\n*Total Paid So Far:* ₹${newTotalPaid.toLocaleString('en-IN')}\n*Outstanding Balance:* ₹${newBalance.toLocaleString('en-IN')}\n\nPlease find your official payment receipt document attached above for your records.\n\nThank you for choosing Alpha Elevators!`;
-
         const botStatus = whatsAppWebBot.getStatus();
         if (botStatus.isConnected) {
           let sendRes: any;
@@ -175,7 +176,7 @@ paymentRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT'), asyn
             await WhatsAppMessageLog.create({
               projectId: project._id,
               groupId: project.whatsapp?.groupId || project.whatsappGroupId || 'GROUP',
-              messageText: `[PAYMENT RECEIPT DISPATCHED]: ${payment.receiptNumber}\n${waCaption}`,
+              messageText: `[PAYMENT RECEIPT DISPATCHED TO GROUP]: ${payment.receiptNumber}\n${waCaption}`,
               messageType: receiptPdfPath ? 'document' : 'text',
               scheduledAt: new Date(),
               attemptedAt: new Date(),
@@ -198,12 +199,159 @@ paymentRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT'), asyn
           } else {
             groupDispatchError = sendRes.error;
           }
-        } else {
-          groupDispatchError = 'WhatsApp Web Bot is not connected. Reconnect bot via WhatsApp settings to dispatch receipts.';
+        }
+
+        // Fallback to WATI group message if Web Bot not connected or failed
+        if (!receiptSentToGroup) {
+          try {
+            console.log(`[PaymentReceipt] Dispatching payment receipt notice to group via WATI...`);
+            const watiRes = await watiService.sendGroupText({
+              target: inviteTarget,
+              targetType: 'GROUP',
+              text: waCaption,
+            });
+            if (watiRes.success) {
+              receiptSentToGroup = true;
+              await WhatsAppMessageLog.create({
+                projectId: project._id,
+                groupId: project.whatsapp?.groupId || project.whatsappGroupId || 'GROUP',
+                messageText: `[PAYMENT RECEIPT DISPATCHED TO GROUP VIA WATI]: ${payment.receiptNumber}\n${waCaption}`,
+                messageType: 'text',
+                scheduledAt: new Date(),
+                attemptedAt: new Date(),
+                sentAt: new Date(),
+                providerMessageId: watiRes.messageId,
+                status: 'SENT',
+                attemptCount: 1,
+                isDryRun: false,
+              });
+            } else {
+              groupDispatchError = watiRes.error || groupDispatchError;
+            }
+          } catch (watiErr: any) {
+            console.error('[PaymentReceipt] WATI group dispatch error:', watiErr.message);
+            groupDispatchError = watiErr.message;
+          }
         }
       } catch (waErr: any) {
         console.error('[PaymentReceipt] Failed to dispatch WhatsApp receipt to group:', waErr.message);
         groupDispatchError = waErr.message;
+      }
+    }
+
+    // 2. Dispatch Official Receipt 1-to-1 to CRM WhatsApp Number
+    let receiptSentToCrm = false;
+    let crmDispatchError: string | null = null;
+    let targetCrmPhone = project.paymentRequest?.requestedByPhone;
+
+    if (!targetCrmPhone && project.paymentRequest?.requestedBy) {
+      const requester = await User.findOne({ name: project.paymentRequest.requestedBy });
+      if (requester?.phone) targetCrmPhone = requester.phone;
+    }
+    if (!targetCrmPhone) {
+      const crmUser = await User.findOne({ role: 'CRM', phone: { $exists: true, $ne: '' } });
+      if (crmUser?.phone) targetCrmPhone = crmUser.phone;
+    }
+    if (!targetCrmPhone) {
+      const adminUser = await User.findOne({ role: 'ADMIN', phone: { $exists: true, $ne: '' } });
+      if (adminUser?.phone) targetCrmPhone = adminUser.phone;
+    }
+    if (!targetCrmPhone) {
+      targetCrmPhone = '+91 98200 54321';
+    }
+
+    const crmRecipientName = project.paymentRequest?.requestedBy || 'CRM Team';
+    const crmCaption = `🧾 *Official Payment Receipt Recorded* 🧾\n\nDear CRM Team,\nAccountant (*${req.user?.name || 'Accountant'}*) has recorded a payment and generated receipt *${payment.receiptNumber}* for project *${project.projectName}* (${project.projectId}).\n\n*Receipt Summary:*\n• *Customer Name:* ${customerName}\n• *Customer Phone:* ${customer?.phoneNumber || 'N/A'}\n• *Amount Received:* ₹${paidNum.toLocaleString('en-IN')}\n• *Payment Stage:* ${payment.paymentType || 'Milestone Payment'}\n• *Payment Method:* ${paymentMethod || 'Bank Transfer'}\n• *Transaction Ref:* ${transactionReference}\n• *Total Collected to Date:* ₹${newTotalPaid.toLocaleString('en-IN')}\n• *Remaining Balance:* ₹${newBalance.toLocaleString('en-IN')}\n\n${receiptSentToGroup ? '✅ *Group Dispatch:* Official receipt PDF was sent to the client WhatsApp group.\n' : ''}Attached above is the official PDF payment receipt for your records.\n\nAlpha Elevators CRM`;
+
+    if (targetCrmPhone) {
+      try {
+        const botStatus = whatsAppWebBot.getStatus();
+        if (botStatus.isConnected) {
+          let crmRes: any;
+          if (receiptPdfPath && fs.existsSync(receiptPdfPath)) {
+            console.log(`[PaymentReceipt] Sending official receipt PDF 1-to-1 to CRM ${crmRecipientName} (+${targetCrmPhone}) via Web Bot`);
+            crmRes = await whatsAppWebBot.sendDirectDocument(
+              targetCrmPhone,
+              receiptPdfPath,
+              receiptFileName || `Receipt-${payment.receiptNumber}.pdf`,
+              crmCaption
+            );
+          } else {
+            console.log(`[PaymentReceipt] Sending receipt summary 1-to-1 to CRM ${crmRecipientName} (+${targetCrmPhone}) via Web Bot`);
+            crmRes = await whatsAppWebBot.sendDirectMessage(targetCrmPhone, crmCaption);
+          }
+
+          if (crmRes.success) {
+            receiptSentToCrm = true;
+            await WhatsAppMessageLog.create({
+              projectId: project._id,
+              recipientPhone: targetCrmPhone,
+              recipientName: crmRecipientName,
+              messageText: `[RECEIPT 1-TO-1 TO CRM]: ${payment.receiptNumber}\n${crmCaption}`,
+              messageType: receiptPdfPath ? 'document' : 'text',
+              scheduledAt: new Date(),
+              attemptedAt: new Date(),
+              sentAt: new Date(),
+              providerMessageId: crmRes.messageId,
+              status: 'SENT',
+              attemptCount: 1,
+              isDryRun: false,
+            });
+            console.log(`[PaymentReceipt] Official receipt PDF sent 1-to-1 to CRM (+${targetCrmPhone}) via Web Bot! ID: ${crmRes.messageId}`);
+          } else {
+            crmDispatchError = crmRes.error;
+          }
+        }
+
+        // Fallback to WATI if Web Bot is not connected or failed
+        if (!receiptSentToCrm) {
+          try {
+            console.log(`[PaymentReceipt] Dispatching 1-to-1 receipt notice to CRM (+${targetCrmPhone}) via WATI`);
+            const watiRes = await watiService.sendGroupText({
+              target: targetCrmPhone,
+              targetType: 'DIRECT',
+              text: crmCaption,
+              contactName: crmRecipientName,
+            });
+            if (watiRes.success) {
+              receiptSentToCrm = true;
+              await WhatsAppMessageLog.create({
+                projectId: project._id,
+                recipientPhone: targetCrmPhone,
+                recipientName: crmRecipientName,
+                messageText: `[RECEIPT 1-TO-1 TO CRM VIA WATI]: ${payment.receiptNumber}\n${crmCaption}`,
+                messageType: 'text',
+                scheduledAt: new Date(),
+                attemptedAt: new Date(),
+                sentAt: new Date(),
+                providerMessageId: watiRes.messageId,
+                status: 'SENT',
+                attemptCount: 1,
+                isDryRun: false,
+              });
+              console.log(`[PaymentReceipt] Receipt notification sent 1-to-1 to CRM (+${targetCrmPhone}) via WATI!`);
+            } else {
+              crmDispatchError = watiRes.error || crmDispatchError;
+            }
+          } catch (watiErr: any) {
+            console.error('[PaymentReceipt] Failed to dispatch receipt to CRM via WATI:', watiErr.message);
+            crmDispatchError = watiErr.message;
+          }
+        }
+
+        if (receiptSentToCrm) {
+          await logProjectActivity({
+            projectId: project._id,
+            projectCode: project.projectId,
+            type: 'WHATSAPP_SENT',
+            description: `Payment receipt "${payment.receiptNumber}" sent 1-to-1 to CRM (${crmRecipientName} - +${targetCrmPhone})`,
+            userId: req.user?._id,
+            userName: req.user?.name,
+          });
+        }
+      } catch (crmErr: any) {
+        console.error('[PaymentReceipt] Failed to dispatch receipt to CRM:', crmErr.message);
+        crmDispatchError = crmErr.message;
       }
     }
 
@@ -212,10 +360,10 @@ paymentRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT'), asyn
       data: payment,
       project,
       receiptSentToGroup,
+      receiptSentToCrm,
       groupDispatchError,
-      message: receiptSentToGroup
-        ? `Payment recorded and official receipt (${payment.receiptNumber}) sent directly to the WhatsApp group!`
-        : `Payment recorded successfully.`,
+      crmDispatchError,
+      message: `Payment recorded successfully! ${receiptSentToGroup ? 'Receipt sent to group. ' : ''}${receiptSentToCrm ? 'Receipt sent 1-to-1 to CRM.' : ''}`.trim(),
     });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
@@ -302,9 +450,59 @@ paymentRouter.post('/:id/send-receipt', authorize('ADMIN', 'CRM', 'MANAGER', 'AC
       userName: req.user?.name,
     });
 
+    // Also send receipt 1-to-1 to CRM number
+    let targetCrmPhone = project.paymentRequest?.requestedByPhone;
+    if (!targetCrmPhone && project.paymentRequest?.requestedBy) {
+      const requester = await User.findOne({ name: project.paymentRequest.requestedBy });
+      if (requester?.phone) targetCrmPhone = requester.phone;
+    }
+    if (!targetCrmPhone) {
+      const crmUser = await User.findOne({ role: 'CRM', phone: { $exists: true, $ne: '' } });
+      if (crmUser?.phone) targetCrmPhone = crmUser.phone;
+    }
+    if (!targetCrmPhone) {
+      const adminUser = await User.findOne({ role: 'ADMIN', phone: { $exists: true, $ne: '' } });
+      if (adminUser?.phone) targetCrmPhone = adminUser.phone;
+    }
+    if (!targetCrmPhone) {
+      targetCrmPhone = '+91 98200 54321';
+    }
+
+    const crmRecipientName = project.paymentRequest?.requestedBy || 'CRM Team';
+    const crmCaption = `🧾 *Official Payment Receipt Dispatched* 🧾\n\nDear CRM Team,\nPayment receipt *${payment.receiptNumber}* for Project *${project.projectName}* (${project.projectId}) has been sent to the client WhatsApp group.\n\n*Receipt Details:*\n• *Customer:* ${customerName}\n• *Amount:* ₹${(payment.amountPaid || 0).toLocaleString('en-IN')}\n• *Method:* ${payment.paymentMethod || 'Bank Transfer'}\n• *Ref:* ${payment.transactionReference || 'N/A'}\n• *Remaining Balance:* ₹${(payment.balanceAmount || 0).toLocaleString('en-IN')}\n\nAttached above is the official receipt for CRM records.\n\nAlpha Elevators CRM`;
+
+    if (targetCrmPhone) {
+      try {
+        if (botStatus.isConnected) {
+          if (receiptPdfPath && fs.existsSync(receiptPdfPath)) {
+            await whatsAppWebBot.sendDirectDocument(targetCrmPhone, receiptPdfPath, receiptFileName, crmCaption);
+          } else {
+            await whatsAppWebBot.sendDirectMessage(targetCrmPhone, crmCaption);
+          }
+        } else {
+          await watiService.sendGroupText({
+            target: targetCrmPhone,
+            targetType: 'DIRECT',
+            text: crmCaption,
+            contactName: crmRecipientName,
+          });
+        }
+        await logProjectActivity({
+          projectId: project._id,
+          projectCode: project.projectId,
+          type: 'WHATSAPP_SENT',
+          description: `Payment receipt "${payment.receiptNumber}" sent 1-to-1 to CRM (${crmRecipientName} - +${targetCrmPhone})`,
+          userId: req.user?._id,
+          userName: req.user?.name,
+        });
+      } catch (crmErr: any) {
+        console.warn('[PaymentReceipt] Notice dispatching manual receipt to CRM:', crmErr.message);
+      }
+    }
+
     return res.json({
       success: true,
-      message: `Receipt ${payment.receiptNumber} sent directly to the WhatsApp group!`,
+      message: `Receipt ${payment.receiptNumber} sent directly to the WhatsApp group and 1-to-1 to CRM!`,
       data: { messageId: sendRes.messageId },
     });
   } catch (err: any) {

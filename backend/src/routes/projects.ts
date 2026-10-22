@@ -1080,13 +1080,40 @@ projectRouter.post('/:id/request-payment', authorize('ADMIN', 'CRM', 'MANAGER'),
     const project = await Project.findById(req.params.id);
     if (!project) return res.status(404).json({ success: false, message: 'Project not found' });
 
-    const { requestedAmount, paymentType, notes } = req.body;
+    const { requestedAmount, paymentType, notes, accountantPhone, accountantName } = req.body;
+
+    // Resolve Accountant contact details
+    let targetAccountantPhone = accountantPhone;
+    let targetAccountantName = accountantName;
+    if (!targetAccountantPhone) {
+      const accountantUser = await User.findOne({ role: 'ACCOUNTANT' });
+      if (accountantUser) {
+        targetAccountantPhone = accountantUser.phone;
+        targetAccountantName = accountantUser.name;
+      }
+    }
+    if (!targetAccountantPhone) {
+      targetAccountantPhone = '+91 98400 99881';
+    }
+    if (!targetAccountantName) {
+      targetAccountantName = 'Vincy (Accountant)';
+    }
+
+    // Resolve CRM contact phone
+    let crmPhone = req.user?.phone;
+    if (!crmPhone) {
+      const crmUser = await User.findOne({ role: 'CRM', phone: { $exists: true, $ne: '' } });
+      crmPhone = crmUser?.phone || '+91 98200 54321';
+    }
 
     project.paymentRequest = {
       status: 'REQUESTED',
       requestedAmount: requestedAmount !== undefined && requestedAmount !== null ? Number(requestedAmount) : undefined,
       paymentType: paymentType || 'Milestone Payment',
       requestedBy: req.user?.name || req.user?.email || 'CRM',
+      requestedByPhone: crmPhone,
+      accountantPhone: targetAccountantPhone,
+      accountantName: targetAccountantName,
       requestedAt: new Date(),
       notes: notes ? String(notes).trim() : '',
     };
@@ -1102,10 +1129,109 @@ projectRouter.post('/:id/request-payment', authorize('ADMIN', 'CRM', 'MANAGER'),
       userName: req.user?.name,
     });
 
+    // Send 1-to-1 WhatsApp alert to the Accountant
+    let accountantNotified = false;
+    let accountantDispatchError: string | null = null;
+    let usedProvider = 'WhatsApp Bot';
+
+    try {
+      const customer = await Customer.findById(project.customerId);
+      const customerName = customer?.fullName || 'Valued Client';
+      const customerPhone = customer?.phoneNumber || 'N/A';
+      const reqAmt = (project.paymentRequest.requestedAmount || 0).toLocaleString('en-IN');
+      const orderVal = (project.orderValue || 0).toLocaleString('en-IN');
+      const totPaid = (project.totalPaid || 0).toLocaleString('en-IN');
+      const balAmt = (project.balanceAmount || 0).toLocaleString('en-IN');
+
+      const accountantMsg = `🔔 *Payment Collection Request* 🔔\n\nDear ${targetAccountantName},\nA payment collection request has been submitted by CRM (*${project.paymentRequest.requestedBy}*).\n\n*Project Details:*\n• *Project:* ${project.projectName} (${project.projectId})\n• *Customer Name:* ${customerName}\n• *Customer Phone:* ${customerPhone}\n• *Total Order Value:* ₹${orderVal}\n• *Total Collected:* ₹${totPaid}\n• *Current Balance:* ₹${balAmt}\n\n*Collection Details:*\n• *Amount to Collect:* ₹${reqAmt}\n• *Payment Stage:* ${project.paymentRequest.paymentType}\n• *Requested By:* ${project.paymentRequest.requestedBy}${crmPhone ? ` (+${crmPhone.replace(/\D/g, '')})` : ''}\n${notes ? `• *CRM Notes:* ${notes}\n` : ''}\nPlease follow up with the customer, collect/verify the payment, and record the payment receipt on the Alpha Elevators CRM dashboard.\n\nThank you,\nAlpha Elevators CRM`;
+
+      const botStatus = whatsAppWebBot.getStatus();
+      if (botStatus.isConnected) {
+        console.log(`[PaymentRequest] Sending 1-to-1 WhatsApp message to Accountant ${targetAccountantName} (+${targetAccountantPhone}) via Web Bot`);
+        const botRes = await whatsAppWebBot.sendDirectMessage(targetAccountantPhone, accountantMsg);
+        if (botRes.success) {
+          accountantNotified = true;
+          usedProvider = 'WhatsApp Bot';
+          await WhatsAppMessageLog.create({
+            projectId: project._id,
+            recipientPhone: targetAccountantPhone,
+            recipientName: targetAccountantName,
+            messageText: accountantMsg,
+            messageType: 'text',
+            scheduledAt: new Date(),
+            attemptedAt: new Date(),
+            sentAt: new Date(),
+            providerMessageId: botRes.messageId,
+            status: 'SENT',
+            attemptCount: 1,
+            isDryRun: false,
+          });
+          console.log(`[PaymentRequest] 1-to-1 message sent directly to Accountant (+${targetAccountantPhone}) via Web Bot! ID: ${botRes.messageId}`);
+        } else {
+          accountantDispatchError = botRes.error || 'Web Bot failed to dispatch direct message';
+        }
+      }
+
+      // Fallback to WATI if Web Bot is not connected or failed
+      if (!accountantNotified) {
+        try {
+          console.log(`[PaymentRequest] Dispatching 1-to-1 WhatsApp message to Accountant (+${targetAccountantPhone}) via WATI`);
+          const watiRes = await watiService.sendGroupText({
+            target: targetAccountantPhone,
+            targetType: 'DIRECT',
+            text: accountantMsg,
+            contactName: targetAccountantName,
+          });
+          if (watiRes.success) {
+            accountantNotified = true;
+            usedProvider = 'WATI';
+            await WhatsAppMessageLog.create({
+              projectId: project._id,
+              recipientPhone: targetAccountantPhone,
+              recipientName: targetAccountantName,
+              messageText: accountantMsg,
+              messageType: 'text',
+              scheduledAt: new Date(),
+              attemptedAt: new Date(),
+              sentAt: new Date(),
+              providerMessageId: watiRes.messageId,
+              status: 'SENT',
+              attemptCount: 1,
+              isDryRun: false,
+            });
+            console.log(`[PaymentRequest] 1-to-1 message sent to Accountant (+${targetAccountantPhone}) via WATI! ID: ${watiRes.messageId}`);
+          } else {
+            accountantDispatchError = watiRes.error || accountantDispatchError;
+          }
+        } catch (watiErr: any) {
+          console.error('[PaymentRequest] WATI fallback error:', watiErr.message);
+          accountantDispatchError = watiErr.message;
+        }
+      }
+
+      if (accountantNotified) {
+        await logProjectActivity({
+          projectId: project._id,
+          projectCode: project.projectId,
+          type: 'WHATSAPP_SENT',
+          description: `1-to-1 WhatsApp payment request alert sent to Accountant ${targetAccountantName} (+${targetAccountantPhone}) via ${usedProvider}`,
+          userId: req.user?._id,
+          userName: req.user?.name,
+        });
+      }
+    } catch (msgErr: any) {
+      console.error('[PaymentRequest] Failed to dispatch WhatsApp message to accountant:', msgErr.message);
+      accountantDispatchError = msgErr.message;
+    }
+
     return res.json({
       success: true,
-      message: 'Payment collection request sent to Accountant successfully!',
+      message: accountantNotified
+        ? `Payment collection request sent to Accountant (${targetAccountantName}) and 1-to-1 WhatsApp alert dispatched successfully!`
+        : `Payment collection request sent to Accountant (${targetAccountantName}) successfully! (WhatsApp note: ${accountantDispatchError || 'Bot queued'})`,
       data: project,
+      accountantNotified,
+      accountantDispatchError,
     });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });

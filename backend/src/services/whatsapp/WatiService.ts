@@ -321,11 +321,12 @@ export class WatiWhatsAppService implements IWhatsAppProvider {
       // If targetType is GROUP, check if params.groupId is a valid WhatsApp group JID/phone.
       // If it is a synthetic ID (e.g. starts with 'wati_grp_'), fall back to cleanPhone so dispatch succeeds.
       let target = cleanPhone;
+      const effectiveGroup = params.target || params.groupId;
       if (params.targetType === 'GROUP') {
-        const isSynthetic = !params.groupId || params.groupId.startsWith('wati_grp_') || !/^\d{8,15}(@g\.us)?$/.test(params.groupId);
-        target = !isSynthetic && params.groupId ? params.groupId : cleanPhone;
+        const isSynthetic = !effectiveGroup || effectiveGroup.startsWith('wati_grp_') || !/^\d{8,15}(@g\.us)?$/.test(effectiveGroup);
+        target = !isSynthetic && effectiveGroup ? effectiveGroup : cleanPhone;
       } else {
-        target = cleanPhone || params.groupId || '';
+        target = cleanPhone || effectiveGroup || '';
       }
 
       if (!target) {

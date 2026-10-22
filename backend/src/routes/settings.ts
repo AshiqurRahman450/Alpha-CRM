@@ -105,7 +105,7 @@ settingsRouter.post('/trigger-scheduler', authorize('ADMIN', 'MANAGER'), async (
 /**
  * GET /api/settings/users
  */
-settingsRouter.get('/users', authorize('ADMIN'), async (req: AuthRequest, res: Response) => {
+settingsRouter.get('/users', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthRequest, res: Response) => {
   try {
     const users = await User.find({}, '-passwordHash').sort({ createdAt: -1 });
     return res.json({ success: true, data: users });

@@ -18,7 +18,8 @@ export interface RemoveParticipantsParams {
 }
 
 export interface SendGroupTextParams {
-  groupId: string;
+  groupId?: string;
+  target?: string;
   conversationId?: string;
   customerPhone?: string;
   contactName?: string;

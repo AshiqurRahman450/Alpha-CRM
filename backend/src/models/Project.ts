@@ -97,6 +97,9 @@ export interface IProject extends Document {
     requestedAmount?: number;
     paymentType?: string;
     requestedBy?: string;
+    requestedByPhone?: string;
+    accountantPhone?: string;
+    accountantName?: string;
     requestedAt?: Date;
     notes?: string;
   };
@@ -423,6 +426,9 @@ const ProjectSchema = new Schema<IProject>(
       requestedAmount: { type: Number },
       paymentType: { type: String, trim: true },
       requestedBy: { type: String, trim: true },
+      requestedByPhone: { type: String, trim: true },
+      accountantPhone: { type: String, trim: true },
+      accountantName: { type: String, trim: true },
       requestedAt: { type: Date },
       notes: { type: String, trim: true },
     },
