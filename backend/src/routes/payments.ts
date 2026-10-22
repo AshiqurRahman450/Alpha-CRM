@@ -6,6 +6,10 @@ import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { logProjectActivity } from '../services/activity/activityService';
 import { whatsappService, whatsAppWebBot, watiService } from '../services/whatsapp';
 import { generatePaymentReceiptPdf } from '../services/receipt/receiptGenerator';
+import {
+  scheduleEscalationMatrixDispatch,
+  triggerAdvancePaymentReminderForCRMAndAdmin,
+} from '../services/scheduler/schedulerService';
 
 export const paymentRouter = Router();
 
@@ -116,6 +120,33 @@ paymentRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT'), asyn
     if (project.paymentRequest && project.paymentRequest.status === 'REQUESTED') {
       project.paymentRequest.status = 'RECORDED';
     }
+
+    // Check if this payment fulfills or corresponds to Advance Payment
+    const isAdvancePayment =
+      (paymentType && String(paymentType).toLowerCase().includes('advance')) ||
+      (payment.paymentType && String(payment.paymentType).toLowerCase().includes('advance')) ||
+      newPaymentStatus === 'ADVANCE_PAID' ||
+      (project.paymentRequest?.paymentType && String(project.paymentRequest.paymentType).toLowerCase().includes('advance')) ||
+      (newTotalPaid >= (project.advanceAmount || 0) && (project.advanceAmount || 0) > 0);
+
+    if (isAdvancePayment) {
+      if (!project.stageDates) {
+        project.stageDates = new Map();
+      }
+      const paymentStage = project.stageDates.get('PAYMENT_RECEIVED') || {};
+      paymentStage.executedDate = new Date();
+      if (!paymentStage.scheduleDate) {
+        paymentStage.scheduleDate = new Date();
+      }
+      project.stageDates.set('PAYMENT_RECEIVED', paymentStage);
+
+      // Advance project status if at initial stage
+      if (!project.projectStatus) {
+        project.projectStatus = 'PAYMENT_RECEIVED';
+      }
+      console.log(`[Payment] Marked stage "PAYMENT_RECEIVED" as EXECUTED/DONE for project ${project.projectId}`);
+    }
+
     await project.save();
 
     // Log Activity
@@ -128,6 +159,23 @@ paymentRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT'), asyn
       userName: req.user?.name,
       metadata: { amount: paidNum, balance: newBalance, reference: transactionReference },
     });
+
+    if (isAdvancePayment) {
+      await logProjectActivity({
+        projectId: project._id,
+        projectCode: project.projectId,
+        type: 'STATUS_CHANGE',
+        description: `Stage "Advance Payment Received" marked COMPLETED upon receiving ₹${paidNum.toLocaleString('en-IN')}.`,
+        userId: req.user?._id,
+        userName: req.user?.name,
+      });
+
+      // 1. Schedule Customer Concern Escalation Matrix to be dispatched to WhatsApp group after 30 minutes
+      await scheduleEscalationMatrixDispatch(project);
+
+      // 2. Remind CRM and Admin to schedule Site Visit (both in-app reminder and 1-to-1 WhatsApp messages)
+      await triggerAdvancePaymentReminderForCRMAndAdmin(project._id, paidNum);
+    }
 
     // Automatically generate official PDF Receipt
     let receiptPdfPath: string | null = null;

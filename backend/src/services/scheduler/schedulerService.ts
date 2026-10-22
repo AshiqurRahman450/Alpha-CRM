@@ -1,4 +1,6 @@
 import cron from 'node-cron';
+import fs from 'fs';
+import path from 'path';
 import {
   Project,
   Customer,
@@ -674,46 +676,294 @@ export async function processDueWhatsAppUpdates(): Promise<{
 }
 
 /**
- * Triggers initial reminder for CRM users when Advance Payment Received is marked executed,
- * provided Site Visit schedule date is not yet fixed.
+ * Triggers initial reminder for CRM and Admin users when Advance Payment Received is marked executed,
+ * creating in-app reminders AND dispatching 1-to-1 WhatsApp alert messages to CRM and Admin.
  */
-export async function triggerAdvancePaymentReminderForCRM(projectId: any): Promise<void> {
+export async function triggerAdvancePaymentReminderForCRMAndAdmin(projectId: any, paidAmount?: number): Promise<void> {
   try {
-    const project = await Project.findById(projectId);
-    if (!project || !project.stageDates) return;
+    const project = await Project.findById(projectId).populate('customerId');
+    if (!project) return;
 
-    const paymentStage = project.stageDates.get('PAYMENT_RECEIVED');
-    const siteVisitStage = project.stageDates.get('SITE_MEASUREMENT');
+    const customer = project.customerId as any;
+    const customerName = customer?.fullName || 'Valued Client';
+    const customerPhone = customer?.phoneNumber || 'N/A';
+    const customerLocation = customer?.city || customer?.address || 'Site Address';
+    const amtStr = (paidAmount || project.totalPaid || 0).toLocaleString('en-IN');
 
-    const isAdvanceExecuted = paymentStage && paymentStage.executedDate;
-    const isSiteVisitScheduled = siteVisitStage && siteVisitStage.scheduleDate;
+    // Notify all active CRM and Admin team members
+    const notifyUsers = await User.find({
+      role: { $in: ['CRM', 'ADMIN'] },
+      isActive: { $ne: false },
+    });
 
-    if (isAdvanceExecuted && !isSiteVisitScheduled) {
-      const crmUsers = await User.find({ role: 'CRM', isActive: { $ne: false } });
-      const now = new Date();
-      for (const crmUser of crmUsers) {
-        const existing = await Reminder.findOne({
-          userId: crmUser._id,
+    const now = new Date();
+
+    for (const user of notifyUsers) {
+      // 1. In-App CRM & Admin Reminder
+      const existing = await Reminder.findOne({
+        userId: user._id,
+        relatedProjectId: project._id,
+        status: 'PENDING',
+        title: { $regex: /Schedule Site Visit/i },
+      });
+
+      if (!existing) {
+        await Reminder.create({
+          userId: user._id,
+          title: `Schedule Site Visit - ${project.projectName}`,
+          notes: `Advance payment has been received (₹${amtStr}) for ${project.projectName} (${project.projectId}). Please schedule the Site Visit (PM) date & time with customer ${customerName} (+${customerPhone}).`,
+          dueAt: now,
           relatedProjectId: project._id,
           status: 'PENDING',
-          title: { $regex: /Update Schedule Date/i },
         });
+        console.log(`[SiteVisitReminder] In-app reminder created for ${user.role} ${user.name}`);
+      }
 
-        if (!existing) {
-          await Reminder.create({
-            userId: crmUser._id,
-            title: `Update Schedule Date - ${project.projectName}`,
-            notes: `Advance payment received has been recorded. Please update the schedule date (Site Visit) for ${project.projectName}.`,
-            dueAt: now,
-            relatedProjectId: project._id,
-            status: 'PENDING',
-          });
-          console.log(`[Scheduler] Dispatched initial schedule date update reminder for CRM (${crmUser.name}) on project ${project.projectName}`);
+      // 2. 1-to-1 WhatsApp Alert to CRM / Admin Number
+      const userPhone = user.phone;
+      if (userPhone) {
+        const siteVisitMsg = `🔔 *Action Required: Schedule Site Visit* 🔔\n\nDear ${user.name},\nAdvance payment has been officially recorded for Project *${project.projectName}* (${project.projectId})!\n\n*Project & Customer Summary:*\n• *Customer Name:* ${customerName}\n• *Customer Phone:* ${customerPhone}\n• *Location:* ${customerLocation}\n• *Advance Received:* ₹${amtStr}\n• *Current Stage:* Advance Payment Received ✅\n\n👉 *Next Step Required:*\nPlease contact the customer and schedule the date & time for the *Site Visit (PM)* measurement on the Alpha Elevators CRM timeline.\n\nThank you,\nAlpha Elevators CRM`;
+
+        const botStatus = whatsAppWebBot.getStatus();
+        let sent = false;
+
+        if (botStatus.isConnected) {
+          const res = await whatsAppWebBot.sendDirectMessage(userPhone, siteVisitMsg);
+          if (res.success) {
+            sent = true;
+            await WhatsAppMessageLog.create({
+              projectId: project._id,
+              recipientPhone: userPhone,
+              recipientName: user.name,
+              messageText: `[SITE VISIT REMINDER 1-TO-1]:\n${siteVisitMsg}`,
+              messageType: 'text',
+              scheduledAt: now,
+              attemptedAt: now,
+              sentAt: now,
+              providerMessageId: res.messageId,
+              status: 'SENT',
+              attemptCount: 1,
+              isDryRun: false,
+            });
+            console.log(`[SiteVisitReminder] 1-to-1 WhatsApp alert sent to ${user.role} ${user.name} (+${userPhone}) via Web Bot`);
+          }
+        }
+
+        // Fallback to WATI if Web Bot is offline or failed
+        if (!sent) {
+          try {
+            const watiRes = await watiService.sendGroupText({
+              target: userPhone,
+              targetType: 'DIRECT',
+              text: siteVisitMsg,
+              contactName: user.name,
+            });
+            if (watiRes.success) {
+              await WhatsAppMessageLog.create({
+                projectId: project._id,
+                recipientPhone: userPhone,
+                recipientName: user.name,
+                messageText: `[SITE VISIT REMINDER 1-TO-1 VIA WATI]:\n${siteVisitMsg}`,
+                messageType: 'text',
+                scheduledAt: now,
+                attemptedAt: now,
+                sentAt: now,
+                providerMessageId: watiRes.messageId,
+                status: 'SENT',
+                attemptCount: 1,
+                isDryRun: false,
+              });
+              console.log(`[SiteVisitReminder] 1-to-1 WhatsApp alert sent to ${user.role} ${user.name} (+${userPhone}) via WATI`);
+            }
+          } catch (wErr: any) {
+            console.warn(`[SiteVisitReminder] WATI notice for ${user.name}:`, wErr.message);
+          }
         }
       }
     }
+
+    await logProjectActivity({
+      projectId: project._id,
+      projectCode: project.projectId,
+      type: 'WHATSAPP_SENT',
+      description: `Advance payment recorded. Site visit scheduling reminders created for CRM & Admin, and 1-to-1 WhatsApp alerts dispatched.`,
+    });
   } catch (err: any) {
-    console.error('[Scheduler] Error triggering advance payment reminder for CRM:', err);
+    console.error('[SiteVisitReminder] Error triggering advance payment reminder for CRM & Admin:', err);
+  }
+}
+
+/**
+ * Backward compatibility alias for triggerAdvancePaymentReminderForCRM
+ */
+export async function triggerAdvancePaymentReminderForCRM(projectId: any): Promise<void> {
+  await triggerAdvancePaymentReminderForCRMAndAdmin(projectId);
+}
+
+/**
+ * Sends the Customer Concern Escalation Matrix image directly to the project WhatsApp group
+ */
+export async function sendEscalationMatrixToProjectGroup(projectId: any): Promise<boolean> {
+  try {
+    const project = await Project.findById(projectId).populate('customerId');
+    if (!project) return false;
+    if (project.escalationMatrixSent) {
+      console.log(`[EscalationMatrix] Already dispatched for project ${project.projectId}, skipping.`);
+      return true;
+    }
+
+    const inviteTarget = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
+    if (!inviteTarget) {
+      console.warn(`[EscalationMatrix] No WhatsApp group target configured for ${project.projectId}`);
+      return false;
+    }
+
+    const customer = project.customerId as any;
+    const customerName = customer?.fullName || 'Valued Client';
+
+    // Locate the Customer Concern Escalation Matrix image across all standard locations
+    const candidatePaths = [
+      path.resolve(__dirname, '../../../src/assets/escalation_matrix.jpg'),
+      path.resolve(__dirname, '../../assets/escalation_matrix.jpg'),
+      path.resolve(__dirname, '../../../uploads/assets/escalation_matrix.jpg'),
+      path.resolve(process.cwd(), 'src/assets/escalation_matrix.jpg'),
+      path.resolve(process.cwd(), 'backend/src/assets/escalation_matrix.jpg'),
+      path.resolve(process.cwd(), 'uploads/assets/escalation_matrix.jpg'),
+      path.resolve(process.cwd(), 'backend/uploads/assets/escalation_matrix.jpg'),
+    ];
+
+    let imagePath: string | null = null;
+    for (const p of candidatePaths) {
+      if (fs.existsSync(p)) {
+        imagePath = p;
+        break;
+      }
+    }
+
+    if (!imagePath) {
+      console.error('[EscalationMatrix] Escalation matrix image file not found in any candidate path.');
+      return false;
+    }
+
+    const matrixCaption = `*Alpha Elevators - Customer Concern Escalation Matrix* 📞\n\nDear ${customerName},\nThank you for your advance payment confirmation. For your complete peace of mind and transparent project execution, please find our official Customer Concern Escalation Matrix attached above.\n\n• *Step 1 (Customer Relationship Manager):* Renuka (+91 93848 20044 | crm@alphaelevators.in) - TAT: Within 24 Hours\n• *Step 2 (Technical Incharge):* Sundram (+91 80560 41386 | sundaram@alphaelevators.in) - TAT: Within 24-48 Hours\n• *Step 3 (Technical Manager):* Kishore (+91 93848 20214 | kishore@alphaelevators.in) - TAT: Within 48 Hours\n• *Step 4 (Operational Head):* Abeal (+91 93848 20499 | abeal@alphaelevators.in) - TAT: Within 48 Hours\n\nKindly follow the escalation process step by step to ensure timely resolution of your concern.\n\nThank you for choosing Alpha Elevators!`;
+
+    const botStatus = whatsAppWebBot.getStatus();
+    let sentSuccess = false;
+    let messageId: string | undefined;
+
+    if (botStatus.isConnected) {
+      console.log(`[EscalationMatrix] Dispatching Escalation Matrix image to group ${inviteTarget} via WhatsApp Web Bot...`);
+      const botRes = await whatsAppWebBot.sendDocumentToGroup(
+        inviteTarget,
+        imagePath,
+        'Customer-Concern-Escalation-Matrix.jpg',
+        matrixCaption
+      );
+      if (botRes.success) {
+        sentSuccess = true;
+        messageId = botRes.messageId;
+      } else {
+        console.warn('[EscalationMatrix] Bot dispatch notice:', botRes.error);
+      }
+    }
+
+    // Fallback to WATI group message if Web Bot not connected or failed
+    if (!sentSuccess) {
+      try {
+        console.log(`[EscalationMatrix] Dispatching Escalation Matrix notification to group via WATI...`);
+        const watiRes = await watiService.sendGroupText({
+          target: inviteTarget,
+          targetType: 'GROUP',
+          text: matrixCaption,
+        });
+        if (watiRes.success) {
+          sentSuccess = true;
+          messageId = watiRes.messageId;
+        }
+      } catch (wErr: any) {
+        console.error('[EscalationMatrix] WATI group dispatch error:', wErr.message);
+      }
+    }
+
+    if (sentSuccess) {
+      project.escalationMatrixSent = true;
+      project.escalationMatrixSentAt = new Date();
+      await project.save();
+
+      await WhatsAppMessageLog.create({
+        projectId: project._id,
+        groupId: project.whatsapp?.groupId || project.whatsappGroupId || 'GROUP',
+        messageText: `[CUSTOMER CONCERN ESCALATION MATRIX DISPATCHED]:\n${matrixCaption}`,
+        messageType: 'image',
+        scheduledAt: new Date(),
+        attemptedAt: new Date(),
+        sentAt: new Date(),
+        providerMessageId: messageId,
+        status: 'SENT',
+        attemptCount: 1,
+        isDryRun: false,
+      });
+
+      await logProjectActivity({
+        projectId: project._id,
+        projectCode: project.projectId,
+        type: 'WHATSAPP_SENT',
+        description: `Customer Concern Escalation Matrix image dispatched automatically to WhatsApp group (${project.whatsappGroupName || inviteTarget})`,
+      });
+
+      console.log(`[EscalationMatrix] Successfully posted Customer Concern Escalation Matrix for project ${project.projectId}`);
+      return true;
+    }
+
+    return false;
+  } catch (err: any) {
+    console.error('[EscalationMatrix] Error sending escalation matrix:', err);
+    return false;
+  }
+}
+
+/**
+ * Schedules Escalation Matrix dispatch 30 minutes after advance payment is recorded
+ */
+export async function scheduleEscalationMatrixDispatch(project: any): Promise<void> {
+  try {
+    const scheduledAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes from now
+    project.escalationMatrixScheduledAt = scheduledAt;
+    project.escalationMatrixSent = false;
+    await project.save();
+
+    console.log(`[EscalationMatrix] Scheduled 30-minute escalation matrix auto-dispatch for ${project.projectId} at ${scheduledAt.toISOString()}`);
+
+    // Set in-process timeout for exact 30-minute execution
+    setTimeout(async () => {
+      try {
+        await sendEscalationMatrixToProjectGroup(project._id);
+      } catch (tErr: any) {
+        console.error('[EscalationMatrix] Timer execution error:', tErr.message);
+      }
+    }, 30 * 60 * 1000);
+  } catch (err: any) {
+    console.error('[EscalationMatrix] Error scheduling escalation matrix:', err);
+  }
+}
+
+/**
+ * Background processor that sends any due escalation matrices (checked every 15 minutes)
+ */
+export async function processDueEscalationMatrixUpdates(): Promise<void> {
+  try {
+    const now = new Date();
+    const dueProjects = await Project.find({
+      escalationMatrixScheduledAt: { $lte: now },
+      escalationMatrixSent: { $ne: true },
+      projectStatus: { $nin: ['COMPLETED', 'CANCELLED'] },
+    });
+
+    for (const project of dueProjects) {
+      await sendEscalationMatrixToProjectGroup(project._id);
+    }
+  } catch (err: any) {
+    console.error('[EscalationMatrix] Error in processDueEscalationMatrixUpdates:', err);
   }
 }
 
@@ -726,7 +976,7 @@ export async function dismissScheduleDateRemindersForProject(projectId: any): Pr
       {
         relatedProjectId: projectId,
         status: 'PENDING',
-        title: { $regex: /Update Schedule Date/i },
+        title: { $regex: /Update Schedule Date|Schedule Site Visit/i },
       },
       { status: 'DISMISSED' }
     );
@@ -737,7 +987,7 @@ export async function dismissScheduleDateRemindersForProject(projectId: any): Pr
 
 /**
  * Checks for projects where Advance Payment Received executedDate is set,
- * but Site Visit scheduleDate is not set. Sends/creates a reminder for CRM
+ * but Site Visit scheduleDate is not set. Sends/creates a reminder for CRM & Admin
  * every 3 hours until the schedule date is updated.
  */
 export async function checkScheduleDateReminders(): Promise<void> {
@@ -747,8 +997,11 @@ export async function checkScheduleDateReminders(): Promise<void> {
       projectStatus: { $nin: ['COMPLETED', 'CANCELLED'] },
     });
 
-    const crmUsers = await User.find({ role: 'CRM', isActive: { $ne: false } });
-    if (!crmUsers || crmUsers.length === 0) return;
+    const notifyUsers = await User.find({
+      role: { $in: ['CRM', 'ADMIN'] },
+      isActive: { $ne: false },
+    });
+    if (!notifyUsers || notifyUsers.length === 0) return;
 
     for (const project of projects) {
       if (!project.stageDates) continue;
@@ -760,24 +1013,24 @@ export async function checkScheduleDateReminders(): Promise<void> {
       const isSiteVisitScheduled = siteVisitStage && siteVisitStage.scheduleDate;
 
       if (isAdvanceExecuted && !isSiteVisitScheduled) {
-        for (const crmUser of crmUsers) {
+        for (const user of notifyUsers) {
           const lastReminder = await Reminder.findOne({
-            userId: crmUser._id,
+            userId: user._id,
             relatedProjectId: project._id,
-            title: { $regex: /Update Schedule Date/i },
+            title: { $regex: /Update Schedule Date|Schedule Site Visit/i },
           }).sort({ createdAt: -1 });
 
           const threeHoursMs = 3 * 60 * 60 * 1000;
-          if (!lastReminder || (now.getTime() - new Date(lastReminder.createdAt).getTime()) >= threeHoursMs) {
+          if (!lastReminder || now.getTime() - new Date(lastReminder.createdAt).getTime() >= threeHoursMs) {
             await Reminder.create({
-              userId: crmUser._id,
-              title: `Update Schedule Date - ${project.projectName}`,
-              notes: `Reminder: Please update the schedule date for project ${project.projectName}. Advance payment has been received.`,
+              userId: user._id,
+              title: `Schedule Site Visit - ${project.projectName}`,
+              notes: `Reminder: Please update the Site Visit (PM) schedule date & time for project ${project.projectName}. Advance payment has been received.`,
               dueAt: now,
               relatedProjectId: project._id,
               status: 'PENDING',
             });
-            console.log(`[Scheduler] Dispatched 3-hour schedule date update reminder for CRM (${crmUser.name}) on project ${project.projectName}`);
+            console.log(`[Scheduler] Dispatched 3-hour schedule date update reminder for ${user.role} (${user.name}) on project ${project.projectName}`);
           }
         }
       } else if (isSiteVisitScheduled) {
@@ -807,14 +1060,16 @@ export function initScheduler(): void {
     }
   );
 
-  // Periodic heartbeat: Checks every 15 minutes for any manually triggered, scheduled, or newly un-postponed updates, plus 3-hour CRM reminders
+  // Periodic heartbeat: Checks every 15 minutes for any manually triggered, scheduled, or newly un-postponed updates, plus 3-hour CRM reminders and due escalation matrices
   cron.schedule('*/15 * * * *', async () => {
     await processDueWhatsAppUpdates();
     await checkScheduleDateReminders();
+    await processDueEscalationMatrixUpdates();
   });
 
   // Initial check on server start
   checkScheduleDateReminders().catch((err) => console.error('[Scheduler] Initial checkScheduleDateReminders error:', err));
+  processDueEscalationMatrixUpdates().catch((err) => console.error('[Scheduler] Initial processDueEscalationMatrixUpdates error:', err));
 
   console.log('[Scheduler] Daily 09:00 AM IST & 15-minute heartbeat scheduler active.');
 }

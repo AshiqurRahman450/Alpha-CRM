@@ -64,6 +64,9 @@ export interface IProject extends Document {
   postponedUntil?: Date;
   pauseReason?: string;
   productionStage?: number; // 1: Stage 1 due, 2: Stage 2 due, 3: Stage 3 due, 4: All 3 stages completed
+  escalationMatrixScheduledAt?: Date;
+  escalationMatrixSent?: boolean;
+  escalationMatrixSentAt?: Date;
 
   // Dedicated WATI WhatsApp Group Data Model
   whatsapp?: {
@@ -383,6 +386,9 @@ const ProjectSchema = new Schema<IProject>(
       createdAt: { type: Date, default: Date.now },
       updatedAt: { type: Date, default: Date.now },
     },
+    escalationMatrixScheduledAt: { type: Date },
+    escalationMatrixSent: { type: Boolean, default: false },
+    escalationMatrixSentAt: { type: Date },
     stageDates: {
       type: Map,
       of: new Schema(
