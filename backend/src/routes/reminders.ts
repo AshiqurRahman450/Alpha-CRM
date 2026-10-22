@@ -98,3 +98,18 @@ reminderRouter.patch('/:id/dismiss', async (req: AuthRequest, res: Response) => 
     return res.status(500).json({ success: false, message: err.message });
   }
 });
+
+/**
+ * POST /api/reminders/check
+ * Trigger immediate execution of schedule date reminder check (CRM, Admin, Connected Bot)
+ */
+reminderRouter.post('/check', async (req: AuthRequest, res: Response) => {
+  try {
+    const { checkScheduleDateReminders } = await import('../services/scheduler/schedulerService');
+    await checkScheduleDateReminders();
+    return res.json({ success: true, message: 'Schedule date reminders checked and dispatched successfully.' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+

@@ -315,9 +315,26 @@ class WhatsAppWebBotService {
       if (!cleanPhone) {
         return { success: false, error: 'Invalid phone number provided.' };
       }
-      const directJid = `${cleanPhone}@s.whatsapp.net`;
+      let directJid = `${cleanPhone}@s.whatsapp.net`;
+      if (this.sock?.user?.id) {
+        const myBotNum = this.sock.user.id.split(':')[0] || this.sock.user.id.split('@')[0];
+        if (cleanPhone === normalizeWhatsAppPhone(myBotNum)) {
+          // If sending to the connected bot itself, use authenticated JID to deliver to "Message yourself"
+          directJid = this.sock.user.id;
+        }
+      }
       console.log(`[WhatsAppWebBot] Dispatching direct message to 1-to-1 JID: ${directJid}`);
-      const res = await this.sock.sendMessage(directJid, { text: messageText });
+      let res: any;
+      try {
+        res = await this.sock.sendMessage(directJid, { text: messageText });
+      } catch (selfErr: any) {
+        if (directJid !== `${cleanPhone}@s.whatsapp.net`) {
+          console.warn(`[WhatsAppWebBot] Fallback from ${directJid} to ${cleanPhone}@s.whatsapp.net:`, selfErr.message);
+          res = await this.sock.sendMessage(`${cleanPhone}@s.whatsapp.net`, { text: messageText });
+        } else {
+          throw selfErr;
+        }
+      }
       const messageId = res?.key?.id || `WB_DIR_${Date.now()}`;
       console.log(`[WhatsAppWebBot] Direct message posted successfully! ID: ${messageId}`);
       return {

@@ -12,7 +12,7 @@ import {
   User,
   Reminder,
 } from '../../models';
-import { whatsappService, watiService, whatsAppWebBot } from '../whatsapp';
+import { whatsappService, watiService, whatsAppWebBot, normalizeWhatsAppPhone } from '../whatsapp';
 import { logProjectActivity } from '../activity/activityService';
 import { config } from '../../config';
 
@@ -676,8 +676,184 @@ export async function processDueWhatsAppUpdates(): Promise<{
 }
 
 /**
+ * Dispatches 1-to-1 WhatsApp reminder to CRM, Admin, AND the Connected WhatsApp Bot Number
+ * to update the Site Visit (PM) schedule date & time.
+ * Deduplicates phone numbers so each recipient receives the alert once.
+ */
+export async function dispatchSiteVisitWhatsAppReminders(
+  projectId: any,
+  paidAmount?: number,
+  reason: string = 'ADVANCE_RECORDED'
+): Promise<{ success: boolean; sentCount: number; errors: string[] }> {
+  const errors: string[] = [];
+  let sentCount = 0;
+
+  try {
+    const project = await Project.findById(projectId).populate('customerId');
+    if (!project) {
+      return { success: false, sentCount: 0, errors: ['Project not found'] };
+    }
+
+    const customer = project.customerId as any;
+    const customerName = customer?.fullName || 'Valued Client';
+    const customerPhone = customer?.phoneNumber || 'N/A';
+    const customerLocation = customer?.city || customer?.address || 'Site Address';
+    const amtStr = (paidAmount || project.totalPaid || 0).toLocaleString('en-IN');
+
+    // 1. Gather all active CRM & Admin users
+    const notifyUsers = await User.find({
+      role: { $in: ['CRM', 'ADMIN'] },
+      isActive: { $ne: false },
+    });
+
+    // 2. Build deduplicated map of target phone numbers: cleanPhone -> { name, role }
+    const targetMap = new Map<string, { phone: string; name: string; role: string }>();
+
+    for (const u of notifyUsers) {
+      if (u.phone) {
+        const clean = normalizeWhatsAppPhone(u.phone);
+        if (clean) {
+          targetMap.set(clean, {
+            phone: clean,
+            name: u.name || 'CRM Team',
+            role: u.role || 'CRM',
+          });
+        }
+      }
+    }
+
+    // 3. Include the LIVE Connected WhatsApp Bot phone number
+    const botStatus = whatsAppWebBot.getStatus();
+    if (botStatus.botPhoneNumber) {
+      const cleanBot = normalizeWhatsAppPhone(botStatus.botPhoneNumber);
+      if (cleanBot) {
+        const existing = targetMap.get(cleanBot);
+        targetMap.set(cleanBot, {
+          phone: cleanBot,
+          name: existing ? `${existing.name} (Connected Bot)` : 'Connected Bot',
+          role: 'CONNECTED_BOT',
+        });
+      }
+    }
+
+    // 4. Include project configured bot phone number or default Alpha Elevators bot phone
+    const candidateBotPhones = [
+      project.whatsapp?.botPhoneNumber,
+      (project as any).botPhoneNumber,
+      process.env.WHATSAPP_BOT_PHONE_NUMBER,
+      process.env.BOT_PHONE_NUMBER,
+      '+91 93848 20316',
+    ].filter(Boolean) as string[];
+
+    for (const bp of candidateBotPhones) {
+      const cleanBp = normalizeWhatsAppPhone(bp);
+      if (cleanBp && !targetMap.has(cleanBp)) {
+        targetMap.set(cleanBp, {
+          phone: cleanBp,
+          name: 'Alpha WhatsApp Bot',
+          role: 'PROJECT_BOT',
+        });
+      }
+    }
+
+    if (targetMap.size === 0) {
+      console.warn('[SiteVisitReminder] No target phone numbers found for dispatch.');
+      return { success: false, sentCount: 0, errors: ['No valid phone numbers found'] };
+    }
+
+    console.log(`[SiteVisitReminder] Dispatching 1-to-1 WhatsApp reminders for ${project.projectName} to ${targetMap.size} recipients:`, Array.from(targetMap.keys()));
+
+    const now = new Date();
+
+    for (const recipient of targetMap.values()) {
+      const siteVisitMsg = `🔔 *Action Required: Schedule Site Visit* 🔔\n\nDear ${recipient.name},\nAdvance payment has been officially recorded for Project *${project.projectName}* (${project.projectId})!\n\n*Project & Customer Summary:*\n• *Customer Name:* ${customerName}\n• *Customer Phone:* ${customerPhone}\n• *Location:* ${customerLocation}\n• *Advance Received:* ₹${amtStr}\n• *Current Stage:* Advance Payment Received ✅\n\n👉 *Next Step Required:*\nPlease contact the customer and schedule the date & time for the *Site Visit (PM)* measurement on the Alpha Elevators CRM timeline.\n\nThank you,\nAlpha Elevators CRM`;
+
+      let sent = false;
+      let messageId: string | undefined;
+
+      // Primary: Send via connected Web Bot (Baileys)
+      if (botStatus.isConnected) {
+        try {
+          const res = await whatsAppWebBot.sendDirectMessage(recipient.phone, siteVisitMsg);
+          if (res.success) {
+            sent = true;
+            messageId = res.messageId;
+            console.log(`[SiteVisitReminder] 1-to-1 WhatsApp reminder sent to ${recipient.role} ${recipient.name} (+${recipient.phone}) via Web Bot`);
+          } else {
+            console.warn(`[SiteVisitReminder] Web Bot failed for ${recipient.phone}: ${res.error}`);
+            errors.push(`WebBot ${recipient.phone}: ${res.error}`);
+          }
+        } catch (botErr: any) {
+          console.error(`[SiteVisitReminder] Web Bot exception for ${recipient.phone}:`, botErr.message);
+          errors.push(`WebBot Exception ${recipient.phone}: ${botErr.message}`);
+        }
+      }
+
+      // Fallback: Send via WATI if Web Bot is offline or delivery failed
+      if (!sent) {
+        try {
+          const watiRes = await watiService.sendGroupText({
+            target: recipient.phone,
+            targetType: 'DIRECT',
+            text: siteVisitMsg,
+            contactName: recipient.name,
+          });
+          if (watiRes.success) {
+            sent = true;
+            messageId = watiRes.messageId;
+            console.log(`[SiteVisitReminder] 1-to-1 WhatsApp reminder sent to ${recipient.role} ${recipient.name} (+${recipient.phone}) via WATI`);
+          } else {
+            errors.push(`WATI ${recipient.phone}: ${watiRes.error}`);
+          }
+        } catch (wErr: any) {
+          console.warn(`[SiteVisitReminder] WATI exception for ${recipient.phone}:`, wErr.message);
+          errors.push(`WATI Exception ${recipient.phone}: ${wErr.message}`);
+        }
+      }
+
+      if (sent) {
+        sentCount++;
+        try {
+          await WhatsAppMessageLog.create({
+            projectId: project._id,
+            recipientPhone: recipient.phone,
+            recipientName: recipient.name,
+            messageText: `[SITE VISIT REMINDER 1-TO-1 (${reason})]:\n${siteVisitMsg}`,
+            messageType: 'text',
+            scheduledAt: now,
+            attemptedAt: now,
+            sentAt: now,
+            providerMessageId: messageId,
+            status: 'SENT',
+            attemptCount: 1,
+            isDryRun: false,
+          });
+        } catch (logErr: any) {
+          console.warn('[SiteVisitReminder] Failed to create message log:', logErr.message);
+        }
+      }
+    }
+
+    if (sentCount > 0) {
+      await logProjectActivity({
+        projectId: project._id,
+        projectCode: project.projectId,
+        type: 'WHATSAPP_SENT',
+        description: `Site visit scheduling reminder WhatsApp alert dispatched to ${sentCount} recipients (including CRM, Admin, and Connected Bot Number).`,
+      });
+    }
+
+    return { success: sentCount > 0, sentCount, errors };
+  } catch (err: any) {
+    console.error('[SiteVisitReminder] Error dispatching site visit reminders:', err);
+    return { success: false, sentCount: 0, errors: [err.message] };
+  }
+}
+
+/**
  * Triggers initial reminder for CRM and Admin users when Advance Payment Received is marked executed,
- * creating in-app reminders AND dispatching 1-to-1 WhatsApp alert messages to CRM and Admin.
+ * creating in-app reminders AND dispatching 1-to-1 WhatsApp alert messages to CRM, Admin,
+ * and the connected WhatsApp bot number.
  */
 export async function triggerAdvancePaymentReminderForCRMAndAdmin(projectId: any, paidAmount?: number): Promise<void> {
   try {
@@ -687,7 +863,6 @@ export async function triggerAdvancePaymentReminderForCRMAndAdmin(projectId: any
     const customer = project.customerId as any;
     const customerName = customer?.fullName || 'Valued Client';
     const customerPhone = customer?.phoneNumber || 'N/A';
-    const customerLocation = customer?.city || customer?.address || 'Site Address';
     const amtStr = (paidAmount || project.totalPaid || 0).toLocaleString('en-IN');
 
     // Notify all active CRM and Admin team members
@@ -718,76 +893,10 @@ export async function triggerAdvancePaymentReminderForCRMAndAdmin(projectId: any
         });
         console.log(`[SiteVisitReminder] In-app reminder created for ${user.role} ${user.name}`);
       }
-
-      // 2. 1-to-1 WhatsApp Alert to CRM / Admin Number
-      const userPhone = user.phone;
-      if (userPhone) {
-        const siteVisitMsg = `🔔 *Action Required: Schedule Site Visit* 🔔\n\nDear ${user.name},\nAdvance payment has been officially recorded for Project *${project.projectName}* (${project.projectId})!\n\n*Project & Customer Summary:*\n• *Customer Name:* ${customerName}\n• *Customer Phone:* ${customerPhone}\n• *Location:* ${customerLocation}\n• *Advance Received:* ₹${amtStr}\n• *Current Stage:* Advance Payment Received ✅\n\n👉 *Next Step Required:*\nPlease contact the customer and schedule the date & time for the *Site Visit (PM)* measurement on the Alpha Elevators CRM timeline.\n\nThank you,\nAlpha Elevators CRM`;
-
-        const botStatus = whatsAppWebBot.getStatus();
-        let sent = false;
-
-        if (botStatus.isConnected) {
-          const res = await whatsAppWebBot.sendDirectMessage(userPhone, siteVisitMsg);
-          if (res.success) {
-            sent = true;
-            await WhatsAppMessageLog.create({
-              projectId: project._id,
-              recipientPhone: userPhone,
-              recipientName: user.name,
-              messageText: `[SITE VISIT REMINDER 1-TO-1]:\n${siteVisitMsg}`,
-              messageType: 'text',
-              scheduledAt: now,
-              attemptedAt: now,
-              sentAt: now,
-              providerMessageId: res.messageId,
-              status: 'SENT',
-              attemptCount: 1,
-              isDryRun: false,
-            });
-            console.log(`[SiteVisitReminder] 1-to-1 WhatsApp alert sent to ${user.role} ${user.name} (+${userPhone}) via Web Bot`);
-          }
-        }
-
-        // Fallback to WATI if Web Bot is offline or failed
-        if (!sent) {
-          try {
-            const watiRes = await watiService.sendGroupText({
-              target: userPhone,
-              targetType: 'DIRECT',
-              text: siteVisitMsg,
-              contactName: user.name,
-            });
-            if (watiRes.success) {
-              await WhatsAppMessageLog.create({
-                projectId: project._id,
-                recipientPhone: userPhone,
-                recipientName: user.name,
-                messageText: `[SITE VISIT REMINDER 1-TO-1 VIA WATI]:\n${siteVisitMsg}`,
-                messageType: 'text',
-                scheduledAt: now,
-                attemptedAt: now,
-                sentAt: now,
-                providerMessageId: watiRes.messageId,
-                status: 'SENT',
-                attemptCount: 1,
-                isDryRun: false,
-              });
-              console.log(`[SiteVisitReminder] 1-to-1 WhatsApp alert sent to ${user.role} ${user.name} (+${userPhone}) via WATI`);
-            }
-          } catch (wErr: any) {
-            console.warn(`[SiteVisitReminder] WATI notice for ${user.name}:`, wErr.message);
-          }
-        }
-      }
     }
 
-    await logProjectActivity({
-      projectId: project._id,
-      projectCode: project.projectId,
-      type: 'WHATSAPP_SENT',
-      description: `Advance payment recorded. Site visit scheduling reminders created for CRM & Admin, and 1-to-1 WhatsApp alerts dispatched.`,
-    });
+    // 2. Dispatch 1-to-1 WhatsApp alert to CRM, Admin, AND the Connected Bot Number
+    await dispatchSiteVisitWhatsAppReminders(project._id, paidAmount, 'ADVANCE_RECORDED');
   } catch (err: any) {
     console.error('[SiteVisitReminder] Error triggering advance payment reminder for CRM & Admin:', err);
   }
@@ -1013,6 +1122,7 @@ export async function checkScheduleDateReminders(): Promise<void> {
       const isSiteVisitScheduled = siteVisitStage && siteVisitStage.scheduleDate;
 
       if (isAdvanceExecuted && !isSiteVisitScheduled) {
+        let shouldDispatchWhatsApp = false;
         for (const user of notifyUsers) {
           const lastReminder = await Reminder.findOne({
             userId: user._id,
@@ -1031,7 +1141,13 @@ export async function checkScheduleDateReminders(): Promise<void> {
               status: 'PENDING',
             });
             console.log(`[Scheduler] Dispatched 3-hour schedule date update reminder for ${user.role} (${user.name}) on project ${project.projectName}`);
+            shouldDispatchWhatsApp = true;
           }
+        }
+
+        // When reminder is triggered/due, also dispatch 1-to-1 WhatsApp messages to CRM, Admin, and Connected Bot Number
+        if (shouldDispatchWhatsApp) {
+          await dispatchSiteVisitWhatsAppReminders(project._id, undefined, '3-HOUR_RECURRING');
         }
       } else if (isSiteVisitScheduled) {
         await dismissScheduleDateRemindersForProject(project._id);

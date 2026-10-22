@@ -16,6 +16,8 @@ import { logProjectActivity } from '../services/activity/activityService';
 import {
   calculateNextUpdateDate,
   triggerAdvancePaymentReminderForCRM,
+  triggerAdvancePaymentReminderForCRMAndAdmin,
+  dispatchSiteVisitWhatsAppReminders,
   dismissScheduleDateRemindersForProject,
   generateProjectUpdateText,
   APPROVED_MILESTONE_TEMPLATES,
@@ -1592,3 +1594,29 @@ projectRouter.post(
     }
   }
 );
+
+/**
+ * POST /api/projects/:id/remind-site-visit
+ * Manually trigger the Site Visit Scheduling Reminder for CRM, Admin, and the Connected Bot Number
+ */
+projectRouter.post(
+  '/:id/remind-site-visit',
+  authorize('ADMIN', 'CRM', 'MANAGER'),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const project = await Project.findById(req.params.id);
+      if (!project) return res.status(404).json({ success: false, message: 'Project not found' });
+
+      await triggerAdvancePaymentReminderForCRMAndAdmin(project._id);
+
+      return res.json({
+        success: true,
+        message: `Site visit scheduling reminder dispatched successfully to CRM, Admin, and Connected Bot Number for project ${project.projectName}!`,
+      });
+    } catch (err: any) {
+      console.error('[Remind Site Visit Route Error]:', err);
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  }
+);
+
