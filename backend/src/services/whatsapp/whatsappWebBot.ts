@@ -1,9 +1,4 @@
-import makeWASocket, {
-  DisconnectReason,
-  useMultiFileAuthState,
-  WASocket,
-  fetchLatestBaileysVersion,
-} from '@whiskeysockets/baileys';
+import type { WASocket } from '@whiskeysockets/baileys';
 import QRCode from 'qrcode';
 import path from 'path';
 import fs from 'fs';
@@ -12,7 +7,7 @@ import { normalizeWhatsAppPhone } from './WatiService';
 export type BotConnectionStatus = 'DISCONNECTED' | 'SCAN_QR' | 'CONNECTING' | 'CONNECTED';
 
 class WhatsAppWebBotService {
-  private sock: WASocket | null = null;
+  private sock: any = null;
   private authDir: string;
   private status: BotConnectionStatus = 'DISCONNECTED';
   private qrCodeDataUrl: string | null = null;
@@ -44,6 +39,11 @@ class WhatsAppWebBotService {
     this.status = 'CONNECTING';
 
     try {
+      // Dynamically load Baileys so any environment-specific Baileys issue doesn't crash the entire backend
+      const baileys = await import('@whiskeysockets/baileys');
+      const makeWASocket = (baileys as any).default || baileys;
+      const { useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason } = baileys as any;
+
       const { state, saveCreds } = await useMultiFileAuthState(this.authDir);
       const { version } = await fetchLatestBaileysVersion();
 
@@ -57,7 +57,7 @@ class WhatsAppWebBotService {
 
       this.sock.ev.on('creds.update', saveCreds);
 
-      this.sock.ev.on('connection.update', async (update) => {
+      this.sock.ev.on('connection.update', async (update: any) => {
         const { connection, lastDisconnect, qr } = update;
 
         if (qr) {
@@ -72,7 +72,7 @@ class WhatsAppWebBotService {
 
         if (connection === 'close') {
           const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
-          const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+          const shouldReconnect = statusCode !== (DisconnectReason?.loggedOut ?? 401);
           console.log(`[WhatsAppWebBot] Connection closed (code: ${statusCode}). Reconnecting: ${shouldReconnect}`);
           this.status = 'DISCONNECTED';
           this.qrCodeDataUrl = null;
@@ -107,7 +107,7 @@ class WhatsAppWebBotService {
         }
       });
     } catch (err: any) {
-      console.error('[WhatsAppWebBot] Initialization error:', err.message);
+      console.warn('[WhatsAppWebBot] Baileys dynamic load/init notice:', err.message);
       this.status = 'DISCONNECTED';
       this.isInitializing = false;
     }
@@ -169,9 +169,11 @@ class WhatsAppWebBotService {
 
     // Fallback: list all participating groups to find matching group
     try {
-      const groups = await this.sock.groupFetchAllParticipating();
+      const groups: Record<string, any> = (await this.sock.groupFetchAllParticipating()) || {};
       for (const [jid, metadata] of Object.entries(groups)) {
-        this.groupJidCache.set(metadata.subject, jid);
+        if (metadata?.subject) {
+          this.groupJidCache.set(metadata.subject, jid);
+        }
       }
     } catch {
       // ignore
