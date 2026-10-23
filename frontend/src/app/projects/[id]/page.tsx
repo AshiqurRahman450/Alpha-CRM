@@ -142,10 +142,13 @@ export default function ProjectDetailPage() {
     }
   }, [projectId]);
 
-  const handleStatusChange = async (newStatus: string, trackingNumber?: string) => {
+  const handleStatusChange = async (newStatus: string, trackingNumber?: string, productionTimelineDays?: number) => {
     try {
-      const res = await api.updateProjectStatus(projectId, newStatus, undefined, trackingNumber);
-      if (res && res.groupMessageDispatched) {
+      const res = await api.updateProjectStatus(projectId, newStatus, undefined, trackingNumber, productionTimelineDays);
+      if (newStatus === 'CUSTOMER_APPROVAL') {
+        const days = productionTimelineDays || projectData?.project?.productionTimelineDays || 60;
+        toast.success(`Drawing and Cabin Approved! 2 WhatsApp messages dispatched to group (${days} days delivery timeline) and follow-up scheduled for 2 days later.`, { duration: 6000 });
+      } else if (res && res.groupMessageDispatched) {
         toast.success(
           trackingNumber
             ? `Stage updated to ${formatProjectStatus(newStatus)}! VRL Tracking No (${trackingNumber}) attached and WhatsApp update dispatched.`
@@ -157,7 +160,7 @@ export default function ProjectDetailPage() {
         toast.success(`Stage updated to ${formatProjectStatus(newStatus)}.`);
       }
       if (res && res.bdmNotified) {
-        toast.success('1-to-1 Approval notification dispatched to assigned BDM via WATI!');
+        toast.success('1-to-1 Approval notification dispatched to assigned BDM via WhatsApp Bot!');
       }
       await fetchProject();
     } catch (err: any) {
@@ -463,6 +466,7 @@ export default function ProjectDetailPage() {
           customerPhone={customer?.phone}
           whatsappGroupName={project.whatsappGroupName || project.whatsapp?.groupName}
           vrlLrNumber={project.vrlLrNumber || project.trackingNumber}
+          productionTimelineDays={project.productionTimelineDays || 60}
           onHandoverDateChanged={async () => {
             await fetchProject(false);
           }}
@@ -497,12 +501,44 @@ export default function ProjectDetailPage() {
                 )}
               </p>
               <p className="text-[11px] text-amber-800/80 leading-relaxed">
-                A 1-to-1 WhatsApp notification is automatically sent via WhatsApp Web Bot to the BDM to review and obtain customer design approval.
+                Timeline: <strong>{project.productionTimelineDays || 60} days</strong> from production payment to delivery. 
+                {project.productionPaymentReminderSent ? (
+                  <span className="text-emerald-700 font-semibold ml-1.5">✓ 2-Day Production Payment reminder already dispatched.</span>
+                ) : project.productionPaymentReminderScheduledAt ? (
+                  <span className="text-amber-800 font-medium ml-1.5">⏱ 2-Day reminder scheduled for {new Date(project.productionPaymentReminderScheduledAt).toLocaleDateString()}.</span>
+                ) : null}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <button
+              type="button"
+              onClick={async () => {
+                const input = prompt(
+                  'Enter Number of Days from Production Payment to Material Delivery:',
+                  String(project.productionTimelineDays || 60)
+                );
+                if (input === null) return;
+                const parsedDays = parseInt(input, 10);
+                const finalDays = !isNaN(parsedDays) && parsedDays > 0 ? parsedDays : 60;
+                try {
+                  toast.loading('Sending Drawing & Cabin Approval WhatsApp messages to group...', { id: 'drawing-group-btn' });
+                  const res = await api.triggerDrawingAndCabinApproved(projectId, finalDays);
+                  toast.success(
+                    res?.message || `WhatsApp messages dispatched to group (${finalDays} days timeline) and follow-up scheduled for 2 days!`,
+                    { id: 'drawing-group-btn', duration: 6000 }
+                  );
+                  await fetchProject();
+                } catch (err: any) {
+                  toast.error(err.message || 'Failed to dispatch drawing approval messages', { id: 'drawing-group-btn' });
+                }
+              }}
+              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-2 cursor-pointer"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>Resend Group Approval Messages ({project.productionTimelineDays || 60}d)</span>
+            </button>
             <button
               type="button"
               onClick={async () => {

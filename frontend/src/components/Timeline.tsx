@@ -44,7 +44,7 @@ export function formatProjectStatus(status: string): string {
 
 interface TimelineProps {
   currentStatus: string;
-  onStatusChange?: (newStatus: string, trackingNumber?: string) => Promise<void> | void;
+  onStatusChange?: (newStatus: string, trackingNumber?: string, productionTimelineDays?: number) => Promise<void> | void;
   isEditable?: boolean;
   stageDates?: Record<string, { scheduleDate?: string | null; executedDate?: string | null }>;
   onDateChange?: (stageKey: string, type: 'scheduleDate' | 'executedDate', date: string) => Promise<void> | void;
@@ -59,6 +59,7 @@ interface TimelineProps {
   whatsappGroupName?: string;
   vrlLrNumber?: string;
   trackingNumber?: string;
+  productionTimelineDays?: number;
   onHandoverDateChanged?: (newHandoverDate: string) => void;
   initiallyOpenInstallation?: boolean;
 }
@@ -80,6 +81,7 @@ export default function Timeline({
   whatsappGroupName,
   vrlLrNumber,
   trackingNumber,
+  productionTimelineDays = 60,
   onHandoverDateChanged,
   initiallyOpenInstallation,
 }: TimelineProps) {
@@ -91,17 +93,34 @@ export default function Timeline({
   const [vrlTrackingInput, setVrlTrackingInput] = React.useState<string>('');
   const [vrlInputError, setVrlInputError] = React.useState<string>('');
   const [isSubmittingDispatch, setIsSubmittingDispatch] = React.useState<boolean>(false);
+
+  // Drawing and Cabin Approved Modal State
+  const [showDrawingApprovalModal, setShowDrawingApprovalModal] = React.useState<boolean>(false);
+  const [productionDaysInput, setProductionDaysInput] = React.useState<string>(String(productionTimelineDays || 60));
+  const [isSubmittingDrawingApproval, setIsSubmittingDrawingApproval] = React.useState<boolean>(false);
+
   const lastTapRef = React.useRef<number>(0);
 
   React.useEffect(() => {
+    if (productionTimelineDays) {
+      setProductionDaysInput(String(productionTimelineDays));
+    }
+  }, [productionTimelineDays]);
+
+  React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && showVrlAlertModal && !isSubmittingDispatch) {
-        setShowVrlAlertModal(false);
+      if (e.key === 'Escape') {
+        if (showVrlAlertModal && !isSubmittingDispatch) {
+          setShowVrlAlertModal(false);
+        }
+        if (showDrawingApprovalModal && !isSubmittingDrawingApproval) {
+          setShowDrawingApprovalModal(false);
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showVrlAlertModal, isSubmittingDispatch]);
+  }, [showVrlAlertModal, isSubmittingDispatch, showDrawingApprovalModal, isSubmittingDrawingApproval]);
 
   const handleConfirmVrlDispatch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -122,6 +141,23 @@ export default function Timeline({
       setVrlInputError(err?.message || 'Failed to update Expected Delivery stage');
     } finally {
       setIsSubmittingDispatch(false);
+    }
+  };
+
+  const handleConfirmDrawingApproval = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const parsedDays = parseInt(productionDaysInput, 10);
+    const days = (!isNaN(parsedDays) && parsedDays > 0) ? parsedDays : 60;
+    try {
+      setIsSubmittingDrawingApproval(true);
+      if (onStatusChange) {
+        await onStatusChange('CUSTOMER_APPROVAL', undefined, days);
+      }
+      setShowDrawingApprovalModal(false);
+    } catch (err: any) {
+      console.error('Error updating Drawing and Cabin Design Approval:', err);
+    } finally {
+      setIsSubmittingDrawingApproval(false);
     }
   };
 
@@ -238,6 +274,13 @@ export default function Timeline({
                       setVrlTrackingInput(vrlLrNumber || trackingNumber || '');
                       setVrlInputError('');
                       setShowVrlAlertModal(true);
+                      return;
+                    }
+
+                    if (stage.key === 'CUSTOMER_APPROVAL') {
+                      // Drawing and Cabin Approved stage: open pop-up to input delivery days & preview WhatsApp messages
+                      setProductionDaysInput(String(productionTimelineDays || 60));
+                      setShowDrawingApprovalModal(true);
                       return;
                     }
 
@@ -583,6 +626,171 @@ export default function Timeline({
                     <>
                       <Send className="w-3.5 h-3.5" />
                       <span>Confirm & Send to WhatsApp</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* DRAWING AND CABIN DESIGN APPROVAL POP-UP MODAL */}
+      {showDrawingApprovalModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-2xl border border-slate-100 space-y-5 animate-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-sky-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-sky-500/20">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 tracking-tight">
+                    Drawing and Cabin Approved
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Set production timeline & dispatch WhatsApp notifications
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={isSubmittingDrawingApproval}
+                onClick={() => setShowDrawingApprovalModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmDrawingApproval} className="space-y-4">
+              {/* Days Input */}
+              <div className="space-y-1.5">
+                <label htmlFor="production-timeline-input" className="block text-xs font-bold text-slate-800">
+                  Number of Days from Production Payment to Material Delivery <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    id="production-timeline-input"
+                    type="number"
+                    min="1"
+                    max="365"
+                    autoFocus
+                    value={productionDaysInput}
+                    onChange={(e) => setProductionDaysInput(e.target.value)}
+                    placeholder="e.g. 60"
+                    className="w-full px-4 py-3 bg-white border border-slate-300 rounded-2xl text-slate-900 font-bold text-sm tracking-wide focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500 transition-all placeholder:text-slate-400 shadow-2xs"
+                    disabled={isSubmittingDrawingApproval}
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
+                    days
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  This timeline will be dynamically mentioned in both the initial production payment notice and the 2-day reminder.
+                </p>
+              </div>
+
+              {/* Message 1 Live Preview */}
+              <div className="space-y-1 pt-1">
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  <span className="flex items-center gap-1.5">
+                    <MessageSquare className="w-3.5 h-3.5 text-sky-600" />
+                    Message 1 (Sent Immediately to WhatsApp Group)
+                  </span>
+                  <span className="text-[10px] text-sky-600 font-bold bg-sky-50 px-2 py-0.5 rounded-full border border-sky-200">
+                    Step 1
+                  </span>
+                </div>
+                <div className="bg-sky-50/70 border border-sky-200/90 rounded-2xl p-3.5 text-xs text-slate-800 space-y-1 relative shadow-2xs">
+                  <div className="text-slate-900 leading-relaxed font-sans">
+                    Dear Sir/Madam,<br />
+                    This is a gentle reminder to kindly review and approves the elevator drawing and cabin design shared with you, so that we can proceed with the next stage without delay.
+                  </div>
+                  <div className="text-[10px] text-sky-700 text-right font-medium">
+                    ✓✓ Immediate Group Dispatch
+                  </div>
+                </div>
+              </div>
+
+              {/* Message 2 Live Preview */}
+              <div className="space-y-1 pt-1">
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  <span className="flex items-center gap-1.5">
+                    <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                    Message 2 (Sent Immediately to WhatsApp Group)
+                  </span>
+                  <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                    Step 2
+                  </span>
+                </div>
+                <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-2xl p-3.5 text-xs text-slate-800 space-y-1 relative shadow-2xs">
+                  <div className="text-slate-900 leading-relaxed font-sans">
+                    Dear Sir/Madam,<br />
+                    Kindly release the production payment to initiate the production process. Please note that the production timeline is approximately{' '}
+                    <span className="font-bold bg-emerald-200/90 text-emerald-950 px-1.5 py-0.5 rounded border border-emerald-300">
+                      {productionDaysInput.trim() || '60'} days
+                    </span>{' '}
+                    from the date of payment and approval.
+                  </div>
+                  <div className="text-[10px] text-emerald-700 text-right font-medium">
+                    ✓✓ Immediate Group Dispatch
+                  </div>
+                </div>
+              </div>
+
+              {/* Message 3 Live Preview (After 2 days) */}
+              <div className="space-y-1 pt-1">
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-amber-600" />
+                    Message 3 (Scheduled Automatically After 2 Days)
+                  </span>
+                  <span className="text-[10px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                    In 48 Hours
+                  </span>
+                </div>
+                <div className="bg-amber-50/70 border border-amber-200/90 rounded-2xl p-3.5 text-xs text-slate-800 space-y-1 relative shadow-2xs">
+                  <div className="text-slate-900 leading-relaxed font-sans">
+                    Dear Sir/Madam,<br />
+                    This is a gentle reminder to kindly release the production payment to initiate the production process.<br />
+                    Please note that the production timeline is approximately{' '}
+                    <span className="font-bold bg-amber-200/90 text-amber-950 px-1.5 py-0.5 rounded border border-amber-300">
+                      {productionDaysInput.trim() || '60'} days
+                    </span>{' '}
+                    from the date of payment and approval. Kindly complete the payment at the earliest to avoid any delay in the production schedule.
+                  </div>
+                  <div className="text-[10px] text-amber-800 text-right font-medium">
+                    ⏱ Auto-scheduled • Skipped if production payment received
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={isSubmittingDrawingApproval}
+                  onClick={() => setShowDrawingApprovalModal(false)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingDrawingApproval}
+                  className="px-5 py-2.5 rounded-xl text-xs font-black text-white bg-gradient-to-r from-sky-600 via-indigo-600 to-sky-600 hover:from-sky-500 hover:to-indigo-500 shadow-md shadow-sky-600/20 active:scale-95 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {isSubmittingDrawingApproval ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                      <span>Dispatching WhatsApp Messages...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Confirm & Send WhatsApp Messages</span>
                     </>
                   )}
                 </button>

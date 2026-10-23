@@ -722,18 +722,17 @@ export async function dispatchSiteVisitWhatsAppReminders(
       }
     }
 
-    // 3. Include the LIVE Connected WhatsApp Bot phone number
+    // 3. Include the LIVE Connected WhatsApp Bot phone number (Yourself Message)
     const botStatus = whatsAppWebBot.getStatus();
-    if (botStatus.botPhoneNumber) {
-      const cleanBot = normalizeWhatsAppPhone(botStatus.botPhoneNumber);
-      if (cleanBot) {
-        const existing = targetMap.get(cleanBot);
-        targetMap.set(cleanBot, {
-          phone: cleanBot,
-          name: existing ? `${existing.name} (Connected Bot)` : 'Connected Bot',
-          role: 'CONNECTED_BOT',
-        });
-      }
+    const liveBotPhone = botStatus.botPhoneNumber ? normalizeWhatsAppPhone(botStatus.botPhoneNumber) : null;
+    if (liveBotPhone) {
+      const existing = targetMap.get(liveBotPhone);
+      targetMap.set(liveBotPhone, {
+        phone: liveBotPhone,
+        name: existing ? `${existing.name} (Yourself / Bot)` : 'Yourself (WhatsApp Bot)',
+        role: 'CONNECTED_BOT_SELF',
+        isSelf: true,
+      } as any);
     }
 
     // 4. Include project configured bot phone number or default Alpha Elevators bot phone
@@ -750,9 +749,10 @@ export async function dispatchSiteVisitWhatsAppReminders(
       if (cleanBp && !targetMap.has(cleanBp)) {
         targetMap.set(cleanBp, {
           phone: cleanBp,
-          name: 'Alpha WhatsApp Bot',
-          role: 'PROJECT_BOT',
-        });
+          name: 'Yourself (Alpha Bot)',
+          role: 'PROJECT_BOT_SELF',
+          isSelf: true,
+        } as any);
       }
     }
 
@@ -766,7 +766,32 @@ export async function dispatchSiteVisitWhatsAppReminders(
     const now = new Date();
 
     for (const recipient of targetMap.values()) {
-      const siteVisitMsg = `🔔 *Action Required: Schedule Site Visit* 🔔\n\nDear ${recipient.name},\nAdvance payment has been officially recorded for Project *${project.projectName}* (${project.projectId})!\n\n*Project & Customer Summary:*\n• *Customer Name:* ${customerName}\n• *Customer Phone:* ${customerPhone}\n• *Location:* ${customerLocation}\n• *Advance Received:* ₹${amtStr}\n• *Current Stage:* Advance Payment Received ✅\n\n👉 *Next Step Required:*\nPlease contact the customer and schedule the date & time for the *Site Visit (PM)* measurement on the Alpha Elevators CRM timeline.\n\nThank you,\nAlpha Elevators CRM`;
+      const isSelfRecipient = Boolean((recipient as any).isSelf || (liveBotPhone && recipient.phone === liveBotPhone));
+      const siteVisitMsg = isSelfRecipient
+        ? `🔔 *Action Required: Schedule Site Visit (Self Reminder)* 🔔\n\n` +
+          `Dear Team / Admin (Yourself),\n` +
+          `Advance payment has been officially recorded for Project *${project.projectName}* (${project.projectId})!\n\n` +
+          `*Project & Customer Summary:*\n` +
+          `• *Customer Name:* ${customerName}\n` +
+          `• *Customer Phone:* ${customerPhone}\n` +
+          `• *Location:* ${customerLocation}\n` +
+          `• *Advance Received:* ₹${amtStr}\n` +
+          `• *Current Stage:* Advance Payment Received ✅\n\n` +
+          `👉 *Next Step Required:*\n` +
+          `Please contact the customer and schedule the date & time for the *Site Visit (PM)* measurement on the Alpha Elevators CRM timeline.\n\n` +
+          `Thank you,\nAlpha Elevators CRM`
+        : `🔔 *Action Required: Schedule Site Visit* 🔔\n\n` +
+          `Dear ${recipient.name},\n` +
+          `Advance payment has been officially recorded for Project *${project.projectName}* (${project.projectId})!\n\n` +
+          `*Project & Customer Summary:*\n` +
+          `• *Customer Name:* ${customerName}\n` +
+          `• *Customer Phone:* ${customerPhone}\n` +
+          `• *Location:* ${customerLocation}\n` +
+          `• *Advance Received:* ₹${amtStr}\n` +
+          `• *Current Stage:* Advance Payment Received ✅\n\n` +
+          `👉 *Next Step Required:*\n` +
+          `Please contact the customer and schedule the date & time for the *Site Visit (PM)* measurement on the Alpha Elevators CRM timeline.\n\n` +
+          `Thank you,\nAlpha Elevators CRM`;
 
       let sent = false;
       let messageId: string | undefined;
@@ -774,7 +799,17 @@ export async function dispatchSiteVisitWhatsAppReminders(
       // Primary: Send via connected Web Bot (Baileys)
       if (botStatus.isConnected) {
         try {
-          const res = await whatsAppWebBot.sendDirectMessage(recipient.phone, siteVisitMsg);
+          let res: any;
+          if (isSelfRecipient) {
+            // First attempt: Dedicated sendSelfMessage
+            res = await whatsAppWebBot.sendSelfMessage(siteVisitMsg);
+            if (!res.success) {
+              res = await whatsAppWebBot.sendDirectMessage(recipient.phone, siteVisitMsg);
+            }
+          } else {
+            res = await whatsAppWebBot.sendDirectMessage(recipient.phone, siteVisitMsg);
+          }
+
           if (res.success) {
             sent = true;
             messageId = res.messageId;
@@ -789,8 +824,8 @@ export async function dispatchSiteVisitWhatsAppReminders(
         }
       }
 
-      // Fallback: Send via WATI if Web Bot is offline or delivery failed
-      if (!sent) {
+      // Fallback: Send via WATI if Web Bot is offline or delivery failed (and recipient is not self)
+      if (!sent && !isSelfRecipient) {
         try {
           const watiRes = await watiService.sendGroupText({
             target: recipient.phone,
@@ -816,6 +851,7 @@ export async function dispatchSiteVisitWhatsAppReminders(
         try {
           await WhatsAppMessageLog.create({
             projectId: project._id,
+            groupId: isSelfRecipient ? ('SELF_' + recipient.phone) : ('DIRECT_' + recipient.phone),
             recipientPhone: recipient.phone,
             recipientName: recipient.name,
             messageText: `[SITE VISIT REMINDER 1-TO-1 (${reason})]:\n${siteVisitMsg}`,
@@ -1077,6 +1113,236 @@ export async function processDueEscalationMatrixUpdates(): Promise<void> {
 }
 
 /**
+ * Handles the Drawing and Cabin Approved milestone workflow:
+ * 1. Dispatches Message 1 (Review & Approve reminder) to WhatsApp Group
+ * 2. Dispatches Message 2 (Kindly release production payment with [X] days delivery timeline) to WhatsApp Group
+ * 3. Schedules Message 3 (Production payment release reminder with [X] days) to WhatsApp Group for 2 days later
+ */
+export async function handleDrawingAndCabinApprovedWorkflow(
+  projectOrId: any,
+  productionTimelineDays: number = 60,
+  userId?: any,
+  userName?: string
+): Promise<{ success: boolean; message1Id?: string; message2Id?: string; error?: string }> {
+  try {
+    const project = typeof projectOrId === 'string' || projectOrId._bsontype
+      ? await Project.findById(projectOrId)
+      : projectOrId;
+
+    if (!project) {
+      return { success: false, error: 'Project not found' };
+    }
+
+    const days = Number(productionTimelineDays) > 0 ? Number(productionTimelineDays) : (project.productionTimelineDays || 60);
+    const inviteTarget = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
+
+    const msg1Text =
+      `Dear Sir/Madam,\n` +
+      `This is a gentle reminder to kindly review and approves the elevator drawing and cabin design shared with you, so that we can proceed with the next stage without delay.`;
+
+    const msg2Text =
+      `Dear Sir/Madam,\n` +
+      `Kindly release the production payment to initiate the production process. Please note that the production timeline is approximately ${days} days from the date of payment and approval.`;
+
+    let message1Id: string | undefined;
+    let message2Id: string | undefined;
+
+    // Send immediately to WhatsApp Group via Web Bot
+    if (inviteTarget) {
+      const botStatus = whatsAppWebBot.getStatus();
+      if (botStatus.isConnected) {
+        // Message 1
+        console.log(`[DrawingApproval] Sending Message 1 to group for ${project.projectId}`);
+        const res1 = await whatsAppWebBot.sendMessageToGroup(inviteTarget, msg1Text);
+        if (res1.success) {
+          message1Id = res1.messageId;
+          await WhatsAppMessageLog.create({
+            projectId: project._id,
+            groupId: project.whatsapp?.groupId || project.whatsappGroupId || 'GROUP',
+            messageText: msg1Text,
+            messageType: 'text',
+            scheduledAt: new Date(),
+            attemptedAt: new Date(),
+            sentAt: new Date(),
+            providerMessageId: res1.messageId,
+            status: 'SENT',
+            attemptCount: 1,
+            isDryRun: false,
+          });
+
+          await logProjectActivity({
+            projectId: project._id,
+            projectCode: project.projectId,
+            type: 'WHATSAPP_SENT',
+            description: `Drawing & cabin review reminder dispatched to WhatsApp group`,
+            userId,
+            userName,
+          });
+        }
+
+        // Delay 1.5 seconds so messages arrive in natural sequence
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+
+        // Message 2
+        console.log(`[DrawingApproval] Sending Message 2 to group for ${project.projectId} (${days} days timeline)`);
+        const res2 = await whatsAppWebBot.sendMessageToGroup(inviteTarget, msg2Text);
+        if (res2.success) {
+          message2Id = res2.messageId;
+          await WhatsAppMessageLog.create({
+            projectId: project._id,
+            groupId: project.whatsapp?.groupId || project.whatsappGroupId || 'GROUP',
+            messageText: msg2Text,
+            messageType: 'text',
+            scheduledAt: new Date(),
+            attemptedAt: new Date(),
+            sentAt: new Date(),
+            providerMessageId: res2.messageId,
+            status: 'SENT',
+            attemptCount: 1,
+            isDryRun: false,
+          });
+
+          await logProjectActivity({
+            projectId: project._id,
+            projectCode: project.projectId,
+            type: 'WHATSAPP_SENT',
+            description: `Production payment release notice (${days} days delivery timeline) dispatched to WhatsApp group`,
+            userId,
+            userName,
+          });
+        }
+      } else {
+        console.warn(`[DrawingApproval] WhatsApp Web Bot not connected. Logged pending status.`);
+      }
+    }
+
+    // Schedule Message 3 for 2 days from now (48 hours)
+    const scheduledAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+    project.productionTimelineDays = days;
+    project.productionPaymentReminderScheduledAt = scheduledAt;
+    project.productionPaymentReminderSent = false;
+    await project.save();
+
+    console.log(`[DrawingApproval] Scheduled 2-day Production Payment follow-up reminder for ${project.projectId} at ${scheduledAt.toISOString()}`);
+
+    // In-memory timer for exact execution if server remains up
+    setTimeout(async () => {
+      try {
+        await sendProductionPayment2DayReminder(project._id);
+      } catch (err: any) {
+        console.error('[DrawingApproval] Timer execution error for 2-day reminder:', err.message);
+      }
+    }, 2 * 24 * 60 * 60 * 1000);
+
+    return { success: true, message1Id, message2Id };
+  } catch (err: any) {
+    console.error('[DrawingApproval] Error handling Drawing & Cabin Approval workflow:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Sends the 2-day follow-up reminder for production payment to the project WhatsApp group
+ */
+export async function sendProductionPayment2DayReminder(projectId: any): Promise<boolean> {
+  try {
+    const project = await Project.findById(projectId);
+    if (!project) return false;
+
+    if (project.productionPaymentReminderSent) {
+      return false;
+    }
+
+    // Check if project completed or cancelled
+    if (project.projectStatus === 'COMPLETED' || project.projectStatus === 'CANCELLED') {
+      return false;
+    }
+
+    // Check if production payment has already been received
+    const { Payment } = await import('../../models');
+    const existingPayment = await Payment.findOne({
+      projectId: project._id,
+      paymentStatus: 'SUCCESS',
+      paymentType: { $regex: /production/i },
+    });
+
+    if (existingPayment || project.paymentStatus === 'FULLY_PAID') {
+      console.log(`[ProductionReminder] Project ${project.projectId} already received production payment. Skipping 2-day reminder.`);
+      project.productionPaymentReminderSent = true;
+      project.productionPaymentReminderSentAt = new Date();
+      await project.save();
+      return true;
+    }
+
+    const days = project.productionTimelineDays || 60;
+    const msg3Text =
+      `Dear Sir/Madam,\n` +
+      `This is a gentle reminder to kindly release the production payment to initiate the production process.\n` +
+      `Please note that the production timeline is approximately ${days} days from the date of payment and approval. Kindly complete the payment at the earliest to avoid any delay in the production schedule.`;
+
+    const inviteTarget = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
+    if (inviteTarget) {
+      const botStatus = whatsAppWebBot.getStatus();
+      if (botStatus.isConnected) {
+        const res = await whatsAppWebBot.sendMessageToGroup(inviteTarget, msg3Text);
+        if (res.success) {
+          await WhatsAppMessageLog.create({
+            projectId: project._id,
+            groupId: project.whatsapp?.groupId || project.whatsappGroupId || 'GROUP',
+            messageText: msg3Text,
+            messageType: 'text',
+            scheduledAt: new Date(),
+            attemptedAt: new Date(),
+            sentAt: new Date(),
+            providerMessageId: res.messageId,
+            status: 'SENT',
+            attemptCount: 1,
+            isDryRun: false,
+          });
+
+          await logProjectActivity({
+            projectId: project._id,
+            projectCode: project.projectId,
+            type: 'WHATSAPP_SENT',
+            description: `2-Day Production Payment reminder (${days} days delivery timeline) dispatched to WhatsApp group`,
+          });
+
+          console.log(`[ProductionReminder] Sent 2-day reminder for project ${project.projectId}`);
+        }
+      }
+    }
+
+    project.productionPaymentReminderSent = true;
+    project.productionPaymentReminderSentAt = new Date();
+    await project.save();
+    return true;
+  } catch (err: any) {
+    console.error('[ProductionReminder] Error sending 2-day reminder:', err);
+    return false;
+  }
+}
+
+/**
+ * Background processor for 2-day production payment reminders (checked every 15 minutes)
+ */
+export async function processDueProductionPaymentReminders(): Promise<void> {
+  try {
+    const now = new Date();
+    const dueProjects = await Project.find({
+      productionPaymentReminderScheduledAt: { $lte: now },
+      productionPaymentReminderSent: { $ne: true },
+      projectStatus: { $nin: ['COMPLETED', 'CANCELLED'] },
+    });
+
+    for (const p of dueProjects) {
+      await sendProductionPayment2DayReminder(p._id);
+    }
+  } catch (err: any) {
+    console.error('[ProductionReminder] Error in processDueProductionPaymentReminders:', err);
+  }
+}
+
+/**
  * Dismisses pending "Update Schedule Date" reminders for a project once Site Visit schedule date is set.
  */
 export async function dismissScheduleDateRemindersForProject(projectId: any): Promise<void> {
@@ -1098,8 +1364,10 @@ export async function dismissScheduleDateRemindersForProject(projectId: any): Pr
  * Checks for projects where Advance Payment Received executedDate is set,
  * but Site Visit scheduleDate is not set. Sends/creates a reminder for CRM & Admin
  * every 3 hours until the schedule date is updated.
+ * Also guarantees that 1-to-1 WhatsApp messages (including to yourself via WhatsApp bot)
+ * are dispatched if not already delivered in the last 3 hours or if force=true.
  */
-export async function checkScheduleDateReminders(): Promise<void> {
+export async function checkScheduleDateReminders(force: boolean = false): Promise<void> {
   try {
     const now = new Date();
     const projects = await Project.find({
@@ -1115,14 +1383,25 @@ export async function checkScheduleDateReminders(): Promise<void> {
     for (const project of projects) {
       if (!project.stageDates) continue;
 
-      const paymentStage = project.stageDates.get('PAYMENT_RECEIVED');
-      const siteVisitStage = project.stageDates.get('SITE_MEASUREMENT');
+      const stageDatesAny = project.stageDates as any;
+      const paymentStage = stageDatesAny.get ? stageDatesAny.get('PAYMENT_RECEIVED') : stageDatesAny['PAYMENT_RECEIVED'];
+      const siteVisitStage = stageDatesAny.get ? stageDatesAny.get('SITE_MEASUREMENT') : stageDatesAny['SITE_MEASUREMENT'];
 
       const isAdvanceExecuted = paymentStage && paymentStage.executedDate;
       const isSiteVisitScheduled = siteVisitStage && siteVisitStage.scheduleDate;
 
       if (isAdvanceExecuted && !isSiteVisitScheduled) {
-        let shouldDispatchWhatsApp = false;
+        let shouldDispatchWhatsApp = force;
+
+        // Check if a WhatsApp reminder was already successfully dispatched in the last 3 hours
+        const threeHoursAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+        const recentLog = await WhatsAppMessageLog.findOne({
+          projectId: project._id,
+          status: 'SENT',
+          messageText: { $regex: /SITE VISIT REMINDER/i },
+          sentAt: { $gte: threeHoursAgo },
+        });
+
         for (const user of notifyUsers) {
           const lastReminder = await Reminder.findOne({
             userId: user._id,
@@ -1131,7 +1410,7 @@ export async function checkScheduleDateReminders(): Promise<void> {
           }).sort({ createdAt: -1 });
 
           const threeHoursMs = 3 * 60 * 60 * 1000;
-          if (!lastReminder || now.getTime() - new Date(lastReminder.createdAt).getTime() >= threeHoursMs) {
+          if (force || !lastReminder || now.getTime() - new Date(lastReminder.createdAt).getTime() >= threeHoursMs) {
             await Reminder.create({
               userId: user._id,
               title: `Schedule Site Visit - ${project.projectName}`,
@@ -1139,15 +1418,18 @@ export async function checkScheduleDateReminders(): Promise<void> {
               dueAt: now,
               relatedProjectId: project._id,
               status: 'PENDING',
+              whatsappSent: true,
+              whatsappSentAt: now,
             });
             console.log(`[Scheduler] Dispatched 3-hour schedule date update reminder for ${user.role} (${user.name}) on project ${project.projectName}`);
             shouldDispatchWhatsApp = true;
           }
         }
 
-        // When reminder is triggered/due, also dispatch 1-to-1 WhatsApp messages to CRM, Admin, and Connected Bot Number
-        if (shouldDispatchWhatsApp) {
-          await dispatchSiteVisitWhatsAppReminders(project._id, undefined, '3-HOUR_RECURRING');
+        // When reminder is triggered/due or no message was successfully logged recently, dispatch 1-to-1 WhatsApp messages (including to yourself via Bot number)
+        if (shouldDispatchWhatsApp || !recentLog || force) {
+          console.log(`[Scheduler] Dispatching site visit WhatsApp reminders (reason: ${force ? 'FORCED_CHECK' : !recentLog ? 'NO_RECENT_DISPATCH' : '3-HOUR_RECURRING'}) for ${project.projectName}`);
+          await dispatchSiteVisitWhatsAppReminders(project._id, undefined, force ? 'FORCED_CHECK' : '3-HOUR_RECURRING');
         }
       } else if (isSiteVisitScheduled) {
         await dismissScheduleDateRemindersForProject(project._id);
@@ -1155,6 +1437,58 @@ export async function checkScheduleDateReminders(): Promise<void> {
     }
   } catch (err: any) {
     console.error('[Scheduler] Error checking schedule date reminders:', err);
+  }
+}
+
+/**
+ * Checks for any pending due reminders in the CRM that mention Site Visit,
+ * and guarantees that a WhatsApp reminder is sent directly to yourself using the WhatsApp bot number.
+ */
+export async function processDueReminders(): Promise<void> {
+  try {
+    const now = new Date();
+    const dueReminders = await Reminder.find({
+      status: 'PENDING',
+      dueAt: { $lte: now },
+      whatsappSent: { $ne: true },
+      title: { $regex: /site\s*visit/i },
+    }).populate('relatedProjectId');
+
+    for (const rem of dueReminders) {
+      if (rem.relatedProjectId) {
+        await dispatchSiteVisitWhatsAppReminders((rem.relatedProjectId as any)._id, undefined, 'REMINDER_DUE');
+      } else {
+        const selfMsg = `🔔 *CRM Reminder: Schedule Site Visit (Due Now)* 🔔\n\n` +
+          `A scheduled site visit reminder is now due:\n` +
+          `• *Title:* ${rem.title}\n` +
+          (rem.notes ? `• *Notes:* ${rem.notes}\n` : '') +
+          `• *Due Time:* ${new Date(rem.dueAt).toLocaleString('en-IN')}\n\n` +
+          `Please contact the customer and schedule the site visit.\n\n` +
+          `Thank you,\nAlpha Elevators CRM`;
+
+        const res = await whatsAppWebBot.sendSelfMessage(selfMsg);
+        if (res.success) {
+          await WhatsAppMessageLog.create({
+            recipientPhone: whatsAppWebBot.getStatus().botPhoneNumber || 'Bot',
+            recipientName: 'Yourself (WhatsApp Bot)',
+            messageText: `[SITE VISIT REMINDER (DUE)]: \n${selfMsg}`,
+            messageType: 'text',
+            scheduledAt: now,
+            attemptedAt: now,
+            sentAt: now,
+            providerMessageId: res.messageId,
+            status: 'SENT',
+            attemptCount: 1,
+            isDryRun: false,
+          });
+        }
+      }
+      rem.whatsappSent = true;
+      rem.whatsappSentAt = now;
+      await rem.save();
+    }
+  } catch (err: any) {
+    console.error('[Scheduler] Error processing due reminders:', err);
   }
 }
 
@@ -1176,16 +1510,20 @@ export function initScheduler(): void {
     }
   );
 
-  // Periodic heartbeat: Checks every 15 minutes for any manually triggered, scheduled, or newly un-postponed updates, plus 3-hour CRM reminders and due escalation matrices
+  // Periodic heartbeat: Checks every 15 minutes for any manually triggered, scheduled, or newly un-postponed updates, plus 3-hour CRM reminders, due escalation matrices, and 2-day production payment reminders
   cron.schedule('*/15 * * * *', async () => {
     await processDueWhatsAppUpdates();
     await checkScheduleDateReminders();
+    await processDueReminders();
     await processDueEscalationMatrixUpdates();
+    await processDueProductionPaymentReminders();
   });
 
   // Initial check on server start
   checkScheduleDateReminders().catch((err) => console.error('[Scheduler] Initial checkScheduleDateReminders error:', err));
+  processDueReminders().catch((err) => console.error('[Scheduler] Initial processDueReminders error:', err));
   processDueEscalationMatrixUpdates().catch((err) => console.error('[Scheduler] Initial processDueEscalationMatrixUpdates error:', err));
+  processDueProductionPaymentReminders().catch((err) => console.error('[Scheduler] Initial processDueProductionPaymentReminders error:', err));
 
   console.log('[Scheduler] Daily 09:00 AM IST & 15-minute heartbeat scheduler active.');
 }

@@ -134,7 +134,8 @@ export const api = {
     id: string,
     status: string,
     notes?: string,
-    trackingData?: { vrlLrNumber?: string; trackingNumber?: string } | string
+    trackingData?: { vrlLrNumber?: string; trackingNumber?: string } | string,
+    productionTimelineDays?: number
   ) => {
     const payload: any = { status, notes };
     if (typeof trackingData === 'string') {
@@ -144,11 +145,19 @@ export const api = {
       if (trackingData.vrlLrNumber) payload.vrlLrNumber = trackingData.vrlLrNumber;
       if (trackingData.trackingNumber) payload.trackingNumber = trackingData.trackingNumber;
     }
+    if (productionTimelineDays !== undefined) {
+      payload.productionTimelineDays = productionTimelineDays;
+    }
     return fetchWithAuth(`/api/projects/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify(payload),
     });
   },
+  triggerDrawingAndCabinApproved: (id: string, productionTimelineDays?: number, notes?: string) =>
+    fetchWithAuth(`/api/projects/${id}/drawing-approved`, {
+      method: 'POST',
+      body: JSON.stringify({ productionTimelineDays, notes }),
+    }),
   updateProjectStageDates: (id: string, stageKey: string, scheduleDate?: string | null, executedDate?: string | null) =>
     fetchWithAuth(`/api/projects/${id}/stage-dates`, {
       method: 'PATCH',

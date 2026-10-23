@@ -7,6 +7,8 @@ export interface IReminder extends Document {
   dueAt: Date;
   status: 'PENDING' | 'DISMISSED';
   relatedProjectId?: Types.ObjectId;
+  whatsappSent?: boolean;
+  whatsappSentAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -38,6 +40,13 @@ const ReminderSchema = new Schema<IReminder>(
     relatedProjectId: {
       type: Schema.Types.ObjectId,
       ref: 'Project',
+    },
+    whatsappSent: {
+      type: Boolean,
+      default: false,
+    },
+    whatsappSentAt: {
+      type: Date,
     },
   },
   { timestamps: true }

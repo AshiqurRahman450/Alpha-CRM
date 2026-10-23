@@ -1,6 +1,12 @@
 import { Router, Response } from 'express';
-import { Reminder } from '../models';
+import { Reminder, WhatsAppMessageLog } from '../models';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { whatsAppWebBot } from '../services/whatsapp';
+import {
+  dispatchSiteVisitWhatsAppReminders,
+  checkScheduleDateReminders,
+  processDueReminders,
+} from '../services/scheduler/schedulerService';
 
 export const reminderRouter = Router();
 
@@ -54,6 +60,7 @@ reminderRouter.get('/due', async (req: AuthRequest, res: Response) => {
 /**
  * POST /api/reminders
  * Create a new reminder
+ * If title or notes relate to Schedule site visit, also sends a message to yourself using the WhatsApp bot number!
  */
 reminderRouter.post('/', async (req: AuthRequest, res: Response) => {
   try {
@@ -72,6 +79,46 @@ reminderRouter.post('/', async (req: AuthRequest, res: Response) => {
     });
 
     await reminder.save();
+
+    // Check if this reminder is for Schedule Site Visit
+    const isSiteVisit = /site\s*visit/i.test(title) || /site\s*visit/i.test(notes || '');
+    if (isSiteVisit) {
+      if (relatedProjectId) {
+        // Dispatch reminders to CRM & yourself via WhatsApp Bot
+        dispatchSiteVisitWhatsAppReminders(relatedProjectId, undefined, 'MANUAL_REMINDER_CREATED').catch((err) =>
+          console.warn('[Reminders] Error dispatching site visit reminder:', err.message)
+        );
+      } else {
+        // Dispatch yourself message directly via WhatsApp Bot number
+        const selfMsg = `🔔 *CRM Reminder: Schedule Site Visit (Self Notification)* 🔔\n\n` +
+          `A new reminder was scheduled in Alpha Elevators CRM:\n` +
+          `• *Title:* ${title}\n` +
+          (notes ? `• *Notes:* ${notes}\n` : '') +
+          `• *Due Time:* ${new Date(dueAt).toLocaleString('en-IN')}\n\n` +
+          `Please contact the customer and schedule the site visit.\n\n` +
+          `Thank you,\nAlpha Elevators CRM`;
+
+        whatsAppWebBot.sendSelfMessage(selfMsg).then(async (res) => {
+          if (res.success) {
+            await WhatsAppMessageLog.create({
+              recipientPhone: whatsAppWebBot.getStatus().botPhoneNumber || 'Bot',
+              recipientName: 'Yourself (WhatsApp Bot)',
+              messageText: `[SITE VISIT REMINDER (MANUAL)]: \n${selfMsg}`,
+              messageType: 'text',
+              scheduledAt: new Date(),
+              attemptedAt: new Date(),
+              sentAt: new Date(),
+              providerMessageId: res.messageId,
+              status: 'SENT',
+              attemptCount: 1,
+              isDryRun: false,
+            });
+            console.log(`[Reminders] Yourself message dispatched via WhatsApp Bot for manual site visit reminder`);
+          }
+        }).catch((err) => console.warn('[Reminders] Error sending self reminder:', err.message));
+      }
+    }
+
     return res.status(201).json({ success: true, data: reminder });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
@@ -101,15 +148,38 @@ reminderRouter.patch('/:id/dismiss', async (req: AuthRequest, res: Response) => 
 
 /**
  * POST /api/reminders/check
- * Trigger immediate execution of schedule date reminder check (CRM, Admin, Connected Bot)
+ * Trigger immediate execution of schedule date reminder check & due reminders
+ * (Guarantees dispatching to CRM, Admin, and the connected WhatsApp Bot Number for yourself)
  */
 reminderRouter.post('/check', async (req: AuthRequest, res: Response) => {
   try {
-    const { checkScheduleDateReminders } = await import('../services/scheduler/schedulerService');
-    await checkScheduleDateReminders();
-    return res.json({ success: true, message: 'Schedule date reminders checked and dispatched successfully.' });
+    const { force } = req.body || {};
+    const shouldForce = force !== undefined ? Boolean(force) : true;
+    await checkScheduleDateReminders(shouldForce);
+    await processDueReminders();
+    return res.json({
+      success: true,
+      message: 'Schedule date reminders checked and WhatsApp alerts dispatched (including to yourself via bot number).'
+    });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
   }
 });
+
+/**
+ * POST /api/reminders/test-dispatch
+ * Debug endpoint to test dispatch directly and return raw result
+ */
+reminderRouter.post('/test-dispatch', async (req: AuthRequest, res: Response) => {
+  try {
+    const { projectId } = req.body || {};
+    const targetId = projectId || '6ad9aec3762c87fa6c60bc36';
+    const result = await dispatchSiteVisitWhatsAppReminders(targetId, 1000, 'TEST_CALL');
+    return res.json({ success: true, result });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message, stack: err.stack });
+  }
+});
+
+
 

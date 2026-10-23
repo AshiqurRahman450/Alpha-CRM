@@ -67,6 +67,10 @@ export interface IProject extends Document {
   escalationMatrixScheduledAt?: Date;
   escalationMatrixSent?: boolean;
   escalationMatrixSentAt?: Date;
+  productionTimelineDays?: number; // Days from production payment to material delivery
+  productionPaymentReminderScheduledAt?: Date; // Scheduled 2 days after Drawing and cabin Approved
+  productionPaymentReminderSent?: boolean;
+  productionPaymentReminderSentAt?: Date;
 
   // Dedicated WATI WhatsApp Group Data Model
   whatsapp?: {
@@ -389,6 +393,10 @@ const ProjectSchema = new Schema<IProject>(
     escalationMatrixScheduledAt: { type: Date },
     escalationMatrixSent: { type: Boolean, default: false },
     escalationMatrixSentAt: { type: Date },
+    productionTimelineDays: { type: Number, default: 60 },
+    productionPaymentReminderScheduledAt: { type: Date },
+    productionPaymentReminderSent: { type: Boolean, default: false },
+    productionPaymentReminderSentAt: { type: Date },
     stageDates: {
       type: Map,
       of: new Schema(

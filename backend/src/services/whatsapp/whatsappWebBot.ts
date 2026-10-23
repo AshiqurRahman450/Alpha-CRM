@@ -14,12 +14,69 @@ class WhatsAppWebBotService {
   private botPhoneNumber: string | null = null;
   private groupJidCache: Map<string, string> = new Map(); // inviteCode -> groupJid
   private isInitializing: boolean = false;
+  private messageCache: Map<string, any> = new Map(); // messageId -> proto.IMessage
+  private cacheFilePath: string;
+  private saveTimer: NodeJS.Timeout | null = null;
 
   constructor() {
     this.authDir = path.resolve(__dirname, '../../../data/baileys_auth');
     if (!fs.existsSync(this.authDir)) {
       fs.mkdirSync(this.authDir, { recursive: true });
     }
+    this.cacheFilePath = path.resolve(this.authDir, 'message_cache.json');
+    this.loadMessageCache();
+  }
+
+  private loadMessageCache(): void {
+    try {
+      if (fs.existsSync(this.cacheFilePath)) {
+        const raw = fs.readFileSync(this.cacheFilePath, 'utf-8');
+        const entries = JSON.parse(raw);
+        if (Array.isArray(entries)) {
+          this.messageCache = new Map(entries);
+          console.log(`[WhatsAppWebBot] Loaded ${this.messageCache.size} messages from disk into retry cache.`);
+        }
+      }
+    } catch (err: any) {
+      console.warn('[WhatsAppWebBot] Notice loading message cache:', err.message);
+    }
+  }
+
+  private cacheMessage(id: string, rawMessage: any): void {
+    if (!id || !rawMessage) return;
+    try {
+      const msg = rawMessage.message || rawMessage;
+      this.messageCache.set(id, msg);
+      if (this.messageCache.size > 1000) {
+        const oldestKey = this.messageCache.keys().next().value;
+        if (oldestKey) this.messageCache.delete(oldestKey);
+      }
+      this.scheduleSaveCache();
+    } catch (err: any) {
+      console.warn('[WhatsAppWebBot] Cache message notice:', err.message);
+    }
+  }
+
+  private scheduleSaveCache(): void {
+    if (this.saveTimer) return;
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = null;
+      try {
+        const entries = Array.from(this.messageCache.entries()).slice(-500);
+        fs.writeFileSync(this.cacheFilePath, JSON.stringify(entries), 'utf-8');
+      } catch (err: any) {
+        console.warn('[WhatsAppWebBot] Notice persisting message cache:', err.message);
+      }
+    }, 2000);
+  }
+
+  private async getMessageFromCache(id: string): Promise<any> {
+    if (!id) return undefined;
+    const found = this.messageCache.get(id);
+    if (found) {
+      return found;
+    }
+    return undefined;
   }
 
   public getStatus() {
@@ -42,20 +99,52 @@ class WhatsAppWebBotService {
       // Dynamically load Baileys so any environment-specific Baileys issue doesn't crash the entire backend
       const baileys = await import('@whiskeysockets/baileys');
       const makeWASocket = (baileys as any).default || baileys;
-      const { useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason } = baileys as any;
+      const {
+        useMultiFileAuthState,
+        fetchLatestBaileysVersion,
+        DisconnectReason,
+        makeCacheableSignalKeyStore,
+        jidNormalizedUser,
+      } = baileys as any;
+
+      const pino = (await import('pino')).default || (await import('pino'));
+      const logger = pino({ level: 'silent' });
 
       const { state, saveCreds } = await useMultiFileAuthState(this.authDir);
       const { version } = await fetchLatestBaileysVersion();
 
       this.sock = makeWASocket({
         version,
-        auth: state,
+        logger,
+        auth: {
+          creds: state.creds,
+          keys: makeCacheableSignalKeyStore(state.keys, logger),
+        },
         printQRInTerminal: false,
         browser: ['Alpha Elevators CRM', 'Chrome', '1.0.0'],
         defaultQueryTimeoutMs: 60000,
+        markOnlineOnConnect: true,
+        syncFullHistory: false,
+        getMessage: async (key: any) => {
+          if (!key?.id) return undefined;
+          const msg = await this.getMessageFromCache(key.id);
+          if (msg) {
+            console.log(`[WhatsAppWebBot] Provided message for retry request (ID: ${key.id})`);
+            return msg;
+          }
+          return undefined;
+        },
       });
 
       this.sock.ev.on('creds.update', saveCreds);
+
+      this.sock.ev.on('messages.upsert', async (m: any) => {
+        for (const msg of m.messages || []) {
+          if (msg?.key?.id && msg?.message) {
+            this.cacheMessage(msg.key.id, msg.message);
+          }
+        }
+      });
 
       this.sock.ev.on('connection.update', async (update: any) => {
         const { connection, lastDisconnect, qr } = update;
@@ -207,6 +296,9 @@ class WhatsAppWebBotService {
       console.log(`[WhatsAppWebBot] Dispatching message inside group JID: ${targetJid}`);
       const res = await this.sock.sendMessage(targetJid, { text: messageText });
       const messageId = res?.key?.id || `WB_${Date.now()}`;
+      if (res?.key?.id && res?.message) {
+        this.cacheMessage(res.key.id, res.message);
+      }
 
       console.log(`[WhatsAppWebBot] Message posted successfully inside group! ID: ${messageId}`);
       return {
@@ -280,6 +372,9 @@ class WhatsAppWebBotService {
       }
 
       const messageId = res?.key?.id || `DOC_${Date.now()}`;
+      if (res?.key?.id && res?.message) {
+        this.cacheMessage(res.key.id, res.message);
+      }
       console.log(`[WhatsAppWebBot] Document posted successfully inside group! ID: ${messageId}`);
 
       return {
@@ -315,27 +410,21 @@ class WhatsAppWebBotService {
       if (!cleanPhone) {
         return { success: false, error: 'Invalid phone number provided.' };
       }
-      let directJid = `${cleanPhone}@s.whatsapp.net`;
-      if (this.sock?.user?.id) {
-        const myBotNum = this.sock.user.id.split(':')[0] || this.sock.user.id.split('@')[0];
-        if (cleanPhone === normalizeWhatsAppPhone(myBotNum)) {
-          // If sending to the connected bot itself, use authenticated JID to deliver to "Message yourself"
-          directJid = this.sock.user.id;
-        }
+
+      // If destination phone matches the connected bot number, route via sendSelfMessage
+      const myBotNum = this.botPhoneNumber || (this.sock?.user?.id ? (this.sock.user.id.split(':')[0] || this.sock.user.id.split('@')[0]) : null);
+      if (myBotNum && normalizeWhatsAppPhone(myBotNum) === cleanPhone) {
+        console.log(`[WhatsAppWebBot] Target phone (${cleanPhone}) is the bot's own number. Routing via sendSelfMessage.`);
+        return this.sendSelfMessage(messageText);
       }
+
+      const directJid = `${cleanPhone}@s.whatsapp.net`;
       console.log(`[WhatsAppWebBot] Dispatching direct message to 1-to-1 JID: ${directJid}`);
-      let res: any;
-      try {
-        res = await this.sock.sendMessage(directJid, { text: messageText });
-      } catch (selfErr: any) {
-        if (directJid !== `${cleanPhone}@s.whatsapp.net`) {
-          console.warn(`[WhatsAppWebBot] Fallback from ${directJid} to ${cleanPhone}@s.whatsapp.net:`, selfErr.message);
-          res = await this.sock.sendMessage(`${cleanPhone}@s.whatsapp.net`, { text: messageText });
-        } else {
-          throw selfErr;
-        }
-      }
+      const res = await this.sock.sendMessage(directJid, { text: messageText });
       const messageId = res?.key?.id || `WB_DIR_${Date.now()}`;
+      if (res?.key?.id && res?.message) {
+        this.cacheMessage(res.key.id, res.message);
+      }
       console.log(`[WhatsAppWebBot] Direct message posted successfully! ID: ${messageId}`);
       return {
         success: true,
@@ -347,6 +436,143 @@ class WhatsAppWebBotService {
       return {
         success: false,
         error: err.message || 'Failed to dispatch 1-to-1 WhatsApp message',
+      };
+    }
+  }
+
+  /**
+   * Determine the normalized JID for "Message yourself" (LID for WhatsApp Business, phone JID fallback)
+   */
+  public getSelfJid(): string | null {
+    if (this.sock?.user?.lid) {
+      const lidClean = this.sock.user.lid.split(':')[0];
+      return `${lidClean}@lid`;
+    }
+    if (this.sock?.user?.id) {
+      const phoneClean = this.sock.user.id.split(':')[0] || this.sock.user.id.split('@')[0];
+      const normalized = normalizeWhatsAppPhone(phoneClean);
+      if (normalized) {
+        return `${normalized}@s.whatsapp.net`;
+      }
+    }
+    if (this.botPhoneNumber) {
+      const clean = normalizeWhatsAppPhone(this.botPhoneNumber);
+      if (clean) return `${clean}@s.whatsapp.net`;
+    }
+    return null;
+  }
+
+  /**
+   * Send 1-to-1 message directly to the connected WhatsApp bot itself ("Message yourself")
+   * Uses WhatsApp Business account's normalized LID (@lid) when available so the
+   * conversation arrives directly in the self chat and decrypts reliably.
+   */
+  public async sendSelfMessage(
+    messageText: string
+  ): Promise<{ success: boolean; messageId?: string; directJid?: string; error?: string }> {
+    if (!this.sock || this.status !== 'CONNECTED') {
+      return {
+        success: false,
+        error: 'WhatsApp Web Bot is not connected. Please scan the QR code to activate WhatsApp bot messaging.',
+      };
+    }
+
+    try {
+      const selfJid = this.getSelfJid();
+      if (!selfJid) {
+        return { success: false, error: 'Could not determine bot self JID.' };
+      }
+
+      console.log(`[WhatsAppWebBot] Dispatching self message to "Message yourself" JID: ${selfJid}`);
+      const res = await this.sock.sendMessage(selfJid, { text: messageText });
+      const messageId = res?.key?.id || `WB_SELF_${Date.now()}`;
+      if (res?.key?.id && res?.message) {
+        this.cacheMessage(res.key.id, res.message);
+      }
+      console.log(`[WhatsAppWebBot] Self message posted successfully! ID: ${messageId}`);
+      return {
+        success: true,
+        messageId,
+        directJid: selfJid,
+      };
+    } catch (err: any) {
+      console.error('[WhatsAppWebBot] Failed to send self message:', err.message);
+      return {
+        success: false,
+        error: err.message || 'Failed to dispatch self WhatsApp message',
+      };
+    }
+  }
+
+  /**
+   * Send document / file / photo directly to the connected WhatsApp bot itself ("Message yourself")
+   */
+  public async sendSelfDocument(
+    filePath: string,
+    fileName: string,
+    caption?: string
+  ): Promise<{ success: boolean; messageId?: string; directJid?: string; error?: string }> {
+    if (!this.sock || this.status !== 'CONNECTED') {
+      return {
+        success: false,
+        error: 'WhatsApp Web Bot is not connected. Please scan the QR code to activate automatic document sending.',
+      };
+    }
+
+    try {
+      if (!fs.existsSync(filePath)) {
+        return { success: false, error: `File not found on server: ${filePath}` };
+      }
+
+      const selfJid = this.getSelfJid();
+      if (!selfJid) {
+        return { success: false, error: 'Could not determine bot self JID.' };
+      }
+
+      const fileBuffer = fs.readFileSync(filePath);
+      const ext = path.extname(fileName).toLowerCase();
+      let mimetype = 'application/pdf';
+      const isImage = ['.jpg', '.jpeg', '.png', '.webp'].includes(ext);
+
+      if (ext === '.pdf') mimetype = 'application/pdf';
+      else if (ext === '.png') mimetype = 'image/png';
+      else if (ext === '.jpg' || ext === '.jpeg') mimetype = 'image/jpeg';
+      else if (ext === '.webp') mimetype = 'image/webp';
+      else if (ext === '.dwg') mimetype = 'application/acad';
+      else mimetype = 'application/octet-stream';
+
+      console.log(`[WhatsAppWebBot] Dispatching self document "${fileName}" to ${selfJid} (mimetype: ${mimetype})`);
+
+      let res: any;
+      if (isImage) {
+        res = await this.sock.sendMessage(selfJid, {
+          image: fileBuffer,
+          caption: caption || `Alpha Elevators: ${fileName}`,
+        });
+      } else {
+        res = await this.sock.sendMessage(selfJid, {
+          document: fileBuffer,
+          mimetype,
+          fileName,
+          caption: caption || `Alpha Elevators: ${fileName}`,
+        });
+      }
+
+      const messageId = res?.key?.id || `DOC_SELF_${Date.now()}`;
+      if (res?.key?.id && res?.message) {
+        this.cacheMessage(res.key.id, res.message);
+      }
+      console.log(`[WhatsAppWebBot] Self document posted successfully! ID: ${messageId}`);
+      return {
+        success: true,
+        messageId,
+        directJid: selfJid,
+      };
+    } catch (err: any) {
+      console.error('[WhatsAppWebBot] Failed to send self document:', err.message);
+      return {
+        success: false,
+        error: err.message || 'Failed to dispatch self document',
       };
     }
   }
@@ -376,6 +602,13 @@ class WhatsAppWebBotService {
         return { success: false, error: `File not found on server: ${filePath}` };
       }
 
+      // If destination matches connected bot number, route via sendSelfDocument
+      const myBotNum = this.botPhoneNumber || (this.sock?.user?.id ? (this.sock.user.id.split(':')[0] || this.sock.user.id.split('@')[0]) : null);
+      if (myBotNum && normalizeWhatsAppPhone(myBotNum) === cleanPhone) {
+        console.log(`[WhatsAppWebBot] Target phone (${cleanPhone}) is the bot's own number. Routing document via sendSelfDocument.`);
+        return this.sendSelfDocument(filePath, fileName, caption);
+      }
+
       const directJid = `${cleanPhone}@s.whatsapp.net`;
       const fileBuffer = fs.readFileSync(filePath);
       const ext = path.extname(fileName).toLowerCase();
@@ -386,6 +619,7 @@ class WhatsAppWebBotService {
       else if (ext === '.png') mimetype = 'image/png';
       else if (ext === '.jpg' || ext === '.jpeg') mimetype = 'image/jpeg';
       else if (ext === '.webp') mimetype = 'image/webp';
+      else if (ext === '.dwg') mimetype = 'application/acad';
       else mimetype = 'application/octet-stream';
 
       console.log(`[WhatsAppWebBot] Dispatching direct document "${fileName}" to ${directJid} (mimetype: ${mimetype})`);
@@ -406,6 +640,9 @@ class WhatsAppWebBotService {
       }
 
       const messageId = res?.key?.id || `DOC_DIR_${Date.now()}`;
+      if (res?.key?.id && res?.message) {
+        this.cacheMessage(res.key.id, res.message);
+      }
       console.log(`[WhatsAppWebBot] Direct document posted successfully! ID: ${messageId}`);
       return {
         success: true,
@@ -439,6 +676,10 @@ class WhatsAppWebBotService {
         fs.rmSync(this.authDir, { recursive: true, force: true });
       }
       fs.mkdirSync(this.authDir, { recursive: true });
+      this.messageCache.clear();
+      if (fs.existsSync(this.cacheFilePath)) {
+        try { fs.unlinkSync(this.cacheFilePath); } catch {}
+      }
       this.status = 'DISCONNECTED';
       this.qrCodeDataUrl = null;
       this.botPhoneNumber = null;

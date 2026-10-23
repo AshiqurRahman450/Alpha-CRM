@@ -23,6 +23,7 @@ import {
   APPROVED_MILESTONE_TEMPLATES,
   STAGE_TEMPLATE_MAP,
   POST_PRODUCTION_PAYMENT_STAGES,
+  handleDrawingAndCabinApprovedWorkflow,
 } from '../services/scheduler/schedulerService';
 import { whatsAppWebBot, watiService } from '../services/whatsapp';
 import {
@@ -552,7 +553,7 @@ projectRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT'), as
  */
 projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'TECHNICAL_LEAD'), async (req: AuthRequest, res: Response) => {
   try {
-    const { status, notes, vrlLrNumber, trackingNumber } = req.body;
+    const { status, notes, vrlLrNumber, trackingNumber, productionTimelineDays } = req.body;
     const project = await Project.findById(req.params.id);
     if (!project) {
       return res.status(404).json({ success: false, message: 'Project not found' });
@@ -577,6 +578,11 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
       const tracking = String(vrlLrNumber || trackingNumber).trim();
       project.vrlLrNumber = tracking;
       project.trackingNumber = tracking;
+    }
+
+    if (status === 'CUSTOMER_APPROVAL') {
+      const days = Number(productionTimelineDays) > 0 ? Number(productionTimelineDays) : (project.productionTimelineDays || 60);
+      project.productionTimelineDays = days;
     }
 
     // Reset nextUpdateAt: production interval updates apply after Production Payment (in any post-production stage)
@@ -611,14 +617,16 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
       projectId: project._id,
       projectCode: project.projectId,
       type: 'STATUS_CHANGE',
-      description: status === 'MANUFACTURING'
+      description: status === 'CUSTOMER_APPROVAL'
+        ? `Project status updated to Drawing and Cabin Design Approval. Production timeline set to ${project.productionTimelineDays || 60} days. ${notes ? `Note: ${notes}` : ''}`
+        : status === 'MANUFACTURING'
         ? `Project status updated to MANUFACTURING (Approval Drawing to factory). Stage 1 Production Update scheduled in ${intervalDays} days.`
         : status === 'DISPATCH' && project.vrlLrNumber
         ? `Project status updated to DISPATCH (Expected Delivery). VRL Tracking No: ${project.vrlLrNumber}. ${notes ? `Note: ${notes}` : ''}`
         : `Project status updated from ${prevStatus} to ${status}. ${notes ? `Note: ${notes}` : ''}`,
       userId: req.user?._id,
       userName: req.user?.name,
-      metadata: { previousStatus: prevStatus, newStatus: status, intervalDays, vrlLrNumber: project.vrlLrNumber },
+      metadata: { previousStatus: prevStatus, newStatus: status, intervalDays, vrlLrNumber: project.vrlLrNumber, productionTimelineDays: project.productionTimelineDays },
     });
 
     // Milestone update messages directly inside WhatsApp group via Web Bot!
@@ -629,19 +637,29 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
 
     if (inviteTarget && status !== 'MANUFACTURING') {
       try {
-        const customer = await Customer.findById(project.customerId);
-        const messageText = generateProjectUpdateText(project, customer, notes ? `Stage updated: ${notes}` : undefined);
-        const botStatus = whatsAppWebBot.getStatus();
+        if (status === 'CUSTOMER_APPROVAL') {
+          // Drawing and Cabin Approved special workflow:
+          // Dispatches 2 sequential WhatsApp messages immediately + schedules 2-day payment follow-up
+          const days = Number(productionTimelineDays) > 0 ? Number(productionTimelineDays) : (project.productionTimelineDays || 60);
+          const drawWorkflowRes = await handleDrawingAndCabinApprovedWorkflow(project, days, req.user?._id, req.user?.name);
+          groupMessageDispatched = drawWorkflowRes.success;
+          if (!drawWorkflowRes.success) {
+            groupMessageError = drawWorkflowRes.error || 'Failed to dispatch drawing approval messages';
+          }
+        } else {
+          const customer = await Customer.findById(project.customerId);
+          const messageText = generateProjectUpdateText(project, customer, notes ? `Stage updated: ${notes}` : undefined);
+          const botStatus = whatsAppWebBot.getStatus();
 
-        if (config.wati.dryRun) {
-          groupMessageDispatched = true;
-          await WhatsAppMessageLog.create({
-            projectId: project._id,
-            groupId: project.whatsapp?.groupId || project.whatsappGroupId || 'GROUP',
-            messageText,
-            messageType: 'text',
-            scheduledAt: new Date(),
-            attemptedAt: new Date(),
+          if (config.wati.dryRun) {
+            groupMessageDispatched = true;
+            await WhatsAppMessageLog.create({
+              projectId: project._id,
+              groupId: project.whatsapp?.groupId || project.whatsappGroupId || 'GROUP',
+              messageText,
+              messageType: 'text',
+              scheduledAt: new Date(),
+              attemptedAt: new Date(),
             sentAt: new Date(),
             providerMessageId: `DRY_STAGE_${Date.now()}`,
             status: 'SENT',
@@ -736,6 +754,7 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
             isDryRun: false,
           });
         }
+      }
       } catch (waErr: any) {
         console.error('[AutoStageUpdate] Error dispatching WhatsApp milestone message:', waErr.message);
         groupMessageError = waErr.message;
@@ -753,7 +772,10 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
     }
 
     let resultMsg = `Stage updated to ${status}.`;
-    if (status === 'MANUFACTURING') {
+    if (status === 'CUSTOMER_APPROVAL') {
+      const days = project.productionTimelineDays || 60;
+      resultMsg = `Drawing & Cabin Approved! 2 WhatsApp messages sent to group (${days} days delivery timeline) and follow-up scheduled for 2 days later.`;
+    } else if (status === 'MANUFACTURING') {
       resultMsg = `Stage updated to Approval Drawing to factory. Automated Stage 1 Production Update scheduled in ${intervalDays} days.`;
     } else if (status === 'DISPATCH' && project.vrlLrNumber && groupMessageDispatched) {
       resultMsg = `Stage updated to Expected Delivery! VRL Tracking No (${project.vrlLrNumber}) attached and template message posted directly inside WhatsApp group!`;
@@ -775,6 +797,59 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
       bdmNotified,
       bdmNotificationResult,
       message: resultMsg,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * POST /api/projects/:id/drawing-approved
+ * Direct endpoint triggered when user confirms the Drawing and Cabin Approved modal with delivery days
+ */
+projectRouter.post('/:id/drawing-approved', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'TECHNICAL_LEAD'), async (req: AuthRequest, res: Response) => {
+  try {
+    const { productionTimelineDays, notes } = req.body;
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ success: false, message: 'Project not found' });
+
+    if (req.user?.role === 'BDM' && project.bdmId?.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Not authorized to update this project' });
+    }
+
+    const prevStatus = project.projectStatus;
+    project.projectStatus = 'CUSTOMER_APPROVAL';
+    if (notes) project.notes = notes;
+    const days = Number(productionTimelineDays) > 0 ? Number(productionTimelineDays) : 60;
+    project.productionTimelineDays = days;
+
+    // Record executedDate in stageDates for CUSTOMER_APPROVAL
+    if (!project.stageDates) project.stageDates = new Map();
+    const currentDates = project.stageDates.get('CUSTOMER_APPROVAL') || {};
+    if (!currentDates.executedDate) currentDates.executedDate = new Date();
+    project.stageDates.set('CUSTOMER_APPROVAL', currentDates);
+
+    await project.save();
+
+    await logProjectActivity({
+      projectId: project._id,
+      projectCode: project.projectId,
+      type: 'STATUS_CHANGE',
+      description: `Drawing and Cabin Approved confirmed with ${days} days production timeline.`,
+      userId: req.user?._id,
+      userName: req.user?.name,
+      metadata: { previousStatus: prevStatus, newStatus: 'CUSTOMER_APPROVAL', productionTimelineDays: days },
+    });
+
+    const workflowRes = await handleDrawingAndCabinApprovedWorkflow(project, days, req.user?._id, req.user?.name);
+    const bdmNotifyRes = await sendBdmApprovalNotification(project, req.user?._id, req.user?.name, notes);
+
+    return res.json({
+      success: true,
+      data: project,
+      workflow: workflowRes,
+      bdmNotification: bdmNotifyRes,
+      message: `Drawing and Cabin Approved! 2 WhatsApp messages dispatched to group (${days} days delivery timeline) and follow-up scheduled for 2 days later.`,
     });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });

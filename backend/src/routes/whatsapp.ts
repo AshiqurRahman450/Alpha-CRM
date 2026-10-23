@@ -1610,3 +1610,19 @@ whatsappRouter.post('/bot/logout', authorize('ADMIN', 'CRM', 'MANAGER'), async (
   }
 });
 
+/**
+ * POST /api/whatsapp/bot/test-self
+ * Send a test reminder to yourself using the WhatsApp bot number
+ */
+whatsappRouter.post('/bot/test-self', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthRequest, res: Response) => {
+  try {
+    const { message } = req.body;
+    const textToSend = message || '🔔 *Test Reminder (Self Message)* 🔔\n\nThis is a test notification sent directly to yourself using the Alpha Elevators WhatsApp Bot number.';
+    const result = await whatsAppWebBot.sendSelfMessage(textToSend);
+    return res.json({ success: result.success, result });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+

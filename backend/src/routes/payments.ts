@@ -403,15 +403,91 @@ paymentRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT'), asyn
       }
     }
 
+    // 3. Dispatch Payment Receipt & Notification to Yourself ("Message yourself" via WhatsApp Web Bot)
+    let receiptSentToSelf = false;
+    let selfDispatchError: string | null = null;
+    try {
+      const botStatus = whatsAppWebBot.getStatus();
+      if (botStatus.isConnected) {
+        const recordedByRole = req.user?.role || 'ACCOUNTANT';
+        const recordedByName = req.user?.name || 'Accountant';
+        const selfCaption =
+          `💰 *Payment Recorded Notification (Yourself)* 💰\n\n` +
+          `A new payment has been officially recorded by *${recordedByName}* (${recordedByRole}) for Project *${project.projectName}* (${project.projectId})!\n\n` +
+          `*Payment Details:*\n` +
+          `• *Receipt Number:* ${payment.receiptNumber}\n` +
+          `• *Customer Name:* ${customerName}\n` +
+          `• *Customer Phone:* ${customer?.phoneNumber || 'N/A'}\n` +
+          `• *Amount Received:* ₹${paidNum.toLocaleString('en-IN')}\n` +
+          `• *Payment Milestone:* ${payment.paymentType || 'Milestone Payment'}\n` +
+          `• *Payment Method:* ${paymentMethod || 'Bank Transfer'}\n` +
+          `• *Transaction Ref:* ${transactionReference}\n` +
+          `• *Total Paid to Date:* ₹${newTotalPaid.toLocaleString('en-IN')}\n` +
+          `• *Outstanding Balance:* ₹${newBalance.toLocaleString('en-IN')}\n` +
+          `• *Project Status:* ${project.paymentStatus || newPaymentStatus}\n\n` +
+          `${isAdvancePayment ? '🔔 *Notice:* Advance payment received. Site visit scheduling alerts triggered.\n\n' : ''}` +
+          `${receiptSentToGroup ? '✅ *Customer Group:* Receipt PDF posted to client group.\n' : ''}` +
+          `Attached is the official payment receipt for your records.\n\n` +
+          `Alpha Elevators CRM Automation`;
+
+        let selfRes: any;
+        if (receiptPdfPath && fs.existsSync(receiptPdfPath)) {
+          console.log(`[PaymentReceipt] Dispatching payment receipt PDF to "Message yourself" via Web Bot`);
+          selfRes = await whatsAppWebBot.sendSelfDocument(
+            receiptPdfPath,
+            receiptFileName || `Receipt-${payment.receiptNumber}.pdf`,
+            selfCaption
+          );
+        } else {
+          console.log(`[PaymentReceipt] Dispatching payment receipt summary to "Message yourself" via Web Bot`);
+          selfRes = await whatsAppWebBot.sendSelfMessage(selfCaption);
+        }
+
+        if (selfRes.success) {
+          receiptSentToSelf = true;
+          await WhatsAppMessageLog.create({
+            projectId: project._id,
+            recipientName: 'Yourself (Bot)',
+            messageText: `[RECEIPT 1-TO-1 TO YOURSELF]: ${payment.receiptNumber}\n${selfCaption}`,
+            messageType: receiptPdfPath ? 'document' : 'text',
+            scheduledAt: new Date(),
+            attemptedAt: new Date(),
+            sentAt: new Date(),
+            providerMessageId: selfRes.messageId,
+            status: 'SENT',
+            attemptCount: 1,
+            isDryRun: false,
+          });
+
+          await logProjectActivity({
+            projectId: project._id,
+            projectCode: project.projectId,
+            type: 'WHATSAPP_SENT',
+            description: `Payment receipt "${payment.receiptNumber}" sent to yourself ("Message yourself" via WhatsApp Bot)`,
+            userId: req.user?._id,
+            userName: req.user?.name,
+          });
+          console.log(`[PaymentReceipt] Payment receipt sent to yourself via Web Bot! ID: ${selfRes.messageId}`);
+        } else {
+          selfDispatchError = selfRes.error;
+        }
+      }
+    } catch (selfErr: any) {
+      console.error('[PaymentReceipt] Error sending payment receipt to yourself:', selfErr.message);
+      selfDispatchError = selfErr.message;
+    }
+
     return res.status(201).json({
       success: true,
       data: payment,
       project,
       receiptSentToGroup,
       receiptSentToCrm,
+      receiptSentToSelf,
       groupDispatchError,
       crmDispatchError,
-      message: `Payment recorded successfully! ${receiptSentToGroup ? 'Receipt sent to group. ' : ''}${receiptSentToCrm ? 'Receipt sent 1-to-1 to CRM.' : ''}`.trim(),
+      selfDispatchError,
+      message: `Payment recorded successfully! ${receiptSentToGroup ? 'Receipt sent to group. ' : ''}${receiptSentToCrm ? 'Receipt sent 1-to-1 to CRM. ' : ''}${receiptSentToSelf ? 'Notification & receipt sent to yourself (WhatsApp Bot).' : ''}`.trim(),
     });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
@@ -548,9 +624,24 @@ paymentRouter.post('/:id/send-receipt', authorize('ADMIN', 'CRM', 'MANAGER', 'AC
       }
     }
 
+    // Also dispatch receipt to yourself ("Message yourself" via WhatsApp Web Bot)
+    try {
+      if (botStatus.isConnected) {
+        const selfCaption = `🧾 *Official Payment Receipt Re-Dispatched (Yourself)* 🧾\n\nPayment receipt *${payment.receiptNumber}* for Project *${project.projectName}* (${project.projectId}) has been dispatched to client WhatsApp group.\n\n*Receipt Details:*\n• *Customer:* ${customerName}\n• *Amount:* ₹${(payment.amountPaid || 0).toLocaleString('en-IN')}\n• *Method:* ${payment.paymentMethod || 'Bank Transfer'}\n• *Ref:* ${payment.transactionReference || 'N/A'}\n• *Remaining Balance:* ₹${(payment.balanceAmount || 0).toLocaleString('en-IN')}\n\nAttached is the receipt document for your records.\n\nAlpha Elevators CRM`;
+        if (receiptPdfPath && fs.existsSync(receiptPdfPath)) {
+          await whatsAppWebBot.sendSelfDocument(receiptPdfPath, receiptFileName, selfCaption);
+        } else {
+          await whatsAppWebBot.sendSelfMessage(selfCaption);
+        }
+        console.log(`[PaymentReceipt] Manual receipt re-dispatched to yourself via Web Bot.`);
+      }
+    } catch (selfErr: any) {
+      console.warn('[PaymentReceipt] Notice dispatching manual receipt to yourself:', selfErr.message);
+    }
+
     return res.json({
       success: true,
-      message: `Receipt ${payment.receiptNumber} sent directly to the WhatsApp group and 1-to-1 to CRM!`,
+      message: `Receipt ${payment.receiptNumber} sent directly to the WhatsApp group, 1-to-1 to CRM, and to yourself!`,
       data: { messageId: sendRes.messageId },
     });
   } catch (err: any) {

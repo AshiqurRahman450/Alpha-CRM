@@ -21,7 +21,9 @@ export type WhatsAppMessageType =
 
 export interface IWhatsAppMessageLog extends Document {
   projectId: Types.ObjectId;
-  groupId: string;
+  groupId?: string;
+  recipientPhone?: string;
+  recipientName?: string;
   messageText: string;
   messageType: WhatsAppMessageType;
   scheduledAt?: Date;
@@ -43,14 +45,22 @@ const WhatsAppMessageLogSchema = new Schema<IWhatsAppMessageLog>(
     projectId: {
       type: Schema.Types.ObjectId,
       ref: 'Project',
-      required: true,
       index: true,
     },
     groupId: {
       type: String,
-      required: true,
       trim: true,
       index: true,
+      default: 'DIRECT_1TO1',
+    },
+    recipientPhone: {
+      type: String,
+      trim: true,
+      index: true,
+    },
+    recipientName: {
+      type: String,
+      trim: true,
     },
     messageText: {
       type: String,
