@@ -26,7 +26,9 @@ export default function LoginPage() {
     }
   };
 
-  const handleQuickFill = (userType: 'admin' | 'crm' | 'accountant' | 'qc' | 'techlead') => {
+  const [bdmSelect, setBdmSelect] = useState('');
+
+  const handleQuickFill = (userType: 'admin' | 'crm' | 'accountant' | 'qc' | 'techlead' | 'bdm', bdmEmail?: string) => {
     if (userType === 'admin') {
       setEmail('admin@alphaelevators.com');
       setPassword('admin123');
@@ -39,11 +41,27 @@ export default function LoginPage() {
     } else if (userType === 'qc') {
       setEmail('qc@alphaelevators.com');
       setPassword('qc123');
-    } else {
+    } else if (userType === 'techlead') {
       setEmail('techlead@alphaelevators.com');
       setPassword('tech123');
+    } else if (userType === 'bdm') {
+      setEmail(bdmEmail || 'gopinath@alpha.com');
+      setPassword('password123');
     }
   };
+
+  const BDMS_LIST = [
+    { name: 'Thirunavukarasu', email: 'thirunavukarasu@alpha.com' },
+    { name: 'Gopinath', email: 'gopinath@alpha.com' },
+    { name: 'Javith', email: 'javith@alpha.com' },
+    { name: 'Mohamed Ashik', email: 'mohamedashik@alpha.com' },
+    { name: 'Dhananjay', email: 'dhananjay@alpha.com' },
+    { name: 'Balaji', email: 'balaji@alpha.com' },
+    { name: 'Aravind', email: 'aravind@alpha.com' },
+    { name: 'Naveen', email: 'naveen@alpha.com' },
+    { name: 'Eswar', email: 'eswar@alpha.com' },
+    { name: 'Nitesh', email: 'nitesh@alpha.com' },
+  ];
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-[#071322] p-4 text-slate-100">
@@ -70,16 +88,18 @@ export default function LoginPage() {
         <form onSubmit={handleLogin} className="space-y-4 text-xs">
           <div>
             <label className="block text-[11px] font-bold text-slate-300 mb-1">
-              Work Email Address:
+              Email or Username:
             </label>
             <div className="relative">
               <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
               <input
-                type="email"
+                type="text"
                 required
+                autoComplete="username"
+                placeholder="e.g. gopinath@alpha.com or gopinath"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                className="w-full pl-9 pr-3 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-sky-500 placeholder:text-slate-500"
               />
             </div>
           </div>
@@ -93,6 +113,7 @@ export default function LoginPage() {
               <input
                 type="password"
                 required
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full pl-9 pr-3 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
@@ -111,44 +132,69 @@ export default function LoginPage() {
         </form>
 
         {/* 1-Click Demo Login helpers */}
-        <div className="pt-4 border-t border-slate-800 text-center space-y-2 text-[11px]">
-          <span className="text-slate-400 block font-medium">Quick Demo Credentials:</span>
+        <div className="pt-4 border-t border-slate-800 text-center space-y-3 text-[11px]">
+          <span className="text-slate-400 block font-medium">Quick Login Profiles:</span>
           <div className="flex flex-wrap items-center justify-center gap-2">
             <button
               type="button"
               onClick={() => handleQuickFill('admin')}
-              className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-sky-300 rounded-lg border border-slate-700 transition-colors"
+              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-sky-300 rounded-lg border border-slate-700 transition-colors"
             >
-              Admin (Full)
+              Admin
             </button>
             <button
               type="button"
               onClick={() => handleQuickFill('crm')}
-              className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition-colors"
+              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition-colors"
             >
-              CRM Agent
+              CRM
             </button>
             <button
               type="button"
               onClick={() => handleQuickFill('accountant')}
-              className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-lg border border-slate-700 transition-colors"
+              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-lg border border-slate-700 transition-colors"
             >
-              Vincy (Accountant)
+              Accountant
             </button>
             <button
               type="button"
               onClick={() => handleQuickFill('qc')}
-              className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-300 rounded-lg border border-slate-700 transition-colors"
+              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-300 rounded-lg border border-slate-700 transition-colors"
             >
-              Dinesh (QC)
+              QC
             </button>
             <button
               type="button"
               onClick={() => handleQuickFill('techlead')}
-              className="px-3 py-1 bg-sky-900/60 hover:bg-sky-800 text-sky-300 rounded-lg border border-sky-600/50 transition-colors font-semibold"
+              className="px-2.5 py-1 bg-sky-900/60 hover:bg-sky-800 text-sky-300 rounded-lg border border-sky-600/50 transition-colors font-semibold"
             >
-              Suresh (Tech Lead)
+              Tech Lead
             </button>
+          </div>
+
+          {/* BDM Quick Selector */}
+          <div className="pt-1">
+            <label className="block text-[10px] uppercase tracking-wider text-amber-400/90 font-bold mb-1">
+              Quick BDM Login (Password: password123)
+            </label>
+            <select
+              value={bdmSelect}
+              onChange={(e) => {
+                const val = e.target.value;
+                setBdmSelect(val);
+                if (val) {
+                  handleQuickFill('bdm', val);
+                }
+              }}
+              className="w-full py-1.5 px-3 bg-slate-800 border border-amber-500/40 rounded-xl text-amber-300 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 font-medium cursor-pointer"
+            >
+              <option value="">-- Choose BDM Account to Sign In --</option>
+              {BDMS_LIST.map((b) => (
+                <option key={b.email} value={b.email}>
+                  BDM: {b.name} ({b.email})
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       </div>

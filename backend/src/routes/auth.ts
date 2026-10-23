@@ -18,7 +18,19 @@ authRouter.post('/login', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: 'Email and password are required' });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    const input = String(email || '').toLowerCase().trim();
+    const cleanUsername = input.replace(/@.*$/, '').trim();
+
+    const user = await User.findOne({
+      $or: [
+        { email: input },
+        { email: `${cleanUsername}@alpha.com` },
+        { email: `${cleanUsername}@alphaelevators.com` },
+        { name: new RegExp(`^${input}$`, 'i') },
+        { name: new RegExp(`^${cleanUsername}$`, 'i') },
+        { name: new RegExp(`^${input.replace(/[^a-z0-9]/g, '.*')}$`, 'i') },
+      ],
+    });
     if (!user) {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
