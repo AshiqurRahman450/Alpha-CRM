@@ -395,12 +395,16 @@ export async function seed() {
   // 2. Create WhatsApp Templates
   console.log('[Seed] Seeding 13 approved WhatsApp templates...');
   for (const t of TEMPLATES) {
-    await WhatsAppTemplate.create({
-      ...t,
-      templateStatus: 'APPROVED',
-      templateLanguage: 'en_US',
-      metaTemplateId: `META_TMPL_${t.templateName}`,
-    });
+    await WhatsAppTemplate.findOneAndUpdate(
+      { templateName: t.templateName },
+      {
+        ...t,
+        templateStatus: 'APPROVED',
+        templateLanguage: 'en_US',
+        metaTemplateId: `META_TMPL_${t.templateName}`,
+      },
+      { upsert: true, new: true }
+    );
   }
 
   // 3. Create SystemSettings
@@ -502,7 +506,7 @@ export async function seed() {
       advanceRequired: advanceAmount,
       amountPaid: advanceAmount,
       balanceAmount,
-      paymentType: 'ADVANCE_30',
+      paymentType: 'Booking Advance',
       paymentDate: project.orderDate,
       paymentMethod: 'BANK_TRANSFER',
       transactionReference: `ADV-TXN-${projId}-30PCT`,

@@ -1,4 +1,17 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://crmapi.alphaelevators.io';
+export function getApiBaseUrl(): string {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return 'http://localhost:5000';
+    }
+  }
+  return 'https://crmapi.alphaelevators.io';
+}
+
+export const API_BASE_URL = getApiBaseUrl();
 
 export function getAuthToken(): string | null {
   if (typeof window === 'undefined') return null;
@@ -41,7 +54,8 @@ async function fetchWithAuth(endpoint: string, options: RequestInit = {}): Promi
     (headers as any)['Authorization'] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+  const baseUrl = getApiBaseUrl();
+  const res = await fetch(`${baseUrl}${endpoint}`, {
     ...options,
     headers,
   });
@@ -550,7 +564,7 @@ export const api = {
   // QC Pre-Production Site Inspection
   generateQCPdf: async (data: any): Promise<Blob> => {
     const token = getAuthToken();
-    const res = await fetch(`${API_BASE_URL}/api/qc/generate-pdf?download=true`, {
+    const res = await fetch(`${getApiBaseUrl()}/api/qc/generate-pdf?download=true`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

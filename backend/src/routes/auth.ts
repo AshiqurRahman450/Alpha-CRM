@@ -45,8 +45,7 @@ authRouter.post('/login', async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
-    user.lastLoginAt = new Date();
-    await user.save();
+    await User.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date() } });
 
     const token = jwt.sign(
       {
