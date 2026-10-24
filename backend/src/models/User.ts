@@ -21,9 +21,9 @@ const UserSchema = new Schema<IUser>(
     passwordHash: { type: String, required: true },
     role: {
       type: String,
-      enum: ['ADMIN', 'CRM', 'MANAGER', 'VIEWER', 'BDM', 'ACCOUNTANT', 'QC', 'TECHNICAL_LEAD', 'TECHNICAL_MANAGER'],
       default: 'CRM',
       required: true,
+      trim: true,
     },
     isActive: { type: Boolean, default: true },
     phone: { type: String, trim: true },

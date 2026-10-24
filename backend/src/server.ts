@@ -144,24 +144,30 @@ export async function startServer() {
       }
 
       // Ensure Technical Manager (Kishore) exists
-      const techManagerUser = await User.findOne({
-        $or: [{ email: 'kishore@alphaelevators.in' }, { email: 'kishore@alphaelevators.com' }],
-      });
-      if (!techManagerUser) {
-        const hash = await bcrypt.hash('kishore123', 10);
-        await User.create({
-          name: 'Kishore (Technical Manager)',
-          email: 'kishore@alphaelevators.in',
-          passwordHash: hash,
-          role: 'TECHNICAL_MANAGER',
-          phone: '+91 93848 20214',
-          isActive: true,
+      try {
+        const techManagerUser = await User.findOne({
+          $or: [{ email: 'kishore@alphaelevators.in' }, { email: 'kishore@alphaelevators.com' }],
         });
-        console.log('[Server] Created Technical Manager user: kishore@alphaelevators.in / kishore123');
-      } else if (techManagerUser.role !== 'TECHNICAL_MANAGER') {
-        techManagerUser.role = 'TECHNICAL_MANAGER';
-        await techManagerUser.save();
-        console.log('[Server] Updated Kishore role to TECHNICAL_MANAGER');
+        if (!techManagerUser) {
+          const hash = await bcrypt.hash('kishore123', 10);
+          await User.create({
+            name: 'Kishore (Technical Manager)',
+            email: 'kishore@alphaelevators.in',
+            passwordHash: hash,
+            role: 'TECHNICAL_MANAGER',
+            phone: '+91 93848 20214',
+            isActive: true,
+          });
+          console.log('[Server] Created Technical Manager user: kishore@alphaelevators.in / kishore123');
+        } else if (techManagerUser.role !== 'TECHNICAL_MANAGER') {
+          await User.updateOne(
+            { _id: techManagerUser._id },
+            { $set: { role: 'TECHNICAL_MANAGER', phone: '+91 93848 20214' } }
+          );
+          console.log('[Server] Updated Kishore role to TECHNICAL_MANAGER');
+        }
+      } catch (userInitErr: any) {
+        console.warn('[Server] Notice initializing Technical Manager Kishore:', userInitErr.message);
       }
 
       // Ensure sample Tamil Nadu clients exist for QC autofill
