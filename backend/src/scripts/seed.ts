@@ -383,6 +383,15 @@ export async function seed() {
     phone: '+91 98401 55667',
   });
 
+  const techManagerPasswordHash = await bcrypt.hash('kishore123', 10);
+  const techManagerUser = await User.create({
+    name: 'Kishore (Technical Manager)',
+    email: 'kishore@alphaelevators.in',
+    passwordHash: techManagerPasswordHash,
+    role: 'TECHNICAL_MANAGER',
+    phone: '+91 93848 20214',
+  });
+
   // 2. Create WhatsApp Templates
   console.log('[Seed] Seeding 13 approved WhatsApp templates...');
   for (const t of TEMPLATES) {

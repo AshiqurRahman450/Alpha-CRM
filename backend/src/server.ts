@@ -143,6 +143,27 @@ export async function startServer() {
         console.log('[Server] Created default Technical Team Lead user: techlead@alphaelevators.com / tech123');
       }
 
+      // Ensure Technical Manager (Kishore) exists
+      const techManagerUser = await User.findOne({
+        $or: [{ email: 'kishore@alphaelevators.in' }, { email: 'kishore@alphaelevators.com' }],
+      });
+      if (!techManagerUser) {
+        const hash = await bcrypt.hash('kishore123', 10);
+        await User.create({
+          name: 'Kishore (Technical Manager)',
+          email: 'kishore@alphaelevators.in',
+          passwordHash: hash,
+          role: 'TECHNICAL_MANAGER',
+          phone: '+91 93848 20214',
+          isActive: true,
+        });
+        console.log('[Server] Created Technical Manager user: kishore@alphaelevators.in / kishore123');
+      } else if (techManagerUser.role !== 'TECHNICAL_MANAGER') {
+        techManagerUser.role = 'TECHNICAL_MANAGER';
+        await techManagerUser.save();
+        console.log('[Server] Updated Kishore role to TECHNICAL_MANAGER');
+      }
+
       // Ensure sample Tamil Nadu clients exist for QC autofill
       const custCount = await Customer.countDocuments();
       if (custCount < 3) {

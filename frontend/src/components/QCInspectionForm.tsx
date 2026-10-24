@@ -616,9 +616,9 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
       a.click();
       document.body.removeChild(a);
 
-      toast.success('Official Pre-Production PDF generated and downloaded!', {
+      toast.success('Pre-Production PDF generated! Report saved & routed to Technical Manager (Kishore) for approval.', {
         id: 'pdf-toast',
-        duration: 5000,
+        duration: 6000,
       });
 
       // Also auto-save report to CRM database in background
@@ -638,7 +638,7 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
       setSavingReport(true);
       const data = getFormData();
       const res = await api.saveQCReport(data);
-      toast.success(res.message || 'QC Report saved to Alpha CRM system!');
+      toast.success(res.message || 'QC Report submitted & routed to Technical Manager (Kishore) for approval!', { duration: 6000 });
       if (onSaved) onSaved();
     } catch (err: any) {
       toast.error(err.message || 'Failed to save report');
@@ -709,6 +709,10 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
                 </span>
                 <span className="px-3 py-1 bg-sky-400/20 text-sky-200 border border-sky-300/30 rounded-full text-[11px] font-semibold">
                   Official Technical Site Inspection
+                </span>
+                <span className="px-3 py-1 bg-amber-400/20 text-amber-200 border border-amber-300/30 rounded-full text-[11px] font-semibold flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-amber-300" />
+                  Routes to Technical Manager (Kishore)
                 </span>
               </div>
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-black tracking-tight text-white font-poppins">

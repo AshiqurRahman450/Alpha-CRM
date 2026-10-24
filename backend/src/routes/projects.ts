@@ -210,7 +210,7 @@ async function sendBdmApprovalNotification(project: any, currentUserId?: any, cu
  * Automatically dispatches the "Site Visit Completed" message to customer's WhatsApp group
  * when site measurement is executed.
  */
-export async function dispatchSiteVisitCompletedMessage(project: any, user?: any) {
+export async function dispatchSiteVisitCompletedMessage(project: any, user?: any, pdfFilePath?: string) {
   try {
     const inviteTarget = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
     if (!inviteTarget) {
@@ -218,9 +218,10 @@ export async function dispatchSiteVisitCompletedMessage(project: any, user?: any
       return;
     }
 
-    const template = await WhatsAppTemplate.findOne({ templateName: 'SITE_VISIT_COMPLETED', templateStatus: 'APPROVED' });
-    const messageText = template?.bodyText ||
-`Good Afternoon Sir,
+    const currentHour = new Date().getHours();
+    const greeting = currentHour < 12 ? 'Good Morning' : currentHour < 17 ? 'Good Afternoon' : 'Good Evening';
+
+    const defaultMessage = `${greeting} Sir,
 
 We have successfully completed the site visit on the scheduled date and shared the site visit report with you via email.
 
@@ -232,6 +233,13 @@ Regards,
 CRM Department  
 Alpha Elevators`;
 
+    const template = await WhatsAppTemplate.findOne({ templateName: 'SITE_VISIT_COMPLETED', templateStatus: 'APPROVED' });
+    let messageText = defaultMessage;
+    if (template?.bodyText) {
+      // Dynamic time-based replacement of the greeting
+      messageText = template.bodyText.replace(/Good (Morning|Afternoon|Evening)/i, greeting);
+    }
+
     const botStatus = whatsAppWebBot.getStatus();
     let sentViaBot = false;
     let providerMsgId = `SV_${Date.now()}`;
@@ -241,6 +249,22 @@ Alpha Elevators`;
       if (botResult.success) {
         sentViaBot = true;
         providerMsgId = botResult.messageId || providerMsgId;
+      }
+
+      // If a PDF report file is provided, send the document directly to the group
+      if (pdfFilePath && fs.existsSync(pdfFilePath)) {
+        const fileName = path.basename(pdfFilePath);
+        const docRes = await whatsAppWebBot.sendDocumentToGroup(
+          inviteTarget,
+          pdfFilePath,
+          fileName,
+          `📄 Pre-Production Site Visit Report (${project.projectId})`
+        );
+        if (docRes.success) {
+          console.log(`[SiteVisitCompleted] Site visit PDF document successfully posted to group: ${fileName}`);
+        } else {
+          console.warn(`[SiteVisitCompleted] Notice sending PDF to group:`, docRes.error);
+        }
       }
     }
 
@@ -281,7 +305,7 @@ Alpha Elevators`;
       projectId: project._id,
       projectCode: project.projectId,
       type: 'WHATSAPP_SENT',
-      description: `Site visit completed notification dispatched to group (${project.whatsappGroupName || inviteTarget})`,
+      description: `Site visit completed notification${pdfFilePath ? ' & PDF report' : ''} dispatched to group (${project.whatsappGroupName || inviteTarget})`,
       userId: user?._id,
       userName: user?.name,
     });
@@ -880,7 +904,7 @@ projectRouter.post('/:id/drawing-approved', authorize('ADMIN', 'CRM', 'MANAGER',
 /**
  * PATCH /api/projects/:id/stage-dates
  */
-projectRouter.patch('/:id/stage-dates', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'TECHNICAL_LEAD'), async (req: AuthRequest, res: Response) => {
+projectRouter.patch('/:id/stage-dates', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'TECHNICAL_LEAD', 'TECHNICAL_MANAGER'), async (req: AuthRequest, res: Response) => {
   try {
     const { stageKey, scheduleDate, executedDate } = req.body;
     if (!stageKey) {
@@ -935,7 +959,7 @@ projectRouter.patch('/:id/stage-dates', authorize('ADMIN', 'CRM', 'MANAGER', 'BD
 /**
  * PATCH /api/projects/:id/stage-dates-bulk
  */
-projectRouter.patch('/:id/stage-dates-bulk', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'TECHNICAL_LEAD'), async (req: AuthRequest, res: Response) => {
+projectRouter.patch('/:id/stage-dates-bulk', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'TECHNICAL_LEAD', 'TECHNICAL_MANAGER'), async (req: AuthRequest, res: Response) => {
   try {
     const { updates } = req.body;
     if (!Array.isArray(updates)) {

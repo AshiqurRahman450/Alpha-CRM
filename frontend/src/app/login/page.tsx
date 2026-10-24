@@ -28,7 +28,7 @@ export default function LoginPage() {
 
   const [bdmSelect, setBdmSelect] = useState('');
 
-  const handleQuickFill = (userType: 'admin' | 'crm' | 'accountant' | 'qc' | 'techlead' | 'bdm', bdmEmail?: string) => {
+  const handleQuickFill = (userType: 'admin' | 'crm' | 'accountant' | 'qc' | 'techlead' | 'techmanager' | 'bdm', bdmEmail?: string) => {
     if (userType === 'admin') {
       setEmail('admin@alphaelevators.com');
       setPassword('admin123');
@@ -44,6 +44,9 @@ export default function LoginPage() {
     } else if (userType === 'techlead') {
       setEmail('techlead@alphaelevators.com');
       setPassword('tech123');
+    } else if (userType === 'techmanager') {
+      setEmail('kishore@alphaelevators.in');
+      setPassword('kishore123');
     } else if (userType === 'bdm') {
       setEmail(bdmEmail || 'gopinath@alpha.com');
       setPassword('password123');
@@ -169,6 +172,13 @@ export default function LoginPage() {
               className="px-2.5 py-1 bg-sky-900/60 hover:bg-sky-800 text-sky-300 rounded-lg border border-sky-600/50 transition-colors font-semibold"
             >
               Tech Lead
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickFill('techmanager')}
+              className="px-2.5 py-1 bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 rounded-lg border border-indigo-500/50 transition-colors font-semibold shadow-sm"
+            >
+              Tech Manager (Kishore)
             </button>
           </div>
 

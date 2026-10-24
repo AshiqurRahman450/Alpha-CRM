@@ -470,7 +470,7 @@ export default function ProjectDetailPage() {
           onHandoverDateChanged={async () => {
             await fetchProject(false);
           }}
-          initiallyOpenInstallation={user?.role === 'TECHNICAL_LEAD'}
+          initiallyOpenInstallation={user?.role === 'TECHNICAL_LEAD' || user?.role === 'TECHNICAL_MANAGER'}
         />
       )}
 

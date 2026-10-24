@@ -89,6 +89,7 @@ export default function InstallationProgrammeTable({
 
   const canEdit =
     currentUserRole === 'TECHNICAL_LEAD' ||
+    currentUserRole === 'TECHNICAL_MANAGER' ||
     currentUserRole === 'ADMIN' ||
     currentUserRole === 'CRM' ||
     currentUserRole === 'MANAGER';
@@ -349,10 +350,10 @@ export default function InstallationProgrammeTable({
 
         {/* Right Action buttons */}
         <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-          {currentUserRole === 'TECHNICAL_LEAD' && (
+          {(currentUserRole === 'TECHNICAL_LEAD' || currentUserRole === 'TECHNICAL_MANAGER') && (
             <span className="px-3 py-1.5 bg-amber-400/20 text-amber-300 border border-amber-400/30 rounded-xl text-xs font-bold flex items-center gap-1.5">
               <ShieldCheck className="w-3.5 h-3.5" />
-              Technical Lead Active
+              {currentUserRole === 'TECHNICAL_MANAGER' ? 'Technical Manager Active' : 'Technical Lead Active'}
             </span>
           )}
 

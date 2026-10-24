@@ -63,6 +63,14 @@ export interface IQCReport extends Document {
   supportPhotos?: any[];
   uploadedFiles?: Record<string, Array<{ name: string; size?: number; type?: string }>>;
   pdfUrl?: string;
+  pdfFilePath?: string;
+
+  // Technical Manager (Kishore) Approval Workflow
+  approvalStatus: 'PENDING' | 'APPROVED' | 'REJECTED';
+  approvedBy?: Types.ObjectId;
+  approvedAt?: Date;
+  approvalNotes?: string;
+  rejectionReason?: string;
 
   createdBy?: Types.ObjectId;
   status: 'DRAFT' | 'SUBMITTED';
@@ -127,6 +135,17 @@ const QCReportSchema = new Schema<IQCReport>(
     supportPhotos: { type: Schema.Types.Mixed },
     uploadedFiles: { type: Schema.Types.Mixed },
     pdfUrl: { type: String },
+    pdfFilePath: { type: String },
+
+    approvalStatus: {
+      type: String,
+      enum: ['PENDING', 'APPROVED', 'REJECTED'],
+      default: 'PENDING',
+    },
+    approvedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    approvedAt: { type: Date },
+    approvalNotes: { type: String },
+    rejectionReason: { type: String },
 
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     status: { type: String, enum: ['DRAFT', 'SUBMITTED'], default: 'SUBMITTED' },

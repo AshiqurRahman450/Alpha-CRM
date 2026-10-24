@@ -14,37 +14,75 @@ import {
   ExternalLink,
   ShieldCheck,
   FileCheck2,
+  CheckCircle2,
+  AlertCircle,
+  XCircle,
+  Clock,
+  Send,
+  MessageSquare,
+  FileText,
+  Ruler,
+  Layers,
+  ArrowRight,
+  Sparkles,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function QCPage() {
-  const [activeTab, setActiveTab] = useState<'form' | 'history'>('form');
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'form' | 'approvals' | 'history'>('form');
   const [pastReports, setPastReports] = useState<any[]>([]);
   const [loadingReports, setLoadingReports] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
+
+  // Approval Modal State
+  const [approvalModalReport, setApprovalModalReport] = useState<any | null>(null);
+  const [approvalNotes, setApprovalNotes] = useState<string>('');
+  const [isApproving, setIsApproving] = useState<boolean>(false);
+
+  // Rejection Modal State
+  const [rejectionModalReport, setRejectionModalReport] = useState<any | null>(null);
+  const [rejectionReason, setRejectionReason] = useState<string>('');
+  const [isRejecting, setIsRejecting] = useState<boolean>(false);
 
   useEffect(() => {
-    setCurrentUser(getStoredUser());
+    const user = getStoredUser();
+    setCurrentUser(user);
+    if (user?.role === 'TECHNICAL_MANAGER') {
+      setActiveTab('approvals');
+    }
   }, []);
 
   const fetchReports = async () => {
     try {
       setLoadingReports(true);
-      const res = await api.getQCReports({ search: searchQuery });
+      const res = await api.getQCReports({
+        search: searchQuery,
+        approvalStatus: statusFilter === 'ALL' ? undefined : statusFilter,
+      });
       setPastReports(res.data || []);
     } catch (err: any) {
-      console.warn('Failed to load past reports:', err.message);
+      console.warn('Failed to load QC reports:', err.message);
     } finally {
       setLoadingReports(false);
     }
   };
 
   useEffect(() => {
-    if (activeTab === 'history') {
-      fetchReports();
-    }
-  }, [activeTab, searchQuery]);
+    fetchReports();
+  }, [searchQuery, statusFilter]);
+
+  const pendingReports = pastReports.filter(
+    (r) => !r.approvalStatus || r.approvalStatus === 'PENDING'
+  );
+
+  const getDynamicGreeting = () => {
+    const hours = new Date().getHours();
+    if (hours < 12) return 'Good Morning';
+    if (hours < 17) return 'Good Afternoon';
+    return 'Good Evening';
+  };
 
   const handleDownloadPdf = async (report: any) => {
     try {
@@ -63,11 +101,79 @@ export default function QCPage() {
     }
   };
 
+  const handleConfirmApprove = async () => {
+    if (!approvalModalReport) return;
+    try {
+      setIsApproving(true);
+      const res = await api.approveQCReport(approvalModalReport._id, approvalNotes);
+      toast.success(
+        res.message || 'Report approved! Project stage updated to Site Visit and WhatsApp group notified.',
+        { duration: 6000 }
+      );
+      setApprovalModalReport(null);
+      setApprovalNotes('');
+      await fetchReports();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to approve report');
+    } finally {
+      setIsApproving(false);
+    }
+  };
+
+  const handleConfirmReject = async () => {
+    if (!rejectionModalReport) return;
+    if (!rejectionReason.trim()) {
+      toast.error('Please specify a rejection reason for QC revision');
+      return;
+    }
+    try {
+      setIsRejecting(true);
+      const res = await api.rejectQCReport(rejectionModalReport._id, rejectionReason);
+      toast.success(res.message || 'Report rejected. QC has been notified to revise the form.');
+      setRejectionModalReport(null);
+      setRejectionReason('');
+      await fetchReports();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to reject report');
+    } finally {
+      setIsRejecting(false);
+    }
+  };
+
+  const isTechnicalManagerOrAdmin =
+    currentUser?.role === 'TECHNICAL_MANAGER' || currentUser?.role === 'ADMIN';
+
   return (
     <div className="space-y-6">
       {/* Subnav Tabs */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-3">
-        <div className="flex items-center space-x-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Technical Approvals Tab */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('approvals')}
+            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 relative ${
+              activeTab === 'approvals'
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-900/30'
+                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4 text-amber-300" />
+            <span>Technical Manager Approvals</span>
+            {pendingReports.length > 0 && (
+              <span
+                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                  activeTab === 'approvals'
+                    ? 'bg-amber-400 text-slate-900'
+                    : 'bg-amber-100 text-amber-900 border border-amber-300'
+                }`}
+              >
+                {pendingReports.length} Pending
+              </span>
+            )}
+          </button>
+
+          {/* Form Tab */}
           <button
             type="button"
             onClick={() => setActiveTab('form')}
@@ -81,6 +187,7 @@ export default function QCPage() {
             <span>Digital Site Inspection Form</span>
           </button>
 
+          {/* Past Reports History Tab */}
           <button
             type="button"
             onClick={() => setActiveTab('history')}
@@ -91,43 +198,267 @@ export default function QCPage() {
             }`}
           >
             <History className="w-4 h-4" />
-            <span>Past Inspection Reports ({pastReports.length})</span>
+            <span>All Inspection Reports ({pastReports.length})</span>
           </button>
         </div>
 
         <div className="text-xs text-slate-500 flex items-center gap-1.5 font-medium">
           <ShieldCheck className="w-4 h-4 text-emerald-600" />
           <span>Logged in as: </span>
-          <strong className="text-slate-800">{currentUser?.name || 'QC Inspector'}</strong>
-          <span className="text-[10px] bg-slate-200 px-2 py-0.5 rounded-full font-mono text-slate-700">
-            {currentUser?.role || 'QC'}
+          <strong className="text-slate-800">{currentUser?.name || 'User'}</strong>
+          <span className="text-[10px] bg-slate-200 px-2 py-0.5 rounded-full font-mono text-slate-700 uppercase">
+            {currentUser?.role === 'TECHNICAL_MANAGER'
+              ? 'Technical Manager (Kishore)'
+              : currentUser?.role || 'QC'}
           </span>
         </div>
       </div>
 
-      {activeTab === 'form' ? (
+      {/* ============================================================== */}
+      {/* TAB 1: TECHNICAL MANAGER APPROVALS (KISHORE) */}
+      {/* ============================================================== */}
+      {activeTab === 'approvals' && (
+        <div className="space-y-6">
+          {/* Header Banner */}
+          <div className="bg-gradient-to-r from-indigo-950 via-slate-900 to-sky-950 rounded-3xl p-6 border border-indigo-800/40 text-white shadow-xl relative overflow-hidden">
+            <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="px-3 py-1 bg-amber-400/20 text-amber-300 border border-amber-400/30 rounded-full text-[11px] font-bold tracking-wide uppercase flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    Technical Manager Approval Workflow
+                  </span>
+                  <span className="text-xs text-slate-300 font-mono">Role: Kishore</span>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-black text-white font-poppins">
+                  Pre-Production Site Inspection Approvals
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
+                  Review submitted millimeter site measurements & wall specs. Upon your approval, the project
+                  stage advances from <strong className="text-amber-300">Advance Payment Received</strong> to{' '}
+                  <strong className="text-emerald-300">Site Visit (SITE_MEASUREMENT)</strong>, the executed date
+                  is recorded, and the official report PDF with completion notification is posted to the
+                  customer's WhatsApp group.
+                </p>
+              </div>
+
+              <div className="p-4 bg-white/10 backdrop-blur-md rounded-2xl border border-white/15 text-center shrink-0 min-w-[140px]">
+                <div className="text-3xl font-black text-amber-300 font-mono">
+                  {pendingReports.length}
+                </div>
+                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-300 mt-0.5">
+                  Pending Review
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Pending Reports List */}
+          {pendingReports.length === 0 ? (
+            <div className="bg-white rounded-3xl p-12 border border-slate-200 text-center space-y-3 shadow-sm">
+              <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto" />
+              <div className="text-base font-bold text-slate-800">
+                All Pre-Production Site Reports Approved!
+              </div>
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
+                There are currently no QC site inspection reports pending technical manager approval. When QC
+                submits a new report, it will appear here instantly for Kishore's review.
+              </p>
+              <button
+                type="button"
+                onClick={() => setActiveTab('history')}
+                className="mt-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors inline-flex items-center gap-1.5"
+              >
+                <History className="w-4 h-4" />
+                <span>View Historical Approved Reports</span>
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider px-1">
+                Awaiting Kishore's Technical Approval ({pendingReports.length})
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                {pendingReports.map((report) => (
+                  <div
+                    key={report._id}
+                    className="bg-white rounded-3xl p-6 border-2 border-amber-300/60 shadow-md hover:shadow-lg transition-all space-y-4 relative"
+                  >
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                      <div className="flex items-start space-x-3.5">
+                        <div className="w-11 h-11 rounded-2xl bg-amber-500/10 border border-amber-400/30 flex items-center justify-center text-amber-700 shrink-0">
+                          <ClipboardCheck className="w-6 h-6" />
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-base font-bold text-slate-900 font-poppins">
+                              {report.clientName}
+                            </h3>
+                            <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-sky-100 text-sky-800 border border-sky-200">
+                              Job: {report.jobNo}
+                            </span>
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-slate-100 text-slate-600">
+                              {report.reportId}
+                            </span>
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-amber-600" />
+                              Pending Approval
+                            </span>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                              <span>{report.region}</span>
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                              <span>Inspection Date: {report.reportDate}</span>
+                            </span>
+                            {report.createdBy?.name && (
+                              <span className="flex items-center gap-1">
+                                <User className="w-3.5 h-3.5 text-slate-400" />
+                                <span>QC Inspector: {report.createdBy.name}</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Top Action Buttons */}
+                      <div className="flex flex-wrap items-center gap-2 self-start lg:self-center">
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadPdf(report)}
+                          className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5"
+                        >
+                          <Download className="w-4 h-4 text-slate-600" />
+                          <span>View / Download PDF</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setRejectionModalReport(report)}
+                          className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-bold transition-colors border border-rose-200 flex items-center gap-1.5"
+                        >
+                          <XCircle className="w-4 h-4" />
+                          <span>Reject</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setApprovalModalReport(report)}
+                          className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-900/20 transition-all flex items-center gap-1.5 active:scale-95"
+                        >
+                          <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+                          <span>Approve & Post to Group</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Report Technical Details Grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50/80 rounded-2xl p-4 border border-slate-200/60 text-xs">
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                          Product Series
+                        </span>
+                        <span className="font-bold text-slate-800">{report.product || 'Standard'}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                          Floor Stops
+                        </span>
+                        <span className="font-bold text-slate-800">
+                          {report.floorConfig} Stops ({report.propertyStage || 'Under Construction'})
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                          Shaft Measurements (W × D)
+                        </span>
+                        <span className="font-mono font-bold text-sky-800">
+                          {report.shaftA || '-'} × {report.shaftB || '-'} mm
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                          Travel & Pit
+                        </span>
+                        <span className="font-mono font-bold text-slate-800">
+                          Travel: {report.totalTravel || '-'} mm • Pit: {report.pitClient || '-'} mm
+                        </span>
+                      </div>
+                    </div>
+
+                    {report.remarks && (
+                      <div className="text-xs bg-amber-50/60 rounded-xl p-3 border border-amber-200/50 text-slate-700">
+                        <span className="font-bold text-amber-900 block mb-0.5">QC Remarks:</span>
+                        <span>{report.remarks}</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* TAB 2: DIGITAL SITE INSPECTION FORM (QC) */}
+      {/* ============================================================== */}
+      {activeTab === 'form' && (
         <QCInspectionForm
           onSaved={() => {
             fetchReports();
           }}
         />
-      ) : (
+      )}
+
+      {/* ============================================================== */}
+      {/* TAB 3: ALL INSPECTION REPORTS */}
+      {/* ============================================================== */}
+      {activeTab === 'history' && (
         <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
             <div>
               <h2 className="text-lg font-bold text-slate-900">Submitted Site Inspection Reports</h2>
-              <p className="text-xs text-slate-500">Historical elevator pre-production inspections and downloadable PDF reports</p>
+              <p className="text-xs text-slate-500">
+                Historical elevator pre-production inspections and downloadable PDF reports
+              </p>
             </div>
 
-            <div className="relative w-full sm:w-72">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                placeholder="Search by job no, client, or city..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-              />
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Status Filter Tabs */}
+              <div className="flex items-center bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+                {(['ALL', 'PENDING', 'APPROVED', 'REJECTED'] as const).map((st) => (
+                  <button
+                    key={st}
+                    type="button"
+                    onClick={() => setStatusFilter(st)}
+                    className={`px-3 py-1 rounded-lg transition-all ${
+                      statusFilter === st
+                        ? 'bg-white text-slate-900 shadow-sm font-bold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {st === 'ALL' ? 'All' : st === 'PENDING' ? 'Pending' : st === 'APPROVED' ? 'Approved' : 'Rejected'}
+                  </button>
+                ))}
+              </div>
+
+              <div className="relative w-full sm:w-64">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="Search job no, client, or city..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                />
+              </div>
             </div>
           </div>
 
@@ -137,7 +468,9 @@ export default function QCPage() {
             <div className="p-12 text-center space-y-2">
               <FileCheck2 className="w-12 h-12 text-slate-300 mx-auto" />
               <div className="text-sm font-bold text-slate-700">No Inspection Reports Found</div>
-              <p className="text-xs text-slate-400">Fill and submit a report from the "Digital Site Inspection Form" tab above.</p>
+              <p className="text-xs text-slate-400">
+                Fill and submit a report from the "Digital Site Inspection Form" tab above.
+              </p>
               <button
                 type="button"
                 onClick={() => setActiveTab('form')}
@@ -156,7 +489,7 @@ export default function QCPage() {
                     <th className="p-3">Region / Location</th>
                     <th className="p-3">Inspection Date</th>
                     <th className="p-3">Product / Stops</th>
-                    <th className="p-3">Status</th>
+                    <th className="p-3">Technical Manager Status</th>
                     <th className="p-3 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -178,19 +511,60 @@ export default function QCPage() {
                         <div className="text-[10px] text-slate-500">{report.floorConfig} Stops</div>
                       </td>
                       <td className="p-3">
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                          {report.status || 'SUBMITTED'}
-                        </span>
+                        {report.approvalStatus === 'APPROVED' ? (
+                          <div className="space-y-0.5">
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 inline-flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              Approved by Kishore
+                            </span>
+                            {report.approvedAt && (
+                              <div className="text-[9px] text-slate-400 font-mono">
+                                {new Date(report.approvedAt).toLocaleDateString()}
+                              </div>
+                            )}
+                          </div>
+                        ) : report.approvalStatus === 'REJECTED' ? (
+                          <div className="space-y-0.5">
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300 inline-flex items-center gap-1">
+                              <XCircle className="w-3 h-3 text-rose-600" />
+                              Rejected
+                            </span>
+                            {report.rejectionReason && (
+                              <div className="text-[9px] text-rose-600 truncate max-w-[150px]" title={report.rejectionReason}>
+                                {report.rejectionReason}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 inline-flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-amber-600" />
+                            Pending Approval
+                          </span>
+                        )}
                       </td>
                       <td className="p-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => handleDownloadPdf(report)}
-                          className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold rounded-lg border border-sky-200 transition-colors inline-flex items-center gap-1.5"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                          <span>Download PDF</span>
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadPdf(report)}
+                            className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold rounded-lg border border-sky-200 transition-colors inline-flex items-center gap-1"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>PDF</span>
+                          </button>
+
+                          {isTechnicalManagerOrAdmin &&
+                            (!report.approvalStatus || report.approvalStatus === 'PENDING') && (
+                              <button
+                                type="button"
+                                onClick={() => setApprovalModalReport(report)}
+                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-colors inline-flex items-center gap-1 shadow-sm"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Approve</span>
+                              </button>
+                            )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -198,6 +572,201 @@ export default function QCPage() {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* APPROVAL CONFIRMATION MODAL */}
+      {/* ============================================================== */}
+      {approvalModalReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-start justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 font-poppins">
+                    Approve Site Report & Advance Stage
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Technical Manager Action for Kishore
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setApprovalModalReport(null)}
+                className="text-slate-400 hover:text-slate-600 text-sm font-bold p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Target Client & Project Info */}
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-1.5 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-800 text-sm">
+                  {approvalModalReport.clientName}
+                </span>
+                <span className="font-mono font-bold text-sky-700 bg-sky-100 px-2 py-0.5 rounded-md">
+                  {approvalModalReport.jobNo}
+                </span>
+              </div>
+              <div className="text-slate-500 flex items-center justify-between text-[11px]">
+                <span>Inspection Date: {approvalModalReport.reportDate}</span>
+                <span>Region: {approvalModalReport.region}</span>
+              </div>
+            </div>
+
+            {/* Execution Checklist */}
+            <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-3.5 text-xs space-y-2 text-emerald-950">
+              <span className="font-bold text-emerald-900 block">Actions to be executed upon confirmation:</span>
+              <div className="space-y-1.5 text-[11px] text-emerald-800">
+                <div className="flex items-start gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 mt-1.5 shrink-0"></span>
+                  <span>
+                    Report marked as <strong>Approved by Technical Manager Kishore</strong>.
+                  </span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 mt-1.5 shrink-0"></span>
+                  <span>
+                    Project stage changes from <strong>Advance Payment Received</strong> to{' '}
+                    <strong>Site Visit (SITE_MEASUREMENT)</strong>.
+                  </span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 mt-1.5 shrink-0"></span>
+                  <span>
+                    Executed date on <strong>Site Visit</strong> is recorded as{' '}
+                    <strong>{approvalModalReport.reportDate}</strong>.
+                  </span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 mt-1.5 shrink-0"></span>
+                  <span>
+                    Dynamic time-based message ({getDynamicGreeting()} Sir) posted to WhatsApp group.
+                  </span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 mt-1.5 shrink-0"></span>
+                  <span>
+                    Official Pre-Production Site Visit Report <strong>PDF document</strong> is posted directly to the WhatsApp group.
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Message Preview */}
+            <div className="bg-slate-900 text-slate-200 rounded-2xl p-3.5 text-[11px] font-mono leading-relaxed space-y-1">
+              <div className="text-[10px] text-sky-400 uppercase font-bold tracking-wider">
+                WhatsApp Group Message Preview ({getDynamicGreeting()}):
+              </div>
+              <p className="whitespace-pre-line text-slate-300">
+                {getDynamicGreeting()} Sir,
+                {'\n\n'}We have successfully completed the site visit on the scheduled date and shared the site visit report with you via email.
+                {'\n\n'}Kindly review the report and confirm your approval by replying to the email so that we can initiate the drawing process based on the site measurements.
+                {'\n\n'}Thank you for your support and cooperation.
+                {'\n\n'}Regards,
+                {'\n'}CRM Department
+                {'\n'}Alpha Elevators
+              </p>
+            </div>
+
+            {/* Optional Approval Notes */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                Approval Notes (Optional):
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Dimensions verified with client architect, proceeding to drawing"
+                value={approvalNotes}
+                onChange={(e) => setApprovalNotes(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setApprovalModalReport(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmApprove}
+                disabled={isApproving}
+                className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-900/30 transition-all flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>{isApproving ? 'Approving & Dispatching...' : 'Approve & Send to Group'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* REJECTION MODAL */}
+      {/* ============================================================== */}
+      {rejectionModalReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center space-x-3 text-rose-600">
+              <div className="w-10 h-10 rounded-2xl bg-rose-100 flex items-center justify-center shrink-0">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Reject Site Report</h3>
+                <p className="text-xs text-slate-500">
+                  {rejectionModalReport.clientName} ({rejectionModalReport.jobNo})
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Please enter the reason for rejecting this site inspection report. QC inspector Dinesh will be
+              prompted to re-measure or revise the form.
+            </p>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                Rejection Reason / Required Corrections: *
+              </label>
+              <textarea
+                rows={3}
+                required
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder="e.g. Headroom measurement looks inconsistent with floor travel; please re-verify with site supervisor."
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+              />
+            </div>
+
+            <div className="flex items-center justify-end space-x-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setRejectionModalReport(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmReject}
+                disabled={isRejecting}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50"
+              >
+                {isRejecting ? 'Rejecting...' : 'Confirm Rejection'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

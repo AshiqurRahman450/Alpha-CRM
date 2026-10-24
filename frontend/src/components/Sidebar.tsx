@@ -100,7 +100,7 @@ export default function Sidebar() {
             if (user?.role === 'QC') {
               return ['QC Site Report', 'Customers', 'Projects'].includes(item.name);
             }
-            if (user?.role === 'TECHNICAL_LEAD') {
+            if (user?.role === 'TECHNICAL_LEAD' || user?.role === 'TECHNICAL_MANAGER') {
               return ['Dashboard', 'Projects', 'Customers', 'QC Site Report', 'WhatsApp Hub'].includes(item.name);
             }
             if (user?.role === 'BDM' || user?.role === 'ACCOUNTANT') {
@@ -158,6 +158,8 @@ export default function Sidebar() {
                   ? 'QC INSPECTOR'
                   : user?.role === 'TECHNICAL_LEAD'
                   ? 'TECHNICAL LEAD'
+                  : user?.role === 'TECHNICAL_MANAGER'
+                  ? 'TECHNICAL MANAGER'
                   : (user?.role || 'ADMIN')}
               </div>
             </div>

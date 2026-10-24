@@ -87,7 +87,7 @@ export default function Timeline({
 }: TimelineProps) {
   const currentIndex = STAGES_ORDER.findIndex((s) => s.key === currentStatus);
   const [showInstallationTable, setShowInstallationTable] = React.useState<boolean>(
-    Boolean(initiallyOpenInstallation || currentUserRole === 'TECHNICAL_LEAD')
+    Boolean(initiallyOpenInstallation || currentUserRole === 'TECHNICAL_LEAD' || currentUserRole === 'TECHNICAL_MANAGER')
   );
   const [showVrlAlertModal, setShowVrlAlertModal] = React.useState<boolean>(false);
   const [vrlTrackingInput, setVrlTrackingInput] = React.useState<string>('');

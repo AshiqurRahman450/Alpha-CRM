@@ -567,12 +567,23 @@ export const api = {
   },
   saveQCReport: (data: any) =>
     fetchWithAuth('/api/qc/reports', { method: 'POST', body: JSON.stringify(data) }),
-  getQCReports: (params?: { search?: string }) => {
+  getQCReports: (params?: { search?: string; approvalStatus?: string }) => {
     const q = new URLSearchParams();
     if (params?.search) q.append('search', params.search);
+    if (params?.approvalStatus) q.append('approvalStatus', params.approvalStatus);
     return fetchWithAuth(`/api/qc/reports?${q.toString()}`);
   },
   getQCReport: (id: string) => fetchWithAuth(`/api/qc/reports/${id}`),
+  approveQCReport: (id: string, notes?: string) =>
+    fetchWithAuth(`/api/qc/${id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ notes }),
+    }),
+  rejectQCReport: (id: string, reason: string) =>
+    fetchWithAuth(`/api/qc/${id}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
 
   // Installation Programme Stages
   getInstallationStages: (projectId: string) =>

@@ -26,6 +26,7 @@ authRouter.post('/login', async (req: Request, res: Response) => {
         { email: input },
         { email: `${cleanUsername}@alpha.com` },
         { email: `${cleanUsername}@alphaelevators.com` },
+        { email: `${cleanUsername}@alphaelevators.in` },
         { name: new RegExp(`^${input}$`, 'i') },
         { name: new RegExp(`^${cleanUsername}$`, 'i') },
         { name: new RegExp(`^${input.replace(/[^a-z0-9]/g, '.*')}$`, 'i') },
