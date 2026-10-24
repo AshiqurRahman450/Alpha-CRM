@@ -228,3 +228,342 @@ dashboardRouter.get('/', async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ success: false, message: err.message });
   }
 });
+
+/**
+ * GET /api/dashboard/card-items
+ * Returns the exact list of records corresponding to any dashboard card clicked
+ */
+dashboardRouter.get('/card-items', async (req: AuthRequest, res: Response) => {
+  try {
+    const { type, stage } = req.query;
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+    const startOfTomorrow = new Date(startOfToday);
+    startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
+    const endOfTomorrow = new Date(endOfToday);
+    endOfTomorrow.setDate(endOfTomorrow.getDate() + 1);
+
+    const in7Days = new Date(endOfToday);
+    in7Days.setDate(in7Days.getDate() + 7);
+
+    const isBDM = req.user?.role === 'BDM';
+    const bdmFilter = isBDM ? { bdmId: req.user?._id } : {};
+
+    let title = 'Dashboard Count List';
+    let subtitle = 'Records overview';
+    let itemType: 'project' | 'customer' | 'message' = 'project';
+    let items: any[] = [];
+
+    const formatProject = (p: any) => ({
+      _id: p._id,
+      projectId: p.projectId,
+      projectName: p.projectName,
+      projectStatus: p.projectStatus,
+      paymentStatus: p.paymentStatus,
+      orderValue: p.orderValue || 0,
+      advanceAmount: p.advanceAmount || 0,
+      totalPaid: p.totalPaid || 0,
+      balanceAmount: p.balanceAmount || 0,
+      liftModel: p.liftModel,
+      siteAddress: p.siteAddress,
+      customerName: (p.customerId as any)?.fullName || 'Customer',
+      customerPhone: (p.customerId as any)?.phoneNumber,
+      customerWhatsapp: (p.customerId as any)?.whatsappNumber,
+      customerEmail: (p.customerId as any)?.email,
+      whatsappGroupId: p.whatsappGroupId,
+      whatsappOptIn: (p.customerId as any)?.whatsappOptIn,
+      nextUpdateAt: p.nextUpdateAt,
+      paymentRequest: p.paymentRequest,
+      advancePercentage: p.advancePercentage,
+      createdAt: p.createdAt,
+    });
+
+    switch (type) {
+      case 'totalCustomers': {
+        title = 'Total Customers';
+        subtitle = 'All registered and verified elevator customers';
+        itemType = 'customer';
+        const customers = await Customer.find({ ...bdmFilter }).sort({ createdAt: -1 });
+        const projectCounts = await Project.aggregate([
+          { $match: { ...bdmFilter } },
+          { $group: { _id: '$customerId', count: { $sum: 1 } } },
+        ]);
+        const countMap: Record<string, number> = {};
+        for (const pc of projectCounts) {
+          if (pc._id) countMap[pc._id.toString()] = pc.count;
+        }
+        items = customers.map((c) => ({
+          _id: c._id,
+          fullName: c.fullName,
+          phoneNumber: c.phoneNumber,
+          whatsappNumber: c.whatsappNumber,
+          email: c.email,
+          city: c.city,
+          state: c.state,
+          address: c.address,
+          customerType: c.customerType,
+          whatsappOptIn: c.whatsappOptIn,
+          leadSource: c.leadSource,
+          bdmPhone: c.bdmPhone,
+          projectCount: countMap[c._id.toString()] || 0,
+          createdAt: c.createdAt,
+        }));
+        break;
+      }
+
+      case 'totalProjects': {
+        title = 'Total Projects';
+        subtitle = 'All elevator installation projects';
+        itemType = 'project';
+        const projects = await Project.find({ ...bdmFilter })
+          .populate('customerId')
+          .sort({ createdAt: -1 });
+        items = projects.map(formatProject);
+        break;
+      }
+
+      case 'activeProjects': {
+        title = 'Active Projects';
+        subtitle = 'Orders confirmed & active in the 4-month elevator manufacturing and installation cycle';
+        itemType = 'project';
+        const projects = await Project.find({
+          ...bdmFilter,
+          projectStatus: { $nin: ['COMPLETED', 'CANCELLED'] },
+        })
+          .populate('customerId')
+          .sort({ createdAt: -1 });
+        items = projects.map(formatProject);
+        break;
+      }
+
+      case 'projectsAwaitingPayment':
+      case 'awaitingPayment': {
+        title = 'Projects Awaiting Payment';
+        subtitle = 'Projects with outstanding customer balance or pending milestone payment';
+        itemType = 'project';
+        const projects = await Project.find({
+          ...bdmFilter,
+          paymentStatus: { $in: ['PENDING', 'PARTIAL_PAID'] },
+        })
+          .populate('customerId')
+          .sort({ createdAt: -1 });
+        items = projects.map(formatProject);
+        break;
+      }
+
+      case 'projectsInManufacturing':
+      case 'manufacturing': {
+        title = 'Projects in Manufacturing';
+        subtitle = 'Factory fabrication stage: shaft fabrication, motor assembly & panel wiring';
+        itemType = 'project';
+        const projects = await Project.find({
+          ...bdmFilter,
+          projectStatus: 'MANUFACTURING',
+        })
+          .populate('customerId')
+          .sort({ createdAt: -1 });
+        items = projects.map(formatProject);
+        break;
+      }
+
+      case 'projectsReadyForDelivery':
+      case 'readyForDelivery': {
+        title = 'Projects Ready for Delivery';
+        subtitle = 'QC passed, dispatched, or in transit to customer site';
+        itemType = 'project';
+        const projects = await Project.find({
+          ...bdmFilter,
+          projectStatus: { $in: ['QUALITY_CHECK', 'DISPATCH', 'DELIVERY'] },
+        })
+          .populate('customerId')
+          .sort({ createdAt: -1 });
+        items = projects.map(formatProject);
+        break;
+      }
+
+      case 'installationOngoing':
+      case 'installation': {
+        title = 'Installation Ongoing Projects';
+        subtitle = 'On-site shaft rigging, guide rail alignment, cabin erection & electrical wiring';
+        itemType = 'project';
+        const projects = await Project.find({
+          ...bdmFilter,
+          projectStatus: 'INSTALLATION',
+        })
+          .populate('customerId')
+          .sort({ createdAt: -1 });
+        items = projects.map(formatProject);
+        break;
+      }
+
+      case 'handoverCount':
+      case 'handover': {
+        title = 'Handover & Testing Projects';
+        subtitle = 'Safety inspection, load testing, commissioning & final handover to client';
+        itemType = 'project';
+        const projects = await Project.find({
+          ...bdmFilter,
+          projectStatus: 'TESTING',
+        })
+          .populate('customerId')
+          .sort({ createdAt: -1 });
+        items = projects.map(formatProject);
+        break;
+      }
+
+      case 'whatsappUpdatesDueToday':
+      case 'updatesDueToday':
+      case 'upcoming_today': {
+        title = "WhatsApp Updates Due Today";
+        subtitle = "Active projects scheduled for automated or manual WhatsApp group dispatch today";
+        itemType = 'project';
+        const projects = await Project.find({
+          ...bdmFilter,
+          automationEnabled: true,
+          whatsappGroupId: { $exists: true, $ne: '' },
+          projectStatus: { $nin: ['COMPLETED', 'CANCELLED', 'ON_HOLD'] },
+          $or: [
+            { nextUpdateAt: { $lte: endOfToday } },
+            { nextUpdateAt: { $exists: false } },
+            { nextUpdateAt: null },
+          ],
+        })
+          .populate('customerId')
+          .sort({ nextUpdateAt: 1 });
+        items = projects.map(formatProject);
+        break;
+      }
+
+      case 'upcoming_tomorrow': {
+        title = "WhatsApp Updates Due Tomorrow";
+        subtitle = "Projects scheduled for customer WhatsApp group dispatch in next 24 hours";
+        itemType = 'project';
+        const projects = await Project.find({
+          ...bdmFilter,
+          automationEnabled: true,
+          whatsappGroupId: { $exists: true, $ne: '' },
+          projectStatus: { $nin: ['COMPLETED', 'CANCELLED', 'ON_HOLD'] },
+          nextUpdateAt: { $gte: startOfTomorrow, $lte: endOfTomorrow },
+        })
+          .populate('customerId')
+          .sort({ nextUpdateAt: 1 });
+        items = projects.map(formatProject);
+        break;
+      }
+
+      case 'upcoming_next_7_days': {
+        title = "WhatsApp Updates Due Next 7 Days";
+        subtitle = "Projects scheduled for customer WhatsApp group dispatch over the upcoming week";
+        itemType = 'project';
+        const projects = await Project.find({
+          ...bdmFilter,
+          automationEnabled: true,
+          whatsappGroupId: { $exists: true, $ne: '' },
+          projectStatus: { $nin: ['COMPLETED', 'CANCELLED', 'ON_HOLD'] },
+          nextUpdateAt: { $gt: endOfTomorrow, $lte: in7Days },
+        })
+          .populate('customerId')
+          .sort({ nextUpdateAt: 1 });
+        items = projects.map(formatProject);
+        break;
+      }
+
+      case 'whatsappMessagesSent': {
+        title = 'WhatsApp Messages Sent';
+        subtitle = 'Successfully delivered automated & manual WhatsApp updates to client groups';
+        itemType = 'message';
+        const messages = await WhatsAppMessage.find({
+          status: { $in: ['SENT', 'DELIVERED', 'READ'] },
+        })
+          .sort({ createdAt: -1 })
+          .limit(100);
+        items = messages;
+        break;
+      }
+
+      case 'whatsappMessagesFailed': {
+        title = 'WhatsApp Failed Messages';
+        subtitle = 'Failed dispatches due to Meta API issues, expired tokens or invalid groups';
+        itemType = 'message';
+        const messages = await WhatsAppMessage.find({
+          status: 'FAILED',
+        })
+          .sort({ createdAt: -1 })
+          .limit(100);
+        items = messages;
+        break;
+      }
+
+      case 'pendingApprovals':
+      case 'pendingApprovalCount': {
+        title = 'Pending Approvals (Drawing & Cabin)';
+        subtitle = 'Elevator projects waiting for design or customer approval confirmation';
+        itemType = 'project';
+        const projects = await Project.find({
+          ...bdmFilter,
+          projectStatus: { $in: ['DESIGN', 'CUSTOMER_APPROVAL'] },
+        })
+          .populate('customerId')
+          .sort({ createdAt: -1 });
+        items = projects.map(formatProject);
+        break;
+      }
+
+      case 'crmPaymentRequests':
+      case 'crmPaymentRequestsCount': {
+        title = 'CRM Payment Requests';
+        subtitle = 'Milestone collection requests initiated by CRM awaiting accountant recording';
+        itemType = 'project';
+        const projects = await Project.find({
+          ...bdmFilter,
+          'paymentRequest.status': 'REQUESTED',
+        })
+          .populate('customerId')
+          .sort({ 'paymentRequest.requestedAt': -1 });
+        items = projects.map(formatProject);
+        break;
+      }
+
+      case 'stage': {
+        const stageStr = typeof stage === 'string' ? stage : '';
+        title = `${stageStr.replace(/_/g, ' ')} Projects`;
+        subtitle = `Elevator projects currently situated in ${stageStr.replace(/_/g, ' ')} stage`;
+        itemType = 'project';
+        const projects = await Project.find({
+          ...bdmFilter,
+          projectStatus: stageStr,
+        })
+          .populate('customerId')
+          .sort({ createdAt: -1 });
+        items = projects.map(formatProject);
+        break;
+      }
+
+      default: {
+        title = 'Projects List';
+        subtitle = 'All elevator installation projects';
+        itemType = 'project';
+        const projects = await Project.find({ ...bdmFilter })
+          .populate('customerId')
+          .sort({ createdAt: -1 });
+        items = projects.map(formatProject);
+        break;
+      }
+    }
+
+    return res.json({
+      success: true,
+      cardType: type,
+      title,
+      subtitle,
+      count: items.length,
+      itemType,
+      data: items,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+

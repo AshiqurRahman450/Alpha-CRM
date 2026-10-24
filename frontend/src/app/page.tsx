@@ -151,14 +151,20 @@ export default function DashboardPage() {
 
       {user?.role === 'BDM' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <Link href="/projects" className="block">
-            <div className="bg-gradient-to-br from-amber-50 to-orange-50/40 p-5 rounded-2xl border border-amber-200 shadow-sm hover:shadow-md transition-all cursor-pointer">
+          <Link href="/dashboard/list?type=pendingApprovals" className="block group">
+            <div className="bg-gradient-to-br from-amber-50 to-orange-50/40 p-5 rounded-2xl border border-amber-200 shadow-sm hover:shadow-md hover:border-amber-400 transition-all cursor-pointer">
               <div className="flex items-center justify-between text-amber-800 text-xs font-bold">
                 <span>Pending Approvals (Drawing & Cabin)</span>
-                <Clock className="w-4 h-4 text-amber-600" />
+                <div className="flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-amber-600" />
+                  <ArrowUpRight className="w-3.5 h-3.5 text-amber-400 group-hover:text-amber-700 transition-colors" />
+                </div>
               </div>
               <div className="text-2xl font-black text-amber-700 mt-2">{cards.pendingApprovalCount ?? 0}</div>
-              <div className="text-[11px] text-amber-600 mt-1">Click to view pending approval projects</div>
+              <div className="text-[11px] text-amber-600 mt-1 font-medium flex items-center justify-between">
+                <span>Click to view pending approval projects</span>
+                <span className="text-[10px] font-bold text-amber-700 group-hover:underline">View List →</span>
+              </div>
             </div>
           </Link>
         </div>
@@ -167,41 +173,50 @@ export default function DashboardPage() {
           {/* Accountant Top Metric Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Card 1: CRM Payment Requests */}
-            <div className="bg-gradient-to-br from-amber-500 via-amber-600 to-orange-600 text-white p-6 rounded-3xl shadow-lg shadow-amber-950/10 border border-amber-400/40 relative overflow-hidden">
-              <div className="absolute right-3 top-3 opacity-15">
-                <Bell className="w-24 h-24" />
-              </div>
-              <div className="flex items-center justify-between text-amber-100 text-xs font-extrabold uppercase tracking-wider">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
-                  CRM Payment Requests
-                </span>
-                <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-sm text-white flex items-center justify-center">
-                  <Bell className="w-4 h-4" />
+            <Link href="/dashboard/list?type=crmPaymentRequests" className="block group">
+              <div className="bg-gradient-to-br from-amber-500 via-amber-600 to-orange-600 text-white p-6 rounded-3xl shadow-lg shadow-amber-950/10 border border-amber-400/40 relative overflow-hidden hover:shadow-xl hover:scale-[1.01] transition-all cursor-pointer">
+                <div className="absolute right-3 top-3 opacity-15">
+                  <Bell className="w-24 h-24" />
+                </div>
+                <div className="flex items-center justify-between text-amber-100 text-xs font-extrabold uppercase tracking-wider">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
+                    CRM Payment Requests
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-sm text-white flex items-center justify-center">
+                      <Bell className="w-4 h-4" />
+                    </div>
+                    <ArrowUpRight className="w-4 h-4 text-white/70 group-hover:text-white transition-colors" />
+                  </div>
+                </div>
+                <div className="text-4xl font-black text-white mt-3 font-poppins">
+                  {cards.crmPaymentRequestsCount ?? 0}
+                </div>
+                <div className="text-xs text-amber-100 mt-1 font-medium">
+                  Customer payments requested by CRM ready for recording
+                </div>
+                <div className="mt-4 pt-3 border-t border-white/20 flex items-center justify-between text-xs">
+                  <span className="text-amber-100/90 font-medium">Click to view list</span>
+                  <span className="font-extrabold bg-white/20 text-white px-2.5 py-0.5 rounded-md text-[11px] flex items-center gap-1">
+                    <span>{cards.crmPaymentRequestsCount ?? 0} Requests</span>
+                    <ArrowUpRight className="w-3 h-3" />
+                  </span>
                 </div>
               </div>
-              <div className="text-4xl font-black text-white mt-3 font-poppins">
-                {cards.crmPaymentRequestsCount ?? 0}
-              </div>
-              <div className="text-xs text-amber-100 mt-1 font-medium">
-                Customer payments requested by CRM ready for recording
-              </div>
-              <div className="mt-4 pt-3 border-t border-white/20 flex items-center justify-between text-xs">
-                <span className="text-amber-100/90 font-medium">Eligible for Accountant:</span>
-                <span className="font-extrabold bg-white/20 text-white px-2 py-0.5 rounded-md text-[11px]">
-                  {cards.crmPaymentRequestsCount ?? 0} Customer{cards.crmPaymentRequestsCount === 1 ? '' : 's'}
-                </span>
-              </div>
-            </div>
+            </Link>
 
             {/* Card 2: Total Projects Pending Payment */}
-            <Link href="/projects" className="block">
-              <div className="bg-gradient-to-br from-slate-50 via-white to-slate-100/80 p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer h-full flex flex-col justify-between">
+            <Link href="/dashboard/list?type=projectsAwaitingPayment" className="block group">
+              <div className="bg-gradient-to-br from-slate-50 via-white to-slate-100/80 p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300 hover:scale-[1.01] transition-all cursor-pointer h-full flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between text-slate-700 text-xs font-bold">
                     <span>Projects with Outstanding Balance</span>
-                    <div className="w-8 h-8 rounded-xl bg-slate-200/80 text-slate-700 flex items-center justify-center">
-                      <IndianRupee className="w-4 h-4" />
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-8 h-8 rounded-xl bg-slate-200/80 text-slate-700 flex items-center justify-center">
+                        <IndianRupee className="w-4 h-4" />
+                      </div>
+                      <ArrowUpRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700 transition-colors" />
                     </div>
                   </div>
                   <div className="text-3xl font-black text-slate-900 mt-3 font-poppins">
@@ -213,9 +228,9 @@ export default function DashboardPage() {
                 </div>
                 {cards.totalPendingBalance !== undefined && (
                   <div className="mt-4 pt-3 border-t border-slate-200 flex items-center justify-between text-xs">
-                    <span className="text-slate-500 font-medium">Total Balance Amount:</span>
+                    <span className="text-slate-500 font-medium">Click to view list:</span>
                     <span className="font-extrabold text-slate-900 font-mono">
-                      ₹{Number(cards.totalPendingBalance).toLocaleString('en-IN')}
+                      ₹{Number(cards.totalPendingBalance).toLocaleString('en-IN')} →
                     </span>
                   </div>
                 )}
@@ -454,108 +469,218 @@ export default function DashboardPage() {
         </div>
       ) : (
         <React.Fragment>
-          {/* 9 Core Metric Cards */}
+          {/* 10 Core Metric Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-4">
-          {/* Total Customers */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-slate-300 transition-all">
-            <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-              <span>Total Customers</span>
-              <Users className="w-4 h-4 text-sky-600" />
-            </div>
-            <div className="text-2xl font-black text-slate-900 mt-2">{cards.totalCustomers ?? 0}</div>
-            <div className="text-[11px] text-slate-400 mt-1">Verified elevator buyers</div>
-          </div>
+            {/* Total Customers */}
+            <Link href="/dashboard/list?type=totalCustomers" className="block group">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-sky-400 hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer h-full flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
+                    <span>Total Customers</span>
+                    <div className="flex items-center gap-1">
+                      <Users className="w-4 h-4 text-sky-600" />
+                      <ArrowUpRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-sky-600 transition-colors" />
+                    </div>
+                  </div>
+                  <div className="text-2xl font-black text-slate-900 mt-2">{cards.totalCustomers ?? 0}</div>
+                  <div className="text-[11px] text-slate-400 mt-1">Verified elevator buyers</div>
+                </div>
+                <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-sky-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span>View Customer List</span>
+                  <span>→</span>
+                </div>
+              </div>
+            </Link>
 
-          {/* Active Projects */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-slate-300 transition-all">
-            <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-              <span>Active Projects</span>
-              <Building2 className="w-4 h-4 text-blue-600" />
-            </div>
-            <div className="text-2xl font-black text-blue-700 mt-2">{cards.activeProjects ?? 0}</div>
-            <div className="text-[11px] text-slate-400 mt-1">Order confirmed & in progress</div>
-          </div>
+            {/* Active Projects */}
+            <Link href="/dashboard/list?type=activeProjects" className="block group">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-blue-400 hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer h-full flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
+                    <span>Active Projects</span>
+                    <div className="flex items-center gap-1">
+                      <Building2 className="w-4 h-4 text-blue-600" />
+                      <ArrowUpRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-blue-600 transition-colors" />
+                    </div>
+                  </div>
+                  <div className="text-2xl font-black text-blue-700 mt-2">{cards.activeProjects ?? 0}</div>
+                  <div className="text-[11px] text-slate-400 mt-1">Order confirmed & in progress</div>
+                </div>
+                <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-blue-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span>View Active Projects</span>
+                  <span>→</span>
+                </div>
+              </div>
+            </Link>
 
-          {/* Projects Awaiting Payment */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-slate-300 transition-all">
-            <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-              <span>Awaiting Payment</span>
-              <Clock className="w-4 h-4 text-amber-600" />
-            </div>
-            <div className="text-2xl font-black text-amber-600 mt-2">{cards.projectsAwaitingPayment ?? 0}</div>
-            <div className="text-[11px] text-slate-400 mt-1">Balance or milestone pending</div>
-          </div>
+            {/* Projects Awaiting Payment */}
+            <Link href="/dashboard/list?type=projectsAwaitingPayment" className="block group">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-amber-400 hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer h-full flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
+                    <span>Awaiting Payment</span>
+                    <div className="flex items-center gap-1">
+                      <Clock className="w-4 h-4 text-amber-600" />
+                      <ArrowUpRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-amber-600 transition-colors" />
+                    </div>
+                  </div>
+                  <div className="text-2xl font-black text-amber-600 mt-2">{cards.projectsAwaitingPayment ?? 0}</div>
+                  <div className="text-[11px] text-slate-400 mt-1">Balance or milestone pending</div>
+                </div>
+                <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-amber-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span>View Pending Payments</span>
+                  <span>→</span>
+                </div>
+              </div>
+            </Link>
 
-          {/* In Manufacturing */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-slate-300 transition-all">
-            <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-              <span>In Manufacturing</span>
-              <Wrench className="w-4 h-4 text-orange-600" />
-            </div>
-            <div className="text-2xl font-black text-orange-600 mt-2">{cards.projectsInManufacturing ?? 0}</div>
-            <div className="text-[11px] text-slate-400 mt-1">Factory fabrication stage</div>
-          </div>
+            {/* In Manufacturing */}
+            <Link href="/dashboard/list?type=projectsInManufacturing" className="block group">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-orange-400 hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer h-full flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
+                    <span>In Manufacturing</span>
+                    <div className="flex items-center gap-1">
+                      <Wrench className="w-4 h-4 text-orange-600" />
+                      <ArrowUpRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-orange-600 transition-colors" />
+                    </div>
+                  </div>
+                  <div className="text-2xl font-black text-orange-600 mt-2">{cards.projectsInManufacturing ?? 0}</div>
+                  <div className="text-[11px] text-slate-400 mt-1">Factory fabrication stage</div>
+                </div>
+                <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-orange-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span>View Factory Projects</span>
+                  <span>→</span>
+                </div>
+              </div>
+            </Link>
 
-          {/* Ready for Delivery */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-slate-300 transition-all">
-            <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-              <span>Ready for Delivery</span>
-              <Truck className="w-4 h-4 text-indigo-600" />
-            </div>
-            <div className="text-2xl font-black text-indigo-600 mt-2">{cards.projectsReadyForDelivery ?? 0}</div>
-            <div className="text-[11px] text-slate-400 mt-1">QC passed & transit ready</div>
-          </div>
+            {/* Ready for Delivery */}
+            <Link href="/dashboard/list?type=projectsReadyForDelivery" className="block group">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-indigo-400 hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer h-full flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
+                    <span>Ready for Delivery</span>
+                    <div className="flex items-center gap-1">
+                      <Truck className="w-4 h-4 text-indigo-600" />
+                      <ArrowUpRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-indigo-600 transition-colors" />
+                    </div>
+                  </div>
+                  <div className="text-2xl font-black text-indigo-600 mt-2">{cards.projectsReadyForDelivery ?? 0}</div>
+                  <div className="text-[11px] text-slate-400 mt-1">QC passed & transit ready</div>
+                </div>
+                <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-indigo-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span>View Delivery List</span>
+                  <span>→</span>
+                </div>
+              </div>
+            </Link>
 
-          {/* Installation Ongoing */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-slate-300 transition-all">
-            <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-              <span>Installation Ongoing</span>
-              <Wrench className="w-4 h-4 text-purple-600" />
-            </div>
-            <div className="text-2xl font-black text-purple-600 mt-2">{cards.installationOngoing ?? 0}</div>
-            <div className="text-[11px] text-slate-400 mt-1">Shaft rigging & testing</div>
-          </div>
+            {/* Installation Ongoing */}
+            <Link href="/dashboard/list?type=installationOngoing" className="block group">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-purple-400 hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer h-full flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
+                    <span>Installation Ongoing</span>
+                    <div className="flex items-center gap-1">
+                      <Wrench className="w-4 h-4 text-purple-600" />
+                      <ArrowUpRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-purple-600 transition-colors" />
+                    </div>
+                  </div>
+                  <div className="text-2xl font-black text-purple-600 mt-2">{cards.installationOngoing ?? 0}</div>
+                  <div className="text-[11px] text-slate-400 mt-1">Shaft rigging & testing</div>
+                </div>
+                <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-purple-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span>View Site Installations</span>
+                  <span>→</span>
+                </div>
+              </div>
+            </Link>
 
-          {/* Handover */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-slate-300 transition-all">
-            <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-              <span>Handover</span>
-              <Handshake className="w-4 h-4 text-teal-600" />
-            </div>
-            <div className="text-2xl font-black text-teal-600 mt-2">{cards.handoverCount ?? 0}</div>
-            <div className="text-[11px] text-slate-400 mt-1">Final testing & client handover</div>
-          </div>
+            {/* Handover */}
+            <Link href="/dashboard/list?type=handoverCount" className="block group">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-teal-400 hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer h-full flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
+                    <span>Handover</span>
+                    <div className="flex items-center gap-1">
+                      <Handshake className="w-4 h-4 text-teal-600" />
+                      <ArrowUpRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-teal-600 transition-colors" />
+                    </div>
+                  </div>
+                  <div className="text-2xl font-black text-teal-600 mt-2">{cards.handoverCount ?? 0}</div>
+                  <div className="text-[11px] text-slate-400 mt-1">Final testing & client handover</div>
+                </div>
+                <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-teal-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span>View Handover Projects</span>
+                  <span>→</span>
+                </div>
+              </div>
+            </Link>
 
-          {/* Updates Due Today */}
-          <div className="bg-gradient-to-br from-emerald-50 to-teal-50/40 p-5 rounded-2xl border border-emerald-200 shadow-sm">
-            <div className="flex items-center justify-between text-emerald-800 text-xs font-bold">
-              <span>Updates Due Today</span>
-              <Calendar className="w-4 h-4 text-emerald-600" />
-            </div>
-            <div className="text-2xl font-black text-emerald-700 mt-2">{cards.whatsappUpdatesDueToday ?? 0}</div>
-            <div className="text-[11px] text-emerald-600 mt-1">Scheduled for automated dispatch</div>
-          </div>
+            {/* Updates Due Today */}
+            <Link href="/dashboard/list?type=whatsappUpdatesDueToday" className="block group">
+              <div className="bg-gradient-to-br from-emerald-50 to-teal-50/40 p-5 rounded-2xl border border-emerald-200 shadow-sm hover:border-emerald-400 hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer h-full flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between text-emerald-800 text-xs font-bold">
+                    <span>Updates Due Today</span>
+                    <div className="flex items-center gap-1">
+                      <Calendar className="w-4 h-4 text-emerald-600" />
+                      <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400 group-hover:text-emerald-700 transition-colors" />
+                    </div>
+                  </div>
+                  <div className="text-2xl font-black text-emerald-700 mt-2">{cards.whatsappUpdatesDueToday ?? 0}</div>
+                  <div className="text-[11px] text-emerald-600 mt-1 font-medium">Scheduled for automated dispatch</div>
+                </div>
+                <div className="mt-2 pt-2 border-t border-emerald-100 flex items-center justify-between text-[10px] text-emerald-800 font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span>View Due Today List</span>
+                  <span>→</span>
+                </div>
+              </div>
+            </Link>
 
-          {/* WhatsApp Sent */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-slate-300 transition-all">
-            <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-              <span>WhatsApp Sent</span>
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            </div>
-            <div className="text-2xl font-black text-emerald-600 mt-2">{cards.whatsappMessagesSent ?? 0}</div>
-            <div className="text-[11px] text-slate-400 mt-1">Delivered to customer groups</div>
-          </div>
+            {/* WhatsApp Sent */}
+            <Link href="/dashboard/list?type=whatsappMessagesSent" className="block group">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-emerald-400 hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer h-full flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
+                    <span>WhatsApp Sent</span>
+                    <div className="flex items-center gap-1">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <ArrowUpRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-emerald-600 transition-colors" />
+                    </div>
+                  </div>
+                  <div className="text-2xl font-black text-emerald-600 mt-2">{cards.whatsappMessagesSent ?? 0}</div>
+                  <div className="text-[11px] text-slate-400 mt-1">Delivered to customer groups</div>
+                </div>
+                <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-emerald-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span>View Sent Messages</span>
+                  <span>→</span>
+                </div>
+              </div>
+            </Link>
 
-          {/* WhatsApp Failed */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-slate-300 transition-all">
-            <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-              <span>WhatsApp Failed</span>
-              <AlertTriangle className="w-4 h-4 text-rose-600" />
-            </div>
-            <div className="text-2xl font-black text-rose-600 mt-2">{cards.whatsappMessagesFailed ?? 0}</div>
-            <div className="text-[11px] text-slate-400 mt-1">API errors or invalid groups</div>
+            {/* WhatsApp Failed */}
+            <Link href="/dashboard/list?type=whatsappMessagesFailed" className="block group">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-rose-400 hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer h-full flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
+                    <span>WhatsApp Failed</span>
+                    <div className="flex items-center gap-1">
+                      <AlertTriangle className="w-4 h-4 text-rose-600" />
+                      <ArrowUpRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-rose-600 transition-colors" />
+                    </div>
+                  </div>
+                  <div className="text-2xl font-black text-rose-600 mt-2">{cards.whatsappMessagesFailed ?? 0}</div>
+                  <div className="text-[11px] text-slate-400 mt-1">API errors or invalid groups</div>
+                </div>
+                <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-rose-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span>View Failed Dispatches</span>
+                  <span>→</span>
+                </div>
+              </div>
+            </Link>
           </div>
-        </div>
         </React.Fragment>
       )}
 
@@ -654,37 +779,52 @@ export default function DashboardPage() {
 
           <div className="space-y-3 text-xs">
             {/* Today */}
-            <div className="p-3 bg-emerald-50/60 border border-emerald-200 rounded-xl flex items-center justify-between">
-              <div>
-                <span className="font-bold text-emerald-950 block">Today</span>
-                <span className="text-[11px] text-emerald-700">Scheduled for today</span>
+            <Link href="/dashboard/list?type=upcoming_today" className="block group">
+              <div className="p-3 bg-emerald-50/60 border border-emerald-200 rounded-xl flex items-center justify-between hover:border-emerald-400 hover:shadow-sm hover:bg-emerald-50 transition-all cursor-pointer">
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-emerald-950 block">Today</span>
+                    <ArrowUpRight className="w-3 h-3 text-emerald-400 group-hover:text-emerald-700 transition-colors" />
+                  </div>
+                  <span className="text-[11px] text-emerald-700">Scheduled for today</span>
+                </div>
+                <span className="text-lg font-black text-emerald-800">
+                  {data?.upcomingSummary?.todayCount ?? 0}
+                </span>
               </div>
-              <span className="text-lg font-black text-emerald-800">
-                {data?.upcomingSummary?.todayCount ?? 0}
-              </span>
-            </div>
+            </Link>
 
             {/* Tomorrow */}
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
-              <div>
-                <span className="font-bold text-slate-800 block">Tomorrow</span>
-                <span className="text-[11px] text-slate-500">Upcoming in 24 hours</span>
+            <Link href="/dashboard/list?type=upcoming_tomorrow" className="block group">
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between hover:border-sky-300 hover:shadow-sm hover:bg-sky-50/50 transition-all cursor-pointer">
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-slate-800 block">Tomorrow</span>
+                    <ArrowUpRight className="w-3 h-3 text-slate-400 group-hover:text-sky-600 transition-colors" />
+                  </div>
+                  <span className="text-[11px] text-slate-500">Upcoming in 24 hours</span>
+                </div>
+                <span className="text-lg font-black text-slate-800">
+                  {data?.upcomingSummary?.tomorrowCount ?? 0}
+                </span>
               </div>
-              <span className="text-lg font-black text-slate-800">
-                {data?.upcomingSummary?.tomorrowCount ?? 0}
-              </span>
-            </div>
+            </Link>
 
             {/* Next 7 Days */}
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
-              <div>
-                <span className="font-bold text-slate-800 block">Next 7 Days</span>
-                <span className="text-[11px] text-slate-500">Scheduled in next week</span>
+            <Link href="/dashboard/list?type=upcoming_next_7_days" className="block group">
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between hover:border-sky-300 hover:shadow-sm hover:bg-sky-50/50 transition-all cursor-pointer">
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-slate-800 block">Next 7 Days</span>
+                    <ArrowUpRight className="w-3 h-3 text-slate-400 group-hover:text-sky-600 transition-colors" />
+                  </div>
+                  <span className="text-[11px] text-slate-500">Scheduled in next week</span>
+                </div>
+                <span className="text-lg font-black text-slate-800">
+                  {data?.upcomingSummary?.next7DaysCount ?? 0}
+                </span>
               </div>
-              <span className="text-lg font-black text-slate-800">
-                {data?.upcomingSummary?.next7DaysCount ?? 0}
-              </span>
-            </div>
+            </Link>
           </div>
         </div>
 
@@ -695,14 +835,23 @@ export default function DashboardPage() {
             <span>Project Status Pipeline</span>
           </h3>
 
-          <div className="space-y-2.5">
+          <div className="space-y-1.5">
             {Object.entries(data?.statusDistribution || {}).map(([stage, count]: any) => (
-              <div key={stage} className="flex items-center justify-between text-xs">
-                <span className="text-slate-600 font-medium">{stage.replace(/_/g, ' ')}</span>
-                <span className="font-mono font-bold bg-slate-100 text-slate-800 px-2 py-0.5 rounded-md">
+              <Link
+                key={stage}
+                href={`/dashboard/list?type=stage&stage=${stage}`}
+                className="flex items-center justify-between text-xs p-2 rounded-xl hover:bg-sky-50/60 hover:border-sky-200 border border-transparent transition-all group cursor-pointer"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-700 font-medium group-hover:text-sky-900 transition-colors">
+                    {stage.replace(/_/g, ' ')}
+                  </span>
+                  <ArrowUpRight className="w-3 h-3 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity text-sky-600" />
+                </div>
+                <span className="font-mono font-bold bg-slate-100 group-hover:bg-sky-100 group-hover:text-sky-800 text-slate-800 px-2 py-0.5 rounded-md transition-colors">
                   {count}
                 </span>
-              </div>
+              </Link>
             ))}
           </div>
         </div>

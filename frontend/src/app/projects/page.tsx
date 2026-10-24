@@ -36,6 +36,16 @@ export default function ProjectsPage() {
     api.getCurrentUser().then(res => {
       if (res?.user) setCurrentUser(res.user);
     }).catch(() => {});
+
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search);
+      const qStatus = sp.get('status');
+      const qPayment = sp.get('paymentStatus');
+      const qSearch = sp.get('search');
+      if (qStatus) setStatusFilter(qStatus);
+      if (qPayment) setPaymentFilter(qPayment);
+      if (qSearch) setSearch(qSearch);
+    }
   }, []);
 
   const isCrm = currentUser?.role === 'CRM';

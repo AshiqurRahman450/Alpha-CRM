@@ -308,11 +308,27 @@ projectRouter.get('/', async (req: AuthRequest, res: Response) => {
     }
 
     if (status && typeof status === 'string') {
-      query.projectStatus = status;
+      if (status.includes(',')) {
+        query.projectStatus = { $in: status.split(',') };
+      } else if (status === 'ACTIVE') {
+        query.projectStatus = { $nin: ['COMPLETED', 'CANCELLED'] };
+      } else {
+        query.projectStatus = status;
+      }
     }
 
     if (paymentStatus && typeof paymentStatus === 'string') {
-      query.paymentStatus = paymentStatus;
+      if (paymentStatus.includes(',')) {
+        query.paymentStatus = { $in: paymentStatus.split(',') };
+      } else if (paymentStatus === 'AWAITING' || paymentStatus === 'PENDING_PARTIAL') {
+        query.paymentStatus = { $in: ['PENDING', 'PARTIAL_PAID'] };
+      } else {
+        query.paymentStatus = paymentStatus;
+      }
+    }
+
+    if (req.query.crmRequested === 'true') {
+      query['paymentRequest.status'] = 'REQUESTED';
     }
 
     if (employee && typeof employee === 'string') {
@@ -320,11 +336,16 @@ projectRouter.get('/', async (req: AuthRequest, res: Response) => {
     }
 
     if (updateDue === 'today') {
-      const startOfDay = new Date();
-      startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date();
       endOfDay.setHours(23, 59, 59, 999);
-      query.nextUpdateAt = { $lte: endOfDay };
+      query.automationEnabled = true;
+      query.whatsappGroupId = { $exists: true, $ne: '' };
+      query.projectStatus = { $nin: ['COMPLETED', 'CANCELLED', 'ON_HOLD'] };
+      query.$or = [
+        { nextUpdateAt: { $lte: endOfDay } },
+        { nextUpdateAt: { $exists: false } },
+        { nextUpdateAt: null },
+      ];
     }
 
     if (search && typeof search === 'string') {

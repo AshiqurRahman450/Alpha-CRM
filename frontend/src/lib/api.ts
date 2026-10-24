@@ -94,6 +94,235 @@ export const api = {
 
   // Dashboard
   getDashboard: () => fetchWithAuth('/api/dashboard'),
+  getDashboardCardItems: async (params: { type: string; stage?: string; search?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.type) q.append('type', params.type);
+    if (params?.stage) q.append('stage', params.stage);
+    if (params?.search) q.append('search', params.search);
+
+    try {
+      // 1. Try dedicated endpoint first (if available on local or upgraded backend)
+      const res = await fetchWithAuth(`/api/dashboard/card-items?${q.toString()}`);
+      if (res && res.success) {
+        return res;
+      }
+    } catch (err: any) {
+      // If 404 Route not found, proceed to fallback using standard endpoints
+      console.warn('[DashboardCardItems] Dedicated route unavailable, resolving via standard endpoints:', err.message);
+    }
+
+    // 2. Resilient Fallback using existing production endpoints
+    const { type, stage } = params;
+    const formatProj = (p: any) => ({
+      _id: p._id,
+      projectId: p.projectId || p.projectCode,
+      projectName: p.projectName,
+      projectStatus: p.projectStatus || p.stage,
+      paymentStatus: p.paymentStatus,
+      orderValue: p.orderValue || 0,
+      advanceAmount: p.advanceAmount || 0,
+      totalPaid: p.totalPaid || 0,
+      balanceAmount: p.balanceAmount || 0,
+      liftModel: p.liftModel,
+      siteAddress: p.siteAddress,
+      customerName: (p.customerId as any)?.fullName || p.customerName || 'Customer',
+      customerPhone: (p.customerId as any)?.phoneNumber || p.customerPhone,
+      customerWhatsapp: (p.customerId as any)?.whatsappNumber || p.customerWhatsapp,
+      customerEmail: (p.customerId as any)?.email || p.customerEmail,
+      whatsappGroupId: p.whatsappGroupId,
+      whatsappOptIn: (p.customerId as any)?.whatsappOptIn ?? p.whatsappOptIn,
+      nextUpdateAt: p.nextUpdateAt || p.date,
+      paymentRequest: p.paymentRequest,
+      advancePercentage: p.advancePercentage,
+      createdAt: p.createdAt,
+    });
+
+    if (type === 'totalCustomers') {
+      const custRes = await api.getCustomers();
+      const customers = (custRes.data || []).map((c: any) => ({
+        _id: c._id,
+        fullName: c.fullName,
+        phoneNumber: c.phoneNumber,
+        whatsappNumber: c.whatsappNumber,
+        email: c.email,
+        city: c.city,
+        state: c.state,
+        address: c.address,
+        customerType: c.customerType,
+        whatsappOptIn: c.whatsappOptIn,
+        leadSource: c.leadSource,
+        bdmPhone: c.bdmPhone,
+        projectCount: c.projects?.length || 0,
+        createdAt: c.createdAt,
+      }));
+      return {
+        success: true,
+        cardType: type,
+        title: 'Total Customers',
+        subtitle: 'All registered and verified elevator customers',
+        count: customers.length,
+        itemType: 'customer',
+        data: customers,
+      };
+    }
+
+    if (type === 'whatsappMessagesSent' || type === 'whatsappMessagesFailed') {
+      const isFailed = type === 'whatsappMessagesFailed';
+      const msgRes = await api.getWhatsAppMessages({ limit: 100 });
+      const allMsgs = msgRes.data || [];
+      const filtered = isFailed
+        ? allMsgs.filter((m: any) => m.status === 'FAILED')
+        : allMsgs.filter((m: any) => ['SENT', 'DELIVERED', 'READ'].includes(m.status));
+
+      return {
+        success: true,
+        cardType: type,
+        title: isFailed ? 'WhatsApp Failed Messages' : 'WhatsApp Messages Sent',
+        subtitle: isFailed
+          ? 'Failed dispatches due to Meta API issues, expired tokens or invalid groups'
+          : 'Successfully delivered automated & manual WhatsApp updates to client groups',
+        count: filtered.length,
+        itemType: 'message',
+        data: filtered,
+      };
+    }
+
+    if (type === 'crmPaymentRequests' || type === 'crmPaymentRequestsCount') {
+      const dashRes = await api.getDashboard().catch(() => null);
+      if (dashRes?.data?.crmPaymentRequests?.length) {
+        return {
+          success: true,
+          cardType: type,
+          title: 'CRM Payment Requests',
+          subtitle: 'Milestone collection requests initiated by CRM awaiting accountant recording',
+          count: dashRes.data.crmPaymentRequests.length,
+          itemType: 'project',
+          data: dashRes.data.crmPaymentRequests.map(formatProj),
+        };
+      }
+    }
+
+    if (type === 'whatsappUpdatesDueToday' || type === 'updatesDueToday' || type === 'upcoming_today') {
+      const dashRes = await api.getDashboard().catch(() => null);
+      if (dashRes?.data?.todayActions) {
+        return {
+          success: true,
+          cardType: type,
+          title: 'WhatsApp Updates Due Today',
+          subtitle: 'Active projects scheduled for automated or manual WhatsApp group dispatch today',
+          count: dashRes.data.todayActions.length,
+          itemType: 'project',
+          data: dashRes.data.todayActions.map(formatProj),
+        };
+      }
+    }
+
+    // Projects based cards
+    const projRes = await api.getProjects();
+    const projects: any[] = projRes.data || [];
+    let title = 'Projects List';
+    let subtitle = 'All elevator installation projects';
+    let filtered: any[] = projects;
+
+    switch (type) {
+      case 'activeProjects':
+        title = 'Active Projects';
+        subtitle = 'Orders confirmed & active in the 4-month elevator manufacturing and installation cycle';
+        filtered = projects.filter((p) => p.projectStatus !== 'COMPLETED' && p.projectStatus !== 'CANCELLED');
+        break;
+      case 'projectsAwaitingPayment':
+      case 'awaitingPayment':
+        title = 'Projects Awaiting Payment';
+        subtitle = 'Projects with pending advance or partial milestone payment';
+        filtered = projects.filter(
+          (p) => p.paymentStatus === 'PENDING' || p.paymentStatus === 'PARTIAL_PAID'
+        );
+        break;
+      case 'projectsInManufacturing':
+      case 'manufacturing':
+        title = 'Projects in Manufacturing';
+        subtitle = 'Factory fabrication stage: shaft fabrication, motor assembly & panel wiring';
+        filtered = projects.filter((p) => p.projectStatus === 'MANUFACTURING');
+        break;
+      case 'projectsReadyForDelivery':
+      case 'readyForDelivery':
+        title = 'Projects Ready for Delivery';
+        subtitle = 'QC passed, dispatched, or in transit to customer site';
+        filtered = projects.filter((p) =>
+          ['QUALITY_CHECK', 'DISPATCH', 'DELIVERY'].includes(p.projectStatus)
+        );
+        break;
+      case 'installationOngoing':
+      case 'installation':
+        title = 'Installation Ongoing Projects';
+        subtitle = 'On-site shaft rigging, guide rail alignment, cabin erection & electrical wiring';
+        filtered = projects.filter((p) => p.projectStatus === 'INSTALLATION');
+        break;
+      case 'handoverCount':
+      case 'handover':
+        title = 'Handover & Testing Projects';
+        subtitle = 'Safety inspection, load testing, commissioning & final handover to client';
+        filtered = projects.filter((p) => p.projectStatus === 'TESTING');
+        break;
+      case 'pendingApprovals':
+      case 'pendingApprovalCount':
+        title = 'Pending Approvals (Drawing & Cabin)';
+        subtitle = 'Elevator projects waiting for design or customer approval confirmation';
+        filtered = projects.filter((p) =>
+          ['DESIGN', 'CUSTOMER_APPROVAL'].includes(p.projectStatus)
+        );
+        break;
+      case 'crmPaymentRequests':
+      case 'crmPaymentRequestsCount':
+        title = 'CRM Payment Requests';
+        subtitle = 'Milestone collection requests initiated by CRM awaiting accountant recording';
+        filtered = projects.filter((p) => p.paymentRequest?.status === 'REQUESTED');
+        break;
+      case 'upcoming_tomorrow':
+        title = 'WhatsApp Updates Due Tomorrow';
+        subtitle = 'Projects scheduled for customer WhatsApp group dispatch in next 24 hours';
+        filtered = projects.filter((p) => {
+          if (!p.nextUpdateAt) return false;
+          const d = new Date(p.nextUpdateAt);
+          const tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          return d.toDateString() === tomorrow.toDateString();
+        });
+        break;
+      case 'upcoming_next_7_days':
+        title = 'WhatsApp Updates Due Next 7 Days';
+        subtitle = 'Projects scheduled for customer WhatsApp group dispatch over the upcoming week';
+        filtered = projects.filter((p) => {
+          if (!p.nextUpdateAt) return false;
+          const d = new Date(p.nextUpdateAt);
+          const now = new Date();
+          const in7 = new Date();
+          in7.setDate(in7.getDate() + 7);
+          return d > now && d <= in7;
+        });
+        break;
+      case 'stage':
+        title = `${(stage || '').replace(/_/g, ' ')} Projects`;
+        subtitle = `Elevator projects currently situated in ${(stage || '').replace(/_/g, ' ')} stage`;
+        filtered = projects.filter((p) => p.projectStatus === stage);
+        break;
+      default:
+        title = 'Total Projects';
+        subtitle = 'All elevator installation projects';
+        filtered = projects;
+        break;
+    }
+
+    return {
+      success: true,
+      cardType: type,
+      title,
+      subtitle,
+      count: filtered.length,
+      itemType: 'project',
+      data: filtered.map(formatProj),
+    };
+  },
 
   // Customers
   getCustomers: (params?: { search?: string; optIn?: string; customerType?: string }) => {
