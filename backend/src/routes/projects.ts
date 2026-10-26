@@ -398,6 +398,7 @@ projectRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthRe
       customerId,
       projectName,
       siteAddress,
+      googleMapsLink,
       liftModel,
       liftType,
       numberOfFloors,
@@ -419,17 +420,25 @@ projectRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthRe
       notes,
     } = req.body;
 
-    if (!customerId || !projectName || !siteAddress || !orderValue || !expectedDeliveryDate) {
-      return res.status(400).json({
-        success: false,
-        message: 'Customer, project name, site address, order value, and expected delivery date are required',
-      });
-    }
-
     const customer = await Customer.findById(customerId);
     if (!customer) {
       return res.status(404).json({ success: false, message: 'Customer not found' });
     }
+
+    const effectiveAddress = (siteAddress || googleMapsLink || customer.address || '').trim();
+
+    if (!customerId || !projectName || !effectiveAddress || !orderValue || !expectedDeliveryDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Customer, project name, site address or map link, order value, and expected delivery date are required',
+      });
+    }
+
+    const resolvedGoogleMapsLink = (
+      googleMapsLink ||
+      customer.googleMapsLink ||
+      (effectiveAddress.startsWith('http') || effectiveAddress.includes('maps') ? effectiveAddress : undefined)
+    )?.trim();
 
     const count = await Project.countDocuments();
     const projectId = `ALP-${String(count + 1).padStart(3, '0')}`;
@@ -454,7 +463,8 @@ projectRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthRe
       customerId: customer._id,
       customerCode: customer.customerId,
       projectName: projectName.trim(),
-      siteAddress: siteAddress.trim(),
+      siteAddress: effectiveAddress,
+      googleMapsLink: resolvedGoogleMapsLink,
       liftModel: liftModel || 'Hydraulic Home Series',
       liftType: liftType || 'Home Lift',
       numberOfFloors,
@@ -563,6 +573,15 @@ projectRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT'), as
 
     Object.assign(project, req.body);
 
+    if (req.body.googleMapsLink) {
+      project.googleMapsLink = req.body.googleMapsLink.trim();
+      if (!req.body.siteAddress && project.googleMapsLink) {
+        project.siteAddress = project.googleMapsLink;
+      }
+    } else if (req.body.siteAddress && (req.body.siteAddress.startsWith('http') || req.body.siteAddress.includes('maps'))) {
+      project.googleMapsLink = req.body.siteAddress.trim();
+    }
+
     // If orderValue, advanceAmount, or schedule percentages are modified, recalculate financials
     const orderVal = Number(project.orderValue) || 0;
     if (req.body.advanceAmount !== undefined && req.body.advanceAmount !== null && req.body.advanceAmount !== '') {
@@ -665,10 +684,10 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
       description: status === 'CUSTOMER_APPROVAL'
         ? `Project status updated to Drawing and Cabin Design Approval. Production timeline set to ${project.productionTimelineDays || 60} days. ${notes ? `Note: ${notes}` : ''}`
         : status === 'MANUFACTURING'
-        ? `Project status updated to MANUFACTURING (Approval Drawing to factory). Stage 1 Production Update scheduled in ${intervalDays} days.`
-        : status === 'DISPATCH' && project.vrlLrNumber
-        ? `Project status updated to DISPATCH (Expected Delivery). VRL Tracking No: ${project.vrlLrNumber}. ${notes ? `Note: ${notes}` : ''}`
-        : `Project status updated from ${prevStatus} to ${status}. ${notes ? `Note: ${notes}` : ''}`,
+          ? `Project status updated to MANUFACTURING (Approval Drawing to factory). Stage 1 Production Update scheduled in ${intervalDays} days.`
+          : status === 'DISPATCH' && project.vrlLrNumber
+            ? `Project status updated to DISPATCH (Expected Delivery). VRL Tracking No: ${project.vrlLrNumber}. ${notes ? `Note: ${notes}` : ''}`
+            : `Project status updated from ${prevStatus} to ${status}. ${notes ? `Note: ${notes}` : ''}`,
       userId: req.user?._id,
       userName: req.user?.name,
       metadata: { previousStatus: prevStatus, newStatus: status, intervalDays, vrlLrNumber: project.vrlLrNumber, productionTimelineDays: project.productionTimelineDays },
@@ -705,54 +724,11 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
               messageType: 'text',
               scheduledAt: new Date(),
               attemptedAt: new Date(),
-            sentAt: new Date(),
-            providerMessageId: `DRY_STAGE_${Date.now()}`,
-            status: 'SENT',
-            attemptCount: 1,
-            isDryRun: true,
-          });
-
-          await WhatsAppMessage.create({
-            projectId: project._id,
-            projectCode: project.projectId,
-            customerId: customer?._id,
-            customerName: customer?.fullName || 'Client',
-            groupId: project.whatsapp?.groupId || project.whatsappGroupId || 'GROUP',
-            templateName: STAGE_TEMPLATE_MAP[status] || 'SITE_VISIT_COMPLETED',
-            messageType: 'template',
-            recipientType: 'group',
-            direction: 'OUTGOING',
-            messageContent: messageText,
-            status: 'SENT',
-            sentAt: new Date(),
-            isAutomated: true,
-            idempotencyKey: `AUTO_STAGE_${project.projectId}_${status}_${Date.now()}`,
-          });
-
-          await logProjectActivity({
-            projectId: project._id,
-            projectCode: project.projectId,
-            type: 'WHATSAPP_SENT',
-            description: `[Dry Run] Milestone update for stage ${status} simulated for WhatsApp group`,
-            userId: req.user?._id,
-            userName: req.user?.name,
-          });
-        } else if (botStatus.isConnected) {
-          const botResult = await whatsAppWebBot.sendMessageToGroup(inviteTarget, messageText);
-          if (botResult.success) {
-            groupMessageDispatched = true;
-            await WhatsAppMessageLog.create({
-              projectId: project._id,
-              groupId: project.whatsapp?.groupId || project.whatsappGroupId || 'GROUP',
-              messageText,
-              messageType: 'text',
-              scheduledAt: new Date(),
-              attemptedAt: new Date(),
               sentAt: new Date(),
-              providerMessageId: botResult.messageId,
+              providerMessageId: `DRY_STAGE_${Date.now()}`,
               status: 'SENT',
               attemptCount: 1,
-              isDryRun: false,
+              isDryRun: true,
             });
 
             await WhatsAppMessage.create({
@@ -776,30 +752,73 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
               projectId: project._id,
               projectCode: project.projectId,
               type: 'WHATSAPP_SENT',
-              description: `Automated milestone update for stage ${status} dispatched directly inside WhatsApp group via Web Bot (+${botStatus.botPhoneNumber || 'Bot'})`,
+              description: `[Dry Run] Milestone update for stage ${status} simulated for WhatsApp group`,
               userId: req.user?._id,
               userName: req.user?.name,
             });
-            console.log(`[AutoStageUpdate] Milestone update for stage ${status} posted directly inside WhatsApp group for ${project.projectId}`);
+          } else if (botStatus.isConnected) {
+            const botResult = await whatsAppWebBot.sendMessageToGroup(inviteTarget, messageText);
+            if (botResult.success) {
+              groupMessageDispatched = true;
+              await WhatsAppMessageLog.create({
+                projectId: project._id,
+                groupId: project.whatsapp?.groupId || project.whatsappGroupId || 'GROUP',
+                messageText,
+                messageType: 'text',
+                scheduledAt: new Date(),
+                attemptedAt: new Date(),
+                sentAt: new Date(),
+                providerMessageId: botResult.messageId,
+                status: 'SENT',
+                attemptCount: 1,
+                isDryRun: false,
+              });
+
+              await WhatsAppMessage.create({
+                projectId: project._id,
+                projectCode: project.projectId,
+                customerId: customer?._id,
+                customerName: customer?.fullName || 'Client',
+                groupId: project.whatsapp?.groupId || project.whatsappGroupId || 'GROUP',
+                templateName: STAGE_TEMPLATE_MAP[status] || 'SITE_VISIT_COMPLETED',
+                messageType: 'template',
+                recipientType: 'group',
+                direction: 'OUTGOING',
+                messageContent: messageText,
+                status: 'SENT',
+                sentAt: new Date(),
+                isAutomated: true,
+                idempotencyKey: `AUTO_STAGE_${project.projectId}_${status}_${Date.now()}`,
+              });
+
+              await logProjectActivity({
+                projectId: project._id,
+                projectCode: project.projectId,
+                type: 'WHATSAPP_SENT',
+                description: `Automated milestone update for stage ${status} dispatched directly inside WhatsApp group via Web Bot (+${botStatus.botPhoneNumber || 'Bot'})`,
+                userId: req.user?._id,
+                userName: req.user?.name,
+              });
+              console.log(`[AutoStageUpdate] Milestone update for stage ${status} posted directly inside WhatsApp group for ${project.projectId}`);
+            } else {
+              groupMessageError = botResult.error || 'Failed to dispatch to group';
+            }
           } else {
-            groupMessageError = botResult.error || 'Failed to dispatch to group';
+            // Record message log indicating bot needs connection
+            await WhatsAppMessageLog.create({
+              projectId: project._id,
+              groupId: project.whatsapp?.groupId || project.whatsappGroupId || 'GROUP',
+              messageText,
+              messageType: 'text',
+              scheduledAt: new Date(),
+              attemptedAt: new Date(),
+              status: 'AWAITING_PROVIDER_CAPABILITY',
+              lastError: 'WhatsApp Web Bot not connected. Scan QR code to enable automatic group dispatch.',
+              attemptCount: 1,
+              isDryRun: false,
+            });
           }
-        } else {
-          // Record message log indicating bot needs connection
-          await WhatsAppMessageLog.create({
-            projectId: project._id,
-            groupId: project.whatsapp?.groupId || project.whatsappGroupId || 'GROUP',
-            messageText,
-            messageType: 'text',
-            scheduledAt: new Date(),
-            attemptedAt: new Date(),
-            status: 'AWAITING_PROVIDER_CAPABILITY',
-            lastError: 'WhatsApp Web Bot not connected. Scan QR code to enable automatic group dispatch.',
-            attemptCount: 1,
-            isDryRun: false,
-          });
         }
-      }
       } catch (waErr: any) {
         console.error('[AutoStageUpdate] Error dispatching WhatsApp milestone message:', waErr.message);
         groupMessageError = waErr.message;
@@ -928,11 +947,11 @@ projectRouter.patch('/:id/stage-dates', authorize('ADMIN', 'CRM', 'MANAGER', 'BD
     }
 
     const currentDates = project.stageDates.get(stageKey) || {};
-    
+
     if (scheduleDate !== undefined) {
       currentDates.scheduleDate = scheduleDate ? new Date(scheduleDate) : null;
     }
-    
+
     if (executedDate !== undefined) {
       currentDates.executedDate = executedDate ? new Date(executedDate) : null;
     }
@@ -980,24 +999,24 @@ projectRouter.patch('/:id/stage-dates-bulk', authorize('ADMIN', 'CRM', 'MANAGER'
 
     for (const update of updates) {
       const { stageKey, scheduleDate, executedDate } = update;
-      
+
       if (req.user?.role === 'BDM' && stageKey !== 'CUSTOMER_APPROVAL') {
         continue;
       }
 
       const currentDates = project.stageDates.get(stageKey) || {};
-      
+
       if (scheduleDate !== undefined) {
         currentDates.scheduleDate = scheduleDate ? new Date(scheduleDate) : null;
       }
-      
+
       if (executedDate !== undefined) {
         currentDates.executedDate = executedDate ? new Date(executedDate) : null;
       }
 
       project.stageDates.set(stageKey, currentDates);
     }
-    
+
     await project.save();
 
     const hasPaymentExecuted = updates.some((u: any) => u.stageKey === 'PAYMENT_RECEIVED' && u.executedDate);
@@ -1093,7 +1112,7 @@ projectRouter.post('/:id/drawing', authorize('ADMIN', 'CRM', 'MANAGER'), upload.
         const customer = await Customer.findById(project.customerId);
         const customerName = customer?.fullName || 'Valued Client';
         const caption = `Hello ${customerName}! 📄\n\n*Drawing & Cabin Design Uploaded*\nProject: ${project.projectName} (${project.liftModel || 'Elevator'})\nStage: Drawing and Cabin Design Approval\n\nPlease find the approved drawing and cabin design document attached above for your review and sign-off.\n\nThank you,\nAlpha Elevators Team`;
-        
+
         const fullFilePath = req.file.path
           ? path.resolve(req.file.path)
           : path.resolve(__dirname, '../../uploads', req.file.filename);
@@ -1225,7 +1244,7 @@ projectRouter.post('/:id/request-payment', authorize('ADMIN', 'CRM', 'MANAGER'),
     let crmPhone = req.user?.phone;
     if (!crmPhone) {
       const crmUser = await User.findOne({ role: 'CRM', phone: { $exists: true, $ne: '' } });
-      crmPhone = crmUser?.phone || '+91 98200 54321';
+      crmPhone = crmUser?.phone || '+91 93848 20316';
     }
 
     project.paymentRequest = {
@@ -1520,7 +1539,7 @@ projectRouter.post(
           const isHandover = updatedStage?.slNo === 11 || updatedStage?.stageKey === 'HANDOVER';
 
           whatsappMessage =
-`✅ *ALPHA ELEVATORS — INSTALLATION STAGE COMPLETED*
+            `✅ *ALPHA ELEVATORS — INSTALLATION STAGE COMPLETED*
 
 *Project:* ${project.projectName} (${project.projectId})
 *Customer:* ${customer?.fullName || 'Client'} (${customer?.city || project.siteAddress || 'Tamil Nadu'})
@@ -1530,11 +1549,11 @@ projectRouter.post(
 *Status:* COMPLETED ✅
 *Completion Date:* ${formatDateDisplay(parseDateString(updatedStage?.completeDate || formatDateISO(new Date())))}
 
-${isHandover 
-  ? '🏆 *Elevator Installation & Final Testing Successfully Completed! Ready for Handover Formalities.*' 
-  : nextStage 
-  ? `➡️ *Next Upcoming Stage:* Stage ${nextStage.slNo} — ${nextStage.stageName}\n*Scheduled Start:* ${formatDateDisplay(parseDateString(nextStage.startDate))}\n` 
-  : ''}
+${isHandover
+              ? '🏆 *Elevator Installation & Final Testing Successfully Completed! Ready for Handover Formalities.*'
+              : nextStage
+                ? `➡️ *Next Upcoming Stage:* Stage ${nextStage.slNo} — ${nextStage.stageName}\n*Scheduled Start:* ${formatDateDisplay(parseDateString(nextStage.startDate))}\n`
+                : ''}
 🗓️ *Target Handover Date:* ${handoverStage ? formatDateDisplay(parseDateString(handoverStage.completeDate)) : 'Scheduled'}
 
 _Alpha Elevators Technical Installation Team is executing on-site work as per standards._`;
@@ -1543,11 +1562,11 @@ _Alpha Elevators Technical Installation Team is executing on-site work as per st
             reason === 'HOLIDAY'
               ? '🌴 Holiday / Official Non-Working Day'
               : reason === 'TECHNICAL_ISSUE'
-              ? '⚙️ Technical Issue / On-Site Alignment Delay'
-              : 'Operational Schedule Adjustment';
+                ? '⚙️ Technical Issue / On-Site Alignment Delay'
+                : 'Operational Schedule Adjustment';
 
-          whatsappMessage = 
-`🔔 *ALPHA ELEVATORS — INSTALLATION SCHEDULE UPDATE*
+          whatsappMessage =
+            `🔔 *ALPHA ELEVATORS — INSTALLATION SCHEDULE UPDATE*
 
 *Project:* ${project.projectName} (${project.projectId})
 *Customer:* ${customer?.fullName || 'Client'} (${customer?.city || project.siteAddress || 'Tamil Nadu'})

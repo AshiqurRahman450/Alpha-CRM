@@ -19,10 +19,12 @@ import {
   FileText,
   Upload,
   Trash2,
+  ExternalLink,
 } from 'lucide-react';
 import { api } from '../../../lib/api';
 import { formatProjectStatus } from '../../../components/Timeline';
 import InstallationProgrammeTable from '../../../components/InstallationProgrammeTable';
+import { DEFAULT_BDMS } from '../../../lib/constants';
 
 export default function CustomerDetailPage() {
   const params = useParams();
@@ -33,7 +35,7 @@ export default function CustomerDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [uploadingDoc, setUploadingDoc] = useState(false);
 
-  const [bdms, setBdms] = useState<any[]>([]);
+  const [bdms, setBdms] = useState<any[]>(DEFAULT_BDMS);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
 
@@ -44,12 +46,20 @@ export default function CustomerDetailPage() {
       const res = await api.getCustomerById(customerId);
       setData(res.data);
       
-      const userRes = await api.getCurrentUser();
-      setCurrentUser(userRes.user);
+      try {
+        const userRes = await api.getCurrentUser();
+        setCurrentUser(userRes?.user);
+      } catch (err) {
+        console.warn('Notice loading current user profile:', err);
+      }
 
-      if (userRes.user?.role !== 'BDM') {
+      try {
         const bdmRes = await api.getBDMs();
-        setBdms(bdmRes.data || []);
+        if (bdmRes?.data && bdmRes.data.length > 0) {
+          setBdms(bdmRes.data);
+        }
+      } catch (err) {
+        console.warn('Notice loading BDMs list:', err);
       }
     } catch (err: any) {
       setError(err.message || 'Failed to load customer');
@@ -200,8 +210,28 @@ export default function CustomerDetailPage() {
             <span className="text-slate-400 block text-[11px] flex items-center gap-1">
               <MapPin className="w-3.5 h-3.5 text-slate-400" /> Address & Location
             </span>
-            <div className="font-bold text-slate-800">{customer.address}</div>
-            <div className="text-[11px] text-slate-500">{customer.city}, {customer.state} {customer.pincode}</div>
+            {customer.googleMapsLink || customer.address?.startsWith('http') || customer.address?.includes('maps') ? (
+              <div className="pt-0.5">
+                <a
+                  href={customer.googleMapsLink || customer.address}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 font-bold text-sky-600 hover:text-sky-800 hover:underline text-xs"
+                >
+                  <MapPin className="w-4 h-4 text-rose-500 shrink-0" />
+                  <span>Open in Google Maps</span>
+                  <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+                </a>
+                <div className="text-[10px] text-slate-400 truncate max-w-full font-mono mt-0.5">
+                  {customer.googleMapsLink || customer.address}
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="font-bold text-slate-800">{customer.address}</div>
+                <div className="text-[11px] text-slate-500">{customer.city}, {customer.state} {customer.pincode}</div>
+              </>
+            )}
           </div>
         </div>
       </div>

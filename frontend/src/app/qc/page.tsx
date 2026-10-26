@@ -579,105 +579,145 @@ export default function QCPage() {
       {/* APPROVAL CONFIRMATION MODAL */}
       {/* ============================================================== */}
       {approvalModalReport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex items-start justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-4xl w-full p-6 sm:p-7 shadow-2xl border border-slate-200 space-y-5 my-auto max-h-[92vh] overflow-y-auto">
+            <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center space-x-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 shadow-sm">
                   <CheckCircle2 className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900 font-poppins">
+                  <h3 className="text-lg font-bold text-slate-900 font-poppins">
                     Approve Site Report & Advance Stage
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Technical Manager Action for Kishore
+                    Technical Manager Action for Kishore • Automatic WhatsApp Group Milestone Dispatch
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setApprovalModalReport(null)}
-                className="text-slate-400 hover:text-slate-600 text-sm font-bold p-1"
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-colors text-xs font-bold"
               >
                 ✕
               </button>
             </div>
 
             {/* Target Client & Project Info */}
-            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-1.5 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-slate-800 text-sm">
-                  {approvalModalReport.clientName}
-                </span>
-                <span className="font-mono font-bold text-sky-700 bg-sky-100 px-2 py-0.5 rounded-md">
-                  {approvalModalReport.jobNo}
-                </span>
-              </div>
-              <div className="text-slate-500 flex items-center justify-between text-[11px]">
-                <span>Inspection Date: {approvalModalReport.reportDate}</span>
-                <span>Region: {approvalModalReport.region}</span>
-              </div>
-            </div>
-
-            {/* Execution Checklist */}
-            <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-3.5 text-xs space-y-2 text-emerald-950">
-              <span className="font-bold text-emerald-900 block">Actions to be executed upon confirmation:</span>
-              <div className="space-y-1.5 text-[11px] text-emerald-800">
-                <div className="flex items-start gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 mt-1.5 shrink-0"></span>
-                  <span>
-                    Report marked as <strong>Approved by Technical Manager Kishore</strong>.
+            <div className="p-4 bg-gradient-to-r from-slate-50 to-sky-50/40 rounded-2xl border border-slate-200/90 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div className="sm:col-span-2">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Client & Project</span>
+                  <span className="font-extrabold text-slate-900 text-sm block mt-0.5">
+                    {approvalModalReport.clientName}
                   </span>
                 </div>
-                <div className="flex items-start gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 mt-1.5 shrink-0"></span>
-                  <span>
-                    Project stage changes from <strong>Advance Payment Received</strong> to{' '}
-                    <strong>Site Visit (SITE_MEASUREMENT)</strong>.
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Job / Project ID</span>
+                  <span className="font-mono font-bold text-sky-700 bg-sky-100 px-2 py-0.5 rounded-md inline-block mt-0.5">
+                    {approvalModalReport.jobNo}
                   </span>
                 </div>
-                <div className="flex items-start gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 mt-1.5 shrink-0"></span>
-                  <span>
-                    Executed date on <strong>Site Visit</strong> is recorded as{' '}
-                    <strong>{approvalModalReport.reportDate}</strong>.
-                  </span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 mt-1.5 shrink-0"></span>
-                  <span>
-                    Dynamic time-based message ({getDynamicGreeting()} Sir) posted to WhatsApp group.
-                  </span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 mt-1.5 shrink-0"></span>
-                  <span>
-                    Official Pre-Production Site Visit Report <strong>PDF document</strong> is posted directly to the WhatsApp group.
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Inspection Date & Region</span>
+                  <span className="text-slate-700 font-medium block mt-0.5">
+                    {approvalModalReport.reportDate} • {approvalModalReport.region}
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Message Preview */}
-            <div className="bg-slate-900 text-slate-200 rounded-2xl p-3.5 text-[11px] font-mono leading-relaxed space-y-1">
-              <div className="text-[10px] text-sky-400 uppercase font-bold tracking-wider">
-                WhatsApp Group Message Preview ({getDynamicGreeting()}):
+            {/* 2-Column Responsive Layout: Actions Checklist & WhatsApp Preview */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Left Column: Execution Checklist */}
+              <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-4 text-xs space-y-3 text-emerald-950 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-emerald-200/70">
+                    <span className="font-bold text-emerald-900 text-xs flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                      Actions Executed on Confirmation:
+                    </span>
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                      Automated
+                    </span>
+                  </div>
+                  <div className="space-y-2.5 text-[11px] text-emerald-800 leading-relaxed">
+                    <div className="flex items-start gap-2.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 mt-1.5 shrink-0"></span>
+                      <span>
+                        Report marked as <strong>Approved by Technical Manager Kishore</strong>.
+                      </span>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 mt-1.5 shrink-0"></span>
+                      <span>
+                        Project stage advances from <strong>Advance Payment Received</strong> to{' '}
+                        <strong>Site Visit (SITE_MEASUREMENT)</strong>.
+                      </span>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 mt-1.5 shrink-0"></span>
+                      <span>
+                        Executed date on <strong>Site Visit</strong> is recorded as{' '}
+                        <strong>{approvalModalReport.reportDate}</strong>.
+                      </span>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 mt-1.5 shrink-0"></span>
+                      <span>
+                        Official milestone template message ({getDynamicGreeting()} Sir) posted to customer&apos;s WhatsApp group.
+                      </span>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 mt-1.5 shrink-0"></span>
+                      <span>
+                        Official Pre-Production Site Visit Report <strong>PDF document</strong> is posted directly to WhatsApp group.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-emerald-200/60 text-[10.5px] text-emerald-700 font-medium">
+                  ✓ Automatically triggers milestone activity log & timeline synchronization.
+                </div>
               </div>
-              <p className="whitespace-pre-line text-slate-300">
-                {getDynamicGreeting()} Sir,
-                {'\n\n'}We have successfully completed the site visit on the scheduled date and shared the site visit report with you via email.
-                {'\n\n'}Kindly review the report and confirm your approval by replying to the email so that we can initiate the drawing process based on the site measurements.
-                {'\n\n'}Thank you for your support and cooperation.
-                {'\n\n'}Regards,
-                {'\n'}CRM Department
-                {'\n'}Alpha Elevators
-              </p>
+
+              {/* Right Column: WhatsApp Message Preview */}
+              <div className="bg-[#0B141A] text-slate-200 rounded-2xl p-4 text-[11px] font-mono leading-relaxed space-y-2.5 flex flex-col justify-between border border-slate-800 shadow-inner">
+                <div>
+                  <div className="text-[10px] text-emerald-400 uppercase font-bold tracking-wider flex items-center justify-between border-b border-slate-800 pb-2">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                      WhatsApp Group Message Preview
+                    </span>
+                    <span className="text-[9.5px] bg-slate-800/80 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30 font-mono">
+                      {getDynamicGreeting()}
+                    </span>
+                  </div>
+                  <div className="bg-[#111B21] border border-slate-800/80 rounded-xl p-3 my-2 text-slate-200 text-xs leading-relaxed whitespace-pre-line shadow-sm">
+                    {getDynamicGreeting()} Sir,
+                    {'\n\n'}We have successfully completed the site visit on the scheduled date and shared the site visit report with you via email.
+                    {'\n\n'}Kindly review the report and confirm your approval by replying to the email so that we can initiate the drawing process based on the site measurements.
+                    {'\n\n'}Thank you for your support and cooperation.
+                    {'\n\n'}Regards,
+                    {'\n'}CRM Department
+                    {'\n'}Alpha Elevators
+                  </div>
+                </div>
+
+                <div className="text-[10.5px] text-slate-400 border-t border-slate-800/80 pt-2 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-emerald-300 font-sans">
+                    📄 Pre-Production Site Visit Report.pdf attached
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-mono">Auto-Attached</span>
+                </div>
+              </div>
             </div>
 
             {/* Optional Approval Notes */}
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
                 Approval Notes (Optional):
               </label>
               <input
@@ -685,16 +725,16 @@ export default function QCPage() {
                 placeholder="e.g. Dimensions verified with client architect, proceeding to drawing"
                 value={approvalNotes}
                 onChange={(e) => setApprovalNotes(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium text-slate-800 placeholder:text-slate-400"
               />
             </div>
 
             {/* Modal Actions */}
-            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-100">
               <button
                 type="button"
                 onClick={() => setApprovalModalReport(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold"
+                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors"
               >
                 Cancel
               </button>
@@ -702,7 +742,7 @@ export default function QCPage() {
                 type="button"
                 onClick={handleConfirmApprove}
                 disabled={isApproving}
-                className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-900/30 transition-all flex items-center gap-1.5 disabled:opacity-50"
+                className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-900/30 transition-all flex items-center gap-2 disabled:opacity-50 active:scale-98"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>{isApproving ? 'Approving & Dispatching...' : 'Approve & Send to Group'}</span>

@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Building2, Lock, Mail, AlertCircle, ArrowRight, ShieldCheck } from 'lucide-react';
 import { api } from '../../lib/api';
+import { DEFAULT_BDMS } from '../../lib/constants';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -29,6 +30,7 @@ export default function LoginPage() {
   const [bdmSelect, setBdmSelect] = useState('');
 
   const handleQuickFill = (userType: 'admin' | 'crm' | 'accountant' | 'qc' | 'techlead' | 'techmanager' | 'bdm', bdmEmail?: string) => {
+    setError(null);
     if (userType === 'admin') {
       setEmail('admin@alphaelevators.com');
       setPassword('admin123');
@@ -53,18 +55,7 @@ export default function LoginPage() {
     }
   };
 
-  const BDMS_LIST = [
-    { name: 'Thirunavukarasu', email: 'thirunavukarasu@alpha.com' },
-    { name: 'Gopinath', email: 'gopinath@alpha.com' },
-    { name: 'Javith', email: 'javith@alpha.com' },
-    { name: 'Mohamed Ashik', email: 'mohamedashik@alpha.com' },
-    { name: 'Dhananjay', email: 'dhananjay@alpha.com' },
-    { name: 'Balaji', email: 'balaji@alpha.com' },
-    { name: 'Aravind', email: 'aravind@alpha.com' },
-    { name: 'Naveen', email: 'naveen@alpha.com' },
-    { name: 'Eswar', email: 'eswar@alpha.com' },
-    { name: 'Nitesh', email: 'nitesh@alpha.com' },
-  ];
+  const BDMS_LIST = DEFAULT_BDMS;
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-[#071322] p-4 text-slate-100">

@@ -55,12 +55,39 @@ async function fetchWithAuth(endpoint: string, options: RequestInit = {}): Promi
   }
 
   const baseUrl = getApiBaseUrl();
-  const res = await fetch(`${baseUrl}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl}${endpoint}`, {
+      ...options,
+      headers,
+    });
+  } catch (netErr) {
+    if (baseUrl !== 'http://localhost:5000') {
+      res = await fetch(`http://localhost:5000${endpoint}`, {
+        ...options,
+        headers,
+      });
+    } else {
+      throw netErr;
+    }
+  }
 
-  const data = await res.json().catch(() => ({}));
+  let data = await res.json().catch(() => ({}));
+
+  if (!res.ok && baseUrl !== 'http://localhost:5000') {
+    try {
+      const localRes = await fetch(`http://localhost:5000${endpoint}`, {
+        ...options,
+        headers,
+      });
+      if (localRes.ok) {
+        data = await localRes.json();
+        return data;
+      }
+    } catch {
+      // Keep original error
+    }
+  }
 
   if (!res.ok) {
     throw new Error(data.message || `Request failed with status ${res.status}`);
@@ -74,7 +101,8 @@ export const api = {
     const token = getAuthToken();
     const formData = new FormData();
     formData.append('document', file);
-    const res = await fetch(`${API_BASE_URL}/api/customers/${customerId}/documents`, {
+    const baseUrl = getApiBaseUrl();
+    const res = await fetch(`${baseUrl}/api/customers/${customerId}/documents`, {
       method: 'POST',
       headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       body: formData,
@@ -90,12 +118,45 @@ export const api = {
   },
   // Auth
   login: async (credentials: { email: string; password: string }) => {
-    const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(credentials),
-    });
-    const data = await res.json();
+    const baseUrl = getApiBaseUrl();
+    let res: Response;
+    try {
+      res = await fetch(`${baseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(credentials),
+      });
+    } catch (netErr) {
+      if (baseUrl !== 'http://localhost:5000') {
+        res = await fetch('http://localhost:5000/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(credentials),
+        });
+      } else {
+        throw netErr;
+      }
+    }
+
+    let data = await res.json().catch(() => ({}));
+
+    // If remote VPS returns validation or route error, transparently fallback to local backend on port 5000
+    if (!res.ok && baseUrl !== 'http://localhost:5000') {
+      try {
+        const localRes = await fetch('http://localhost:5000/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(credentials),
+        });
+        if (localRes.ok) {
+          data = await localRes.json();
+          res = localRes;
+        }
+      } catch {
+        // Keep original response
+      }
+    }
+
     if (!res.ok) throw new Error(data.message || 'Login failed');
     if (data.token) {
       setAuthToken(data.token);
@@ -420,7 +481,8 @@ export const api = {
     const token = getAuthToken();
     const formData = new FormData();
     formData.append('drawing', file);
-    const res = await fetch(`${API_BASE_URL}/api/projects/${id}/drawing`, {
+    const baseUrl = getApiBaseUrl();
+    const res = await fetch(`${baseUrl}/api/projects/${id}/drawing`, {
       method: 'POST',
       headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       body: formData,

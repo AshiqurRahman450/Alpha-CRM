@@ -24,6 +24,7 @@ export interface IProject extends Document {
   customerCode: string; // denormalized for quick querying, e.g. CUST-001
   projectName: string; // e.g. Kumar Residence
   siteAddress: string;
+  googleMapsLink?: string;
   liftModel: string; // e.g. Alpha EV, Alpha Premier, Alpha Luxe
   liftType: string; // e.g. Home Lift, Villa Elevator, Glass Panoramic
   numberOfFloors?: string;
@@ -176,6 +177,10 @@ const ProjectSchema = new Schema<IProject>(
     siteAddress: {
       type: String,
       required: true,
+      trim: true,
+    },
+    googleMapsLink: {
+      type: String,
       trim: true,
     },
     liftModel: {

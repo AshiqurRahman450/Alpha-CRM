@@ -353,7 +353,7 @@ export async function seed() {
     email: 'crm@alphaelevators.com',
     passwordHash: crmPasswordHash,
     role: 'CRM',
-    phone: '+91 98200 54321',
+    phone: '+91 93848 20316',
   });
 
   const accountantPasswordHash = await bcrypt.hash('vincy123', 10);
@@ -390,6 +390,44 @@ export async function seed() {
     passwordHash: techManagerPasswordHash,
     role: 'TECHNICAL_MANAGER',
     phone: '+91 93848 20214',
+  });
+
+  // BDM Users (Matching login page profiles)
+  console.log('[Seed] Seeding 10 BDM users with login credentials...');
+  const bdmPasswordHash = await bcrypt.hash('password123', 10);
+  const bdmsList = [
+    { name: 'Thirunavukarasu', email: 'thirunavukarasu@alpha.com', role: 'BDM' as const, phone: '+91 98401 10001' },
+    { name: 'Gopinath', email: 'gopinath@alpha.com', role: 'BDM' as const, phone: '+91 98401 10002' },
+    { name: 'Javith', email: 'javith@alpha.com', role: 'BDM' as const, phone: '+91 98401 10003' },
+    { name: 'Mohamed Ashik', email: 'mohamedashik@alpha.com', role: 'BDM' as const, phone: '+91 98401 10004' },
+    { name: 'Dhananjay', email: 'dhananjay@alpha.com', role: 'BDM' as const, phone: '+91 98401 10005' },
+    { name: 'Balaji', email: 'balaji@alpha.com', role: 'BDM' as const, phone: '+91 98401 10006' },
+    { name: 'Aravind', email: 'aravind@alpha.com', role: 'BDM' as const, phone: '+91 98401 10007' },
+    { name: 'Naveen', email: 'naveen@alpha.com', role: 'BDM' as const, phone: '+91 98401 10008' },
+    { name: 'Eswar', email: 'eswar@alpha.com', role: 'BDM' as const, phone: '+91 98401 10009' },
+    { name: 'Nitesh', email: 'nitesh@alpha.com', role: 'BDM' as const, phone: '+91 98401 10010' },
+  ];
+
+  const createdBdms: any[] = [];
+  for (const b of bdmsList) {
+    const bdmUser = await User.create({
+      name: b.name,
+      email: b.email,
+      passwordHash: bdmPasswordHash,
+      role: 'BDM',
+      phone: b.phone,
+      isActive: true,
+    });
+    createdBdms.push(bdmUser);
+  }
+
+  await User.create({
+    name: 'Mohamed Ashik',
+    email: 'ashik@alpha.com',
+    passwordHash: bdmPasswordHash,
+    role: 'BDM',
+    phone: '+91 98401 10004',
+    isActive: true,
   });
 
   // 2. Create WhatsApp Templates
@@ -443,7 +481,9 @@ export async function seed() {
       pincode: '400001',
       customerType: 'Residential',
       leadSource: 'Architect Referral',
-      assignedEmployee: crmUser.name,
+      assignedEmployee: createdBdms[i]?.name || crmUser.name,
+      bdmId: createdBdms[i]?._id,
+      bdmPhone: createdBdms[i]?.phone,
       whatsappOptIn: true,
       optInDate: new Date(),
       optInSource: 'PROJECT_CONFIRMATION',
@@ -485,7 +525,9 @@ export async function seed() {
       orderDate: new Date(now.getTime() - 15 * 24 * 3600 * 1000),
       expectedDeliveryDate: expectedDelivery,
       projectStatus: data.status,
-      assignedEmployee: crmUser.name,
+      assignedEmployee: createdBdms[i]?.name || crmUser.name,
+      bdmId: createdBdms[i]?._id,
+      bdmPhone: createdBdms[i]?.phone,
       projectManager: 'Eng. Ramesh Kulkarni',
       notes: `Pilot project #${i + 1}. Dedicated WhatsApp Group: ${data.groupId}`,
       whatsappGroupId: data.groupId,

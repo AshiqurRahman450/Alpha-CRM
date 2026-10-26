@@ -61,7 +61,7 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
 /**
  * POST /api/customers
  */
-customerRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthRequest, res: Response) => {
+customerRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM'), async (req: AuthRequest, res: Response) => {
   try {
     const {
       fullName,
@@ -69,6 +69,7 @@ customerRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthR
       whatsappNumber,
       email,
       address,
+      googleMapsLink,
       doorNo,
       streetName,
       landmark,
@@ -87,25 +88,58 @@ customerRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthR
 
     const fullAddress = (
       address ||
+      googleMapsLink ||
       [doorNo, streetName, landmark].filter(Boolean).join(', ')
     ).trim();
 
-    if (!fullName || !phoneNumber || !fullAddress) {
-      return res.status(400).json({ success: false, message: 'Full name, phone number, and address are required' });
+    const resolvedGoogleMapsLink = (
+      googleMapsLink ||
+      (fullAddress.startsWith('http') || fullAddress.includes('maps') ? fullAddress : undefined)
+    )?.trim();
+
+    if (!fullName || !phoneNumber || (!fullAddress && !resolvedGoogleMapsLink)) {
+      return res.status(400).json({ success: false, message: 'Full name, phone number, and address or Google Maps link are required' });
     }
 
     // Auto-generate customerId CUST-XXX
     const count = await Customer.countDocuments();
     const customerId = `CUST-${String(count + 1).padStart(3, '0')}`;
 
-    const assignedBdmId = req.user?.role === 'BDM' ? req.user._id : (bdmId || undefined);
+    let assignedBdmId: any = undefined;
+    let assignedEmployeeName = assignedEmployee;
+
+    if (req.user?.role === 'BDM') {
+      assignedBdmId = req.user._id;
+      assignedEmployeeName = req.user.name;
+    } else if (bdmId) {
+      if (typeof bdmId === 'string' && bdmId.match(/^[0-9a-fA-F]{24}$/)) {
+        assignedBdmId = bdmId;
+      } else {
+        const bdmUser = await User.findOne({
+          role: 'BDM',
+          $or: [
+            { email: String(bdmId).toLowerCase().trim() },
+            { name: new RegExp(`^${String(bdmId).trim()}$`, 'i') },
+          ],
+        });
+        if (bdmUser) {
+          assignedBdmId = bdmUser._id;
+          if (!assignedEmployeeName) assignedEmployeeName = bdmUser.name;
+        }
+      }
+    }
 
     // Auto-lookup BDM WhatsApp phone if not explicitly provided
     let finalBdmPhone = bdmPhone ? bdmPhone.trim() : undefined;
-    if (assignedBdmId && !finalBdmPhone) {
+    if (assignedBdmId) {
       const bdmUser = await User.findById(assignedBdmId);
-      if (bdmUser?.phone) {
-        finalBdmPhone = bdmUser.phone.trim();
+      if (bdmUser) {
+        if (!finalBdmPhone && bdmUser.phone) {
+          finalBdmPhone = bdmUser.phone.trim();
+        }
+        if (!assignedEmployeeName) {
+          assignedEmployeeName = bdmUser.name;
+        }
       }
     }
 
@@ -118,7 +152,8 @@ customerRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthR
       doorNo: doorNo ? doorNo.trim() : undefined,
       streetName: streetName ? streetName.trim() : undefined,
       landmark: landmark ? landmark.trim() : undefined,
-      address: fullAddress,
+      address: fullAddress || resolvedGoogleMapsLink || '',
+      googleMapsLink: resolvedGoogleMapsLink,
       city: city || 'Mumbai',
       state: state || 'Maharashtra',
       pincode: pincode || '',
@@ -243,9 +278,16 @@ customerRouter.delete('/:id/documents/:docId', authorize('ADMIN', 'CRM', 'MANAGE
 /**
  * PUT /api/customers/:id
  */
-customerRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthRequest, res: Response) => {
+customerRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM'), async (req: AuthRequest, res: Response) => {
   try {
-    const updated = await Customer.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const updateData = { ...req.body };
+    if (updateData.googleMapsLink) {
+      updateData.googleMapsLink = updateData.googleMapsLink.trim();
+      if (!updateData.address) updateData.address = updateData.googleMapsLink;
+    } else if (updateData.address && (updateData.address.startsWith('http') || updateData.address.includes('maps'))) {
+      updateData.googleMapsLink = updateData.address.trim();
+    }
+    const updated = await Customer.findByIdAndUpdate(req.params.id, updateData, { new: true });
     if (!updated) {
       return res.status(404).json({ success: false, message: 'Customer not found' });
     }

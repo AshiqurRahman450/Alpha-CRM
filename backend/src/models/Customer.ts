@@ -10,6 +10,7 @@ export interface ICustomer extends Document {
   streetName?: string;
   landmark?: string;
   address: string;
+  googleMapsLink?: string;
   city: string;
   state: string;
   pincode: string;
@@ -76,6 +77,10 @@ const CustomerSchema = new Schema<ICustomer>(
     address: {
       type: String,
       required: true,
+      trim: true,
+    },
+    googleMapsLink: {
+      type: String,
       trim: true,
     },
     city: {

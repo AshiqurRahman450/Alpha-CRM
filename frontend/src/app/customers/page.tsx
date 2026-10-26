@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { api } from '../../lib/api';
+import { DEFAULT_BDMS } from '../../lib/constants';
 
 interface MissingField {
   key: string;
@@ -43,7 +44,7 @@ export default function CustomersPage() {
   const [optInFilter, setOptInFilter] = useState('');
 
   // BDM assignment support
-  const [bdms, setBdms] = useState<any[]>([]);
+  const [bdms, setBdms] = useState<any[]>(DEFAULT_BDMS);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   // Add Customer modal
@@ -171,64 +172,12 @@ export default function CustomersPage() {
       });
     }
 
-    if (!newCust.doorNo.trim()) {
+    if (!newCust.address.trim()) {
       missing.push({
-        key: 'doorNo',
-        label: 'Door / Flat No.',
-        error: 'Door, flat, or plot number is required for site survey',
-        elementId: 'cust_doorNo',
-      });
-    }
-
-    if (!newCust.streetName.trim()) {
-      missing.push({
-        key: 'streetName',
-        label: 'Street / Building Name',
-        error: 'Street, road, or apartment complex name is required',
-        elementId: 'cust_streetName',
-      });
-    }
-
-    if (!newCust.landmark.trim()) {
-      missing.push({
-        key: 'landmark',
-        label: 'Landmark',
-        error: 'Prominent landmark is required for installation logistics',
-        elementId: 'cust_landmark',
-      });
-    }
-
-    if (!newCust.city.trim()) {
-      missing.push({
-        key: 'city',
-        label: 'City',
-        error: 'City location is required',
-        elementId: 'cust_city',
-      });
-    }
-
-    if (!newCust.state.trim()) {
-      missing.push({
-        key: 'state',
-        label: 'State',
-        error: 'State location is required',
-        elementId: 'cust_state',
-      });
-    }
-
-    if (!newCust.pincode.trim()) {
-      missing.push({
-        key: 'pincode',
-        label: 'Pincode',
-        error: 'Postal pincode is required for site delivery',
-        elementId: 'cust_pincode',
-      });
-    } else if (!/^\d{4,6}$/.test(newCust.pincode.trim())) {
-      missing.push({
-        key: 'pincode',
-        label: 'Pincode',
-        error: 'Please enter a valid postal pincode',
-        elementId: 'cust_pincode',
+        key: 'address',
+        label: 'Google Maps Address Link',
+        error: 'Please enter or paste the Google Maps location link for the installation site',
+        elementId: 'cust_address',
       });
     }
 
@@ -266,10 +215,7 @@ export default function CustomersPage() {
       try {
         const userRes = await api.getCurrentUser();
         setCurrentUser(userRes?.user);
-        if (userRes?.user?.role !== 'BDM') {
-          const bdmRes = await api.getBDMs();
-          setBdms(bdmRes.data || []);
-        } else {
+        if (userRes?.user?.role === 'BDM') {
           setNewCust((prev) => ({
             ...prev,
             bdmId: userRes.user.id || userRes.user._id,
@@ -277,7 +223,19 @@ export default function CustomersPage() {
           }));
         }
       } catch (err) {
-        console.error('Failed to load user or BDMs', err);
+        console.warn('Failed to load current user profile:', err);
+      }
+
+      try {
+        const bdmRes = await api.getBDMs();
+        if (bdmRes?.data && bdmRes.data.length > 0) {
+          setBdms(bdmRes.data);
+        } else {
+          setBdms(DEFAULT_BDMS);
+        }
+      } catch (err) {
+        console.warn('Failed to load BDMs from API, retaining default directory:', err);
+        setBdms(DEFAULT_BDMS);
       }
     };
     fetchInit();
@@ -310,24 +268,17 @@ export default function CustomersPage() {
 
     try {
       setSubmitting(true);
-      const combinedAddress = [
-        newCust.doorNo?.trim(),
-        newCust.streetName?.trim(),
-        newCust.landmark?.trim(),
-      ]
-        .filter(Boolean)
-        .join(', ');
-
       await api.createCustomer({
         ...newCust,
         fullName: newCust.fullName.trim(),
         phoneNumber: newCust.phoneNumber.trim(),
         whatsappNumber: (newCust.whatsappNumber || newCust.phoneNumber).trim(),
         email: newCust.email.trim(),
-        city: newCust.city.trim(),
-        state: newCust.state.trim(),
-        pincode: newCust.pincode.trim(),
-        address: combinedAddress || newCust.address,
+        address: newCust.address.trim(),
+        googleMapsLink: newCust.address.trim(),
+        city: newCust.city?.trim() || 'Chennai',
+        state: newCust.state?.trim() || 'Tamil Nadu',
+        pincode: newCust.pincode?.trim() || '',
         bdmId: newCust.bdmId || undefined,
         bdmPhone: newCust.bdmPhone ? newCust.bdmPhone.trim() : undefined,
       });
@@ -341,12 +292,12 @@ export default function CustomersPage() {
         phoneNumber: '',
         whatsappNumber: '',
         email: '',
+        address: '',
         doorNo: '',
         streetName: '',
         landmark: '',
-        address: '',
-        city: 'Mumbai',
-        state: 'Maharashtra',
+        city: 'Chennai',
+        state: 'Tamil Nadu',
         pincode: '',
         customerType: 'Residential',
         leadSource: 'Architect Referral',
@@ -452,9 +403,9 @@ export default function CustomersPage() {
                       </Link>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <span className="text-[10px] text-slate-400">{c.email || 'No email'}</span>
-                        {c.bdmId && (
+                        {(c.bdmId || c.assignedEmployee) && (
                           <span className="text-[9px] font-bold px-1.5 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 rounded-md">
-                            BDM: {c.bdmId.name || 'Assigned'} {c.bdmPhone || c.bdmId.phone ? `(${c.bdmPhone || c.bdmId.phone})` : ''}
+                            BDM: {c.bdmId?.name || (typeof c.bdmId === 'string' && bdms.find((b) => b._id === c.bdmId || b.id === c.bdmId || b.email === c.bdmId)?.name) || c.assignedEmployee || 'Assigned'} {c.bdmPhone || c.bdmId?.phone ? `(${c.bdmPhone || c.bdmId?.phone})` : ''}
                           </span>
                         )}
                       </div>
@@ -466,7 +417,20 @@ export default function CustomersPage() {
                     </td>
 
                     <td className="py-4 px-4 text-slate-600">
-                      <div>{c.city}, {c.state}</div>
+                      {c.googleMapsLink || c.address?.startsWith('http') || c.address?.includes('maps') ? (
+                        <a
+                          href={c.googleMapsLink || c.address}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-sky-600 hover:text-sky-800 hover:underline"
+                        >
+                          <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                          <span>Google Maps</span>
+                          <ExternalLink className="w-3 h-3 text-slate-400" />
+                        </a>
+                      ) : (
+                        <div>{c.address || `${c.city || 'Location'}, ${c.state}`}</div>
+                      )}
                     </td>
 
                     <td className="py-4 px-4">
@@ -687,19 +651,28 @@ export default function CustomersPage() {
                         onChange={(e) => {
                           const selectedId = e.target.value;
                           updateCustField('bdmId', selectedId);
-                          const bdmObj = bdms.find((b) => b._id === selectedId);
+                          const bdmObj = bdms.find(
+                            (b) =>
+                              (b._id && b._id === selectedId) ||
+                              (b.id && b.id === selectedId) ||
+                              b.email === selectedId ||
+                              b.name === selectedId
+                          );
                           if (bdmObj?.phone) {
                             updateCustField('bdmPhone', bdmObj.phone);
                           }
                         }}
-                        className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none bg-white font-medium"
+                        className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none bg-white font-medium text-slate-800"
                       >
-                        <option value="">-- Unassigned --</option>
-                        {bdms.map((b) => (
-                          <option key={b._id} value={b._id}>
-                            {b.name} {b.phone ? `(${b.phone})` : ''}
-                          </option>
-                        ))}
+                        <option value="">-- Choose Assigned BDM --</option>
+                        {bdms.map((b) => {
+                          const val = b._id || b.id || b.email;
+                          return (
+                            <option key={val} value={val}>
+                              {b.name} ({b.email}) {b.phone ? `• ${b.phone}` : ''}
+                            </option>
+                          );
+                        })}
                       </select>
                     )}
                   </div>
@@ -787,149 +760,52 @@ export default function CustomersPage() {
                 </div>
               </div>
 
-              {/* Site / Residence Address */}
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-                <div className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-sky-600" />
-                  <span className="text-[11px] font-bold text-slate-800">
-                    Site / Residence Installation Address <span className="text-rose-500 font-black">*</span>
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="sm:col-span-1">
-                    <label htmlFor="cust_doorNo" className="block text-[11px] font-bold text-slate-700 mb-1">
-                      Door / Flat No. <span className="text-rose-500 font-black">*</span>
-                    </label>
-                    <input
-                      id="cust_doorNo"
-                      type="text"
-                      value={newCust.doorNo}
-                      onChange={(e) => updateCustField('doorNo', e.target.value)}
-                      placeholder="e.g. Flat 402 / Plot 42"
-                      className={`w-full p-2 text-xs rounded-xl border transition-all focus:outline-none focus:ring-2 ${
-                        fieldErrors.doorNo
-                          ? 'border-rose-400 bg-rose-50/20 focus:ring-rose-300 text-rose-950 font-medium'
-                          : 'border-slate-300 bg-white focus:ring-sky-500'
-                      }`}
-                    />
-                    {fieldErrors.doorNo && (
-                      <p className="mt-1 text-[10px] text-rose-600 font-semibold flex items-center gap-1 animate-in fade-in">
-                        <AlertCircle className="w-3 h-3 shrink-0" />
-                        Required
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <label htmlFor="cust_streetName" className="block text-[11px] font-bold text-slate-700 mb-1">
-                      Street / Building Name <span className="text-rose-500 font-black">*</span>
-                    </label>
-                    <input
-                      id="cust_streetName"
-                      type="text"
-                      value={newCust.streetName}
-                      onChange={(e) => updateCustField('streetName', e.target.value)}
-                      placeholder="e.g. Palm Meadows, Whitefield"
-                      className={`w-full p-2 text-xs rounded-xl border transition-all focus:outline-none focus:ring-2 ${
-                        fieldErrors.streetName
-                          ? 'border-rose-400 bg-rose-50/20 focus:ring-rose-300 text-rose-950 font-medium'
-                          : 'border-slate-300 bg-white focus:ring-sky-500'
-                      }`}
-                    />
-                    {fieldErrors.streetName && (
-                      <p className="mt-1 text-[10px] text-rose-600 font-semibold flex items-center gap-1 animate-in fade-in">
-                        <AlertCircle className="w-3 h-3 shrink-0" />
-                        {fieldErrors.streetName}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <label htmlFor="cust_landmark" className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Landmark <span className="text-rose-500 font-black">*</span>
+              {/* Google Maps Address Link */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="cust_address" className="text-[11px] font-bold text-slate-800 flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-rose-500" />
+                    <span>Google Maps Address Link <span className="text-rose-500 font-black">*</span></span>
                   </label>
-                  <input
-                    id="cust_landmark"
-                    type="text"
-                    value={newCust.landmark}
-                    onChange={(e) => updateCustField('landmark', e.target.value)}
-                    placeholder="e.g. Near Metro Station / Opp. Community Center"
-                    className={`w-full p-2 text-xs rounded-xl border transition-all focus:outline-none focus:ring-2 ${
-                      fieldErrors.landmark
-                        ? 'border-rose-400 bg-rose-50/20 focus:ring-rose-300 text-rose-950 font-medium'
-                        : 'border-slate-300 bg-white focus:ring-sky-500'
-                    }`}
-                  />
-                  {fieldErrors.landmark && (
-                    <p className="mt-1 text-[10px] text-rose-600 font-semibold flex items-center gap-1 animate-in fade-in">
-                      <AlertCircle className="w-3 h-3 shrink-0" />
-                      {fieldErrors.landmark}
-                    </p>
+                  {newCust.address.trim() && (
+                    <a
+                      href={newCust.address.trim()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] font-bold text-sky-600 hover:text-sky-800 inline-flex items-center gap-1 bg-sky-50 px-2.5 py-0.5 rounded-md border border-sky-200 transition-colors"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      <span>Test / Open in Maps</span>
+                    </a>
                   )}
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 pt-1">
-                  <div>
-                    <label htmlFor="cust_city" className="block text-[11px] font-bold text-slate-700 mb-1">
-                      City <span className="text-rose-500 font-black">*</span>
-                    </label>
-                    <input
-                      id="cust_city"
-                      type="text"
-                      value={newCust.city}
-                      onChange={(e) => updateCustField('city', e.target.value)}
-                      className={`w-full p-2 text-xs rounded-xl border transition-all focus:outline-none focus:ring-2 ${
-                        fieldErrors.city
-                          ? 'border-rose-400 bg-rose-50/20 focus:ring-rose-300 text-rose-950 font-medium'
-                          : 'border-slate-300 bg-white focus:ring-sky-500'
-                      }`}
-                    />
-                    {fieldErrors.city && (
-                      <p className="mt-1 text-[10px] text-rose-600 font-semibold">City required</p>
-                    )}
-                  </div>
-                  <div>
-                    <label htmlFor="cust_state" className="block text-[11px] font-bold text-slate-700 mb-1">
-                      State <span className="text-rose-500 font-black">*</span>
-                    </label>
-                    <input
-                      id="cust_state"
-                      type="text"
-                      value={newCust.state}
-                      onChange={(e) => updateCustField('state', e.target.value)}
-                      className={`w-full p-2 text-xs rounded-xl border transition-all focus:outline-none focus:ring-2 ${
-                        fieldErrors.state
-                          ? 'border-rose-400 bg-rose-50/20 focus:ring-rose-300 text-rose-950 font-medium'
-                          : 'border-slate-300 bg-white focus:ring-sky-500'
-                      }`}
-                    />
-                    {fieldErrors.state && (
-                      <p className="mt-1 text-[10px] text-rose-600 font-semibold">State required</p>
-                    )}
-                  </div>
-                  <div>
-                    <label htmlFor="cust_pincode" className="block text-[11px] font-bold text-slate-700 mb-1">
-                      Pincode <span className="text-rose-500 font-black">*</span>
-                    </label>
-                    <input
-                      id="cust_pincode"
-                      type="text"
-                      value={newCust.pincode}
-                      onChange={(e) => updateCustField('pincode', e.target.value)}
-                      placeholder="e.g. 400001"
-                      className={`w-full p-2 text-xs rounded-xl border transition-all focus:outline-none focus:ring-2 ${
-                        fieldErrors.pincode
-                          ? 'border-rose-400 bg-rose-50/20 focus:ring-rose-300 text-rose-950 font-medium'
-                          : 'border-slate-300 bg-white focus:ring-sky-500'
-                      }`}
-                    />
-                    {fieldErrors.pincode && (
-                      <p className="mt-1 text-[10px] text-rose-600 font-semibold">PIN required</p>
-                    )}
-                  </div>
+                <div className="relative">
+                  <input
+                    id="cust_address"
+                    type="url"
+                    value={newCust.address}
+                    onChange={(e) => updateCustField('address', e.target.value)}
+                    placeholder="Paste Google Maps link (e.g. https://maps.app.goo.gl/... or https://goo.gl/maps/...)"
+                    className={`w-full p-2.5 text-xs rounded-xl border transition-all focus:outline-none focus:ring-2 font-mono ${
+                      fieldErrors.address
+                        ? 'border-rose-400 bg-rose-50/20 focus:ring-rose-300 text-rose-950 font-medium'
+                        : 'border-slate-300 bg-white focus:ring-sky-500 text-slate-800'
+                    }`}
+                  />
                 </div>
+
+                {fieldErrors.address ? (
+                  <p className="mt-1 text-[11px] text-rose-600 font-semibold flex items-center gap-1.5 animate-in fade-in">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    {fieldErrors.address}
+                  </p>
+                ) : (
+                  <p className="text-[10.5px] text-slate-500 leading-relaxed flex items-center gap-1.5">
+                    <span>📍</span>
+                    <span>Enter or paste the Google Maps location link of the site / residence installation address.</span>
+                  </p>
+                )}
               </div>
 
               {/* Opt-In Checkbox */}

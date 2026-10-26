@@ -96,6 +96,7 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 
 import { User, Customer, Project } from './models';
 import { seed } from './scripts/seed';
+import { seedBdms } from './scripts/seed_bdm';
 import { autoSyncTimelineTemplates } from './routes/templates';
 
 export async function startServer() {
@@ -168,6 +169,13 @@ export async function startServer() {
         }
       } catch (userInitErr: any) {
         console.warn('[Server] Notice initializing Technical Manager Kishore:', userInitErr.message);
+      }
+
+      // Ensure all 10 BDM users from login page exist with login credentials and pilot data
+      try {
+        await seedBdms(true);
+      } catch (bdmInitErr: any) {
+        console.warn('[Server] Notice initializing BDM users:', bdmInitErr.message);
       }
 
       // Ensure sample Tamil Nadu clients exist for QC autofill

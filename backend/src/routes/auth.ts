@@ -97,10 +97,12 @@ authRouter.get('/me', authenticate, (req: AuthRequest, res: Response) => {
  * GET /api/auth/bdms
  * Returns a list of BDMs for assignment
  */
-authRouter.get('/bdms', authenticate, async (req: AuthRequest, res: Response) => {
+authRouter.get('/bdms', async (req: Request, res: Response) => {
   try {
-    const bdms = await User.find({ role: 'BDM', isActive: true }).select('name email role phone');
-    return res.json({ success: true, data: bdms });
+    const bdms = await User.find({ role: 'BDM', isActive: true })
+      .select('_id name email role phone')
+      .sort({ name: 1 });
+    return res.json({ success: true, count: bdms.length, data: bdms });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
   }

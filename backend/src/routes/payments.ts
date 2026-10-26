@@ -305,7 +305,7 @@ paymentRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT'), asyn
       if (adminUser?.phone) targetCrmPhone = adminUser.phone;
     }
     if (!targetCrmPhone) {
-      targetCrmPhone = '+91 98200 54321';
+      targetCrmPhone = '+91 93848 20316';
     }
 
     const crmRecipientName = project.paymentRequest?.requestedBy || 'CRM Team';
@@ -589,7 +589,7 @@ paymentRouter.post('/:id/send-receipt', authorize('ADMIN', 'CRM', 'MANAGER', 'AC
       if (adminUser?.phone) targetCrmPhone = adminUser.phone;
     }
     if (!targetCrmPhone) {
-      targetCrmPhone = '+91 98200 54321';
+      targetCrmPhone = '+91 93848 20316';
     }
 
     const crmRecipientName = project.paymentRequest?.requestedBy || 'CRM Team';
