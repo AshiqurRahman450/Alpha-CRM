@@ -399,6 +399,9 @@ export default function SettingsPage() {
                 onChange={(e) => setSettings({ ...settings, defaultUpdateFrequencyDays: Number(e.target.value) })}
                 className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none"
               >
+                <option value="0.0208">Every 30 Minutes (30 mins once)</option>
+                <option value="0.0416">Every 1 Hour (1 hour once)</option>
+                <option value="1.25">Every 30 Hours (30 hours once)</option>
                 <option value="1">1 Day (Daily)</option>
                 <option value="10">10 Days</option>
                 <option value="15">15 Days</option>

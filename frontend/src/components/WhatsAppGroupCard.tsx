@@ -59,7 +59,7 @@ export default function WhatsAppGroupCard({
   const [modalTab, setModalTab] = useState<'link' | 'api'>('link');
   const [customGroupName, setCustomGroupName] = useState('');
   const [groupInviteLink, setGroupInviteLink] = useState('');
-  const [selectedInterval, setSelectedInterval] = useState<'1' | '10' | '15' | '20'>('15');
+  const [selectedInterval, setSelectedInterval] = useState<string>('15');
   const [useDryRun, setUseDryRun] = useState(false);
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [metaErrorNotice, setMetaErrorNotice] = useState<string | null>(null);
@@ -335,11 +335,22 @@ export default function WhatsAppGroupCard({
   };
 
   // Handle Interval Change
-  const handleIntervalChange = async (newVal: '1' | '10' | '15' | '20') => {
+  const handleIntervalChange = async (newVal: string) => {
     try {
       setLoading(true);
-      await api.updateWhatsAppConfig(project._id, { intervalDays: Number(newVal) });
-      toast.success(`Update cadence updated to every ${newVal === '1' ? '1 day' : `${newVal} days`}`);
+      const numVal = Number(newVal);
+      await api.updateWhatsAppConfig(project._id, { intervalDays: numVal });
+      const label =
+        numVal <= 0.025
+          ? '30 minutes (30 mins once)'
+          : numVal < 0.1
+          ? '1 hour (1 hour once)'
+          : numVal >= 1.24 && numVal <= 1.26
+          ? '30 hours (30 hours once)'
+          : numVal === 1
+          ? '1 day'
+          : `${numVal} days`;
+      toast.success(`Update cadence updated to every ${label}`);
       onRefresh();
     } catch (err: any) {
       toast.error(err.message || 'Failed to update cadence');
@@ -707,11 +718,22 @@ export default function WhatsAppGroupCard({
           <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Update Interval</span>
           <div className="flex items-center gap-2">
             <select
-              value={intervalDays}
-              onChange={(e) => handleIntervalChange(e.target.value as any)}
+              value={
+                Number(intervalDays) <= 0.025
+                  ? '0.0208'
+                  : Number(intervalDays) < 0.1
+                  ? '0.0416'
+                  : Number(intervalDays) >= 1.24 && Number(intervalDays) <= 1.26
+                  ? '1.25'
+                  : intervalDays
+              }
+              onChange={(e) => handleIntervalChange(e.target.value)}
               disabled={loading || !groupId}
               className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
             >
+              <option value="0.0208">Every 30 Minutes (30 mins once)</option>
+              <option value="0.0416">Every 1 Hour (1 hour once)</option>
+              <option value="1.25">Every 30 Hours (30 hours once)</option>
               <option value="1">Every 1 Day (Daily)</option>
               <option value="10">Every 10 Days</option>
               <option value="15">Every 15 Days</option>
@@ -726,7 +748,14 @@ export default function WhatsAppGroupCard({
           <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Next Scheduled Update</span>
           <strong className="text-sky-700 text-sm block font-bold">
             {nextUpdateAt
-              ? new Date(nextUpdateAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+              ? new Date(nextUpdateAt).toLocaleString('en-GB', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: true,
+                })
               : 'Not Scheduled'}
           </strong>
           {['MANUFACTURING', 'QUALITY_CHECK', 'DELIVERY', 'DISPATCH', 'INSTALLATION', 'TESTING'].includes(project.projectStatus) && (
@@ -1137,9 +1166,12 @@ export default function WhatsAppGroupCard({
                 </label>
                 <select
                   value={selectedInterval}
-                  onChange={(e) => setSelectedInterval(e.target.value as any)}
+                  onChange={(e) => setSelectedInterval(e.target.value)}
                   className="w-full text-xs p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-semibold text-slate-800 bg-white"
                 >
+                  <option value="0.0208">Every 30 Minutes (30 mins once)</option>
+                  <option value="0.0416">Every 1 Hour (1 hour once)</option>
+                  <option value="1.25">Every 30 Hours (30 hours once)</option>
                   <option value="1">Every 1 Day (Daily Updates)</option>
                   <option value="10">Every 10 Days (Frequent Updates)</option>
                   <option value="15">Every 15 Days (Recommended Standard)</option>

@@ -231,7 +231,11 @@ whatsappRouter.post('/send', authorize('ADMIN', 'CRM', 'MANAGER', 'TECHNICAL_LEA
     }
 
     if (customNote && customNote.trim()) {
-      readableContent += `\n\nNote: ${customNote.trim()}`;
+      if (readableContent.includes('Regards,\nAlpha Elevators Team')) {
+        readableContent = readableContent.replace('Regards,\nAlpha Elevators Team', `Note: ${customNote.trim()}\n\nRegards,\nAlpha Elevators Team`);
+      } else {
+        readableContent += `\n\nNote: ${customNote.trim()}`;
+      }
     }
 
     const now = new Date();
@@ -970,12 +974,16 @@ whatsappRouter.patch('/projects/:id/config', authorize('ADMIN', 'CRM', 'MANAGER'
     }
 
     if (intervalDays !== undefined) {
-      const allowed = [1, 10, 15, 20];
+      const allowed = [0.0208, 0.0416, 0.04, 1, 1.25, 10, 15, 20];
       const parsedDays = Number(intervalDays);
-      if (!allowed.includes(parsedDays)) {
+      const isCustomValid =
+        (parsedDays > 0 && parsedDays < 0.1) ||
+        (parsedDays >= 1.24 && parsedDays <= 1.26) ||
+        [1, 10, 15, 20].includes(parsedDays);
+      if (!allowed.includes(parsedDays) && !isCustomValid) {
         return res.status(400).json({
           success: false,
-          message: `Invalid interval value: ${intervalDays}. Allowed update intervals are 1, 10, 15, or 20 days.`,
+          message: `Invalid interval value: ${intervalDays}. Allowed update intervals are 30 mins, 1 hour, 30 hours, 1, 10, 15, or 20 days.`,
         });
       }
       project.updateFrequencyDays = parsedDays;
@@ -988,12 +996,12 @@ whatsappRouter.patch('/projects/:id/config', authorize('ADMIN', 'CRM', 'MANAGER'
           groupStatus: 'ACTIVE',
           updatesEnabled: project.automationEnabled,
           paused: !project.automationEnabled,
-          intervalDays: parsedDays as 1 | 10 | 15 | 20,
+          intervalDays: parsedDays,
           createdAt: new Date(),
           updatedAt: new Date(),
         };
       } else {
-        project.whatsapp.intervalDays = parsedDays as 1 | 10 | 15 | 20;
+        project.whatsapp.intervalDays = parsedDays;
       }
       project.nextUpdateAt = calculateNextUpdateDate(parsedDays, project.lastUpdateAt || new Date());
       project.whatsapp.nextUpdateAt = project.nextUpdateAt;

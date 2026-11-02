@@ -26,6 +26,7 @@ export interface QCReportData {
   shaftA?: number | string;
   shaftB?: number | string;
   shaftC?: number | string;
+  shaftD?: number | string;
   shaftAccuracy?: string;
   plasterStatus?: string;
 
@@ -73,9 +74,9 @@ export async function generateQCReportPdf(
         margins: { top: 36, bottom: 20, left: 36, right: 36 },
         bufferPages: true,
         info: {
-          Title: `Elevator Site Report/Pre-Production - ${data.jobNo}`,
+          Title: `Elevator Site Visit Report/Pre-Production - ${data.jobNo}`,
           Author: 'Alpha Elevators Quality Control Team',
-          Subject: `Site Report/Pre-Production for ${data.clientName}`,
+          Subject: `Site Visit Report/Pre-Production for ${data.clientName}`,
           Creator: 'Alpha Elevators CRM System',
         },
       });
@@ -155,7 +156,7 @@ export async function generateQCReportPdf(
       }
 
       // Title on Header
-      doc.fillColor('#FFFFFF').font(fontBold).fontSize(14).text('SITE REPORT/PRE-PRODUCTION', 200, 48, { align: 'right', width: 345 });
+      doc.fillColor('#FFFFFF').font(fontBold).fontSize(14).text('SITE VISIT REPORT/PRE-PRODUCTION', 200, 48, { align: 'right', width: 345 });
       doc.fillColor('#BAE6FD').font(fontRegular).fontSize(8.5).text('Digital Technical Site Inspection & Measurement Verification', 200, 66, { align: 'right', width: 345 });
       doc.fillColor('#94A3B8').font(fontRegular).fontSize(8).text(`Job No: ${data.jobNo || 'N/A'}  |  Date: ${data.reportDate || new Date().toISOString().slice(0, 10)}`, 200, 82, { align: 'right', width: 345 });
 
@@ -173,17 +174,17 @@ export async function generateQCReportPdf(
 
       const detailsLeft = [
         ['Report Date', data.reportDate || 'N/A'],
-        ['Region / Location', data.region || 'Tamil Nadu'],
         ['Job No. / Order', data.jobNo || 'N/A'],
         ['Client Name', data.clientName || 'N/A'],
         ['Client Contact', data.clientPhone || 'N/A'],
       ];
 
       const detailsRight = [
+        ['Quotation Number', data.quotationNo || data.automationCode || 'N/A'],
+        ['Region / Location', data.region || 'Tamil Nadu'],
         ['Site Visit Count', data.visitCount ? `Visit #${data.visitCount}` : '1st Visit'],
         ['Technician Name', data.technician || 'Not Specified'],
         ['Technician Email', data.technicianEmail || 'N/A'],
-        ['Quotation Number', data.quotationNo || data.automationCode || 'N/A'],
       ];
 
       doc.fontSize(8.5);
@@ -206,16 +207,16 @@ export async function generateQCReportPdf(
       doc.fillColor(navy).font(fontBold).fontSize(9.5).text('2. PROPERTY & ELEVATOR SPECIFICATIONS', 44, currentY + 4);
       currentY += 22;
 
-      const propLeft = [
-        ['Property Stage', data.propertyStage || 'Planning'],
-        ['Installation Area', data.installationArea || 'Indoor'],
-        ['Product Series', data.product || 'Standard'],
-      ];
-
       const stopsLabel = data.floorConfig ? `G+${Number(data.floorConfig) - 1} (${data.floorConfig} Stops)` : '2 Stops';
-      const propRight = [
+      const propLeft = [
+        ['Product Series', data.product || 'Standard'],
         ['Floor Config', stopsLabel],
         ['Door Closing Side', data.doorClosing || 'Not confirmed'],
+      ];
+
+      const propRight = [
+        ['Property Stage', data.propertyStage || 'Planning'],
+        ['Installation Area', data.installationArea || 'Indoor'],
         ['Client Confirmation', data.clientSignatureType || 'Confirmed'],
       ];
 
@@ -241,10 +242,10 @@ export async function generateQCReportPdf(
       // Shaft Box Grid (4 dimensions + Accuracy + Plaster)
       doc.rect(36, currentY, 523, 34).fillAndStroke(lightBg, borderCol);
       const shaftCols = [
-        { label: 'Shaft G-Side (W)', val: data.shaftG ? `${data.shaftG} mm` : '-' },
-        { label: 'Shaft A-Side (D)', val: data.shaftA ? `${data.shaftA} mm` : '-' },
-        { label: 'Shaft B-Side', val: data.shaftB ? `${data.shaftB} mm` : '-' },
-        { label: 'Shaft C-Side', val: data.shaftC ? `${data.shaftC} mm` : '-' },
+        { label: 'Shaft A-Side (W)', val: (data.shaftG || data.shaftA) ? `${data.shaftG || data.shaftA} mm` : '-' },
+        { label: 'Shaft B-Side (D)', val: (data.shaftA || data.shaftB) ? `${data.shaftA || data.shaftB} mm` : '-' },
+        { label: 'Shaft C-Side (R)', val: (data.shaftB || data.shaftC) ? `${data.shaftB || data.shaftC} mm` : '-' },
+        { label: 'Shaft D-Side (L)', val: (data.shaftC || data.shaftD) ? `${data.shaftC || data.shaftD} mm` : '-' },
         { label: 'Accuracy', val: data.shaftAccuracy || 'Approximate' },
         { label: 'Plaster', val: data.plasterStatus || 'Without plaster' },
       ];
@@ -334,7 +335,7 @@ export async function generateQCReportPdf(
 
       // Top mini header on Page 2
       doc.rect(36, 36, 523, 30).fill(navy);
-      doc.fillColor('#FFFFFF').font(fontBold).fontSize(11).text('ALPHA ELEVATORS — SITE REPORT/PRE-PRODUCTION', 48, 44);
+      doc.fillColor('#FFFFFF').font(fontBold).fontSize(11).text('ALPHA ELEVATORS — SITE VISIT REPORT/PRE-PRODUCTION', 48, 44);
       doc.fillColor('#00cccc').font(fontRegular).fontSize(8).text(`Job No: ${data.jobNo || 'N/A'}  |  Client: ${data.clientName || 'N/A'}`, 350, 46, { align: 'right', width: 200 });
 
       currentY = 76;
@@ -345,13 +346,12 @@ export async function generateQCReportPdf(
       currentY += 22;
 
       // Wall matrix table
-      const wallSides = ['G', 'A', 'B', 'C'];
-      const wallSideLabels: Record<string, string> = {
-        G: 'G-Side (Front/Door)',
-        A: 'A-Side (Back)',
-        B: 'B-Side (Right)',
-        C: 'C-Side (Left)',
-      };
+      const wallSides = [
+        { key: 'A', oldKey: 'G', label: 'A-Side (Front/Door)' },
+        { key: 'B', oldKey: 'A', label: 'B-Side (Back)' },
+        { key: 'C', oldKey: 'B', label: 'C-Side (Right)' },
+        { key: 'D', oldKey: 'C', label: 'D-Side (Left)' },
+      ];
 
       const wallColW = (523 - 110) / stops;
 
@@ -365,16 +365,15 @@ export async function generateQCReportPdf(
       currentY += 16;
 
       const ws = data.wallSpecifications || {};
-      wallSides.forEach((side, rIdx) => {
+      wallSides.forEach(({ key, oldKey, label }, rIdx) => {
         const rowBg = rIdx % 2 === 0 ? '#FFFFFF' : '#F8FAFC';
         doc.rect(36, currentY, 523, 16).fillAndStroke(rowBg, borderCol);
 
-        doc.fillColor(navy).font(fontBold).fontSize(7.5).text(wallSideLabels[side] || `${side}-Side`, 42, currentY + 4, { width: 105 });
+        doc.fillColor(navy).font(fontBold).fontSize(7.5).text(label, 42, currentY + 4, { width: 105 });
 
         for (let i = 0; i < stops; i++) {
           const x = 36 + 110 + i * wallColW;
-          const key = `wallFloor${i}${side}`;
-          const val = ws[key] || '9-inch Brick Wall';
+          const val = ws[`wallFloor${i}${key}`] || ws[`wallFloor${i}${oldKey}`] || '9-inch Brick Wall';
           doc.fillColor(darkSlate).font(fontRegular).fontSize(7).text(val, x + 2, currentY + 4, { width: wallColW - 4, align: 'center' });
         }
         currentY += 16;
@@ -612,7 +611,7 @@ export async function generateQCReportPdf(
 
         doc.rect(36, 804, 523, 0.5).fill('#CBD5E1');
         doc.font(fontRegular).fontSize(7).fillColor(slate)
-          .text('Alpha Elevators Customer CRM & QC Inspection System • Confidential Site Report/Pre-Production', 36, 808, { width: 350, lineBreak: false })
+          .text('Alpha Elevators Customer CRM & QC Inspection System • Confidential Site Visit Report/Pre-Production', 36, 808, { width: 350, lineBreak: false })
           .text(`Page ${i + 1} of ${totalPages}`, 420, 808, { width: 139, align: 'right', lineBreak: false });
 
         doc.page.margins.bottom = savedBottomMargin;

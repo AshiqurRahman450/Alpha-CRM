@@ -18,7 +18,7 @@ export const TEMPLATES = [
     displayName: 'Site Visit Schedule P M',
     category: 'UTILITY',
     stageMapping: 'SITE_MEASUREMENT',
-    bodyText: 'Dear Sir/Madam,\nYour site visit has been scheduled for [Date] at [Time]. Our technical team will visit the site for measurement and inspection.\nKindly ensure site accessibility during the scheduled time.',
+    bodyText: 'Dear Sir/Madam,\n\nYour site visit has been scheduled for [Date] at [Time]. Our technical team will visit the site for measurement and inspection.\nKindly ensure site accessibility during the scheduled time.\n\nRegards,\nAlpha Elevators Team',
     variablesList: ['Date', 'Time'],
   },
   {
@@ -26,7 +26,7 @@ export const TEMPLATES = [
     displayName: 'Site Visit Completed',
     category: 'UTILITY',
     stageMapping: 'SITE_MEASUREMENT',
-    bodyText: 'Good Afternoon Sir,\n\nWe have successfully completed the site visit on the scheduled date and shared the site visit report with you via email.\n\nKindly review the report and confirm your approval by replying to the email so that we can initiate the drawing process based on the site measurements.\n\nThank you for your support and cooperation.\n\nRegards,\nCRM Department\nAlpha Elevators',
+    bodyText: 'Dear Sir/Madam,\n\nWe have successfully completed the site visit on the scheduled date and shared the site visit report with you via email.\n\nKindly review the report and confirm your approval by replying to the email so that we can initiate the drawing process based on the site measurements.\n\nThank you for your support and cooperation.\n\nRegards,\nAlpha Elevators Team',
     variablesList: [],
   },
   {
@@ -34,7 +34,7 @@ export const TEMPLATES = [
     displayName: 'Drawing & Cabin Approval',
     category: 'UTILITY',
     stageMapping: 'DESIGN',
-    bodyText: 'Dear Sir/Madam,\nThe elevator drawing and cabin design are ready for your review and approval. Kindly review and confirm your approval to proceed to the next stage.',
+    bodyText: 'Dear Sir/Madam,\n\nThe elevator drawing and cabin design are ready for your review and approval. Kindly review and confirm your approval to proceed to the next stage.\n\nRegards,\nAlpha Elevators Team',
     variablesList: [],
   },
   {
@@ -42,7 +42,7 @@ export const TEMPLATES = [
     displayName: 'Drawing & Cabin Approval Remainder',
     category: 'UTILITY',
     stageMapping: 'CUSTOMER_APPROVAL',
-    bodyText: 'Dear Sir/Madam,\nThis is a gentle reminder to kindly review and approves the elevator drawing and cabin design shared with you, so that we can proceed with the next stage without delay.',
+    bodyText: 'Dear Sir/Madam,\n\nThis is a gentle reminder to kindly review and approves the elevator drawing and cabin design shared with you, so that we can proceed with the next stage without delay.\n\nRegards,\nAlpha Elevators Team',
     variablesList: [],
   },
   {
@@ -50,7 +50,7 @@ export const TEMPLATES = [
     displayName: 'Thank you for your approval',
     category: 'UTILITY',
     stageMapping: 'CUSTOMER_APPROVAL',
-    bodyText: 'Dear Sir/Madam,\nWe have received your drawing and cabin approval. Kindly request you to make the production payment to initiate the production process.',
+    bodyText: 'Dear Sir/Madam,\n\nThanks for your approval Our team is currently working on the elevator drawing, and we will share it with you once it is ready.\n\nRegards,\nAlpha Elevators Team',
     variablesList: [],
   },
   {
@@ -58,7 +58,7 @@ export const TEMPLATES = [
     displayName: 'Production Payment',
     category: 'UTILITY',
     stageMapping: 'ENGINEERING',
-    bodyText: 'Dear Sir/Madam,\nThank you for the production payment. We have received the payment and will proceed with the production process accordingly.',
+    bodyText: 'Dear Sir/Madam,\n\nThank you for the production payment. We have received the payment and will proceed with the production process accordingly.\n\nRegards,\nAlpha Elevators Team',
     variablesList: [],
   },
   {
@@ -66,7 +66,7 @@ export const TEMPLATES = [
     displayName: 'Production Payment remainder',
     category: 'UTILITY',
     stageMapping: 'ENGINEERING',
-    bodyText: 'Dear Sir/Madam,\nThis is a gentle reminder to kindly release the production payment to initiate the production process.\nPlease note that the production timeline is approximately 60 days from the date of payment and approval. Kindly complete the payment at the earliest to avoid any delay in the production schedule.',
+    bodyText: 'Dear Sir/Madam,\n\nKindly release the production payment to initiate the production process. Please note that the production timeline is approximately 60 days from the date of payment and approval.\n\nRegards,\nAlpha Elevators Team',
     variablesList: [],
   },
   {
@@ -74,7 +74,7 @@ export const TEMPLATES = [
     displayName: 'Production Payment Received',
     category: 'UTILITY',
     stageMapping: 'ENGINEERING',
-    bodyText: 'Dear Sir/Madam,\nThank you for the production payment. We have received the payment and will proceed with the production process accordingly.',
+    bodyText: 'Dear Sir/Madam,\n\nThank you for the production payment. We have received the payment and will proceed with the production process accordingly.\n\nRegards,\nAlpha Elevators Team',
     variablesList: [],
   },
   {
@@ -82,7 +82,7 @@ export const TEMPLATES = [
     displayName: 'Production Update – Stage 1 Production & Fabrication',
     category: 'UTILITY',
     stageMapping: 'MANUFACTURING',
-    bodyText: 'Dear Sir/Madam,\nYour elevator production is currently in the fabrication and material processing stage, including structure, cabin, and door fabrication.\nWe will share the next production update within 10 days.',
+    bodyText: 'Dear Sir/Madam,\n\nYour elevator production is currently in the fabrication and material processing stage, including structure, cabin, and door fabrication.\nWe will share the next production update within 10 days.\n\nRegards,\nAlpha Elevators Team',
     variablesList: [],
   },
   {
@@ -90,7 +90,7 @@ export const TEMPLATES = [
     displayName: 'Production Update Stage 2 – Finishing & Assembly',
     category: 'UTILITY',
     stageMapping: 'MANUFACTURING',
-    bodyText: 'Dear Sir/Madam,\nYour elevator is currently in the finishing and assembly stage, including painting, cabin finishing, and electrical & mechanical assembly.\nWe will share the next production update within 10 days.',
+    bodyText: 'Dear Sir/Madam,\n\nYour elevator is currently in the finishing and assembly stage, including painting, cabin finishing, and electrical & mechanical assembly.\nWe will share the next production update within 10 days.\n\nRegards,\nAlpha Elevators Team',
     variablesList: [],
   },
   {
@@ -98,7 +98,7 @@ export const TEMPLATES = [
     displayName: 'Production Update Stage 3 – Final Inspection & Ready',
     category: 'UTILITY',
     stageMapping: 'QUALITY_CHECK',
-    bodyText: 'Dear Sir/Madam,\nYour elevator is in the final inspection stage. Quality checks are being completed, and the material will be prepared for dispatch upon completion.',
+    bodyText: 'Dear Sir/Madam,\n\nYour elevator is in the final inspection stage. Quality checks are being completed, and the material will be prepared for dispatch upon completion.\n\nRegards,\nAlpha Elevators Team',
     variablesList: [],
   },
   {
@@ -106,7 +106,7 @@ export const TEMPLATES = [
     displayName: 'Readiness Payment',
     category: 'UTILITY',
     stageMapping: 'QUALITY_CHECK',
-    bodyText: 'Dear Sir/Madam,\nYour elevator is ready for dispatch. Kindly release the readiness payment to proceed with the material dispatch process.\nWe request you to complete the payment at the earliest to avoid any delay in dispatch.',
+    bodyText: 'Dear Sir/Madam,\n\nYour elevator is ready for dispatch. Kindly release the readiness payment to proceed with the material dispatch process.\nWe request you to complete the payment at the earliest to avoid any delay in dispatch.\n\nRegards,\nAlpha Elevators Team',
     variablesList: [],
   },
   {
@@ -114,7 +114,7 @@ export const TEMPLATES = [
     displayName: 'Readiness Payment Reminder',
     category: 'UTILITY',
     stageMapping: 'QUALITY_CHECK',
-    bodyText: 'Dear Sir/Madam,\nThis is a gentle reminder to kindly release the Readiness payment to proceed with the Material dispatch.\nWe request you to complete the payment at the earliest to avoid any delay in the dispatch schedule.',
+    bodyText: 'Dear Sir/Madam,\n\nThis is a gentle reminder to kindly release the Readiness payment to proceed with the Material dispatch.\nWe request you to complete the payment at the earliest to avoid any delay in the dispatch schedule.\n\nRegards,\nAlpha Elevators Team',
     variablesList: [],
   },
   {
@@ -122,7 +122,7 @@ export const TEMPLATES = [
     displayName: 'Readiness Payment Received',
     category: 'UTILITY',
     stageMapping: 'QUALITY_CHECK',
-    bodyText: 'Dear Sir/Madam,\nThank you for the readiness payment. We have received the payment and will proceed with the material dispatch process accordingly.',
+    bodyText: 'Dear Sir/Madam,\n\nThank you for the readiness payment. We have received the payment and will proceed with the material dispatch process accordingly.\n\nRegards,\nAlpha Elevators Team',
     variablesList: [],
   },
   {
@@ -130,7 +130,7 @@ export const TEMPLATES = [
     displayName: 'Material Dispatched PM',
     category: 'UTILITY',
     stageMapping: 'DISPATCH',
-    bodyText: 'Dear Sir/Madam,\nYour elevator material has been dispatched through VRL Logistics.\nVRL Tracking No.: [Tracking Number]\nYou can use the above tracking number to track the material movement. We will keep you updated on the delivery status.\nNote: Kindly ensure proper space and access for safe unloading and material storage.',
+    bodyText: 'Dear Sir/Madam,\n\nYour elevator material has been dispatched through VRL Logistics.\nVRL Tracking No.: [Tracking Number]\nYou can use the above tracking number to track the material movement. We will keep you updated on the delivery status.\nNote: Kindly ensure proper space and access for safe unloading and material storage.\n\nRegards,\nAlpha Elevators Team',
     variablesList: ['Tracking Number'],
   },
   {
@@ -138,7 +138,7 @@ export const TEMPLATES = [
     displayName: 'Pre-Installation Site Visit ( P M )',
     category: 'UTILITY',
     stageMapping: 'DELIVERY',
-    bodyText: 'Dear Sir/Madam,\nOur technical team will visit the site for a pre-installation inspection to verify site readiness and installation requirements.\nKindly ensure the site is ready and accessible for the scheduled visit.',
+    bodyText: 'Dear Sir/Madam,\n\nOur technical team will visit the site for a pre-installation inspection to verify site readiness and installation requirements.\nKindly ensure the site is ready and accessible for the scheduled visit.\n\nRegards,\nAlpha Elevators Team',
     variablesList: [],
   },
   {
@@ -146,7 +146,7 @@ export const TEMPLATES = [
     displayName: 'Material Unloading',
     category: 'UTILITY',
     stageMapping: 'DELIVERY',
-    bodyText: 'Dear Sir/Madam,\nYour elevator material has been Delivered to the site and unloading is in progress. We will keep you Updated on our installation team arrival shortly.',
+    bodyText: 'Dear Sir/Madam,\n\nYour elevator material has been Delivered to the site and unloading is in progress. We will keep you Updated on our installation team arrival shortly.\n\nRegards,\nAlpha Elevators Team',
     variablesList: [],
   },
   {
@@ -154,7 +154,7 @@ export const TEMPLATES = [
     displayName: 'Installation Team Arrival ( P M )',
     category: 'UTILITY',
     stageMapping: 'INSTALLATION',
-    bodyText: 'Dear Sir/Madam,\nOur installation team has arrived at the site and will commence the elevator installation work as per the planned schedule.',
+    bodyText: 'Dear Sir/Madam,\n\nOur installation team has arrived at the site and will commence the elevator installation work as per the planned schedule.\n\nRegards,\nAlpha Elevators Team',
     variablesList: [],
   },
   {
@@ -162,7 +162,7 @@ export const TEMPLATES = [
     displayName: 'Installation Feedback',
     category: 'UTILITY',
     stageMapping: 'INSTALLATION',
-    bodyText: 'Dear Sir/Madam,\nAs the installation work is in progress, kindly share your feedback or any concerns regarding the work. Our team will be happy to assist and address them promptly.',
+    bodyText: 'Dear Sir/Madam,\n\nAs the installation work is in progress, kindly share your feedback or any concerns regarding the work. Our team will be happy to assist and address them promptly.\n\nRegards,\nAlpha Elevators Team',
     variablesList: [],
   },
   {
@@ -170,7 +170,7 @@ export const TEMPLATES = [
     displayName: 'Hand Over ( P M)',
     category: 'UTILITY',
     stageMapping: 'TESTING',
-    bodyText: 'Dear Sir/Madam,\nThis is to inform you that the elevator installation work is expected to be completed by tomorrow. Kindly share a convenient date and time for the handover, so that we can plan and complete the necessary handover formalities accordingly.',
+    bodyText: 'Dear Sir/Madam,\n\nThis is to inform you that the elevator installation work is expected to be completed by tomorrow. Kindly share a convenient date and time for the handover, so that we can plan and complete the necessary handover formalities accordingly.\n\nRegards,\nAlpha Elevators Team',
     variablesList: [],
   },
 ];
@@ -589,7 +589,7 @@ export async function seed() {
       messageType: 'template',
       recipientType: 'group',
       direction: 'OUTGOING',
-      messageContent: `Dear Sir/Madam,\nYour site visit has been scheduled for 25 Oct 2026 at 11:00 AM. Our technical team will visit the site for measurement and inspection.\nKindly ensure site accessibility during the scheduled time.`,
+      messageContent: `Dear Sir/Madam,\n\nYour site visit has been scheduled for 25 Oct 2026 at 11:00 AM. Our technical team will visit the site for measurement and inspection.\nKindly ensure site accessibility during the scheduled time.\n\nRegards,\nAlpha Elevators Team`,
       status: 'READ',
       sentAt: project.orderDate,
       deliveredAt: new Date(project.orderDate.getTime() + 5000),

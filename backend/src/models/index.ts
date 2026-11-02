@@ -11,3 +11,4 @@ export * from './SystemSettings';
 export * from './Reminder';
 export * from './WhatsAppMessageLog';
 export * from './QCReport';
+export * from './Quotation';

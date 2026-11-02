@@ -79,17 +79,44 @@ export function formatDateKey(date: Date): string {
 }
 
 /**
- * Calculates next update date given frequency days (1, 10, 15, 20 or custom days)
+ * Calculates next update date given frequency days:
+ * - 0.0208 = 30 minutes once
+ * - 0.0416 = 1 hour once
+ * - 1.25 = 30 hours once
+ * - 1, 10, 15, 20 or custom days
  */
 export function calculateNextUpdateDate(days: number = 15, fromDate: Date = new Date()): Date {
-  const validDays = [1, 10, 15, 20].includes(Number(days))
-    ? Number(days)
-    : Number(days) > 0
-    ? Number(days)
+  const numDays = Number(days);
+
+  // 30 minutes once (0.0208 day or <= 0.025)
+  if (numDays > 0 && numDays <= 0.025) {
+    const nextDate = new Date(fromDate);
+    nextDate.setMinutes(nextDate.getMinutes() + 30);
+    return nextDate;
+  }
+
+  // 1 hour once (0.0416 day or < 0.1 day)
+  if (numDays > 0.025 && numDays < 0.1) {
+    const nextDate = new Date(fromDate);
+    nextDate.setHours(nextDate.getHours() + 1);
+    return nextDate;
+  }
+
+  // 30 hours once (1.25 days)
+  if (numDays >= 1.24 && numDays <= 1.26) {
+    const nextDate = new Date(fromDate);
+    nextDate.setHours(nextDate.getHours() + 30);
+    return nextDate;
+  }
+
+  const validDays = [1, 10, 15, 20].includes(numDays)
+    ? numDays
+    : numDays > 0
+    ? numDays
     : 15;
   const nextDate = new Date(fromDate);
   nextDate.setDate(nextDate.getDate() + validDays);
-  // Default to 09:00 AM local time
+  // Default to 09:00 AM local time for day-based intervals
   nextDate.setHours(9, 0, 0, 0);
   return nextDate;
 }
@@ -97,10 +124,14 @@ export function calculateNextUpdateDate(days: number = 15, fromDate: Date = new 
 // Full dictionary of the 20 approved Alpha Elevators WhatsApp milestone templates
 export const APPROVED_MILESTONE_TEMPLATES: Record<string, string> = {
   SITE_VISIT_SCHEDULE_PM: `Dear Sir/Madam,
-Your site visit has been scheduled for [Date] at [Time]. Our technical team will visit the site for measurement and inspection.
-Kindly ensure site accessibility during the scheduled time.`,
 
-  SITE_VISIT_COMPLETED: `Good Afternoon Sir,
+Your site visit has been scheduled for [Date] at [Time]. Our technical team will visit the site for measurement and inspection.
+Kindly ensure site accessibility during the scheduled time.
+
+Regards,
+Alpha Elevators Team`,
+
+  SITE_VISIT_COMPLETED: `Dear Sir/Madam,
 
 We have successfully completed the site visit on the scheduled date and shared the site visit report with you via email.
 
@@ -108,72 +139,142 @@ Kindly review the report and confirm your approval by replying to the email so t
 
 Thank you for your support and cooperation.
 
-Regards,  
-CRM Department  
-Alpha Elevators`,
+Regards,
+Alpha Elevators Team`,
 
   DRAWING_CABIN_APPROVAL: `Dear Sir/Madam,
-The elevator drawing and cabin design are ready for your review and approval. Kindly review and confirm your approval to proceed to the next stage.`,
+
+The elevator drawing and cabin design are ready for your review and approval. Kindly review and confirm your approval to proceed to the next stage.
+
+Regards,
+Alpha Elevators Team`,
 
   DRAWING_CABIN_APPROVAL_REMINDER: `Dear Sir/Madam,
-This is a gentle reminder to kindly review and approves the elevator drawing and cabin design shared with you, so that we can proceed with the next stage without delay.`,
+
+This is a gentle reminder to kindly review and approves the elevator drawing and cabin design shared with you, so that we can proceed with the next stage without delay.
+
+Regards,
+Alpha Elevators Team`,
 
   THANK_YOU_FOR_APPROVAL: `Dear Sir/Madam,
-We have received your drawing and cabin approval. Kindly request you to make the production payment to initiate the production process.`,
+
+Thanks for your approval Our team is currently working on the elevator drawing, and we will share it with you once it is ready.
+
+Regards,
+Alpha Elevators Team`,
 
   PRODUCTION_PAYMENT: `Dear Sir/Madam,
-Thank you for the production payment. We have received the payment and will proceed with the production process accordingly.`,
+
+Thank you for the production payment. We have received the payment and will proceed with the production process accordingly.
+
+Regards,
+Alpha Elevators Team`,
 
   PRODUCTION_PAYMENT_REMINDER: `Dear Sir/Madam,
-This is a gentle reminder to kindly release the production payment to initiate the production process.
-Please note that the production timeline is approximately 60 days from the date of payment and approval. Kindly complete the payment at the earliest to avoid any delay in the production schedule.`,
+
+Kindly release the production payment to initiate the production process. Please note that the production timeline is approximately 60 days from the date of payment and approval.
+
+Regards,
+Alpha Elevators Team`,
 
   PRODUCTION_PAYMENT_RECEIVED: `Dear Sir/Madam,
-Thank you for the production payment. We have received the payment and will proceed with the production process accordingly.`,
+
+Thank you for the production payment. We have received the payment and will proceed with the production process accordingly.
+
+Regards,
+Alpha Elevators Team`,
 
   PRODUCTION_UPDATE_STAGE_1: `Dear Sir/Madam,
+
 Your elevator production is currently in the fabrication and material processing stage, including structure, cabin, and door fabrication.
-We will share the next production update within 10 days.`,
+We will share the next production update within 10 days.
+
+Regards,
+Alpha Elevators Team`,
 
   PRODUCTION_UPDATE_STAGE_2: `Dear Sir/Madam,
+
 Your elevator is currently in the finishing and assembly stage, including painting, cabin finishing, and electrical & mechanical assembly.
-We will share the next production update within 10 days.`,
+We will share the next production update within 10 days.
+
+Regards,
+Alpha Elevators Team`,
 
   PRODUCTION_UPDATE_STAGE_3: `Dear Sir/Madam,
-Your elevator is in the final inspection stage. Quality checks are being completed, and the material will be prepared for dispatch upon completion.`,
+
+Your elevator is in the final inspection stage. Quality checks are being completed, and the material will be prepared for dispatch upon completion.
+
+Regards,
+Alpha Elevators Team`,
 
   READINESS_PAYMENT: `Dear Sir/Madam,
+
 Your elevator is ready for dispatch. Kindly release the readiness payment to proceed with the material dispatch process.
-We request you to complete the payment at the earliest to avoid any delay in dispatch.`,
+We request you to complete the payment at the earliest to avoid any delay in dispatch.
+
+Regards,
+Alpha Elevators Team`,
 
   READINESS_PAYMENT_REMINDER: `Dear Sir/Madam,
+
 This is a gentle reminder to kindly release the Readiness payment to proceed with the Material dispatch.
-We request you to complete the payment at the earliest to avoid any delay in the dispatch schedule.`,
+We request you to complete the payment at the earliest to avoid any delay in the dispatch schedule.
+
+Regards,
+Alpha Elevators Team`,
 
   READINESS_PAYMENT_RECEIVED: `Dear Sir/Madam,
-Thank you for the readiness payment. We have received the payment and will proceed with the material dispatch process accordingly.`,
+
+Thank you for the readiness payment. We have received the payment and will proceed with the material dispatch process accordingly.
+
+Regards,
+Alpha Elevators Team`,
 
   MATERIAL_DISPATCHED_PM: `Dear Sir/Madam,
+
 Your elevator material has been dispatched through VRL Logistics.
 VRL Tracking No.: [Tracking Number]
 You can use the above tracking number to track the material movement. We will keep you updated on the delivery status.
-Note: Kindly ensure proper space and access for safe unloading and material storage.`,
+Note: Kindly ensure proper space and access for safe unloading and material storage.
+
+Regards,
+Alpha Elevators Team`,
 
   PRE_INSTALLATION_SITE_VISIT_PM: `Dear Sir/Madam,
+
 Our technical team will visit the site for a pre-installation inspection to verify site readiness and installation requirements.
-Kindly ensure the site is ready and accessible for the scheduled visit.`,
+Kindly ensure the site is ready and accessible for the scheduled visit.
+
+Regards,
+Alpha Elevators Team`,
 
   MATERIAL_UNLOADING: `Dear Sir/Madam,
-Your elevator material has been Delivered to the site and unloading is in progress. We will keep you Updated on our installation team arrival shortly.`,
+
+Your elevator material has been Delivered to the site and unloading is in progress. We will keep you Updated on our installation team arrival shortly.
+
+Regards,
+Alpha Elevators Team`,
 
   INSTALLATION_TEAM_ARRIVAL_PM: `Dear Sir/Madam,
-Our installation team has arrived at the site and will commence the elevator installation work as per the planned schedule.`,
+
+Our installation team has arrived at the site and will commence the elevator installation work as per the planned schedule.
+
+Regards,
+Alpha Elevators Team`,
 
   INSTALLATION_FEEDBACK: `Dear Sir/Madam,
-As the installation work is in progress, kindly share your feedback or any concerns regarding the work. Our team will be happy to assist and address them promptly.`,
+
+As the installation work is in progress, kindly share your feedback or any concerns regarding the work. Our team will be happy to assist and address them promptly.
+
+Regards,
+Alpha Elevators Team`,
 
   HAND_OVER_PM: `Dear Sir/Madam,
-This is to inform you that the elevator installation work is expected to be completed by tomorrow. Kindly share a convenient date and time for the handover, so that we can plan and complete the necessary handover formalities accordingly.`,
+
+This is to inform you that the elevator installation work is expected to be completed by tomorrow. Kindly share a convenient date and time for the handover, so that we can plan and complete the necessary handover formalities accordingly.
+
+Regards,
+Alpha Elevators Team`,
 };
 
 /**
@@ -247,7 +348,12 @@ export function generateProjectUpdateText(
   }
 
   if (customNote && customNote.trim()) {
-    text += `\n\nNote: ${customNote.trim()}`;
+    const signOff = '\n\nRegards,\nAlpha Elevators Team';
+    if (text.endsWith(signOff)) {
+      text = text.slice(0, -signOff.length) + `\n\nNote: ${customNote.trim()}` + signOff;
+    } else {
+      text += `\n\nNote: ${customNote.trim()}`;
+    }
   }
 
   return text;
@@ -990,7 +1096,7 @@ export async function sendEscalationMatrixToProjectGroup(projectId: any): Promis
       return false;
     }
 
-    const matrixCaption = `*Alpha Elevators - Customer Concern Escalation Matrix* 📞\n\nDear ${customerName},\nThank you for your advance payment confirmation. For your complete peace of mind and transparent project execution, please find our official Customer Concern Escalation Matrix attached above.\n\n• *Step 1 (Customer Relationship Manager):* Renuka (+91 93848 20044 | crm@alphaelevators.in) - TAT: Within 24 Hours\n• *Step 2 (Technical Incharge):* Sundram (+91 80560 41386 | sundaram@alphaelevators.in) - TAT: Within 24-48 Hours\n• *Step 3 (Technical Manager):* Kishore (+91 93848 20214 | kishore@alphaelevators.in) - TAT: Within 48 Hours\n• *Step 4 (Operational Head):* Abeal (+91 93848 20499 | abeal@alphaelevators.in) - TAT: Within 48 Hours\n\nKindly follow the escalation process step by step to ensure timely resolution of your concern.\n\nThank you for choosing Alpha Elevators!`;
+    const matrixCaption = `*Alpha Elevators - Customer Concern Escalation Matrix* 📞\n\nDear Sir/Madam,\n\nThank you for your advance payment confirmation. For your complete peace of mind and transparent project execution, please find our official Customer Concern Escalation Matrix attached above.\n\n• *Step 1 (Customer Relationship Manager):* Renuka (+91 93848 20044 | crm@alphaelevators.in) - TAT: Within 24 Hours\n• *Step 2 (Technical Incharge):* Sundram (+91 80560 41386 | sundaram@alphaelevators.in) - TAT: Within 24-48 Hours\n• *Step 3 (Technical Manager):* Kishore (+91 93848 20214 | kishore@alphaelevators.in) - TAT: Within 48 Hours\n• *Step 4 (Operational Head):* Abeal (+91 93848 20499 | abeal@alphaelevators.in) - TAT: Within 48 Hours\n\nKindly follow the escalation process step by step to ensure timely resolution of your concern.\n\nRegards,\nAlpha Elevators Team`;
 
     const botStatus = whatsAppWebBot.getStatus();
     let sentSuccess = false;
@@ -1137,12 +1243,14 @@ export async function handleDrawingAndCabinApprovedWorkflow(
     const inviteTarget = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
 
     const msg1Text =
-      `Dear Sir/Madam,\n` +
-      `This is a gentle reminder to kindly review and approves the elevator drawing and cabin design shared with you, so that we can proceed with the next stage without delay.`;
+      `Dear Sir/Madam,\n\n` +
+      `This is a gentle reminder to kindly review and approves the elevator drawing and cabin design shared with you, so that we can proceed with the next stage without delay.\n\n` +
+      `Regards,\nAlpha Elevators Team`;
 
     const msg2Text =
-      `Dear Sir/Madam,\n` +
-      `Kindly release the production payment to initiate the production process. Please note that the production timeline is approximately ${days} days from the date of payment and approval.`;
+      `Dear Sir/Madam,\n\n` +
+      `Kindly release the production payment to initiate the production process. Please note that the production timeline is approximately ${days} days from the date of payment and approval.\n\n` +
+      `Regards,\nAlpha Elevators Team`;
 
     let message1Id: string | undefined;
     let message2Id: string | undefined;
@@ -1276,9 +1384,10 @@ export async function sendProductionPayment2DayReminder(projectId: any): Promise
 
     const days = project.productionTimelineDays || 60;
     const msg3Text =
-      `Dear Sir/Madam,\n` +
+      `Dear Sir/Madam,\n\n` +
       `This is a gentle reminder to kindly release the production payment to initiate the production process.\n` +
-      `Please note that the production timeline is approximately ${days} days from the date of payment and approval. Kindly complete the payment at the earliest to avoid any delay in the production schedule.`;
+      `Please note that the production timeline is approximately ${days} days from the date of payment and approval. Kindly complete the payment at the earliest to avoid any delay in the production schedule.\n\n` +
+      `Regards,\nAlpha Elevators Team`;
 
     const inviteTarget = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
     if (inviteTarget) {

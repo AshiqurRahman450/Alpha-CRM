@@ -21,6 +21,8 @@ import {
   IndianRupee,
   Bell,
   Lock,
+  FileText,
+  Sparkles,
 } from 'lucide-react';
 import { api, getStoredUser } from '../lib/api';
 import { formatProjectStatus } from '../components/Timeline';
@@ -134,6 +136,13 @@ export default function DashboardPage() {
         </div>
         <div className="flex items-center space-x-3">
           <Link
+            href="/quotations"
+            className="px-4 py-2 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-400 hover:to-cyan-500 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-1.5"
+          >
+            <FileText className="w-4 h-4" />
+            <span>Create Quotation</span>
+          </Link>
+          <Link
             href="/projects"
             className="px-4 py-2 bg-sky-500 hover:bg-sky-400 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-1.5"
           >
@@ -151,6 +160,31 @@ export default function DashboardPage() {
 
       {user?.role === 'BDM' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* Card 1: Create Quotation (Live PDF Studio) */}
+          <Link href="/quotations" className="block group">
+            <div className="bg-gradient-to-br from-teal-500 via-teal-600 to-cyan-700 text-white p-5 rounded-2xl border border-teal-400/40 shadow-sm hover:shadow-lg hover:border-teal-300 hover:scale-[1.01] transition-all cursor-pointer relative overflow-hidden">
+              <div className="flex items-center justify-between text-teal-100 text-xs font-bold">
+                <span className="flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-teal-200 animate-pulse" />
+                  <span>Quotation Studio</span>
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <FileText className="w-4 h-4 text-teal-100" />
+                  <ArrowUpRight className="w-3.5 h-3.5 text-teal-200 group-hover:text-white transition-colors" />
+                </div>
+              </div>
+              <div className="text-2xl font-black text-white mt-2 font-poppins">Create Quotation</div>
+              <div className="text-[11px] text-teal-100 mt-1 font-medium flex items-center justify-between">
+                <span>10-page proposal builder with live PDF preview</span>
+                <span className="text-[10px] font-extrabold bg-white/20 text-white px-2.5 py-1 rounded-lg group-hover:bg-white group-hover:text-teal-700 transition-all flex items-center gap-1">
+                  <span>Open Studio</span>
+                  <span>→</span>
+                </span>
+              </div>
+            </div>
+          </Link>
+
+          {/* Card 2: Pending Approvals */}
           <Link href="/dashboard/list?type=pendingApprovals" className="block group">
             <div className="bg-gradient-to-br from-amber-50 to-orange-50/40 p-5 rounded-2xl border border-amber-200 shadow-sm hover:shadow-md hover:border-amber-400 transition-all cursor-pointer">
               <div className="flex items-center justify-between text-amber-800 text-xs font-bold">

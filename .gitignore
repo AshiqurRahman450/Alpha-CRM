@@ -15,3 +15,5 @@ data
 backend/uploads
 uploads
 *.pdf
+scratch/
+

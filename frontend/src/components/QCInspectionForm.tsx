@@ -716,7 +716,7 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
                 </span>
               </div>
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-black tracking-tight text-white font-poppins">
-                Pre-Production Site Report
+                Pre-Production Site Visit Report
               </h1>
               <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl font-normal leading-relaxed">
                 Elevator site inspection • Shaft millimeter measurements • Wall specifications • Client confirmation
@@ -1204,7 +1204,7 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
         {/* Shaft Overall Box */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6 text-xs">
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">Shaft width — G-Side (mm)</label>
+            <label className="block text-[11px] font-bold text-slate-700 mb-1">Shaft width — A-Side (Front/Door) (mm)</label>
             <input
               type="number"
               min="0"
@@ -1216,7 +1216,7 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">Shaft depth — A-Side (mm)</label>
+            <label className="block text-[11px] font-bold text-slate-700 mb-1">Shaft depth — B-Side (Back) (mm)</label>
             <input
               type="number"
               min="0"
@@ -1228,7 +1228,7 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">Shaft B-Side (mm)</label>
+            <label className="block text-[11px] font-bold text-slate-700 mb-1">Shaft C-Side (Right) (mm)</label>
             <input
               type="number"
               min="0"
@@ -1240,7 +1240,7 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">Shaft C-Side (mm)</label>
+            <label className="block text-[11px] font-bold text-slate-700 mb-1">Shaft D-Side (Left) (mm)</label>
             <input
               type="number"
               min="0"
@@ -1640,23 +1640,23 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {['G', 'A', 'B', 'C'].map((side) => {
-                const sideName: Record<string, string> = {
-                  G: 'G-Side (Front/Door)',
-                  A: 'A-Side (Back)',
-                  B: 'B-Side (Right)',
-                  C: 'C-Side (Left)',
-                };
+              {[
+                { key: 'A', oldKey: 'G', label: 'A-Side (Front/Door)' },
+                { key: 'B', oldKey: 'A', label: 'B-Side (Back)' },
+                { key: 'C', oldKey: 'B', label: 'C-Side (Right)' },
+                { key: 'D', oldKey: 'C', label: 'D-Side (Left)' },
+              ].map(({ key, oldKey, label }) => {
                 return (
-                  <tr key={side} className="hover:bg-slate-50/70">
-                    <th className="p-3 font-bold text-slate-800 bg-slate-50/80">{sideName[side]}</th>
+                  <tr key={key} className="hover:bg-slate-50/70">
+                    <th className="p-3 font-bold text-slate-800 bg-slate-50/80">{label}</th>
                     {Array.from({ length: floorConfig }, (_, i) => {
-                      const key = `wallFloor${i}${side}`;
+                      const specKey = `wallFloor${i}${key}`;
+                      const oldSpecKey = `wallFloor${i}${oldKey}`;
                       return (
                         <td key={i} className="p-2">
                           <select
-                            value={wallSpecs[key] || '9-inch Brick Wall'}
-                            onChange={(e) => handleWallSpecChange(key, e.target.value)}
+                            value={wallSpecs[specKey] || wallSpecs[oldSpecKey] || '9-inch Brick Wall'}
+                            onChange={(e) => handleWallSpecChange(specKey, e.target.value)}
                             className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
                           >
                             {WALL_OPTIONS.map((w) => (

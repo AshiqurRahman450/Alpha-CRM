@@ -265,7 +265,7 @@ qcRouter.post('/:id/approve', authorize('TECHNICAL_MANAGER', 'ADMIN'), async (re
         greeting = 'Good Evening';
       }
 
-      const messageText = `${greeting} Sir,
+      const messageText = `Dear Sir/Madam,
 
 We have successfully completed the site visit on the scheduled date and shared the site visit report with you via email.
 
@@ -273,9 +273,8 @@ Kindly review the report and confirm your approval by replying to the email so t
 
 Thank you for your support and cooperation.
 
-Regards,  
-CRM Department  
-Alpha Elevators`;
+Regards,
+Alpha Elevators Team`;
 
       // 4. Resolve group target & send text + PDF document
       const inviteTarget = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;

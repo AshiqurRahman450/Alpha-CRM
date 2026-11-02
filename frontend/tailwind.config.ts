@@ -11,6 +11,8 @@ const config: Config = {
       fontFamily: {
         sans: ['var(--font-poppins)', 'Poppins', 'sans-serif'],
         poppins: ['var(--font-poppins)', 'Poppins', 'sans-serif'],
+        montserrat: ['var(--font-montserrat)', 'Montserrat', 'sans-serif'],
+        barlow: ['var(--font-barlow)', 'Barlow', 'sans-serif'],
       },
       colors: {
         brand: {

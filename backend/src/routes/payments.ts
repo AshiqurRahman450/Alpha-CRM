@@ -200,7 +200,7 @@ paymentRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT'), asyn
     const inviteTarget = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
 
     const customerName = customer?.fullName || 'Valued Client';
-    const waCaption = `*Official Payment Receipt* 🧾\n\nDear ${customerName},\nWe have successfully received your payment!\n\n*Project:* ${project.projectName} (${project.projectId})\n*Amount Received:* ₹${paidNum.toLocaleString('en-IN')}\n*Payment Milestone:* ${payment.paymentType || 'Milestone Payment'}\n*Payment Method:* ${paymentMethod || 'Bank Transfer'}\n*Receipt No:* ${payment.receiptNumber}\n*Transaction Ref:* ${transactionReference}\n\n*Total Paid So Far:* ₹${newTotalPaid.toLocaleString('en-IN')}\n*Outstanding Balance:* ₹${newBalance.toLocaleString('en-IN')}\n\nPlease find your official payment receipt document attached above for your records.\n\nThank you for choosing Alpha Elevators!`;
+    const waCaption = `*Official Payment Receipt* 🧾\n\nDear Sir/Madam,\n\nWe have successfully received your payment!\n\n*Customer:* ${customerName}\n*Project:* ${project.projectName} (${project.projectId})\n*Amount Received:* ₹${paidNum.toLocaleString('en-IN')}\n*Payment Milestone:* ${payment.paymentType || 'Milestone Payment'}\n*Payment Method:* ${paymentMethod || 'Bank Transfer'}\n*Receipt No:* ${payment.receiptNumber}\n*Transaction Ref:* ${transactionReference}\n\n*Total Paid So Far:* ₹${newTotalPaid.toLocaleString('en-IN')}\n*Outstanding Balance:* ₹${newBalance.toLocaleString('en-IN')}\n\nPlease find your official payment receipt document attached above for your records.\n\nRegards,\nAlpha Elevators Team`;
 
     // 1. Dispatch Receipt to WhatsApp Group
     if (inviteTarget) {
@@ -538,7 +538,7 @@ paymentRouter.post('/:id/send-receipt', authorize('ADMIN', 'CRM', 'MANAGER', 'AC
     }
 
     const customerName = customer?.fullName || 'Valued Client';
-    const waCaption = `*Official Payment Receipt* 🧾\n\nDear ${customerName},\nPlease find your official payment receipt for Project ${project.projectName} (${project.projectId}) attached below.\n\n*Receipt No:* ${payment.receiptNumber || 'N/A'}\n*Amount:* ₹${(payment.amountPaid || 0).toLocaleString('en-IN')}\n*Method:* ${payment.paymentMethod || 'Bank Transfer'}\n*Ref:* ${payment.transactionReference || 'N/A'}\n*Remaining Balance:* ₹${(payment.balanceAmount || 0).toLocaleString('en-IN')}\n\nThank you,\nAlpha Elevators Team`;
+    const waCaption = `*Official Payment Receipt* 🧾\n\nDear Sir/Madam,\n\nPlease find your official payment receipt attached below.\n\n*Customer:* ${customerName}\n*Project:* ${project.projectName} (${project.projectId})\n*Receipt No:* ${payment.receiptNumber || 'N/A'}\n*Amount:* ₹${(payment.amountPaid || 0).toLocaleString('en-IN')}\n*Method:* ${payment.paymentMethod || 'Bank Transfer'}\n*Ref:* ${payment.transactionReference || 'N/A'}\n*Remaining Balance:* ₹${(payment.balanceAmount || 0).toLocaleString('en-IN')}\n\nRegards,\nAlpha Elevators Team`;
 
     const sendRes = await whatsAppWebBot.sendDocumentToGroup(
       inviteTarget,

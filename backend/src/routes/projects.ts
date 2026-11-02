@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import * as XLSX from 'xlsx';
 import {
   Project,
   Customer,
@@ -221,7 +222,7 @@ export async function dispatchSiteVisitCompletedMessage(project: any, user?: any
     const currentHour = new Date().getHours();
     const greeting = currentHour < 12 ? 'Good Morning' : currentHour < 17 ? 'Good Afternoon' : 'Good Evening';
 
-    const defaultMessage = `${greeting} Sir,
+    const defaultMessage = `Dear Sir/Madam,
 
 We have successfully completed the site visit on the scheduled date and shared the site visit report with you via email.
 
@@ -229,16 +230,11 @@ Kindly review the report and confirm your approval by replying to the email so t
 
 Thank you for your support and cooperation.
 
-Regards,  
-CRM Department  
-Alpha Elevators`;
+Regards,
+Alpha Elevators Team`;
 
     const template = await WhatsAppTemplate.findOne({ templateName: 'SITE_VISIT_COMPLETED', templateStatus: 'APPROVED' });
-    let messageText = defaultMessage;
-    if (template?.bodyText) {
-      // Dynamic time-based replacement of the greeting
-      messageText = template.bodyText.replace(/Good (Morning|Afternoon|Evening)/i, greeting);
-    }
+    let messageText = template?.bodyText || defaultMessage;
 
     const botStatus = whatsAppWebBot.getStatus();
     let sentViaBot = false;
@@ -532,6 +528,169 @@ projectRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthRe
 });
 
 /**
+ * GET /api/projects/export-excel
+ * Exports raw data in Excel (.xlsx) format: Customer Name, Project Code, Stage, Schedule Date, Executed Date
+ */
+projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
+  try {
+    const { status, paymentStatus, search, employee } = req.query;
+    const query: any = {};
+
+    if (req.user?.role === 'BDM') {
+      query.bdmId = req.user._id;
+    }
+
+    if (status && typeof status === 'string') {
+      if (status.includes(',')) {
+        query.projectStatus = { $in: status.split(',') };
+      } else if (status === 'ACTIVE') {
+        query.projectStatus = { $nin: ['COMPLETED', 'CANCELLED'] };
+      } else {
+        query.projectStatus = status;
+      }
+    }
+
+    if (paymentStatus && typeof paymentStatus === 'string') {
+      if (paymentStatus.includes(',')) {
+        query.paymentStatus = { $in: paymentStatus.split(',') };
+      } else if (paymentStatus === 'AWAITING' || paymentStatus === 'PENDING_PARTIAL') {
+        query.paymentStatus = { $in: ['PENDING', 'PARTIAL_PAID'] };
+      } else {
+        query.paymentStatus = paymentStatus;
+      }
+    }
+
+    if (employee && typeof employee === 'string') {
+      query.assignedEmployee = employee;
+    }
+
+    if (search && typeof search === 'string') {
+      const searchRegex = new RegExp(search.trim(), 'i');
+      query.$or = [
+        { projectName: searchRegex },
+        { projectId: searchRegex },
+        { liftModel: searchRegex },
+        { siteAddress: searchRegex },
+      ];
+    }
+
+    const projects = await Project.find(query).populate('customerId').sort({ createdAt: -1 });
+
+    const MILESTONE_STAGES = [
+      { key: 'PAYMENT_RECEIVED', label: 'Advance Payment Received' },
+      { key: 'SITE_MEASUREMENT', label: 'Site Visit' },
+      { key: 'DESIGN', label: 'Drawing and Cabin' },
+      { key: 'CUSTOMER_APPROVAL', label: 'Drawing and Cabin Design Approval' },
+      { key: 'ENGINEERING', label: 'Production Payment' },
+      { key: 'MANUFACTURING', label: 'Approval Drawing to factory' },
+      { key: 'QUALITY_CHECK', label: 'Rediness Payment' },
+      { key: 'DELIVERY', label: 'Pre Site Visit' },
+      { key: 'DISPATCH', label: 'Expected Delivery' },
+      { key: 'INSTALLATION', label: 'Installation Start Date' },
+      { key: 'TESTING', label: 'Handover' },
+      { key: 'COMPLETED', label: 'Project Completed' },
+    ];
+
+    const formatDate = (val: any): string => {
+      if (!val) return '';
+      const d = new Date(val);
+      if (isNaN(d.getTime())) return '';
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}/${month}/${year}`;
+    };
+
+    const getStageDates = (p: any, stageKey: string) => {
+      if (!p.stageDates) return null;
+      if (typeof p.stageDates.get === 'function') {
+        return p.stageDates.get(stageKey);
+      }
+      return p.stageDates[stageKey];
+    };
+
+    // Sheet 1: All Stages Raw Data
+    const rawRows: any[] = [];
+    // Sheet 2: Current Stage Summary
+    const summaryRows: any[] = [];
+
+    for (const p of projects) {
+      const customer = (p.customerId as any) || {};
+      const customerName = customer.fullName || customer.name || p.projectName || 'N/A';
+      const projectCode = p.projectId || 'N/A';
+
+      const curStageMeta = MILESTONE_STAGES.find((s) => s.key === p.projectStatus);
+      const curStageLabel = curStageMeta?.label || String(p.projectStatus || 'N/A').replace(/_/g, ' ');
+
+      // 1. All Stages Raw Data
+      for (const st of MILESTONE_STAGES) {
+        const datesObj = getStageDates(p, st.key);
+        rawRows.push({
+          'Customer Name': customerName,
+          'Project Code': projectCode,
+          'Current Stage': curStageLabel,
+          'Stage': st.label,
+          'Schedule Date': datesObj?.scheduleDate ? formatDate(datesObj.scheduleDate) : '',
+          'Executed Date': datesObj?.executedDate ? formatDate(datesObj.executedDate) : '',
+        });
+      }
+
+      // 2. Current Stage Summary
+      const curDates = p.projectStatus ? getStageDates(p, p.projectStatus) : null;
+
+      summaryRows.push({
+        'Customer Name': customerName,
+        'Project Code': projectCode,
+        'Current Stage': curStageLabel,
+        'Schedule Date': curDates?.scheduleDate ? formatDate(curDates.scheduleDate) : '',
+        'Executed Date': curDates?.executedDate ? formatDate(curDates.executedDate) : '',
+      });
+    }
+
+    const defaultRawEmptyRow = [
+      {
+        'Customer Name': '',
+        'Project Code': '',
+        'Current Stage': '',
+        'Stage': '',
+        'Schedule Date': '',
+        'Executed Date': '',
+      },
+    ];
+
+    const defaultSummaryEmptyRow = [
+      {
+        'Customer Name': '',
+        'Project Code': '',
+        'Current Stage': '',
+        'Schedule Date': '',
+        'Executed Date': '',
+      },
+    ];
+
+    const workbook = XLSX.utils.book_new();
+
+    const wsRaw = XLSX.utils.json_to_sheet(rawRows.length > 0 ? rawRows : defaultRawEmptyRow);
+    wsRaw['!cols'] = [{ wch: 28 }, { wch: 18 }, { wch: 32 }, { wch: 35 }, { wch: 18 }, { wch: 18 }];
+    XLSX.utils.book_append_sheet(workbook, wsRaw, 'All Stages (Raw Data)');
+
+    const wsSummary = XLSX.utils.json_to_sheet(summaryRows.length > 0 ? summaryRows : defaultSummaryEmptyRow);
+    wsSummary['!cols'] = [{ wch: 28 }, { wch: 18 }, { wch: 35 }, { wch: 18 }, { wch: 18 }];
+    XLSX.utils.book_append_sheet(workbook, wsSummary, 'Current Stage Summary');
+
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    const filename = `Projects_Raw_Data_${new Date().toISOString().slice(0, 10)}.xlsx`;
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send(buffer);
+  } catch (err: any) {
+    console.error('[ExportExcel] Error exporting projects:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
  * GET /api/projects/:id
  */
 projectRouter.get('/:id', async (req: AuthRequest, res: Response) => {
@@ -684,7 +843,7 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
       description: status === 'CUSTOMER_APPROVAL'
         ? `Project status updated to Drawing and Cabin Design Approval. Production timeline set to ${project.productionTimelineDays || 60} days. ${notes ? `Note: ${notes}` : ''}`
         : status === 'MANUFACTURING'
-          ? `Project status updated to MANUFACTURING (Approval Drawing to factory). Stage 1 Production Update scheduled in ${intervalDays} days.`
+          ? `Project status updated to MANUFACTURING (Approval Drawing to factory). Stage 1 Production Update scheduled in ${intervalDays <= 0.025 ? '30 minutes' : intervalDays < 0.1 ? '1 hour' : intervalDays >= 1.24 && intervalDays <= 1.26 ? '30 hours' : `${intervalDays} days`}.`
           : status === 'DISPATCH' && project.vrlLrNumber
             ? `Project status updated to DISPATCH (Expected Delivery). VRL Tracking No: ${project.vrlLrNumber}. ${notes ? `Note: ${notes}` : ''}`
             : `Project status updated from ${prevStatus} to ${status}. ${notes ? `Note: ${notes}` : ''}`,
@@ -840,7 +999,7 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
       const days = project.productionTimelineDays || 60;
       resultMsg = `Drawing & Cabin Approved! 2 WhatsApp messages sent to group (${days} days delivery timeline) and follow-up scheduled for 2 days later.`;
     } else if (status === 'MANUFACTURING') {
-      resultMsg = `Stage updated to Approval Drawing to factory. Automated Stage 1 Production Update scheduled in ${intervalDays} days.`;
+      resultMsg = `Stage updated to Approval Drawing to factory. Automated Stage 1 Production Update scheduled in ${intervalDays <= 0.025 ? '30 minutes' : intervalDays < 0.1 ? '1 hour' : intervalDays >= 1.24 && intervalDays <= 1.26 ? '30 hours' : `${intervalDays} days`}.`;
     } else if (status === 'DISPATCH' && project.vrlLrNumber && groupMessageDispatched) {
       resultMsg = `Stage updated to Expected Delivery! VRL Tracking No (${project.vrlLrNumber}) attached and template message posted directly inside WhatsApp group!`;
     } else if (status === 'DISPATCH' && project.vrlLrNumber) {
@@ -1111,7 +1270,7 @@ projectRouter.post('/:id/drawing', authorize('ADMIN', 'CRM', 'MANAGER'), upload.
       try {
         const customer = await Customer.findById(project.customerId);
         const customerName = customer?.fullName || 'Valued Client';
-        const caption = `Hello ${customerName}! 📄\n\n*Drawing & Cabin Design Uploaded*\nProject: ${project.projectName} (${project.liftModel || 'Elevator'})\nStage: Drawing and Cabin Design Approval\n\nPlease find the approved drawing and cabin design document attached above for your review and sign-off.\n\nThank you,\nAlpha Elevators Team`;
+        const caption = `Dear Sir/Madam,\n\nThe elevator drawing and cabin design are ready for your review and approval.\n\n*Project:* ${project.projectName} (${project.liftModel || 'Elevator'})\n*Stage:* Drawing and Cabin Design Approval\n\nKindly review and confirm your approval to proceed to the next stage.\n\nRegards,\nAlpha Elevators Team`;
 
         const fullFilePath = req.file.path
           ? path.resolve(req.file.path)
@@ -1541,6 +1700,8 @@ projectRouter.post(
           whatsappMessage =
             `✅ *ALPHA ELEVATORS — INSTALLATION STAGE COMPLETED*
 
+Dear Sir/Madam,
+
 *Project:* ${project.projectName} (${project.projectId})
 *Customer:* ${customer?.fullName || 'Client'} (${customer?.city || project.siteAddress || 'Tamil Nadu'})
 
@@ -1556,7 +1717,8 @@ ${isHandover
                 : ''}
 🗓️ *Target Handover Date:* ${handoverStage ? formatDateDisplay(parseDateString(handoverStage.completeDate)) : 'Scheduled'}
 
-_Alpha Elevators Technical Installation Team is executing on-site work as per standards._`;
+Regards,
+Alpha Elevators Team`;
         } else {
           const reasonText =
             reason === 'HOLIDAY'
@@ -1567,6 +1729,8 @@ _Alpha Elevators Technical Installation Team is executing on-site work as per st
 
           whatsappMessage =
             `🔔 *ALPHA ELEVATORS — INSTALLATION SCHEDULE UPDATE*
+
+Dear Sir/Madam,
 
 *Project:* ${project.projectName} (${project.projectId})
 *Customer:* ${customer?.fullName || 'Client'} (${customer?.city || project.siteAddress || 'Tamil Nadu'})
@@ -1580,9 +1744,8 @@ _Alpha Elevators Technical Installation Team is executing on-site work as per st
 ${notes ? `*Technical Notes:* ${notes}\n` : ''}
 🗓️ *Updated Final Handover Target:* ${handoverStage ? formatDateDisplay(parseDateString(handoverStage.completeDate)) : 'Scheduled'}
 
-Notice: @Admin @CRM Team
-
-_Alpha Elevators Technical Installation Team is monitoring on-site progress._`;
+Regards,
+Alpha Elevators Team`;
         }
 
         try {

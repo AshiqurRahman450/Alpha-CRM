@@ -18,11 +18,15 @@ import {
   Bell,
   ClipboardCheck,
   X,
+  FileText,
+  Briefcase,
 } from 'lucide-react';
 import { getStoredUser, removeAuthToken } from '../lib/api';
 
 const navItems = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Create Quotation', href: '/quotations', icon: FileText, badge: 'Studio' },
+  { name: 'BDM Quotations', href: '/quotations/bdm', icon: Briefcase, badge: 'Stages' },
   { name: 'QC Site Report', href: '/qc', icon: ClipboardCheck, badge: 'New' },
   { name: 'Customers', href: '/customers', icon: Users },
   { name: 'Projects', href: '/projects', icon: Building2 },
@@ -103,13 +107,19 @@ export default function Sidebar() {
             if (user?.role === 'TECHNICAL_LEAD' || user?.role === 'TECHNICAL_MANAGER') {
               return ['Dashboard', 'Projects', 'Customers', 'QC Site Report', 'WhatsApp Hub'].includes(item.name);
             }
-            if (user?.role === 'BDM' || user?.role === 'ACCOUNTANT') {
+            if (user?.role === 'BDM') {
+              return ['Dashboard', 'Create Quotation', 'BDM Quotations', 'Customers', 'Projects'].includes(item.name);
+            }
+            if (user?.role === 'ACCOUNTANT') {
               return ['Dashboard', 'Customers', 'Projects'].includes(item.name);
             }
             return true;
           })
           .map((item) => {
-          const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+          const isActive =
+            item.href === '/quotations'
+              ? pathname === '/quotations'
+              : pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
           const Icon = item.icon;
           return (
             <Link

@@ -588,13 +588,14 @@ export default function Timeline({
                 <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-2xl p-3.5 text-xs text-slate-800 space-y-2 relative shadow-2xs font-sans">
                   <div className="text-emerald-950 leading-relaxed whitespace-pre-line">
                     Dear Sir/Madam,
-                    {'\n'}Your elevator material has been dispatched through VRL Logistics.
+                    {'\n\n'}Your elevator material has been dispatched through VRL Logistics.
                     {'\n'}VRL Tracking No.:{' '}
                     <span className="font-mono font-bold bg-amber-200/80 text-amber-950 px-1.5 py-0.5 rounded border border-amber-300 inline-block">
                       {vrlTrackingInput.trim() || '[Tracking Number]'}
                     </span>
                     {'\n'}You can use the above tracking number to track the material movement. We will keep you updated on the delivery status.
                     {'\n'}Note: Kindly ensure proper space and access for safe unloading and material storage.
+                    {'\n\n'}Regards,{'\n'}Alpha Elevators Team
                   </div>
                   <div className="text-[10px] text-emerald-700/80 text-right font-medium">
                     ✓✓ Automated Group Delivery
@@ -705,8 +706,10 @@ export default function Timeline({
                 </div>
                 <div className="bg-sky-50/70 border border-sky-200/90 rounded-2xl p-3.5 text-xs text-slate-800 space-y-1 relative shadow-2xs">
                   <div className="text-slate-900 leading-relaxed font-sans">
-                    Dear Sir/Madam,<br />
-                    This is a gentle reminder to kindly review and approves the elevator drawing and cabin design shared with you, so that we can proceed with the next stage without delay.
+                    Dear Sir/Madam,<br /><br />
+                    This is a gentle reminder to kindly review and approves the elevator drawing and cabin design shared with you, so that we can proceed with the next stage without delay.<br /><br />
+                    Regards,<br />
+                    Alpha Elevators Team
                   </div>
                   <div className="text-[10px] text-sky-700 text-right font-medium">
                     ✓✓ Immediate Group Dispatch
@@ -727,12 +730,14 @@ export default function Timeline({
                 </div>
                 <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-2xl p-3.5 text-xs text-slate-800 space-y-1 relative shadow-2xs">
                   <div className="text-slate-900 leading-relaxed font-sans">
-                    Dear Sir/Madam,<br />
+                    Dear Sir/Madam,<br /><br />
                     Kindly release the production payment to initiate the production process. Please note that the production timeline is approximately{' '}
                     <span className="font-bold bg-emerald-200/90 text-emerald-950 px-1.5 py-0.5 rounded border border-emerald-300">
                       {productionDaysInput.trim() || '60'} days
                     </span>{' '}
-                    from the date of payment and approval.
+                    from the date of payment and approval.<br /><br />
+                    Regards,<br />
+                    Alpha Elevators Team
                   </div>
                   <div className="text-[10px] text-emerald-700 text-right font-medium">
                     ✓✓ Immediate Group Dispatch
@@ -753,13 +758,15 @@ export default function Timeline({
                 </div>
                 <div className="bg-amber-50/70 border border-amber-200/90 rounded-2xl p-3.5 text-xs text-slate-800 space-y-1 relative shadow-2xs">
                   <div className="text-slate-900 leading-relaxed font-sans">
-                    Dear Sir/Madam,<br />
+                    Dear Sir/Madam,<br /><br />
                     This is a gentle reminder to kindly release the production payment to initiate the production process.<br />
                     Please note that the production timeline is approximately{' '}
                     <span className="font-bold bg-amber-200/90 text-amber-950 px-1.5 py-0.5 rounded border border-amber-300">
                       {productionDaysInput.trim() || '60'} days
                     </span>{' '}
-                    from the date of payment and approval. Kindly complete the payment at the earliest to avoid any delay in the production schedule.
+                    from the date of payment and approval. Kindly complete the payment at the earliest to avoid any delay in the production schedule.<br /><br />
+                    Regards,<br />
+                    Alpha Elevators Team
                   </div>
                   <div className="text-[10px] text-amber-800 text-right font-medium">
                     ⏱ Auto-scheduled • Skipped if production payment received

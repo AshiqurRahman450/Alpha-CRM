@@ -429,6 +429,41 @@ export const api = {
     if (params?.updateDue) q.append('updateDue', params.updateDue);
     return fetchWithAuth(`/api/projects?${q.toString()}`);
   },
+  exportProjectsExcel: async (params?: { status?: string; paymentStatus?: string; search?: string }): Promise<Blob> => {
+    const q = new URLSearchParams();
+    if (params?.status) q.append('status', params.status);
+    if (params?.paymentStatus) q.append('paymentStatus', params.paymentStatus);
+    if (params?.search) q.append('search', params.search);
+
+    const token = getAuthToken();
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const baseUrl = getApiBaseUrl();
+    const endpoint = `/api/projects/export-excel${q.toString() ? `?${q.toString()}` : ''}`;
+    const res = await fetch(`${baseUrl}${endpoint}`, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: 'Failed to export Excel file' }));
+      throw new Error(err.message || 'Failed to export Excel file');
+    }
+
+    return res.blob();
+  },
+  getExportProjectsExcelUrl: (params?: { status?: string; paymentStatus?: string; search?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.status) q.append('status', params.status);
+    if (params?.paymentStatus) q.append('paymentStatus', params.paymentStatus);
+    if (params?.search) q.append('search', params.search);
+    const token = getAuthToken();
+    if (token) q.append('token', token);
+    return `${getApiBaseUrl()}/api/projects/export-excel?${q.toString()}`;
+  },
   getProjectById: (id: string) => fetchWithAuth(`/api/projects/${id}`),
   createProject: (data: any) =>
     fetchWithAuth('/api/projects', { method: 'POST', body: JSON.stringify(data) }),
@@ -689,5 +724,84 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+  },
+
+  // Quotation Lifecycle Stages & Excel
+  quotations: {
+    saveStage: (payload: {
+      stage: number;
+      baseOfferNo?: string;
+      offerNo: string;
+      data: any;
+      customerPhone?: string;
+      customerName?: string;
+      customerCity?: string;
+      status?: string;
+    }) =>
+      fetchWithAuth('/api/quotations/save-stage', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+
+    getByOfferNo: (offerNo: string, stage?: number) => {
+      const q = stage ? `?stage=${stage}` : '';
+      return fetchWithAuth(`/api/quotations/by-offer/${encodeURIComponent(offerNo)}${q}`);
+    },
+
+    getStageHistory: (offerNo: string) =>
+      fetchWithAuth(`/api/quotations/stage-history/${encodeURIComponent(offerNo)}`),
+
+    finalizeStage: (payload: {
+      offerNo: string;
+      stage: number;
+      data: any;
+      customerPhone?: string;
+    }) =>
+      fetchWithAuth('/api/quotations/finalize', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+
+    sendWhatsApp: (payload: {
+      offerNo: string;
+      stage: number;
+      customerPhone: string;
+      customerName?: string;
+      messageText?: string;
+      pdfBase64?: string;
+      data?: any;
+    }) =>
+      fetchWithAuth('/api/quotations/whatsapp-send', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+
+    crmApprove: (payload: { offerNo?: string; quotationId?: string }) =>
+      fetchWithAuth('/api/quotations/crm-approve', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+
+    getExportExcelUrl: (offerNo: string) =>
+      `${getApiBaseUrl()}/api/quotations/export-excel/${encodeURIComponent(offerNo)}`,
+
+    getBdmStageWiseQuotations: (params?: {
+      search?: string;
+      bdmId?: string;
+      bdmName?: string;
+      stage?: number;
+      status?: string;
+      all?: boolean;
+    }) => {
+      const q = new URLSearchParams();
+      if (params?.search) q.append('search', params.search);
+      if (params?.bdmId) q.append('bdmId', params.bdmId);
+      if (params?.bdmName) q.append('bdmName', params.bdmName);
+      if (params?.stage) q.append('stage', String(params.stage));
+      if (params?.status) q.append('status', params.status);
+      if (params?.all) q.append('all', 'true');
+      const queryStr = q.toString() ? `?${q.toString()}` : '';
+      return fetchWithAuth(`/api/quotations/bdm-stage-wise${queryStr}`);
+    },
   },
 };

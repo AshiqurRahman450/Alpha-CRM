@@ -36,6 +36,7 @@ export interface IQCReport extends Document {
   shaftA?: number;
   shaftB?: number;
   shaftC?: number;
+  shaftD?: number;
   shaftAccuracy?: string;
   plasterStatus?: string;
   floorMeasurements?: any;
@@ -106,6 +107,7 @@ const QCReportSchema = new Schema<IQCReport>(
     shaftA: { type: Number },
     shaftB: { type: Number },
     shaftC: { type: Number },
+    shaftD: { type: Number },
     shaftAccuracy: { type: String },
     plasterStatus: { type: String },
     floorMeasurements: { type: Schema.Types.Mixed },

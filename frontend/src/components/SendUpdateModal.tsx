@@ -131,7 +131,11 @@ export default function SendUpdateModal({
       text = text.replace(/\[Tracking Number\]/g, varTrackingNumber || '[Tracking Number]');
     }
     if (customNote.trim()) {
-      text += `\n\nNote: ${customNote.trim()}`;
+      if (text.includes('Regards,\nAlpha Elevators Team')) {
+        text = text.replace('Regards,\nAlpha Elevators Team', `Note: ${customNote.trim()}\n\nRegards,\nAlpha Elevators Team`);
+      } else {
+        text += `\n\nNote: ${customNote.trim()}`;
+      }
     }
     return text;
   }, [selectedTemplate, needsDate, needsTime, needsTracking, varDate, varTime, varTrackingNumber, customNote]);
@@ -326,7 +330,15 @@ export default function SendUpdateModal({
           <div className="flex items-start space-x-2 text-[11px] text-slate-500 bg-sky-50/70 p-3 rounded-2xl border border-sky-100">
             <ShieldAlert className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
             <span>
-              This will send this template to the linked WhatsApp group and advance the next update date by {project.updateFrequencyDays || 20} {Number(project.updateFrequencyDays) === 1 ? 'day' : 'days'}.
+              This will send this template to the linked WhatsApp group and advance the next update date by{' '}
+              {Number(project.updateFrequencyDays) <= 0.025
+                ? '30 minutes'
+                : Number(project.updateFrequencyDays) < 0.1
+                ? '1 hour'
+                : Number(project.updateFrequencyDays) >= 1.24 && Number(project.updateFrequencyDays) <= 1.26
+                ? '30 hours'
+                : `${project.updateFrequencyDays || 20} ${Number(project.updateFrequencyDays) === 1 ? 'day' : 'days'}`}
+              .
             </span>
           </div>
         </div>

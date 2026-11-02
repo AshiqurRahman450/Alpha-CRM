@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   AlertCircle,
   X,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { api, getStoredUser } from '../../lib/api';
 import { formatProjectStatus, STAGES_ORDER } from '../../components/Timeline';
@@ -80,6 +81,31 @@ export default function ProjectsPage() {
     notes: '',
   });
   const [submitting, setSubmitting] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportExcel = async () => {
+    try {
+      setExporting(true);
+      const blob = await api.exportProjectsExcel({
+        search: search || undefined,
+        status: statusFilter || undefined,
+        paymentStatus: paymentFilter || undefined,
+      });
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Projects_Raw_Data_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(`Error exporting Excel: ${err.message}`);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const fetchProjects = async () => {
     try {
@@ -182,13 +208,25 @@ export default function ProjectsPage() {
             Monitoring {projects.length} installation projects and Meta WhatsApp communication groups
           </p>
         </div>
-        <button
-          onClick={() => setIsAddOpen(true)}
-          className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-sky-950/20 active:scale-95 flex items-center gap-1.5 self-start"
-        >
-          <Plus className="w-4 h-4" />
-          <span>New Customer Project</span>
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+          <button
+            onClick={handleExportExcel}
+            disabled={exporting || loading}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-950/20 active:scale-95 flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed"
+            title="Export raw data in Excel for customer name, Project code, current stage, stage, schedule date and executed date"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>{exporting ? 'Exporting Excel...' : 'Export Excel'}</span>
+          </button>
+
+          <button
+            onClick={() => setIsAddOpen(true)}
+            className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-sky-950/20 active:scale-95 flex items-center gap-1.5"
+          >
+            <Plus className="w-4 h-4" />
+            <span>New Customer Project</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter and Search Bar */}
@@ -316,7 +354,13 @@ export default function ProjectsPage() {
                           <span className="text-slate-400">None</span>
                         )}
                         <span className="text-[10px] text-slate-400 block font-mono">
-                          Every {p.updateFrequencyDays || 20}d
+                          {Number(p.updateFrequencyDays) <= 0.025
+                            ? 'Every 30m'
+                            : Number(p.updateFrequencyDays) < 0.1
+                            ? 'Every 1 hr'
+                            : Number(p.updateFrequencyDays) >= 1.24 && Number(p.updateFrequencyDays) <= 1.26
+                            ? 'Every 30 hrs'
+                            : `Every ${p.updateFrequencyDays || 20}d`}
                         </span>
                       </td>
 
@@ -743,6 +787,9 @@ export default function ProjectsPage() {
                     onChange={(e) => setNewProject({ ...newProject, updateFrequencyDays: e.target.value })}
                     className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none"
                   >
+                    <option value="0.0208">Every 30 Minutes (30 mins once)</option>
+                    <option value="0.0416">Every 1 Hour (1 hour once)</option>
+                    <option value="1.25">Every 30 Hours (30 hours once)</option>
                     <option value="1">Every 1 Day (Daily)</option>
                     <option value="10">Every 10 Days</option>
                     <option value="15">Every 15 Days</option>

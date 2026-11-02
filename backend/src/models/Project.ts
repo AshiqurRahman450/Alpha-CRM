@@ -89,7 +89,7 @@ export interface IProject extends Document {
     groupStatus: 'NOT_LINKED' | 'ACTIVE' | 'PAUSED' | 'FAILED' | 'DISCONNECTED' | 'AWAITING_OBA_APPROVAL';
     updatesEnabled: boolean;
     paused: boolean;
-    intervalDays: 1 | 10 | 15 | 20;
+    intervalDays: number;
     nextUpdateAt?: Date;
     lastUpdateAt?: Date;
     createdAt?: Date;
@@ -387,7 +387,6 @@ const ProjectSchema = new Schema<IProject>(
       paused: { type: Boolean, default: false },
       intervalDays: {
         type: Number,
-        enum: [1, 10, 15, 20],
         default: 15,
       },
       nextUpdateAt: { type: Date },

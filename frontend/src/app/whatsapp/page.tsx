@@ -105,12 +105,27 @@ export default function WhatsAppHubPage() {
                 </div>
                 <div className="flex justify-between text-slate-600">
                   <span>Cadence:</span>
-                  <strong className="text-slate-900">Every {ch.updateFrequencyDays} Days</strong>
+                  <strong className="text-slate-900">
+                    {Number(ch.updateFrequencyDays) <= 0.025
+                      ? 'Every 30 Minutes'
+                      : Number(ch.updateFrequencyDays) < 0.1
+                      ? 'Every 1 Hour'
+                      : Number(ch.updateFrequencyDays) >= 1.24 && Number(ch.updateFrequencyDays) <= 1.26
+                      ? 'Every 30 Hours'
+                      : `Every ${ch.updateFrequencyDays} Days`}
+                  </strong>
                 </div>
                 <div className="flex justify-between text-slate-600">
                   <span>Next Update:</span>
                   <strong className="text-sky-700">
-                    {ch.nextUpdateDate ? new Date(ch.nextUpdateDate).toLocaleDateString('en-GB') : 'Immediate'}
+                    {ch.nextUpdateDate
+                      ? new Date(ch.nextUpdateDate).toLocaleString('en-GB', {
+                          day: '2-digit',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : 'Immediate'}
                   </strong>
                 </div>
               </div>

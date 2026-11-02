@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Poppins } from 'next/font/google';
+import { Poppins, Montserrat, Barlow } from 'next/font/google';
 import './globals.css';
 import Sidebar from '../components/Sidebar';
 import Navbar from '../components/Navbar';
@@ -9,6 +9,20 @@ const poppins = Poppins({
   weight: ['300', '400', '500', '600', '700', '800'],
   subsets: ['latin'],
   variable: '--font-poppins',
+  display: 'swap',
+});
+
+const montserrat = Montserrat({
+  weight: ['400', '500', '600', '700', '800', '900'],
+  subsets: ['latin'],
+  variable: '--font-montserrat',
+  display: 'swap',
+});
+
+const barlow = Barlow({
+  weight: ['400', '500', '600', '700'],
+  subsets: ['latin'],
+  variable: '--font-barlow',
   display: 'swap',
 });
 
@@ -26,7 +40,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={poppins.variable}>
+    <html lang="en" className={`${poppins.variable} ${montserrat.variable} ${barlow.variable}`}>
       <body className={`${poppins.className} bg-[#F8FAFC] min-h-screen text-slate-900 antialiased flex flex-row`}>
         <NotificationProvider />
         <Sidebar />

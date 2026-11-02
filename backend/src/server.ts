@@ -19,6 +19,7 @@ import { settingsRouter } from './routes/settings';
 import { webhookRouter } from './routes/webhooks';
 import { reminderRouter } from './routes/reminders';
 import { qcRouter } from './routes/qc';
+import { quotationRouter } from './routes/quotations';
 import bcrypt from 'bcryptjs';
 
 const app = express();
@@ -73,6 +74,7 @@ app.use('/api/settings', settingsRouter);
 app.use('/api/webhooks', webhookRouter);
 app.use('/api/reminders', reminderRouter);
 app.use('/api/qc', qcRouter);
+app.use('/api/quotations', quotationRouter);
 
 app.get('/', (req, res) => {
   res.send('Hello, backend is running CRM Server!');
