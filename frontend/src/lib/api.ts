@@ -400,11 +400,12 @@ export const api = {
   },
 
   // Customers
-  getCustomers: (params?: { search?: string; optIn?: string; customerType?: string }) => {
+  getCustomers: (params?: { search?: string; optIn?: string; customerType?: string; bdmId?: string }) => {
     const q = new URLSearchParams();
     if (params?.search) q.append('search', params.search);
     if (params?.optIn) q.append('optIn', params.optIn);
     if (params?.customerType) q.append('customerType', params.customerType);
+    if (params?.bdmId) q.append('bdmId', params.bdmId);
     return fetchWithAuth(`/api/customers?${q.toString()}`);
   },
   getCustomerById: (id: string) => fetchWithAuth(`/api/customers/${id}`),
@@ -776,7 +777,14 @@ export const api = {
         body: JSON.stringify(payload),
       }),
 
-    requestApproval: (payload: { offerNo?: string; quotationId?: string; notes?: string }) =>
+    requestApproval: (payload: {
+      offerNo?: string;
+      quotationId?: string;
+      notes?: string;
+      bdmId?: string;
+      bdmName?: string;
+      bdmPhone?: string;
+    }) =>
       fetchWithAuth('/api/quotations/request-approval', {
         method: 'POST',
         body: JSON.stringify(payload),

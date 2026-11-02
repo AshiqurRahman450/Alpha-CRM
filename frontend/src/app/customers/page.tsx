@@ -42,6 +42,7 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [optInFilter, setOptInFilter] = useState('');
+  const [bdmFilter, setBdmFilter] = useState('');
 
   // BDM assignment support
   const [bdms, setBdms] = useState<any[]>(DEFAULT_BDMS);
@@ -201,6 +202,7 @@ export default function CustomersPage() {
       const res = await api.getCustomers({
         search: search || undefined,
         optIn: optInFilter || undefined,
+        bdmId: bdmFilter || undefined,
       });
       setCustomers(res.data || []);
     } catch (err: any) {
@@ -243,7 +245,7 @@ export default function CustomersPage() {
 
   useEffect(() => {
     fetchCustomers();
-  }, [optInFilter]);
+  }, [optInFilter, bdmFilter]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -365,6 +367,29 @@ export default function CustomersPage() {
           <option value="true">WhatsApp Opt-In Enabled</option>
           <option value="false">WhatsApp Opt-In Disabled</option>
         </select>
+
+        {currentUser?.role === 'BDM' ? (
+          <div className="flex items-center gap-1.5 px-3 py-2 bg-sky-50 border border-sky-200 rounded-xl text-xs font-semibold text-sky-800 shrink-0">
+            <User className="w-3.5 h-3.5 text-sky-600" />
+            <span>Assigned to You ({currentUser.name})</span>
+          </div>
+        ) : (
+          <select
+            value={bdmFilter}
+            onChange={(e) => setBdmFilter(e.target.value)}
+            className="px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none bg-white text-slate-700 font-medium"
+          >
+            <option value="">All BDMs</option>
+            {bdms.map((b) => {
+              const val = b._id || b.id || b.email;
+              return (
+                <option key={val} value={val}>
+                  BDM: {b.name}
+                </option>
+              );
+            })}
+          </select>
+        )}
       </div>
 
       {/* Customer List */}

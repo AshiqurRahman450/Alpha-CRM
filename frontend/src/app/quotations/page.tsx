@@ -360,6 +360,9 @@ export default function QuotationCreatorPage() {
       if (isBdm) {
         const res = await api.quotations.requestApproval({
           offerNo: finalOfferNo,
+          bdmId: currentUser?.id || currentUser?._id,
+          bdmName: currentUser?.name,
+          bdmPhone: currentUser?.phone,
         });
 
         if (res?.success) {

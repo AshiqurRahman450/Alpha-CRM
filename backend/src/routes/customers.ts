@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { Customer, Project, Payment, WhatsAppMessage, ProjectActivity, User } from '../models';
+import { Customer, Project, Payment, WhatsAppMessage, ProjectActivity, User, Quotation } from '../models';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { PROJECT_STAGE_NEXT_WORK } from './reminders';
 import multer from 'multer';
@@ -26,22 +26,89 @@ customerRouter.use(authenticate);
  */
 customerRouter.get('/', async (req: AuthRequest, res: Response) => {
   try {
-    const { search, optIn, customerType } = req.query;
+    const { search, optIn, customerType, bdmId } = req.query;
     const query: any = {};
 
+    // Auto-link any customer created from an approved quotation that is missing bdmId
+    try {
+      const quotesWithBdm = await Quotation.find({
+        status: 'CRM_APPROVED',
+        createdCustomerId: { $exists: true, $ne: null },
+        $or: [{ bdmId: { $exists: true, $ne: null } }, { approvalRequestedBy: { $exists: true, $ne: null } }],
+      })
+        .select('createdCustomerId createdProjectId bdmId bdmName bdmPhone approvalRequestedBy approvalRequestedByName')
+        .lean();
+
+      for (const q of quotesWithBdm) {
+        const bId = q.bdmId || q.approvalRequestedBy;
+        if (bId && q.createdCustomerId) {
+          await Customer.updateOne(
+            { _id: q.createdCustomerId, $or: [{ bdmId: null }, { bdmId: { $exists: false } }] },
+            {
+              $set: {
+                bdmId: bId,
+                ...(q.bdmName || q.approvalRequestedByName ? { assignedEmployee: q.bdmName || q.approvalRequestedByName } : {}),
+                ...(q.bdmPhone ? { bdmPhone: q.bdmPhone } : {}),
+              },
+            }
+          );
+        }
+        if (bId && q.createdProjectId) {
+          await Project.updateOne(
+            { _id: q.createdProjectId, $or: [{ bdmId: null }, { bdmId: { $exists: false } }] },
+            {
+              $set: {
+                bdmId: bId,
+                ...(q.bdmName || q.approvalRequestedByName ? { assignedEmployee: q.bdmName || q.approvalRequestedByName } : {}),
+                ...(q.bdmPhone ? { bdmPhone: q.bdmPhone } : {}),
+              },
+            }
+          );
+        }
+      }
+    } catch (e) {
+      // Non-blocking sync
+    }
+
     if (req.user?.role === 'BDM') {
-      query.bdmId = req.user._id;
+      const bdmConditions: any[] = [{ bdmId: req.user._id }];
+      if (req.user.name) {
+        bdmConditions.push({ assignedEmployee: new RegExp(`^${req.user.name.trim()}$`, 'i') });
+      }
+      if (req.user.phone) {
+        const cleanPhone = req.user.phone.replace(/\D/g, '').slice(-10);
+        if (cleanPhone) {
+          bdmConditions.push({ bdmPhone: new RegExp(cleanPhone) });
+        }
+      }
+      query.$or = bdmConditions;
+    } else if (bdmId && bdmId !== 'ALL') {
+      const bdmMatch = await User.findById(bdmId).catch(() => null);
+      if (bdmMatch) {
+        query.$or = [
+          { bdmId: bdmMatch._id },
+          { assignedEmployee: new RegExp(`^${bdmMatch.name.trim()}$`, 'i') },
+        ];
+      } else {
+        query.bdmId = bdmId;
+      }
     }
 
     if (search && typeof search === 'string') {
       const searchRegex = new RegExp(search.trim(), 'i');
-      query.$or = [
+      const searchOr = [
         { fullName: searchRegex },
         { phoneNumber: searchRegex },
         { whatsappNumber: searchRegex },
         { customerId: searchRegex },
         { city: searchRegex },
       ];
+      if (query.$or) {
+        query.$and = [{ $or: query.$or }, { $or: searchOr }];
+        delete query.$or;
+      } else {
+        query.$or = searchOr;
+      }
     }
 
     if (optIn !== undefined && optIn !== '') {

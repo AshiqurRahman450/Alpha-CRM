@@ -133,7 +133,12 @@ export default function BdmQuotationsPage() {
     try {
       const isBdm = currentUser?.role === 'BDM';
       if (isBdm) {
-        const res = await api.quotations.requestApproval({ offerNo });
+        const res = await api.quotations.requestApproval({
+          offerNo,
+          bdmId: currentUser?.id || currentUser?._id,
+          bdmName: currentUser?.name,
+          bdmPhone: currentUser?.phone,
+        });
         if (res?.success) {
           toast.success('Approval request sent to CRM & Admin on Reminders!');
           fetchQuotations();

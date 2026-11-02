@@ -324,7 +324,17 @@ projectRouter.get('/', async (req: AuthRequest, res: Response) => {
     const query: any = {};
 
     if (req.user?.role === 'BDM') {
-      query.bdmId = req.user._id;
+      const bdmConditions: any[] = [{ bdmId: req.user._id }];
+      if (req.user.name) {
+        bdmConditions.push({ assignedEmployee: new RegExp(`^${req.user.name.trim()}$`, 'i') });
+      }
+      if (req.user.phone) {
+        const cleanPhone = req.user.phone.replace(/\D/g, '').slice(-10);
+        if (cleanPhone) {
+          bdmConditions.push({ bdmPhone: new RegExp(cleanPhone) });
+        }
+      }
+      query.$or = bdmConditions;
     }
 
     if (status && typeof status === 'string') {
@@ -537,7 +547,17 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
     const query: any = {};
 
     if (req.user?.role === 'BDM') {
-      query.bdmId = req.user._id;
+      const bdmConditions: any[] = [{ bdmId: req.user._id }];
+      if (req.user.name) {
+        bdmConditions.push({ assignedEmployee: new RegExp(`^${req.user.name.trim()}$`, 'i') });
+      }
+      if (req.user.phone) {
+        const cleanPhone = req.user.phone.replace(/\D/g, '').slice(-10);
+        if (cleanPhone) {
+          bdmConditions.push({ bdmPhone: new RegExp(cleanPhone) });
+        }
+      }
+      query.$or = bdmConditions;
     }
 
     if (status && typeof status === 'string') {

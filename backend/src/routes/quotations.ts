@@ -676,7 +676,14 @@ Warm regards,
  */
 quotationRouter.post('/request-approval', async (req: any, res: Response) => {
   try {
-    const { offerNo: inputOffer, quotationId, notes } = req.body;
+    const {
+      offerNo: inputOffer,
+      quotationId,
+      notes,
+      bdmId: inputBdmId,
+      bdmName: inputBdmName,
+      bdmPhone: inputBdmPhone,
+    } = req.body;
 
     let quotation: any = null;
     if (quotationId) {
@@ -709,15 +716,22 @@ quotationRouter.post('/request-approval', async (req: any, res: Response) => {
     const subtotal = elevatorPrice + shaftPrice;
     const orderValue = subtotal + Math.round((subtotal * gstRate) / 100);
 
-    const bdmName = req.user?.name || quotation.bdmName || quotation.data?.representativeName || 'BDM';
+    const bdmName = req.user?.name || inputBdmName || quotation.bdmName || quotation.data?.representativeName || 'BDM';
     const bdmRole = req.user?.role || 'BDM';
+    const bdmId = req.user ? req.user._id : inputBdmId || quotation.bdmId;
+    const bdmPhone = req.user?.phone || inputBdmPhone || quotation.bdmPhone || quotation.data?.representativePhone;
+    const bdmEmail = req.user?.email || quotation.bdmEmail;
     const customerName = qData.clientName || quotation.customerName || 'Customer';
 
     quotation.status = 'APPROVAL_REQUESTED';
     quotation.approvalRequestedAt = new Date();
-    quotation.approvalRequestedBy = req.user ? req.user._id : undefined;
+    quotation.approvalRequestedBy = bdmId;
     quotation.approvalRequestedByName = bdmName;
     quotation.approvalRequestedByRole = bdmRole;
+    if (bdmId) quotation.bdmId = bdmId;
+    if (bdmName) quotation.bdmName = bdmName;
+    if (bdmPhone) quotation.bdmPhone = bdmPhone;
+    if (bdmEmail) quotation.bdmEmail = bdmEmail;
     if (notes) quotation.stageNotes = notes;
     await quotation.save();
 
@@ -805,6 +819,10 @@ quotationRouter.post('/crm-approve', async (req: any, res: Response) => {
       quotation.approvalRequestedBy = req.user._id;
       quotation.approvalRequestedByName = bdmName;
       quotation.approvalRequestedByRole = 'BDM';
+      quotation.bdmId = req.user._id;
+      quotation.bdmName = bdmName;
+      if (req.user.phone) quotation.bdmPhone = req.user.phone;
+      if (req.user.email) quotation.bdmEmail = req.user.email;
       await quotation.save();
 
       const notifyUsers = await User.find({ role: { $in: ['CRM', 'ADMIN'] }, isActive: true });
@@ -839,7 +857,78 @@ quotationRouter.post('/crm-approve', async (req: any, res: Response) => {
       });
     }
 
-    // 1. Check or Create Customer
+    // Resolve target BDM for this quotation so Customer & Project are assigned to this particular BDM
+    let targetBdmId = quotation.bdmId;
+    let targetBdmName = quotation.bdmName;
+    let targetBdmPhone = quotation.bdmPhone;
+    let targetBdmEmail = quotation.bdmEmail;
+
+    if (!targetBdmId && quotation.approvalRequestedBy && quotation.approvalRequestedByRole === 'BDM') {
+      targetBdmId = quotation.approvalRequestedBy;
+      if (quotation.approvalRequestedByName) targetBdmName = quotation.approvalRequestedByName;
+    }
+
+    if (!targetBdmId && quotation.createdById && quotation.createdByRole === 'BDM') {
+      targetBdmId = quotation.createdById;
+      if (quotation.createdByName) targetBdmName = quotation.createdByName;
+    }
+
+    let bdmUser: any = null;
+    if (targetBdmId) {
+      try {
+        bdmUser = await User.findById(targetBdmId);
+      } catch (e) {}
+    }
+
+    if (!bdmUser) {
+      const candidateNames = [
+        targetBdmName,
+        quotation.approvalRequestedByName,
+        quotation.data?.representativeName,
+        quotation.createdByName,
+      ].filter((n) => typeof n === 'string' && n.trim());
+
+      for (const name of candidateNames) {
+        bdmUser = await User.findOne({
+          role: 'BDM',
+          name: new RegExp(`^${name.trim()}$`, 'i'),
+        });
+        if (bdmUser) break;
+      }
+    }
+
+    if (!bdmUser) {
+      const candidatePhones = [
+        targetBdmPhone,
+        quotation.data?.representativePhone,
+      ].filter(Boolean);
+
+      for (const phoneStr of candidatePhones) {
+        const cleaned = String(phoneStr).replace(/\D/g, '').slice(-10);
+        if (cleaned) {
+          bdmUser = await User.findOne({
+            role: 'BDM',
+            phone: new RegExp(cleaned),
+          });
+          if (bdmUser) break;
+        }
+      }
+    }
+
+    if (bdmUser) {
+      targetBdmId = bdmUser._id;
+      targetBdmName = bdmUser.name;
+      targetBdmPhone = bdmUser.phone || targetBdmPhone;
+      targetBdmEmail = bdmUser.email || targetBdmEmail;
+    }
+
+    // Persist verified BDM onto quotation
+    if (targetBdmId) quotation.bdmId = targetBdmId;
+    if (targetBdmName) quotation.bdmName = targetBdmName;
+    if (targetBdmPhone) quotation.bdmPhone = targetBdmPhone;
+    if (targetBdmEmail) quotation.bdmEmail = targetBdmEmail;
+
+    // 1. Check or Create Customer and link to the particular BDM
     let customer = await Customer.findOne({
       $or: [{ phoneNumber: phone }, { whatsappNumber: phone }],
     });
@@ -858,11 +947,31 @@ quotationRouter.post('/crm-approve', async (req: any, res: Response) => {
         pincode: '400001',
         customerType: 'Residential',
         leadSource: 'Quotation Proposal',
-        notes: `Auto-created upon CRM approval of Quotation ${quotation.offerNo}`,
+        assignedEmployee: targetBdmName || undefined,
+        bdmId: targetBdmId || undefined,
+        bdmPhone: targetBdmPhone || undefined,
+        notes: `Auto-created upon CRM approval of Quotation ${quotation.offerNo}${targetBdmName ? ` (Assigned BDM: ${targetBdmName})` : ''}`,
       });
+    } else {
+      let changed = false;
+      if (targetBdmId && (!customer.bdmId || String(customer.bdmId) !== String(targetBdmId))) {
+        customer.bdmId = targetBdmId;
+        changed = true;
+      }
+      if (targetBdmName && (!customer.assignedEmployee || customer.assignedEmployee === 'Assigned')) {
+        customer.assignedEmployee = targetBdmName;
+        changed = true;
+      }
+      if (targetBdmPhone && !customer.bdmPhone) {
+        customer.bdmPhone = targetBdmPhone;
+        changed = true;
+      }
+      if (changed) {
+        await customer.save();
+      }
     }
 
-    // 2. Create Project
+    // 2. Create Project linked to the particular BDM
     const advPct = 30;
     const advanceAmount = Math.round((orderValue * advPct) / 100);
 
@@ -890,7 +999,10 @@ quotationRouter.post('/crm-approve', async (req: any, res: Response) => {
       orderDate: new Date(),
       expectedDeliveryDate: new Date(Date.now() + 120 * 24 * 60 * 60 * 1000),
       projectStatus: 'PAYMENT_RECEIVED',
-      notes: `Generated automatically from approved Stage 3 Quotation ${quotation.offerNo}. Travel: ${qData.totalTravelHeight || '7000mm'}, Door: ${qData.doorSpecifications || 'SS 304 Grade'}, Power: ${qData.powerSupply || 'Single Phase'}.`,
+      assignedEmployee: targetBdmName || undefined,
+      bdmId: targetBdmId || undefined,
+      bdmPhone: targetBdmPhone || undefined,
+      notes: `Generated automatically from approved Stage 3 Quotation ${quotation.offerNo}${targetBdmName ? ` (Assigned BDM: ${targetBdmName})` : ''}. Travel: ${qData.totalTravelHeight || '7000mm'}, Door: ${qData.doorSpecifications || 'SS 304 Grade'}, Power: ${qData.powerSupply || 'Single Phase'}.`,
     });
 
     // 3. Mark Quotation as CRM_APPROVED
@@ -915,7 +1027,7 @@ quotationRouter.post('/crm-approve', async (req: any, res: Response) => {
       await Reminder.create({
         userId: u._id,
         title: `Next Move: Schedule Site Visit (PM) - ${newProject.projectName} (${newProject.projectId})`,
-        notes: `Customer: ${customer.fullName}. Project auto-created from Quotation ${quotation.offerNo}. Next work: Coordinate with customer to schedule site visit for shaft measurements.`,
+        notes: `Customer: ${customer.fullName}. Project auto-created from Quotation ${quotation.offerNo}. Next work: Coordinate with customer to schedule site visit for shaft measurements.${targetBdmName ? ` (BDM: ${targetBdmName})` : ''}`,
         dueAt: new Date(),
         status: 'PENDING',
         type: 'PROJECT_NEXT_WORK',
@@ -925,9 +1037,24 @@ quotationRouter.post('/crm-approve', async (req: any, res: Response) => {
       });
     }
 
+    // 6. Notify the assigned BDM that their quotation was approved and customer + project was assigned to them
+    if (targetBdmId) {
+      await Reminder.create({
+        userId: targetBdmId,
+        title: `🎉 Quotation Approved: ${customer.fullName} (${customer.customerId})`,
+        notes: `Your Stage 3 Quotation (${quotation.offerNo}) for ${customer.fullName} has been approved by CRM/Admin! Customer ${customer.customerId} and Project ${newProject.projectId} have been created and added to your portfolio.`,
+        dueAt: new Date(),
+        status: 'PENDING',
+        type: 'GENERAL',
+        relatedCustomerId: customer._id,
+        relatedProjectId: newProject._id,
+        customerName: customer.fullName,
+      });
+    }
+
     return res.json({
       success: true,
-      message: `Quotation Approved by CRM! New Customer ${customer.customerId} and Project ${newProject.projectId} created successfully.`,
+      message: `Quotation Approved by CRM! Customer ${customer.customerId} and Project ${newProject.projectId} created and assigned to BDM ${targetBdmName || 'assigned'} successfully.`,
       customer,
       project: newProject,
       quotation,
