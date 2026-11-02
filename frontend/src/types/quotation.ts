@@ -68,7 +68,9 @@ export interface QuotationData {
 
   // Terms of Sale / Commercials (Page 5)
   elevatorPrice: number;
+  elevatorDiscountPrice?: number;
   shaftPrice: number;
+  shaftDiscountPrice?: number;
   gstRate: number; // percentage (e.g. 18)
   warranty: string;
   motorWarranty?: string;

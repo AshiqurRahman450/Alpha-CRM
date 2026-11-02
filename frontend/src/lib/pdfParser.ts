@@ -268,6 +268,17 @@ export function parseQuotationDataFromText(
     }
   }
 
+  // Elevator Discount Price (if any)
+  const elvDiscountMatch = rawText.match(/Elevator[^\n\r]*Discount[^\n\r]*Rs\.?\s*([0-9,]+)/i) || rawText.match(/Discount\s*Price\s*:\s*Rs\.?\s*([0-9,]+)/i);
+  if (elvDiscountMatch && elvDiscountMatch[1]) {
+    const rawDigits = elvDiscountMatch[1].replace(/,/g, '');
+    const num = parseInt(rawDigits, 10);
+    if (!isNaN(num) && num > 10000) {
+      result.elevatorDiscountPrice = num;
+      matchedFields.push('Elevator Discount Price');
+    }
+  }
+
   // 23. Shaft Price: e.g. "Shaft price MRP Rs.4,00,000"
   const shaftPriceMatch = rawText.match(/Shaft\s*price\s*MRP\s*Rs\.?\s*([0-9,]+)/i);
   if (shaftPriceMatch && shaftPriceMatch[1]) {
@@ -276,6 +287,17 @@ export function parseQuotationDataFromText(
     if (!isNaN(num) && num > 10000) {
       result.shaftPrice = num;
       matchedFields.push('Shaft Price');
+    }
+  }
+
+  // Shaft Discount Price (if any)
+  const shaftDiscountMatch = rawText.match(/Shaft[^\n\r]*Discount[^\n\r]*Rs\.?\s*([0-9,]+)/i);
+  if (shaftDiscountMatch && shaftDiscountMatch[1]) {
+    const rawDigits = shaftDiscountMatch[1].replace(/,/g, '');
+    const num = parseInt(rawDigits, 10);
+    if (!isNaN(num) && num > 10000) {
+      result.shaftDiscountPrice = num;
+      matchedFields.push('Shaft Discount Price');
     }
   }
 

@@ -216,8 +216,14 @@ quotationRouter.get('/bdm-stage-wise', async (req: any, res: Response) => {
       if (q.createdProjectCode) group.createdProjectCode = q.createdProjectCode;
 
       const elevatorPrice = Number(q.data?.elevatorPrice || 0);
+      const elevatorDiscountPrice = q.data?.elevatorDiscountPrice && Number(q.data.elevatorDiscountPrice) > 0 ? Number(q.data.elevatorDiscountPrice) : undefined;
+      const effectiveElevatorPrice = elevatorDiscountPrice !== undefined ? elevatorDiscountPrice : elevatorPrice;
+
       const shaftPrice = Number(q.data?.shaftPrice || 0);
-      const basicTotal = elevatorPrice + shaftPrice;
+      const shaftDiscountPrice = q.data?.shaftDiscountPrice && Number(q.data.shaftDiscountPrice) > 0 ? Number(q.data.shaftDiscountPrice) : undefined;
+      const effectiveShaftPrice = shaftDiscountPrice !== undefined ? shaftDiscountPrice : shaftPrice;
+
+      const basicTotal = effectiveElevatorPrice + effectiveShaftPrice;
       const grandTotal = Math.round(basicTotal * 1.18);
 
       group.stages[`stage${q.stage}`] = {
@@ -226,7 +232,9 @@ quotationRouter.get('/bdm-stage-wise', async (req: any, res: Response) => {
         offerNo: q.offerNo,
         status: q.status,
         elevatorPrice,
+        elevatorDiscountPrice,
         shaftPrice,
+        shaftDiscountPrice,
         grandTotal,
         updatedAt: q.updatedAt,
         sentToWhatsAppAt: q.sentToWhatsAppAt,
@@ -553,9 +561,9 @@ quotationRouter.post('/whatsapp-send', async (req: Request, res: Response) => {
 
     const stageLabel = stageNum === 1 ? 'Initial Proposal' : stageNum === 2 ? 'Negotiation Revision' : 'Final Commercial Proposal';
     const clientName = customerName || activeData?.clientName || 'Valued Customer';
-    const elevatorPrice = Number(activeData?.elevatorPrice || 0);
-    const shaftPrice = Number(activeData?.shaftPrice || 0);
-    const totalContractVal = Math.round((elevatorPrice + shaftPrice) * 1.18);
+    const effectiveElevator = Number((activeData?.elevatorDiscountPrice && Number(activeData.elevatorDiscountPrice) > 0) ? activeData.elevatorDiscountPrice : (activeData?.elevatorPrice || 0));
+    const effectiveShaft = Number((activeData?.shaftDiscountPrice && Number(activeData.shaftDiscountPrice) > 0) ? activeData.shaftDiscountPrice : (activeData?.shaftPrice || 0));
+    const totalContractVal = Math.round((effectiveElevator + effectiveShaft) * 1.18);
 
     const caption = `📄 *Alpha Elevators - Official Quotation Proposal (${stageLabel})*
 
@@ -711,9 +719,11 @@ quotationRouter.post('/request-approval', async (req: any, res: Response) => {
 
     const qData = quotation.data || {};
     const elevatorPrice = Number(qData.elevatorPrice || 0);
+    const effectiveElevatorPrice = Number((qData.elevatorDiscountPrice && Number(qData.elevatorDiscountPrice) > 0) ? qData.elevatorDiscountPrice : elevatorPrice);
     const shaftPrice = Number(qData.shaftPrice || 0);
+    const effectiveShaftPrice = Number((qData.shaftDiscountPrice && Number(qData.shaftDiscountPrice) > 0) ? qData.shaftDiscountPrice : shaftPrice);
     const gstRate = Number(qData.gstRate || 18);
-    const subtotal = elevatorPrice + shaftPrice;
+    const subtotal = effectiveElevatorPrice + effectiveShaftPrice;
     const orderValue = subtotal + Math.round((subtotal * gstRate) / 100);
 
     const bdmName = req.user?.name || inputBdmName || quotation.bdmName || quotation.data?.representativeName || 'BDM';
@@ -799,9 +809,11 @@ quotationRouter.post('/crm-approve', async (req: any, res: Response) => {
 
     const qData = quotation.data || {};
     const elevatorPrice = Number(qData.elevatorPrice || 0);
+    const effectiveElevatorPrice = Number((qData.elevatorDiscountPrice && Number(qData.elevatorDiscountPrice) > 0) ? qData.elevatorDiscountPrice : elevatorPrice);
     const shaftPrice = Number(qData.shaftPrice || 0);
+    const effectiveShaftPrice = Number((qData.shaftDiscountPrice && Number(qData.shaftDiscountPrice) > 0) ? qData.shaftDiscountPrice : shaftPrice);
     const gstRate = Number(qData.gstRate || 18);
-    const subtotal = elevatorPrice + shaftPrice;
+    const subtotal = effectiveElevatorPrice + effectiveShaftPrice;
     const gstAmount = Math.round((subtotal * gstRate) / 100);
     const orderValue = subtotal + gstAmount;
 
@@ -988,8 +1000,8 @@ quotationRouter.post('/crm-approve', async (req: any, res: Response) => {
       liftType: 'Home Lift',
       numberOfFloors: qData.noOfStops || 'G+2',
       shaftModel: qData.shaftType || 'Glass Shaft',
-      liftAmount: elevatorPrice,
-      shaftAmount: shaftPrice,
+      liftAmount: effectiveElevatorPrice,
+      shaftAmount: effectiveShaftPrice,
       orderValue,
       advancePercentage: advPct,
       advanceAmount,
@@ -1087,9 +1099,18 @@ quotationRouter.get('/export-excel/:offerNo', async (req: Request, res: Response
     const s2 = stages.find((s) => s.stage === 2);
     const s3 = stages.find((s) => s.stage === 3);
 
-    const s1Total = s1?.data ? Math.round((Number(s1.data.elevatorPrice || 0) + Number(s1.data.shaftPrice || 0)) * 1.18) : 0;
-    const s2Total = s2?.data ? Math.round((Number(s2.data.elevatorPrice || 0) + Number(s2.data.shaftPrice || 0)) * 1.18) : 0;
-    const s3Total = s3?.data ? Math.round((Number(s3.data.elevatorPrice || 0) + Number(s3.data.shaftPrice || 0)) * 1.18) : 0;
+    const getStageEffectiveElv = (stg?: any) => {
+      if (!stg?.data) return 0;
+      return Number((stg.data.elevatorDiscountPrice && Number(stg.data.elevatorDiscountPrice) > 0) ? stg.data.elevatorDiscountPrice : (stg.data.elevatorPrice || 0));
+    };
+    const getStageEffectiveShaft = (stg?: any) => {
+      if (!stg?.data) return 0;
+      return Number((stg.data.shaftDiscountPrice && Number(stg.data.shaftDiscountPrice) > 0) ? stg.data.shaftDiscountPrice : (stg.data.shaftPrice || 0));
+    };
+
+    const s1Total = s1?.data ? Math.round((getStageEffectiveElv(s1) + getStageEffectiveShaft(s1)) * 1.18) : 0;
+    const s2Total = s2?.data ? Math.round((getStageEffectiveElv(s2) + getStageEffectiveShaft(s2)) * 1.18) : 0;
+    const s3Total = s3?.data ? Math.round((getStageEffectiveElv(s3) + getStageEffectiveShaft(s3)) * 1.18) : 0;
 
     const priceDiff = s3Total ? s3Total - s1Total : s2Total ? s2Total - s1Total : 0;
     const priceDiffText = priceDiff === 0 ? 'No change' : priceDiff > 0 ? `+₹${priceDiff.toLocaleString('en-IN')}` : `-₹${Math.abs(priceDiff).toLocaleString('en-IN')}`;
@@ -1194,24 +1215,38 @@ quotationRouter.get('/export-excel/:offerNo', async (req: Request, res: Response
         'Stage Comparison & Variance': '',
       },
       {
-        'Parameter / Field': 'Elevator Basic Price (₹)',
+        'Parameter / Field': 'Elevator Basic Price (MRP) (₹)',
         'Stage 1 (Initial: -1)': s1?.data?.elevatorPrice || 0,
         'Stage 2 (Negotiation: -2)': s2?.data?.elevatorPrice || 0,
         'Stage 3 (Final & CRM: -3)': s3?.data?.elevatorPrice || 0,
         'Stage Comparison & Variance': `Net Diff: ₹${((Number(s3?.data?.elevatorPrice || s2?.data?.elevatorPrice || 0) - Number(s1?.data?.elevatorPrice || 0))).toLocaleString('en-IN')}`,
       },
       {
-        'Parameter / Field': 'Shaft Basic Price (₹)',
+        'Parameter / Field': 'Elevators Discount Price (₹)',
+        'Stage 1 (Initial: -1)': s1?.data?.elevatorDiscountPrice || 'N/A',
+        'Stage 2 (Negotiation: -2)': s2?.data?.elevatorDiscountPrice || 'N/A',
+        'Stage 3 (Final & CRM: -3)': s3?.data?.elevatorDiscountPrice || 'N/A',
+        'Stage Comparison & Variance': '',
+      },
+      {
+        'Parameter / Field': 'Shaft Basic Price (MRP) (₹)',
         'Stage 1 (Initial: -1)': s1?.data?.shaftPrice || 0,
         'Stage 2 (Negotiation: -2)': s2?.data?.shaftPrice || 0,
         'Stage 3 (Final & CRM: -3)': s3?.data?.shaftPrice || 0,
         'Stage Comparison & Variance': `Net Diff: ₹${((Number(s3?.data?.shaftPrice || s2?.data?.shaftPrice || 0) - Number(s1?.data?.shaftPrice || 0))).toLocaleString('en-IN')}`,
       },
       {
+        'Parameter / Field': 'Shaft Discount Price (₹)',
+        'Stage 1 (Initial: -1)': s1?.data?.shaftDiscountPrice || 'N/A',
+        'Stage 2 (Negotiation: -2)': s2?.data?.shaftDiscountPrice || 'N/A',
+        'Stage 3 (Final & CRM: -3)': s3?.data?.shaftDiscountPrice || 'N/A',
+        'Stage Comparison & Variance': '',
+      },
+      {
         'Parameter / Field': 'GST Amount (18%) (₹)',
-        'Stage 1 (Initial: -1)': Math.round(((Number(s1?.data?.elevatorPrice || 0) + Number(s1?.data?.shaftPrice || 0)) * 18) / 100),
-        'Stage 2 (Negotiation: -2)': Math.round(((Number(s2?.data?.elevatorPrice || 0) + Number(s2?.data?.shaftPrice || 0)) * 18) / 100),
-        'Stage 3 (Final & CRM: -3)': Math.round(((Number(s3?.data?.elevatorPrice || 0) + Number(s3?.data?.shaftPrice || 0)) * 18) / 100),
+        'Stage 1 (Initial: -1)': Math.round(((getStageEffectiveElv(s1) + getStageEffectiveShaft(s1)) * 18) / 100),
+        'Stage 2 (Negotiation: -2)': Math.round(((getStageEffectiveElv(s2) + getStageEffectiveShaft(s2)) * 18) / 100),
+        'Stage 3 (Final & CRM: -3)': Math.round(((getStageEffectiveElv(s3) + getStageEffectiveShaft(s3)) * 18) / 100),
         'Stage Comparison & Variance': '',
       },
       {

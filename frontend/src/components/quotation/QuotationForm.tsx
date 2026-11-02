@@ -282,10 +282,30 @@ export default function QuotationForm({
 
   // Calculations
   const elevatorPrice = Number(data.elevatorPrice || 0);
+  const elevatorDiscountPrice =
+    data.elevatorDiscountPrice !== undefined &&
+    data.elevatorDiscountPrice !== null &&
+    Number(data.elevatorDiscountPrice) > 0
+      ? Number(data.elevatorDiscountPrice)
+      : undefined;
+  const effectiveElevatorPrice = elevatorDiscountPrice !== undefined ? elevatorDiscountPrice : elevatorPrice;
+
   const shaftPrice = Number(data.shaftPrice || 0);
-  const subtotal = elevatorPrice + shaftPrice;
+  const shaftDiscountPrice =
+    data.shaftDiscountPrice !== undefined &&
+    data.shaftDiscountPrice !== null &&
+    Number(data.shaftDiscountPrice) > 0
+      ? Number(data.shaftDiscountPrice)
+      : undefined;
+  const effectiveShaftPrice = shaftDiscountPrice !== undefined ? shaftDiscountPrice : shaftPrice;
+
+  const subtotal = effectiveElevatorPrice + effectiveShaftPrice;
   const gstAmount = Math.round((subtotal * (data.gstRate || 18)) / 100);
   const grandTotal = subtotal + gstAmount;
+
+  const baseSubtotal = elevatorPrice + shaftPrice;
+  const totalSavings = Math.max(0, baseSubtotal - subtotal);
+  const hasDiscounts = elevatorDiscountPrice !== undefined || shaftDiscountPrice !== undefined;
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col h-full overflow-hidden">
@@ -1846,7 +1866,7 @@ export default function QuotationForm({
                   <IndianRupee className="w-3.5 h-3.5 text-teal-600" />
                   <span>Commercial Proposal Values</span>
                 </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 mb-1">Final Agreed Price (₹):</label>
                     <input
@@ -1857,7 +1877,28 @@ export default function QuotationForm({
                       className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 font-bold text-teal-800"
                     />
                     <span className="text-[10px] text-slate-400 mt-0.5 block">
-                      Reflects as: ₹{Number(data.elevatorPrice || 1100000).toLocaleString('en-IN')} + {data.gstRate || 18}% GST
+                      Base / MRP Price
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
+                      <span>Elevators Discount Price (₹):</span>
+                      {elevatorDiscountPrice !== undefined && elevatorPrice > elevatorDiscountPrice && (
+                        <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1 py-0.2 rounded">
+                          -₹{(elevatorPrice - elevatorDiscountPrice).toLocaleString('en-IN')}
+                        </span>
+                      )}
+                    </label>
+                    <input
+                      type="number"
+                      value={data.elevatorDiscountPrice ?? ''}
+                      onChange={(e) => updateField('elevatorDiscountPrice', e.target.value === '' ? undefined : Number(e.target.value))}
+                      placeholder="Optional discount price"
+                      className="w-full text-xs px-2.5 py-1.5 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-900 bg-emerald-50/30 placeholder:text-slate-400 placeholder:font-normal"
+                    />
+                    <span className="text-[10px] text-slate-400 mt-0.5 block">
+                      Reflects as: ₹{Number(data.elevatorDiscountPrice || data.elevatorPrice || 1100000).toLocaleString('en-IN')} + {data.gstRate || 18}% GST
                     </span>
                   </div>
 
@@ -1946,53 +1987,159 @@ export default function QuotationForm({
             {/* Price Breakdown Banner */}
             <div className="bg-gradient-to-r from-teal-900 to-slate-900 text-white p-4 rounded-2xl shadow-sm space-y-2">
               <div className="flex items-center justify-between text-xs text-teal-300 font-mono">
-                <span>COMMERCIAL SUMMARY</span>
+                <span className="flex items-center gap-1.5 font-bold">
+                  <span>COMMERCIAL SUMMARY</span>
+                  {hasDiscounts && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-slate-900">
+                      Discount Applied
+                    </span>
+                  )}
+                </span>
                 <span>GST @ {data.gstRate}%</span>
               </div>
               <div className="grid grid-cols-3 gap-2 pt-1 border-t border-white/10 text-center">
                 <div>
-                  <div className="text-[10px] text-slate-400">Base Elevator</div>
-                  <div className="text-sm font-bold">₹{elevatorPrice.toLocaleString('en-IN')}</div>
+                  <div className="text-[10px] text-slate-400">Elevator Total</div>
+                  {elevatorDiscountPrice !== undefined ? (
+                    <div>
+                      <div className="text-[11px] text-slate-400 line-through">₹{elevatorPrice.toLocaleString('en-IN')}</div>
+                      <div className="text-sm font-bold text-emerald-400">₹{elevatorDiscountPrice.toLocaleString('en-IN')}</div>
+                    </div>
+                  ) : (
+                    <div className="text-sm font-bold">₹{elevatorPrice.toLocaleString('en-IN')}</div>
+                  )}
                 </div>
                 <div>
                   <div className="text-[10px] text-slate-400">Shaft Package</div>
-                  <div className="text-sm font-bold">₹{shaftPrice.toLocaleString('en-IN')}</div>
+                  {shaftDiscountPrice !== undefined ? (
+                    <div>
+                      <div className="text-[11px] text-slate-400 line-through">₹{shaftPrice.toLocaleString('en-IN')}</div>
+                      <div className="text-sm font-bold text-emerald-400">₹{shaftDiscountPrice.toLocaleString('en-IN')}</div>
+                    </div>
+                  ) : (
+                    <div className="text-sm font-bold">₹{shaftPrice.toLocaleString('en-IN')}</div>
+                  )}
                 </div>
                 <div>
                   <div className="text-[10px] text-teal-400 font-bold">Total (Inc. GST)</div>
                   <div className="text-sm font-black text-amber-300">₹{grandTotal.toLocaleString('en-IN')}</div>
+                  {totalSavings > 0 && (
+                    <div className="text-[10px] text-emerald-400 font-bold">Save ₹{totalSavings.toLocaleString('en-IN')}</div>
+                  )}
                 </div>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Elevator Price (₹): <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-2 text-slate-400 text-xs">₹</span>
-                  <input
-                    type="number"
-                    value={data.elevatorPrice}
-                    onChange={(e) => updateField('elevatorPrice', Number(e.target.value))}
-                    className="w-full text-xs pl-7 pr-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-bold text-slate-800"
-                  />
+              {/* Elevator Pricing Card */}
+              <div className="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                    <IndianRupee className="w-3.5 h-3.5 text-teal-600" />
+                    Elevator Pricing
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-400">Base & Discount</span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Elevator Price (₹): <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 text-slate-400 text-xs">₹</span>
+                    <input
+                      type="number"
+                      value={data.elevatorPrice}
+                      onChange={(e) => updateField('elevatorPrice', Number(e.target.value))}
+                      placeholder="e.g. 1600000"
+                      className="w-full text-xs pl-7 pr-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-bold text-slate-800 bg-white"
+                    />
+                  </div>
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">
+                    Standard MRP / Base Elevator Price
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                    <span>Elevators Discount Price (₹):</span>
+                    {elevatorDiscountPrice !== undefined && elevatorPrice > elevatorDiscountPrice && (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                        -₹{(elevatorPrice - elevatorDiscountPrice).toLocaleString('en-IN')}
+                      </span>
+                    )}
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 text-slate-400 text-xs">₹</span>
+                    <input
+                      type="number"
+                      value={data.elevatorDiscountPrice ?? ''}
+                      onChange={(e) => updateField('elevatorDiscountPrice', e.target.value === '' ? undefined : Number(e.target.value))}
+                      placeholder="Optional discounted offer price"
+                      className="w-full text-xs pl-7 pr-3 py-2 border border-emerald-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-900 bg-white placeholder:text-slate-400 placeholder:font-normal"
+                    />
+                  </div>
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">
+                    {elevatorDiscountPrice !== undefined
+                      ? `Offer price reflected on quotation: ₹${elevatorDiscountPrice.toLocaleString('en-IN')} + ${data.gstRate || 18}% GST`
+                      : 'Leave empty if no discount is applicable'}
+                  </span>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Shaft Price (₹): <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-2 text-slate-400 text-xs">₹</span>
-                  <input
-                    type="number"
-                    value={data.shaftPrice}
-                    onChange={(e) => updateField('shaftPrice', Number(e.target.value))}
-                    className="w-full text-xs pl-7 pr-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-bold text-slate-800"
-                  />
+              {/* Shaft Pricing Card */}
+              <div className="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                    <IndianRupee className="w-3.5 h-3.5 text-teal-600" />
+                    Shaft Pricing
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-400">Base & Discount</span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Shaft Price (₹): <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 text-slate-400 text-xs">₹</span>
+                    <input
+                      type="number"
+                      value={data.shaftPrice}
+                      onChange={(e) => updateField('shaftPrice', Number(e.target.value))}
+                      placeholder="e.g. 400000"
+                      className="w-full text-xs pl-7 pr-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-bold text-slate-800 bg-white"
+                    />
+                  </div>
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">
+                    Standard MRP / Base Shaft Price
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                    <span>Shaft Discount Price (₹):</span>
+                    {shaftDiscountPrice !== undefined && shaftPrice > shaftDiscountPrice && (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                        -₹{(shaftPrice - shaftDiscountPrice).toLocaleString('en-IN')}
+                      </span>
+                    )}
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 text-slate-400 text-xs">₹</span>
+                    <input
+                      type="number"
+                      value={data.shaftDiscountPrice ?? ''}
+                      onChange={(e) => updateField('shaftDiscountPrice', e.target.value === '' ? undefined : Number(e.target.value))}
+                      placeholder="Optional discounted offer price"
+                      className="w-full text-xs pl-7 pr-3 py-2 border border-emerald-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-900 bg-white placeholder:text-slate-400 placeholder:font-normal"
+                    />
+                  </div>
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">
+                    {shaftDiscountPrice !== undefined
+                      ? `Offer price reflected on quotation: ₹${shaftDiscountPrice.toLocaleString('en-IN')} + ${data.gstRate || 18}% GST`
+                      : 'Leave empty if no discount is applicable'}
+                  </span>
                 </div>
               </div>
             </div>

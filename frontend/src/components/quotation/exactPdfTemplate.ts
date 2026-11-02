@@ -554,11 +554,47 @@ export function renderExactPdfPage(pageIdx: number, data: QuotationData): string
       html = html.replace(/<div class="t c13" style="z-index:381;transform:matrix\(1,0,0,1,260\.73,213\.5\)">[\s\S]*?<\/div>/, `<div class="t c13" style="z-index:381;transform:matrix(1,0,0,1,260.73,213.5)">${data.shaftType}</div>`);
       html = html.replace(/Shaft-Glass Shaft\s*/i, data.shaftType);
     }
-    if (data.elevatorPrice) {
-      html = html.replace('Rs. 16,00,,000 + 18% GST', 'Rs. ' + formatINR(data.elevatorPrice) + ' + ' + data.gstRate + '% GST');
+    // Elevator Price
+    const gstRate = data.gstRate !== undefined ? data.gstRate : 18;
+    const elvMRP = data.elevatorPrice ? 'Rs. ' + formatINR(data.elevatorPrice) + ' + ' + gstRate + '% GST' : '';
+    const hasElvDiscount = Boolean(
+      data.elevatorDiscountPrice &&
+      Number(data.elevatorDiscountPrice) > 0 &&
+      Number(data.elevatorDiscountPrice) !== Number(data.elevatorPrice)
+    );
+
+    if (hasElvDiscount && data.elevatorPrice) {
+      const elvDiscText = 'Rs. ' + formatINR(Number(data.elevatorDiscountPrice)) + ' + ' + gstRate + '% GST';
+      const elvReplacement = `<div class="t c21" style="position:absolute;left:320.51px;top:605px;line-height:13.5px;white-space:normal;z-index:825;"><div style="text-decoration:line-through;color:#718096;font-size:10px;">MRP: ${elvMRP}</div><div style="color:#0e4b31;font-weight:bold;font-size:12px;">Discount Price: ${elvDiscText}</div></div>`;
+      const elvRegex = /<div class="t c21" style="z-index:825;transform:matrix\(1,0,0,1,320\.51,611\.2\)">[\s\S]*?<\/div>/;
+      if (elvRegex.test(html)) {
+        html = html.replace(elvRegex, elvReplacement);
+      } else {
+        html = html.replace('Rs. 16,00,,000 + 18% GST', `${elvDiscText} (MRP: ${elvMRP})`);
+      }
+    } else if (data.elevatorPrice) {
+      html = html.replace('Rs. 16,00,,000 + 18% GST', elvMRP);
     }
-    if (data.shaftPrice) {
-      html = html.replace('Rs.4,00,000 + 18% GST', 'Rs. ' + formatINR(data.shaftPrice) + ' + ' + data.gstRate + '% GST');
+
+    // Shaft Price
+    const shaftMRP = data.shaftPrice ? 'Rs. ' + formatINR(data.shaftPrice) + ' + ' + gstRate + '% GST' : '';
+    const hasShaftDiscount = Boolean(
+      data.shaftDiscountPrice &&
+      Number(data.shaftDiscountPrice) > 0 &&
+      Number(data.shaftDiscountPrice) !== Number(data.shaftPrice)
+    );
+
+    if (hasShaftDiscount && data.shaftPrice) {
+      const shaftDiscText = 'Rs. ' + formatINR(Number(data.shaftDiscountPrice)) + ' + ' + gstRate + '% GST';
+      const shaftReplacement = `<div class="t c25" style="position:absolute;left:325.09px;top:649px;line-height:13.5px;white-space:normal;z-index:878;"><div style="text-decoration:line-through;color:#718096;font-size:10px;">MRP: ${shaftMRP}</div><div style="color:#0e4b31;font-weight:bold;font-size:12px;">Discount Price: ${shaftDiscText}</div></div>`;
+      const shaftRegex = /<div class="t c25" style="z-index:878;transform:matrix\(1,0,0,1,325\.09,655\.24\)">[\s\S]*?<\/div>/;
+      if (shaftRegex.test(html)) {
+        html = html.replace(shaftRegex, shaftReplacement);
+      } else {
+        html = html.replace('Rs.4,00,000 + 18% GST', `${shaftDiscText} (MRP: ${shaftMRP})`);
+      }
+    } else if (data.shaftPrice) {
+      html = html.replace('Rs.4,00,000 + 18% GST', shaftMRP);
     }
     const warrantyCellRegex = /<div class="t c26" style="z-index:907;transform:matrix\(1,0,0,1,252\.41,682\.01\)">[\s\S]*?years service\.<\/div>/;
     if (data.warranty && warrantyCellRegex.test(html)) {

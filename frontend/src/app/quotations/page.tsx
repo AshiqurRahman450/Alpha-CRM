@@ -1642,7 +1642,7 @@ export default function QuotationCreatorPage() {
                 <div className="flex justify-between text-[11px]">
                   <span>Total Order Value:</span>
                   <span className="font-bold text-slate-900">
-                    ₹{((Number(data.elevatorPrice || 0) + Number(data.shaftPrice || 0)) * 1.18).toLocaleString('en-IN')}
+                    ₹{((Number((data.elevatorDiscountPrice && Number(data.elevatorDiscountPrice) > 0 ? data.elevatorDiscountPrice : data.elevatorPrice) || 0) + Number((data.shaftDiscountPrice && Number(data.shaftDiscountPrice) > 0 ? data.shaftDiscountPrice : data.shaftPrice) || 0)) * 1.18).toLocaleString('en-IN')}
                   </span>
                 </div>
               </div>

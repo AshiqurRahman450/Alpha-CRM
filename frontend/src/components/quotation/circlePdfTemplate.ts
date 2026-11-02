@@ -77,11 +77,13 @@ export function renderCirclePdfPage(pageIdx: number, data: QuotationData): strin
     if (data.manufacturingWarranty) html = replaceExactText(html, '60-month limited warranty from installation', data.manufacturingWarranty + ' warranty from installation');
 
     const elevatorPriceNum = Number(data.elevatorPrice) || 1100000;
-    const mrpPriceNum = Math.round(elevatorPriceNum * 1.18);
+    const hasDiscount = Boolean(data.elevatorDiscountPrice && Number(data.elevatorDiscountPrice) > 0);
+    const finalPriceNum = hasDiscount ? Number(data.elevatorDiscountPrice) : elevatorPriceNum;
+    const mrpPriceNum = hasDiscount ? elevatorPriceNum : Math.round(elevatorPriceNum * 1.18);
     const gstPct = data.gstRate !== undefined ? data.gstRate : 18;
 
     html = replaceExactText(html, 'Rs. 13,00,000 + 18% GST', `Rs. ${formatINR(mrpPriceNum)} + ${gstPct}% GST`);
-    html = replaceExactText(html, 'Rs. 11,00,000 + 18% GST', `Rs. ${formatINR(elevatorPriceNum)} + ${gstPct}% GST`);
+    html = replaceExactText(html, 'Rs. 11,00,000 + 18% GST', `Rs. ${formatINR(finalPriceNum)} + ${gstPct}% GST`);
 
     if (data.deliveryTime) {
       html = replaceExactText(html, '120 days post confirmation on drawings and finishes', data.deliveryTime);
