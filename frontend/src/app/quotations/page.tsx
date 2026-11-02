@@ -18,6 +18,7 @@ import {
   ChevronDown,
   ChevronUp,
   Eye,
+  EyeOff,
   CheckCircle2,
   Loader2,
   UploadCloud,
@@ -94,6 +95,9 @@ export default function QuotationCreatorPage() {
   const [isCrmApproving, setIsCrmApproving] = useState<boolean>(false);
   const [crmApproveResult, setCrmApproveResult] = useState<any>(null);
   const [approvalRequested, setApprovalRequested] = useState<boolean>(false);
+
+  // Live PDF Document Preview Visibility (Hide / Unhide Full Screen Form)
+  const [showPdfPreview, setShowPdfPreview] = useState<boolean>(true);
 
   // Excel Export Modal State
   const [showExcelModal, setShowExcelModal] = useState<boolean>(false);
@@ -854,6 +858,34 @@ export default function QuotationCreatorPage() {
             </button>
           </div>
 
+          {/* Hide / Unhide Live PDF Preview Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setShowPdfPreview((prev) => !prev)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer ${
+              showPdfPreview
+                ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+                : 'bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-400 hover:to-emerald-500 text-white border border-teal-400 ring-2 ring-teal-400/40 shadow-teal-900/40 animate-pulse'
+            }`}
+            title={
+              showPdfPreview
+                ? 'Hide Live PDF Document Preview to expand Quotation Form full screen'
+                : 'Unhide Live PDF Document Preview to restore split view'
+            }
+          >
+            {showPdfPreview ? (
+              <>
+                <EyeOff className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden sm:inline">Hide Preview</span>
+              </>
+            ) : (
+              <>
+                <Eye className="w-3.5 h-3.5 text-white" />
+                <span>Show Preview (Split View)</span>
+              </>
+            )}
+          </button>
+
           {/* Edit on PDF & Save Content Buttons on Top Header Bar */}
           {isPdfEditing ? (
             <div className="flex items-center gap-1.5 bg-emerald-950/90 p-1 rounded-xl border border-emerald-500 shadow-md">
@@ -991,24 +1023,35 @@ export default function QuotationCreatorPage() {
       {/* MAIN TWO-COLUMN SPLIT LAYOUT */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
         {/* LEFT COLUMN: LIVE PDF PREVIEW & UPLOAD ZONE */}
-        <div className="flex-1 bg-[#1e293b]/90 overflow-y-auto overflow-x-auto p-4 md:p-6 flex flex-col items-center custom-scrollbar">
-          {/* Preview Navigation Notice */}
-          <div className="no-print mb-3 px-3 py-1.5 bg-slate-800/80 rounded-full border border-slate-700/80 text-[11px] text-slate-300 flex items-center gap-2 shadow-sm">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-            <span>
-              Live PDF Document Preview •{' '}
-              {activePage ? `Viewing Page ${activePage} of ${totalPageCount}` : `Viewing All ${totalPageCount} Pages`}
-            </span>
-            {activePage !== null && (
+        {showPdfPreview && (
+          <div className="flex-1 bg-[#1e293b]/90 overflow-y-auto overflow-x-auto p-4 md:p-6 flex flex-col items-center custom-scrollbar">
+            {/* Preview Navigation Notice */}
+            <div className="no-print mb-3 px-3 py-1.5 bg-slate-800/80 rounded-full border border-slate-700/80 text-[11px] text-slate-300 flex items-center gap-2 shadow-sm">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+              <span>
+                Live PDF Document Preview •{' '}
+                {activePage ? `Viewing Page ${activePage} of ${totalPageCount}` : `Viewing All ${totalPageCount} Pages`}
+              </span>
+              {activePage !== null && (
+                <button
+                  type="button"
+                  onClick={() => setActivePage(null)}
+                  className="text-teal-400 hover:underline font-bold text-[10px] ml-1"
+                >
+                  (View All)
+                </button>
+              )}
+              <span className="text-slate-600 mx-1">|</span>
               <button
                 type="button"
-                onClick={() => setActivePage(null)}
-                className="text-teal-400 hover:underline font-bold text-[10px] ml-1"
+                onClick={() => setShowPdfPreview(false)}
+                className="text-amber-300 hover:text-amber-200 hover:underline font-bold text-[10px] flex items-center gap-1 cursor-pointer"
+                title="Hide Live PDF Preview to view Quotation Form in full screen"
               >
-                (View All)
+                <EyeOff className="w-3 h-3 text-amber-400" />
+                <span>Hide Preview (Full Screen Form)</span>
               </button>
-            )}
-          </div>
+            </div>
 
           {/* UPLOAD OPTION FOR PDF (Placed directly after the line requested by user) */}
           {!uploadedFile ? (
@@ -1190,12 +1233,38 @@ export default function QuotationCreatorPage() {
             )}
           </div>
         </div>
+        )}
 
         {/* RIGHT COLUMN: 3-STAGE LIFECYCLE CONTROLS & EDITABLE FORM */}
         <div
           id="quotation-form-column"
-          className="no-print w-full lg:w-[500px] xl:w-[560px] border-t lg:border-t-0 lg:border-l border-slate-200 bg-slate-50 shadow-xl flex flex-col shrink-0 h-full overflow-hidden z-10"
+          className={`no-print border-t lg:border-t-0 ${
+            showPdfPreview ? 'lg:border-l w-full lg:w-[500px] xl:w-[560px] shrink-0' : 'w-full flex-1 max-w-full'
+          } border-slate-200 bg-slate-50 shadow-xl flex flex-col h-full overflow-hidden z-10 transition-all duration-200`}
         >
+          {/* Full Screen Form Banner when PDF preview is hidden */}
+          {!showPdfPreview && (
+            <div className="no-print bg-slate-900 border-b border-teal-500/40 text-white px-4 py-2 flex items-center justify-between shadow-md shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-teal-400 animate-ping"></span>
+                <span className="text-xs font-black tracking-wide text-teal-300">
+                  Quotation Form • Full Screen View
+                </span>
+                <span className="text-[11px] text-slate-400 hidden sm:inline">
+                  (Live PDF Document Preview is hidden)
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPdfPreview(true)}
+                className="px-3 py-1 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-400 hover:to-emerald-500 text-white rounded-lg text-xs font-black flex items-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer ring-1 ring-teal-300/40"
+                title="Unhide Live PDF Document Preview and restore split view"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Unhide PDF Preview</span>
+              </button>
+            </div>
+          )}
           {/* ================= OUTSIDE OF FORM: 3 STAGES LIFECYCLE CONTROLLER ================= */}
           <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 text-white p-3 border-b border-slate-800 shrink-0 shadow-md transition-all">
             {/* Stage Selector Header / Dropdown Toggle Button */}

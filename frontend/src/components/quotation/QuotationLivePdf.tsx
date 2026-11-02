@@ -109,6 +109,14 @@ export default function QuotationLivePdf({
     if (!html) return html;
     let updated = sanitizeProposalParagraphs(html, pageNum || 1, data);
 
+    // Page 2: Ensure customer name font color matches Dear's font color (#0e4b31)
+    if (pageNum === 2) {
+      updated = updated.replace(
+        '<div class="t c9" style="z-index:1263;transform:matrix(1,0,0,1,94.46,200.44)">',
+        '<div class="t c8" style="z-index:1263;transform:matrix(1,0,0,1,94.46,200.44);color:#0e4b31;">'
+      );
+    }
+
     // Fix Clause 17-28 if old broken text exists
     if (updated.includes('17. The necessary electric') && (updated.includes('would b') || updated.includes('695.55,217.35'))) {
       const targetStart = '<div class="t c23" style="z-index:4034;transform:matrix(1,0,0,1,28.67,217.35)">17. The necessary electric';
@@ -625,6 +633,8 @@ export default function QuotationLivePdf({
             transition: 'transform 0.15s ease-out',
           }}
         >
+          {/* Ensure customer name font color matches Dear's color on Page 2 in all render modes */}
+          <style dangerouslySetInnerHTML={{ __html: `#p1 .c9 { color: #0e4b31 !important; }` }} />
           {pagesToRender.map((pageNum) => {
             const pageIdx = pageNum - 1;
             let baseHtml = savedPages[pageNum];
