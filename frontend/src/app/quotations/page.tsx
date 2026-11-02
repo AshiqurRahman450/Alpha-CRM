@@ -93,6 +93,7 @@ export default function QuotationCreatorPage() {
   const [showCrmApproveModal, setShowCrmApproveModal] = useState<boolean>(false);
   const [isCrmApproving, setIsCrmApproving] = useState<boolean>(false);
   const [crmApproveResult, setCrmApproveResult] = useState<any>(null);
+  const [approvalRequested, setApprovalRequested] = useState<boolean>(false);
 
   // Excel Export Modal State
   const [showExcelModal, setShowExcelModal] = useState<boolean>(false);
@@ -349,24 +350,47 @@ export default function QuotationCreatorPage() {
     }
   };
 
-  // CRM Approve (Stage 3)
+  // CRM Approve (Stage 3) / BDM Request Approval
   const handleCrmApprove = async () => {
     setIsCrmApproving(true);
     try {
       const finalOfferNo = getSuffixedOfferNo(data.offerNo, 3);
-      const res = await api.quotations.crmApprove({
-        offerNo: finalOfferNo,
-      });
+      const isBdm = currentUser?.role === 'BDM';
 
-      if (res?.success) {
-        setCrmApproveResult(res);
-        setShowCrmApproveModal(true);
-        toast.success('Stage 3 Approved! New Customer and Project successfully created in CRM.');
+      if (isBdm) {
+        const res = await api.quotations.requestApproval({
+          offerNo: finalOfferNo,
+        });
+
+        if (res?.success) {
+          setApprovalRequested(true);
+          toast.success(
+            'Stage 3 Approval Request sent to CRM & Admin! The Customer and Project will be auto-created once approved on Reminders.',
+            { duration: 6000 }
+          );
+        } else {
+          toast.error(res?.message || 'Failed to submit approval request');
+        }
       } else {
-        toast.error(res?.message || 'Failed to approve quotation on CRM');
+        const res = await api.quotations.crmApprove({
+          offerNo: finalOfferNo,
+        });
+
+        if (res?.success) {
+          if (res.requestSent) {
+            setApprovalRequested(true);
+            toast.success('Approval request sent to CRM & Admin on Reminders!');
+          } else {
+            setCrmApproveResult(res);
+            setShowCrmApproveModal(true);
+            toast.success('Stage 3 Approved! New Customer and Project successfully created in CRM.');
+          }
+        } else {
+          toast.error(res?.message || 'Failed to approve quotation on CRM');
+        }
       }
     } catch (err: any) {
-      toast.error(err.message || 'CRM approval failed');
+      toast.error(err.message || 'Action failed');
     } finally {
       setIsCrmApproving(false);
     }
@@ -1374,21 +1398,42 @@ export default function QuotationCreatorPage() {
                         </button>
                       </div>
 
-                      {/* CRM Role Approval Action Button */}
-                      <button
-                        type="button"
-                        onClick={handleCrmApprove}
-                        disabled={isCrmApproving}
-                        className="w-full py-2.5 px-3 bg-gradient-to-r from-amber-500 via-emerald-600 to-teal-600 hover:from-amber-400 hover:to-emerald-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-md shadow-emerald-950/50 active:scale-95 transition-all ring-1 ring-emerald-400 disabled:opacity-50 cursor-pointer"
-                        title="CRM Approval: Automatically creates new Customer and new Project on CRM!"
-                      >
-                        {isCrmApproving ? (
-                          <Loader2 className="w-4 h-4 animate-spin text-white" />
-                        ) : (
-                          <Award className="w-4 h-4 text-amber-300" />
-                        )}
-                        <span>👑 CRM Role: Approve & Auto-Create Customer + Project</span>
-                      </button>
+                      {/* CRM Role Approval / BDM Request Action Button */}
+                      {currentUser?.role === 'BDM' ? (
+                        <button
+                          type="button"
+                          onClick={handleCrmApprove}
+                          disabled={isCrmApproving || approvalRequested}
+                          className="w-full py-2.5 px-3 bg-gradient-to-r from-sky-600 via-indigo-600 to-blue-700 hover:from-sky-500 hover:to-indigo-600 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-md shadow-sky-950/50 active:scale-95 transition-all ring-1 ring-sky-400 disabled:opacity-60 cursor-pointer"
+                          title="Submit Stage 3 quotation for CRM Approval and Project Auto-Creation"
+                        >
+                          {isCrmApproving ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-white" />
+                          ) : (
+                            <Send className="w-4 h-4 text-sky-200" />
+                          )}
+                          <span>
+                            {approvalRequested
+                              ? '⏳ Approval Requested — Awaiting CRM Review'
+                              : '📤 Send for CRM Approval (Auto-Create Customer + Project)'}
+                          </span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleCrmApprove}
+                          disabled={isCrmApproving}
+                          className="w-full py-2.5 px-3 bg-gradient-to-r from-amber-500 via-emerald-600 to-teal-600 hover:from-amber-400 hover:to-emerald-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-md shadow-emerald-950/50 active:scale-95 transition-all ring-1 ring-emerald-400 disabled:opacity-50 cursor-pointer"
+                          title="CRM Approval: Automatically creates new Customer and new Project on CRM!"
+                        >
+                          {isCrmApproving ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-white" />
+                          ) : (
+                            <Award className="w-4 h-4 text-amber-300" />
+                          )}
+                          <span>👑 CRM Role: Approve & Auto-Create Customer + Project</span>
+                        </button>
+                      )}
                     </div>
                   )}
 

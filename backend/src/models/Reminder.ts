@@ -1,12 +1,20 @@
 import { Schema, model, Document, Types } from 'mongoose';
 
+export type ReminderType = 'GENERAL' | 'QUOTATION_APPROVAL' | 'PROJECT_NEXT_WORK' | 'SITE_VISIT';
+
 export interface IReminder extends Document {
   userId: Types.ObjectId;
   title: string;
   notes?: string;
   dueAt: Date;
   status: 'PENDING' | 'DISMISSED';
+  type?: ReminderType;
   relatedProjectId?: Types.ObjectId;
+  relatedQuotationId?: Types.ObjectId;
+  relatedQuotationOfferNo?: string;
+  relatedCustomerId?: Types.ObjectId;
+  customerName?: string;
+  actionRequired?: boolean;
   whatsappSent?: boolean;
   whatsappSentAt?: Date;
   createdAt: Date;
@@ -37,9 +45,34 @@ const ReminderSchema = new Schema<IReminder>(
       enum: ['PENDING', 'DISMISSED'],
       default: 'PENDING',
     },
+    type: {
+      type: String,
+      enum: ['GENERAL', 'QUOTATION_APPROVAL', 'PROJECT_NEXT_WORK', 'SITE_VISIT'],
+      default: 'GENERAL',
+    },
     relatedProjectId: {
       type: Schema.Types.ObjectId,
       ref: 'Project',
+    },
+    relatedQuotationId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Quotation',
+    },
+    relatedQuotationOfferNo: {
+      type: String,
+      trim: true,
+    },
+    relatedCustomerId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Customer',
+    },
+    customerName: {
+      type: String,
+      trim: true,
+    },
+    actionRequired: {
+      type: Boolean,
+      default: false,
     },
     whatsappSent: {
       type: Boolean,

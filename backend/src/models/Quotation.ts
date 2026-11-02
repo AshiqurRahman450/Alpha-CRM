@@ -1,6 +1,6 @@
 import { Schema, model, Document, Types } from 'mongoose';
 
-export type QuotationStatus = 'DRAFT' | 'SENT_TO_CUSTOMER' | 'FINALIZED' | 'CRM_APPROVED' | 'REJECTED';
+export type QuotationStatus = 'DRAFT' | 'SENT_TO_CUSTOMER' | 'FINALIZED' | 'APPROVAL_REQUESTED' | 'CRM_APPROVED' | 'REJECTED';
 export type QuotationStage = 1 | 2 | 3;
 
 export interface IQuotation extends Document {
@@ -14,6 +14,10 @@ export interface IQuotation extends Document {
   status: QuotationStatus;
   sentToWhatsAppAt?: Date;
   finalizedAt?: Date;
+  approvalRequestedAt?: Date;
+  approvalRequestedBy?: Types.ObjectId | string;
+  approvalRequestedByName?: string;
+  approvalRequestedByRole?: string;
   crmApprovedAt?: Date;
   crmApprovedBy?: Types.ObjectId | string;
   createdCustomerId?: Types.ObjectId;
@@ -73,7 +77,7 @@ const QuotationSchema = new Schema<IQuotation>(
     },
     status: {
       type: String,
-      enum: ['DRAFT', 'SENT_TO_CUSTOMER', 'FINALIZED', 'CRM_APPROVED', 'REJECTED'],
+      enum: ['DRAFT', 'SENT_TO_CUSTOMER', 'FINALIZED', 'APPROVAL_REQUESTED', 'CRM_APPROVED', 'REJECTED'],
       default: 'DRAFT',
     },
     sentToWhatsAppAt: {
@@ -81,6 +85,20 @@ const QuotationSchema = new Schema<IQuotation>(
     },
     finalizedAt: {
       type: Date,
+    },
+    approvalRequestedAt: {
+      type: Date,
+    },
+    approvalRequestedBy: {
+      type: Schema.Types.Mixed,
+    },
+    approvalRequestedByName: {
+      type: String,
+      trim: true,
+    },
+    approvalRequestedByRole: {
+      type: String,
+      trim: true,
     },
     crmApprovedAt: {
       type: Date,

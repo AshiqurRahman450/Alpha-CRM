@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { Customer, Project, Payment, WhatsAppMessage, ProjectActivity, User } from '../models';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
+import { PROJECT_STAGE_NEXT_WORK } from './reminders';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -52,7 +53,33 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
     }
 
     const customers = await Customer.find(query).populate('bdmId', 'name email phone').sort({ createdAt: -1 });
-    return res.json({ success: true, count: customers.length, data: customers });
+
+    const custIds = customers.map((c) => c._id);
+    const activeProjects = await Project.find({
+      customerId: { $in: custIds },
+      projectStatus: { $nin: ['COMPLETED', 'CANCELLED'] },
+    }).select('customerId projectId projectName projectStatus nextUpdateAt').lean();
+
+    const projectMap = new Map();
+    activeProjects.forEach((p) => {
+      if (!projectMap.has(String(p.customerId))) {
+        const nextInfo = PROJECT_STAGE_NEXT_WORK[p.projectStatus];
+        projectMap.set(String(p.customerId), {
+          ...p,
+          nextWork: nextInfo?.nextWork || 'Next Stage Due',
+          nextWorkDesc: nextInfo?.description || '',
+          currentStageLabel: nextInfo?.currentLabel || p.projectStatus,
+        });
+      }
+    });
+
+    const data = customers.map((c) => {
+      const cObj: any = c.toObject ? c.toObject() : c;
+      cObj.activeProject = projectMap.get(String(c._id)) || null;
+      return cObj;
+    });
+
+    return res.json({ success: true, count: data.length, data });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
   }

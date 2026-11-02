@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { Quotation, Customer, Project, User } from '../models';
+import { Quotation, Customer, Project, User, Reminder } from '../models';
 import { whatsAppWebBot, watiService } from '../services/whatsapp';
 import { generateOrSaveQuotationPdf } from '../services/quotation/quotationPdfGenerator';
 import * as XLSX from 'xlsx';
@@ -12,8 +12,16 @@ export const quotationRouter = Router();
 async function optionalAuth(req: any, res: Response, next: NextFunction) {
   try {
     const authHeader = req.headers.authorization;
+    const queryToken = req.query?.token as string | undefined;
+    let token: string | undefined;
+
     if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
+      token = authHeader.split(' ')[1];
+    } else if (queryToken) {
+      token = queryToken;
+    }
+
+    if (token) {
       const decoded = jwt.verify(token, config.jwtSecret) as any;
       if (decoded && decoded.id) {
         const user = await User.findById(decoded.id);
@@ -662,8 +670,98 @@ Warm regards,
 });
 
 /**
+ * POST /api/quotations/request-approval
+ * Submits a Stage 3 quotation for CRM Approval (used by BDM role).
+ * Does NOT create Customer or Project yet. Sends reminder to CRM and Admin.
+ */
+quotationRouter.post('/request-approval', async (req: any, res: Response) => {
+  try {
+    const { offerNo: inputOffer, quotationId, notes } = req.body;
+
+    let quotation: any = null;
+    if (quotationId) {
+      quotation = await Quotation.findById(quotationId);
+    } else if (inputOffer) {
+      const { baseOfferNo } = extractBaseOfferNo(inputOffer);
+      quotation = await Quotation.findOne({ baseOfferNo, stage: 3 });
+      if (!quotation) {
+        quotation = await Quotation.findOne({ baseOfferNo }).sort({ stage: -1 });
+      }
+    }
+
+    if (!quotation) {
+      return res.status(404).json({ success: false, message: 'Quotation not found for approval request' });
+    }
+
+    if (quotation.status === 'CRM_APPROVED') {
+      return res.json({
+        success: true,
+        alreadyApproved: true,
+        message: `Quotation is already approved by CRM (Project: ${quotation.createdProjectCode || 'Created'})`,
+        quotation,
+      });
+    }
+
+    const qData = quotation.data || {};
+    const elevatorPrice = Number(qData.elevatorPrice || 0);
+    const shaftPrice = Number(qData.shaftPrice || 0);
+    const gstRate = Number(qData.gstRate || 18);
+    const subtotal = elevatorPrice + shaftPrice;
+    const orderValue = subtotal + Math.round((subtotal * gstRate) / 100);
+
+    const bdmName = req.user?.name || quotation.bdmName || quotation.data?.representativeName || 'BDM';
+    const bdmRole = req.user?.role || 'BDM';
+    const customerName = qData.clientName || quotation.customerName || 'Customer';
+
+    quotation.status = 'APPROVAL_REQUESTED';
+    quotation.approvalRequestedAt = new Date();
+    quotation.approvalRequestedBy = req.user ? req.user._id : undefined;
+    quotation.approvalRequestedByName = bdmName;
+    quotation.approvalRequestedByRole = bdmRole;
+    if (notes) quotation.stageNotes = notes;
+    await quotation.save();
+
+    // Create Reminder for all active CRM and Admin users
+    const notifyUsers = await User.find({ role: { $in: ['CRM', 'ADMIN'] }, isActive: true });
+    for (const u of notifyUsers) {
+      const existing = await Reminder.findOne({
+        userId: u._id,
+        relatedQuotationId: quotation._id,
+        status: 'PENDING',
+      });
+
+      if (!existing) {
+        await Reminder.create({
+          userId: u._id,
+          title: `Quotation Approval Request: ${quotation.offerNo} (${customerName})`,
+          notes: `BDM ${bdmName} submitted Stage 3 Quotation for ${customerName} (₹${orderValue.toLocaleString('en-IN')}). Please review and approve to auto-create Customer & Project on CRM.`,
+          dueAt: new Date(),
+          status: 'PENDING',
+          type: 'QUOTATION_APPROVAL',
+          relatedQuotationId: quotation._id,
+          relatedQuotationOfferNo: quotation.offerNo,
+          customerName,
+          actionRequired: true,
+        });
+      }
+    }
+
+    return res.json({
+      success: true,
+      requestSent: true,
+      message: `Approval request submitted for Quotation ${quotation.offerNo}! Notifications sent to CRM and Admin on reminders.`,
+      quotation,
+    });
+  } catch (err: any) {
+    console.error('[QuotationRequestApproval] Error:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
  * POST /api/quotations/crm-approve
  * Approves a Stage 3 quotation and automatically creates Customer and Project on CRM!
+ * If requested by BDM role, does NOT create immediately; routes to request-approval instead.
  */
 quotationRouter.post('/crm-approve', async (req: any, res: Response) => {
   try {
@@ -686,10 +784,60 @@ quotationRouter.post('/crm-approve', async (req: any, res: Response) => {
     }
 
     const qData = quotation.data || {};
+    const elevatorPrice = Number(qData.elevatorPrice || 0);
+    const shaftPrice = Number(qData.shaftPrice || 0);
+    const gstRate = Number(qData.gstRate || 18);
+    const subtotal = elevatorPrice + shaftPrice;
+    const gstAmount = Math.round((subtotal * gstRate) / 100);
+    const orderValue = subtotal + gstAmount;
+
     const fullName = qData.clientName || quotation.customerName || 'New Client';
     const phone = quotation.customerPhone || qData.customerPhone || qData.representativePhone || '9800000000';
     const city = qData.projectCity || quotation.customerCity || 'Mumbai';
     const siteAddress = (qData.siteAddress || `${city}, Site Location`).trim();
+
+    // If requester is BDM: Do NOT create Customer + Project immediately. Send request to CRM & Admin reminders!
+    if (req.user?.role === 'BDM') {
+      const bdmName = req.user?.name || quotation.bdmName || 'BDM';
+
+      quotation.status = 'APPROVAL_REQUESTED';
+      quotation.approvalRequestedAt = new Date();
+      quotation.approvalRequestedBy = req.user._id;
+      quotation.approvalRequestedByName = bdmName;
+      quotation.approvalRequestedByRole = 'BDM';
+      await quotation.save();
+
+      const notifyUsers = await User.find({ role: { $in: ['CRM', 'ADMIN'] }, isActive: true });
+      for (const u of notifyUsers) {
+        const existing = await Reminder.findOne({
+          userId: u._id,
+          relatedQuotationId: quotation._id,
+          status: 'PENDING',
+        });
+
+        if (!existing) {
+          await Reminder.create({
+            userId: u._id,
+            title: `Quotation Approval Request: ${quotation.offerNo} (${fullName})`,
+            notes: `BDM ${bdmName} submitted Stage 3 Quotation for ${fullName} (₹${orderValue.toLocaleString('en-IN')}). Please review and approve to auto-create Customer & Project on CRM.`,
+            dueAt: new Date(),
+            status: 'PENDING',
+            type: 'QUOTATION_APPROVAL',
+            relatedQuotationId: quotation._id,
+            relatedQuotationOfferNo: quotation.offerNo,
+            customerName: fullName,
+            actionRequired: true,
+          });
+        }
+      }
+
+      return res.json({
+        success: true,
+        requestSent: true,
+        message: `Approval request sent to CRM & Admin! The Customer and Project will be created once CRM or Admin reviews and approves on their Reminders.`,
+        quotation,
+      });
+    }
 
     // 1. Check or Create Customer
     let customer = await Customer.findOne({
@@ -715,13 +863,6 @@ quotationRouter.post('/crm-approve', async (req: any, res: Response) => {
     }
 
     // 2. Create Project
-    const elevatorPrice = Number(qData.elevatorPrice || 0);
-    const shaftPrice = Number(qData.shaftPrice || 0);
-    const gstRate = Number(qData.gstRate || 18);
-    const subtotal = elevatorPrice + shaftPrice;
-    const gstAmount = Math.round((subtotal * gstRate) / 100);
-    const orderValue = subtotal + gstAmount;
-
     const advPct = 30;
     const advanceAmount = Math.round((orderValue * advPct) / 100);
 
@@ -761,6 +902,28 @@ quotationRouter.post('/crm-approve', async (req: any, res: Response) => {
     quotation.createdProjectId = newProject._id;
     quotation.createdProjectCode = newProject.projectId;
     await quotation.save();
+
+    // 4. Dismiss pending Quotation Approval Reminders for this quotation
+    await Reminder.updateMany(
+      { relatedQuotationId: quotation._id, status: 'PENDING' },
+      { status: 'DISMISSED' }
+    );
+
+    // 5. Create initial "Next Work" reminder for CRM for this new project
+    const crmUsers = await User.find({ role: { $in: ['CRM', 'ADMIN'] }, isActive: true });
+    for (const u of crmUsers) {
+      await Reminder.create({
+        userId: u._id,
+        title: `Next Move: Schedule Site Visit (PM) - ${newProject.projectName} (${newProject.projectId})`,
+        notes: `Customer: ${customer.fullName}. Project auto-created from Quotation ${quotation.offerNo}. Next work: Coordinate with customer to schedule site visit for shaft measurements.`,
+        dueAt: new Date(),
+        status: 'PENDING',
+        type: 'PROJECT_NEXT_WORK',
+        relatedProjectId: newProject._id,
+        relatedCustomerId: customer._id,
+        customerName: customer.fullName,
+      });
+    }
 
     return res.json({
       success: true,

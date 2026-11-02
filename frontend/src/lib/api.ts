@@ -776,6 +776,12 @@ export const api = {
         body: JSON.stringify(payload),
       }),
 
+    requestApproval: (payload: { offerNo?: string; quotationId?: string; notes?: string }) =>
+      fetchWithAuth('/api/quotations/request-approval', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+
     crmApprove: (payload: { offerNo?: string; quotationId?: string }) =>
       fetchWithAuth('/api/quotations/crm-approve', {
         method: 'POST',

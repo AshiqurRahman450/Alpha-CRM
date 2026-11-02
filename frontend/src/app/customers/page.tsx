@@ -409,6 +409,15 @@ export default function CustomersPage() {
                           </span>
                         )}
                       </div>
+
+                      {c.activeProject && (
+                        <div className="mt-1">
+                          <span className="inline-flex items-center gap-1 text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-200" title={`Active Project: ${c.activeProject.projectName} (${c.activeProject.projectId}). Current: ${c.activeProject.currentStageLabel}`}>
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                            <span>Next Work: {c.activeProject.nextWork} ({c.activeProject.projectId})</span>
+                          </span>
+                        </div>
+                      )}
                     </td>
 
                     <td className="py-4 px-4">

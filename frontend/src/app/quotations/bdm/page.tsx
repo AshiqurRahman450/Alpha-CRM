@@ -131,18 +131,33 @@ export default function BdmQuotationsPage() {
   const handleCrmApprove = async (offerNo: string) => {
     setApprovingOfferNo(offerNo);
     try {
-      const res = await api.quotations.crmApprove({ offerNo });
-      if (res?.success) {
-        toast.success(
-          `Quotation Approved! New Customer ${res.customer?.customerId} and Project ${res.project?.projectId} created in CRM.`,
-          { duration: 6000 }
-        );
-        fetchQuotations();
+      const isBdm = currentUser?.role === 'BDM';
+      if (isBdm) {
+        const res = await api.quotations.requestApproval({ offerNo });
+        if (res?.success) {
+          toast.success('Approval request sent to CRM & Admin on Reminders!');
+          fetchQuotations();
+        } else {
+          toast.error(res?.message || 'Failed to request approval');
+        }
       } else {
-        toast.error(res?.message || 'Failed to approve quotation');
+        const res = await api.quotations.crmApprove({ offerNo });
+        if (res?.success) {
+          if (res.requestSent) {
+            toast.success('Approval request sent to CRM & Admin on Reminders!');
+          } else {
+            toast.success(
+              `Quotation Approved! New Customer ${res.customer?.customerId} and Project ${res.project?.projectId} created in CRM.`,
+              { duration: 6000 }
+            );
+          }
+          fetchQuotations();
+        } else {
+          toast.error(res?.message || 'Failed to approve quotation');
+        }
       }
     } catch (err: any) {
-      toast.error(err.message || 'Error approving quotation');
+      toast.error(err.message || 'Error processing approval');
     } finally {
       setApprovingOfferNo(null);
     }
@@ -801,20 +816,36 @@ export default function BdmQuotationsPage() {
                             </Link>
 
                             {!isApproved && (
-                              <button
-                                type="button"
-                                disabled={approvingOfferNo === s3.offerNo}
-                                onClick={() => handleCrmApprove(s3.offerNo)}
-                                className="py-1 px-2.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50"
-                                title="CRM Role: Approve and Auto-create Customer and Project"
-                              >
-                                {approvingOfferNo === s3.offerNo ? (
-                                  <Loader2 className="w-3 h-3 animate-spin" />
-                                ) : (
-                                  <Award className="w-3 h-3" />
-                                )}
-                                <span>Approve</span>
-                              </button>
+                              s3.status === 'APPROVAL_REQUESTED' && currentUser?.role === 'BDM' ? (
+                                <span className="py-1 px-2 bg-amber-950/60 text-amber-300 border border-amber-800/80 rounded-lg text-[10px] font-black flex items-center gap-1">
+                                  <span>⏳ Awaiting CRM</span>
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  disabled={approvingOfferNo === s3.offerNo}
+                                  onClick={() => handleCrmApprove(s3.offerNo)}
+                                  className={`py-1 px-2.5 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 ${
+                                    currentUser?.role === 'BDM'
+                                      ? 'bg-sky-700 hover:bg-sky-600'
+                                      : 'bg-emerald-700 hover:bg-emerald-600'
+                                  }`}
+                                  title={
+                                    currentUser?.role === 'BDM'
+                                      ? 'Submit request for CRM Approval'
+                                      : 'CRM Role: Approve and Auto-create Customer and Project'
+                                  }
+                                >
+                                  {approvingOfferNo === s3.offerNo ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  ) : currentUser?.role === 'BDM' ? (
+                                    <Send className="w-3 h-3" />
+                                  ) : (
+                                    <Award className="w-3 h-3" />
+                                  )}
+                                  <span>{currentUser?.role === 'BDM' ? 'Request Approval' : 'Approve'}</span>
+                                </button>
+                              )
                             )}
 
                             <button

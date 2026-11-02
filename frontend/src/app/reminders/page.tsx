@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import Link from 'next/link';
 import { api } from '../../lib/api';
 import {
   Bell,
@@ -16,6 +17,11 @@ import {
   X,
   ArrowUpRight,
   Sparkles,
+  Award,
+  FileText,
+  ArrowRight,
+  Send,
+  Loader2,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
@@ -61,6 +67,8 @@ export default function RemindersPage() {
     }
   }, []);
 
+  const [approvingQuotationId, setApprovingQuotationId] = useState<string | null>(null);
+
   const handleDismiss = async (id: string) => {
     try {
       await api.dismissReminder(id);
@@ -68,6 +76,26 @@ export default function RemindersPage() {
       fetchReminders();
     } catch (err: any) {
       toast.error('Failed to dismiss reminder');
+    }
+  };
+
+  const handleApproveQuotation = async (quotationId: string, offerNo?: string) => {
+    try {
+      setApprovingQuotationId(quotationId || offerNo || 'approving');
+      const res = await api.quotations.crmApprove({ quotationId, offerNo });
+      if (res?.success) {
+        toast.success(
+          `Quotation Approved! New Customer (${res.customer?.customerId}) & Project (${res.project?.projectId}) auto-created in CRM!`,
+          { duration: 6000 }
+        );
+        fetchReminders();
+      } else {
+        toast.error(res?.message || 'Failed to approve quotation');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Error approving quotation');
+    } finally {
+      setApprovingQuotationId(null);
     }
   };
 
@@ -449,6 +477,20 @@ export default function RemindersPage() {
                 )}
 
                 <div className="space-y-2">
+                  {reminder.type === 'QUOTATION_APPROVAL' && (
+                    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-gradient-to-r from-amber-100 to-orange-100 text-amber-900 border border-amber-300">
+                      <Award className="w-3 h-3 text-amber-600" />
+                      <span>👑 BDM Quotation Approval Request</span>
+                    </div>
+                  )}
+
+                  {reminder.type === 'PROJECT_NEXT_WORK' && (
+                    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-gradient-to-r from-sky-100 to-blue-100 text-sky-900 border border-sky-300">
+                      <ArrowRight className="w-3 h-3 text-sky-600" />
+                      <span>🚀 Project Next Stage Move</span>
+                    </div>
+                  )}
+
                   <div className="pr-16">
                     <h3
                       className={`text-sm font-extrabold ${
@@ -471,20 +513,56 @@ export default function RemindersPage() {
                   )}
                 </div>
 
-                <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between gap-2">
-                  {reminder.relatedProjectId ? (
+                <div className="mt-4 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                  {/* Action 1: Quotation Approval */}
+                  {reminder.type === 'QUOTATION_APPROVAL' ? (
+                    <div className="flex items-center gap-2 w-full justify-between">
+                      <Link
+                        href={`/quotations?offerNo=${encodeURIComponent(reminder.relatedQuotationOfferNo || reminder.relatedQuotationId?.offerNo || '')}&stage=3`}
+                        className="text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-slate-500" />
+                        <span>View Studio</span>
+                      </Link>
+
+                      {!isDismissed && (
+                        <button
+                          onClick={() =>
+                            handleApproveQuotation(
+                              reminder.relatedQuotationId?._id || reminder.relatedQuotationId,
+                              reminder.relatedQuotationOfferNo
+                            )
+                          }
+                          disabled={
+                            approvingQuotationId ===
+                            (reminder.relatedQuotationId?._id || reminder.relatedQuotationOfferNo)
+                          }
+                          className="flex items-center gap-1.5 text-xs font-bold text-white bg-gradient-to-r from-amber-500 to-emerald-600 hover:from-amber-400 hover:to-emerald-500 px-3.5 py-1.5 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
+                          title="Approve Stage 3 Quotation & Auto-create Customer + Project in CRM"
+                        >
+                          {approvingQuotationId ===
+                          (reminder.relatedQuotationId?._id || reminder.relatedQuotationOfferNo) ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                          ) : (
+                            <Award className="w-3.5 h-3.5 text-amber-200" />
+                          )}
+                          <span>Approve & Auto-Create</span>
+                        </button>
+                      )}
+                    </div>
+                  ) : reminder.relatedProjectId ? (
                     <button
                       onClick={() => router.push(`/projects/${reminder.relatedProjectId._id}`)}
                       className="text-xs font-bold text-sky-600 hover:text-sky-700 bg-sky-50 px-2.5 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1.5 border border-sky-100"
                     >
                       <CalendarDays className="w-3.5 h-3.5" />
-                      <span>{reminder.relatedProjectId.projectId || 'Project'}</span>
+                      <span>{reminder.relatedProjectId.projectId || 'Project'} • Move</span>
                     </button>
                   ) : (
                     <div />
                   )}
 
-                  {!isDismissed && (
+                  {!isDismissed && reminder.type !== 'QUOTATION_APPROVAL' && (
                     <button
                       onClick={() => handleDismiss(reminder._id)}
                       className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-3.5 py-1.5 rounded-xl transition-colors border border-emerald-200 active:scale-95"

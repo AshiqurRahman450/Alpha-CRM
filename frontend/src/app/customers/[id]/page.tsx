@@ -20,11 +20,78 @@ import {
   Upload,
   Trash2,
   ExternalLink,
+  Bell,
 } from 'lucide-react';
 import { api } from '../../../lib/api';
 import { formatProjectStatus } from '../../../components/Timeline';
 import InstallationProgrammeTable from '../../../components/InstallationProgrammeTable';
 import { DEFAULT_BDMS } from '../../../lib/constants';
+
+const PROJECT_STAGE_NEXT_WORK: Record<
+  string,
+  { currentLabel: string; nextWork: string; description: string }
+> = {
+  PAYMENT_RECEIVED: {
+    currentLabel: 'Advance Payment Received',
+    nextWork: 'Schedule Site Visit (PM)',
+    description: 'Coordinate with customer to schedule site visit for shaft measurements.',
+  },
+  SITE_MEASUREMENT: {
+    currentLabel: 'Site Visit',
+    nextWork: 'Prepare Drawing & Cabin Design',
+    description: 'Draft civil shaft layout and cabin design options for client review.',
+  },
+  DESIGN: {
+    currentLabel: 'Drawing and Cabin',
+    nextWork: 'Obtain Client Design Approval',
+    description: 'Share elevator drawings & cabin finish options with customer for approval.',
+  },
+  CUSTOMER_APPROVAL: {
+    currentLabel: 'Drawing and Cabin Design Approval',
+    nextWork: 'Collect Production Payment (40%)',
+    description: 'Request 40% production payment milestone from customer before manufacturing.',
+  },
+  ENGINEERING: {
+    currentLabel: 'Production Payment',
+    nextWork: 'Issue Approval Drawing to Factory',
+    description: 'Release approved technical drawings to manufacturing plant for fabrication.',
+  },
+  MANUFACTURING: {
+    currentLabel: 'Approval Drawing to factory',
+    nextWork: 'Collect Readiness Payment (20%)',
+    description: 'Notify customer of material readiness and collect 20% readiness payment.',
+  },
+  QUALITY_CHECK: {
+    currentLabel: 'Rediness Payment',
+    nextWork: 'Conduct Pre-Site Visit Inspection',
+    description: 'Inspect site readiness, electrical power supply, and hoistway clearance.',
+  },
+  DELIVERY: {
+    currentLabel: 'Pre Site Visit',
+    nextWork: 'Dispatch Materials & Confirm Delivery',
+    description: 'Dispatch elevator components via logistics and provide tracking number.',
+  },
+  DISPATCH: {
+    currentLabel: 'Expected Delivery',
+    nextWork: 'Commence Elevator Installation',
+    description: 'Deploy installation engineering crew for 11-stage erection programme.',
+  },
+  INSTALLATION: {
+    currentLabel: 'Installation Start Date',
+    nextWork: 'Complete Testing & Handover',
+    description: 'Conduct final high-speed testing, safety commissioning, and customer handover.',
+  },
+  TESTING: {
+    currentLabel: 'Handover',
+    nextWork: 'Finalize Project Completion & Sign-off',
+    description: 'Obtain final handover sign-off certificate and warranty activation.',
+  },
+  COMPLETED: {
+    currentLabel: 'Project Completed',
+    nextWork: 'Project Completed (AMC Active)',
+    description: 'Project fully commissioned and operational.',
+  },
+};
 
 export default function CustomerDetailPage() {
   const params = useParams();
@@ -297,6 +364,72 @@ export default function CustomerDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Next Work & Project Move Reminders for CRM */}
+      {projects.filter((p: any) => p.projectStatus !== 'COMPLETED' && p.projectStatus !== 'CANCELLED').length > 0 && (
+        <div className="bg-gradient-to-br from-amber-50/70 via-white to-orange-50/40 rounded-3xl p-6 border border-amber-200/80 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-extrabold text-amber-900 tracking-tight flex items-center gap-2">
+              <Bell className="w-4 h-4 text-amber-600" />
+              <span>Next Work & Project Move Reminders for CRM</span>
+            </h3>
+            <span className="text-[11px] font-bold text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-200">
+              {projects.filter((p: any) => p.projectStatus !== 'COMPLETED' && p.projectStatus !== 'CANCELLED').length} Active Next Moves
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {projects
+              .filter((p: any) => p.projectStatus !== 'COMPLETED' && p.projectStatus !== 'CANCELLED')
+              .map((p: any) => {
+                const info = PROJECT_STAGE_NEXT_WORK[p.projectStatus] || {
+                  currentLabel: formatProjectStatus(p.projectStatus),
+                  nextWork: 'Advance Stage',
+                  description: 'Progress to next milestone in project timeline.',
+                };
+
+                return (
+                  <div key={p._id} className="bg-white p-4 rounded-2xl border border-amber-200 shadow-sm space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] font-mono font-bold text-sky-600 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
+                          {p.projectId}
+                        </span>
+                        <h4 className="text-xs font-black text-slate-900 mt-1">{p.projectName}</h4>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700">
+                        Current: {info.currentLabel}
+                      </span>
+                    </div>
+
+                    <div className="bg-amber-50/60 p-3 rounded-xl border border-amber-200/70 space-y-1">
+                      <div className="text-xs font-black text-amber-900 flex items-center gap-1.5">
+                        <ArrowRight className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>Next Work: {info.nextWork}</span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 leading-relaxed">
+                        {info.description}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-[10px] text-slate-400">
+                        {p.nextUpdateAt ? `Next Update: ${new Date(p.nextUpdateAt).toLocaleDateString('en-GB')}` : 'Action Due'}
+                      </span>
+                      <Link
+                        href={`/projects/${p._id}`}
+                        className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold inline-flex items-center gap-1.5 shadow-xs transition-all"
+                      >
+                        <span>Move Timeline</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </Link>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
 
       {/* Projects List */}
       <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
