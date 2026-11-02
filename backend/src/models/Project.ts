@@ -30,7 +30,11 @@ export interface IProject extends Document {
   numberOfFloors?: string;
   shaftModel?: string;
   liftAmount: number;
+  liftBaseAmount?: number;
+  liftDiscountAmount?: number;
   shaftAmount: number;
+  shaftBaseAmount?: number;
+  shaftDiscountAmount?: number;
   orderValue: number; // total amount
   advancePercentage: number; // e.g. 30
   productionPaymentPercent?: number; // e.g. 40
@@ -207,11 +211,27 @@ const ProjectSchema = new Schema<IProject>(
       min: 0,
       default: 0,
     },
+    liftBaseAmount: {
+      type: Number,
+      min: 0,
+    },
+    liftDiscountAmount: {
+      type: Number,
+      min: 0,
+    },
     shaftAmount: {
       type: Number,
       required: true,
       min: 0,
       default: 0,
+    },
+    shaftBaseAmount: {
+      type: Number,
+      min: 0,
+    },
+    shaftDiscountAmount: {
+      type: Number,
+      min: 0,
     },
     orderValue: {
       type: Number,

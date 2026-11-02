@@ -64,9 +64,11 @@ export default function ProjectsPage() {
     liftAmount: '0',
     shaftAmount: '0',
     liftBaseAmount: '0',
+    liftDiscountAmount: '',
     liftCashAmount: '0',
     liftNonCashAmount: '0',
     shaftBaseAmount: '0',
+    shaftDiscountAmount: '',
     shaftCashAmount: '0',
     shaftNonCashAmount: '0',
     advanceAmount: '',
@@ -157,7 +159,11 @@ export default function ProjectsPage() {
         dispatchMaterialsPercent: isCrm ? '0' : newProject.dispatchMaterialsPercent,
         afterInstallationPercent: isCrm ? '0' : newProject.afterInstallationPercent,
         liftAmount: computedLiftAmount,
+        liftBaseAmount: newProject.liftBaseAmount ? Number(newProject.liftBaseAmount) : undefined,
+        liftDiscountAmount: newProject.liftDiscountAmount ? Number(newProject.liftDiscountAmount) : undefined,
         shaftAmount: computedShaftAmount,
+        shaftBaseAmount: newProject.shaftBaseAmount ? Number(newProject.shaftBaseAmount) : undefined,
+        shaftDiscountAmount: newProject.shaftDiscountAmount ? Number(newProject.shaftDiscountAmount) : undefined,
         orderValue: computedOrderValue,
         advanceAmount: newProject.advanceAmount ? Number(newProject.advanceAmount) : undefined,
         advancePercentage: newProject.advancePercentage ? Number(newProject.advancePercentage) : undefined,
@@ -174,9 +180,11 @@ export default function ProjectsPage() {
         liftAmount: '0',
         shaftAmount: '0',
         liftBaseAmount: '0',
+        liftDiscountAmount: '',
         liftCashAmount: '0',
         liftNonCashAmount: '0',
         shaftBaseAmount: '0',
+        shaftDiscountAmount: '',
         shaftCashAmount: '0',
         shaftNonCashAmount: '0',
         advanceAmount: '',
@@ -459,7 +467,7 @@ export default function ProjectsPage() {
               {/* Lift & Shaft Info */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                     <div>
                       <label className="block text-[11px] font-bold text-slate-700 mb-1">
                         Lift Model: *
@@ -497,14 +505,18 @@ export default function ProjectsPage() {
                     </div>
                     <div>
                       <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                        Base Amount (Non GST) (₹):
+                        Lift Amount (Non GST) (₹):
                       </label>
                       <input
                         type="number"
+                        placeholder="e.g. 1600000"
                         value={newProject.liftBaseAmount || ''}
                         onChange={(e) => {
                           const base = e.target.value;
-                          const withGst = base !== '' ? String(Math.round(Number(base) * 1.18)) : '';
+                          const effectiveBase = (newProject.liftDiscountAmount && Number(newProject.liftDiscountAmount) > 0)
+                            ? newProject.liftDiscountAmount
+                            : base;
+                          const withGst = effectiveBase !== '' ? String(Math.round(Number(effectiveBase) * 1.18)) : '';
                           const totalVal = calcTotalAmount(withGst, newProject.shaftNonCashAmount, newProject.shaftModel);
                           let advAmt = newProject.advanceAmount;
                           if (newProject.advancePercentage !== '' && totalVal > 0) {
@@ -518,6 +530,38 @@ export default function ProjectsPage() {
                           });
                         }}
                         className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
+                        <span>Discount Lift Amount (₹):</span>
+                        {newProject.liftDiscountAmount && Number(newProject.liftBaseAmount) > Number(newProject.liftDiscountAmount) && (
+                          <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1 rounded">
+                            -₹{(Number(newProject.liftBaseAmount) - Number(newProject.liftDiscountAmount)).toLocaleString('en-IN')}
+                          </span>
+                        )}
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="Optional discount"
+                        value={newProject.liftDiscountAmount || ''}
+                        onChange={(e) => {
+                          const disc = e.target.value;
+                          const effectiveBase = disc !== '' && Number(disc) > 0 ? disc : newProject.liftBaseAmount;
+                          const withGst = effectiveBase !== '' ? String(Math.round(Number(effectiveBase) * 1.18)) : '';
+                          const totalVal = calcTotalAmount(withGst, newProject.shaftNonCashAmount, newProject.shaftModel);
+                          let advAmt = newProject.advanceAmount;
+                          if (newProject.advancePercentage !== '' && totalVal > 0) {
+                            advAmt = String(Math.round((totalVal * Number(newProject.advancePercentage)) / 100));
+                          }
+                          setNewProject({
+                            ...newProject,
+                            liftDiscountAmount: disc,
+                            liftNonCashAmount: withGst,
+                            advanceAmount: advAmt,
+                          });
+                        }}
+                        className="w-full p-2.5 text-xs border border-emerald-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-bold text-emerald-900 bg-emerald-50/20 placeholder:font-normal placeholder:text-slate-400"
                       />
                     </div>
                     <div>
@@ -539,7 +583,8 @@ export default function ProjectsPage() {
                           setNewProject({
                             ...newProject,
                             liftNonCashAmount: withGst,
-                            liftBaseAmount: base,
+                            liftBaseAmount: newProject.liftDiscountAmount ? newProject.liftBaseAmount : base,
+                            liftDiscountAmount: newProject.liftDiscountAmount ? base : newProject.liftDiscountAmount,
                             advanceAmount: advAmt,
                           });
                         }}
@@ -548,7 +593,7 @@ export default function ProjectsPage() {
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                     <div>
                       <label className="block text-[11px] font-bold text-slate-700 mb-1">
                         Shaft Model: *
@@ -582,14 +627,18 @@ export default function ProjectsPage() {
                       <>
                         <div>
                           <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                            Base Amount (Non GST) (₹):
+                            Shaft Amount Non GST) (₹):
                           </label>
                           <input
                             type="number"
+                            placeholder="e.g. 400000"
                             value={newProject.shaftBaseAmount || ''}
                             onChange={(e) => {
                               const base = e.target.value;
-                              const withGst = base !== '' ? String(Math.round(Number(base) * 1.18)) : '';
+                              const effectiveBase = (newProject.shaftDiscountAmount && Number(newProject.shaftDiscountAmount) > 0)
+                                ? newProject.shaftDiscountAmount
+                                : base;
+                              const withGst = effectiveBase !== '' ? String(Math.round(Number(effectiveBase) * 1.18)) : '';
                               const totalVal = calcTotalAmount(newProject.liftNonCashAmount, withGst, newProject.shaftModel);
                               let advAmt = newProject.advanceAmount;
                               if (newProject.advancePercentage !== '' && totalVal > 0) {
@@ -603,6 +652,38 @@ export default function ProjectsPage() {
                               });
                             }}
                             className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none font-bold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
+                            <span>Discount Shaft Amount (₹):</span>
+                            {newProject.shaftDiscountAmount && Number(newProject.shaftBaseAmount) > Number(newProject.shaftDiscountAmount) && (
+                              <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1 rounded">
+                                -₹{(Number(newProject.shaftBaseAmount) - Number(newProject.shaftDiscountAmount)).toLocaleString('en-IN')}
+                              </span>
+                            )}
+                          </label>
+                          <input
+                            type="number"
+                            placeholder="Optional discount"
+                            value={newProject.shaftDiscountAmount || ''}
+                            onChange={(e) => {
+                              const disc = e.target.value;
+                              const effectiveBase = disc !== '' && Number(disc) > 0 ? disc : newProject.shaftBaseAmount;
+                              const withGst = effectiveBase !== '' ? String(Math.round(Number(effectiveBase) * 1.18)) : '';
+                              const totalVal = calcTotalAmount(newProject.liftNonCashAmount, withGst, newProject.shaftModel);
+                              let advAmt = newProject.advanceAmount;
+                              if (newProject.advancePercentage !== '' && totalVal > 0) {
+                                advAmt = String(Math.round((totalVal * Number(newProject.advancePercentage)) / 100));
+                              }
+                              setNewProject({
+                                ...newProject,
+                                shaftDiscountAmount: disc,
+                                shaftNonCashAmount: withGst,
+                                advanceAmount: advAmt,
+                              });
+                            }}
+                            className="w-full p-2.5 text-xs border border-emerald-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-bold text-emerald-900 bg-emerald-50/20 placeholder:font-normal placeholder:text-slate-400"
                           />
                         </div>
                         <div>
@@ -624,7 +705,8 @@ export default function ProjectsPage() {
                               setNewProject({
                                 ...newProject,
                                 shaftNonCashAmount: withGst,
-                                shaftBaseAmount: base,
+                                shaftBaseAmount: newProject.shaftDiscountAmount ? newProject.shaftBaseAmount : base,
+                                shaftDiscountAmount: newProject.shaftDiscountAmount ? base : newProject.shaftDiscountAmount,
                                 advanceAmount: advAmt,
                               });
                             }}
