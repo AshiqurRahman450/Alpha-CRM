@@ -1,30 +1,8 @@
 import type { Metadata } from 'next';
-import { Poppins, Montserrat, Barlow } from 'next/font/google';
 import './globals.css';
 import Sidebar from '../components/Sidebar';
 import Navbar from '../components/Navbar';
 import NotificationProvider from '../components/NotificationProvider';
-
-const poppins = Poppins({
-  weight: ['300', '400', '500', '600', '700', '800'],
-  subsets: ['latin'],
-  variable: '--font-poppins',
-  display: 'swap',
-});
-
-const montserrat = Montserrat({
-  weight: ['400', '500', '600', '700', '800', '900'],
-  subsets: ['latin'],
-  variable: '--font-montserrat',
-  display: 'swap',
-});
-
-const barlow = Barlow({
-  weight: ['400', '500', '600', '700'],
-  subsets: ['latin'],
-  variable: '--font-barlow',
-  display: 'swap',
-});
 
 export const metadata: Metadata = {
   title: 'Alpha Elevators CRM & WhatsApp Automation',
@@ -40,8 +18,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${poppins.variable} ${montserrat.variable} ${barlow.variable}`}>
-      <body className={`${poppins.className} bg-[#F8FAFC] min-h-screen text-slate-900 antialiased flex flex-row`}>
+    <html lang="en">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700;800;900&family=Poppins:wght@300;400;500;600;700;800&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="font-poppins bg-[#F8FAFC] min-h-screen text-slate-900 antialiased flex flex-row">
         <NotificationProvider />
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0 min-h-screen">
