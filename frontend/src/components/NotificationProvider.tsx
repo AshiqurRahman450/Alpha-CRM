@@ -24,10 +24,10 @@ export default function NotificationProvider() {
           });
 
           res.data.forEach((reminder: any) => {
-            // Only show WhatsApp message toast if it is from a WhatsApp group
+            // Only show WhatsApp message toast if it is from a connected WhatsApp group belonging to a project
             if (
               reminder.type === 'WHATSAPP_MESSAGE' &&
-              (!reminder.whatsappGroupId || reminder.whatsappGroupId === 'DIRECT')
+              (!reminder.whatsappGroupId || reminder.whatsappGroupId === 'DIRECT' || !reminder.relatedProjectId)
             ) {
               return;
             }

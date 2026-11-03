@@ -130,8 +130,17 @@ export default function RemindersPage() {
     let dueCount = 0;
     let upcomingCount = 0;
     let completedCount = 0;
+    let totalCount = 0;
 
     for (const r of reminders) {
+      // Exclude WhatsApp messages that are not from connected project groups
+      if (
+        r.type === 'WHATSAPP_MESSAGE' &&
+        (!r.whatsappGroupId || r.whatsappGroupId === 'DIRECT' || !r.relatedProjectId)
+      ) {
+        continue;
+      }
+
       const isDismissed = r.status === 'DISMISSED';
       const isDue = new Date(r.dueAt) <= now;
 
@@ -142,13 +151,14 @@ export default function RemindersPage() {
       } else {
         upcomingCount++;
       }
+      totalCount++;
     }
 
     return {
       dueCount,
       upcomingCount,
       completedCount,
-      totalCount: reminders.length,
+      totalCount,
     };
   }, [reminders]);
 
@@ -160,10 +170,10 @@ export default function RemindersPage() {
       const isDue = new Date(r.dueAt) <= now && !isDismissed;
       const isUpcoming = new Date(r.dueAt) > now && !isDismissed;
 
-      // Strict filter: If it is a WhatsApp message, ONLY show if from a connected group
+      // Strict filter: If it is a WhatsApp message, ONLY show if from a connected project group
       if (
         r.type === 'WHATSAPP_MESSAGE' &&
-        (!r.whatsappGroupId || r.whatsappGroupId === 'DIRECT')
+        (!r.whatsappGroupId || r.whatsappGroupId === 'DIRECT' || !r.relatedProjectId)
       ) {
         return false;
       }
