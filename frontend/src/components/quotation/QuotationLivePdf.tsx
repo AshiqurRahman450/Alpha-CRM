@@ -633,8 +633,21 @@ export default function QuotationLivePdf({
             transition: 'transform 0.15s ease-out',
           }}
         >
-          {/* Ensure customer name font color matches Dear's color on Page 2 in all render modes */}
-          <style dangerouslySetInnerHTML={{ __html: `#p1 .c9 { color: #0e4b31 !important; }` }} />
+          {/* Ensure customer name font color matches Dear's color on Page 2 and remove three dots in header on all pages */}
+          <style dangerouslySetInnerHTML={{ __html: `
+            #p1 .c9 { color: #0e4b31 !important; }
+            .exact-pdf-container .page:not(#p0):not(#p1):not(#p10)::after {
+              content: '';
+              position: absolute;
+              top: 50px;
+              right: 20px;
+              width: 140px;
+              height: 65px;
+              background: #ffffff;
+              z-index: 10;
+              pointer-events: none;
+            }
+          ` }} />
           {pagesToRender.map((pageNum) => {
             const pageIdx = pageNum - 1;
             let baseHtml = savedPages[pageNum];
