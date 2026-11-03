@@ -24,6 +24,14 @@ export default function NotificationProvider() {
           });
 
           res.data.forEach((reminder: any) => {
+            // Strict check: Only show if it is from a connected project WhatsApp group
+            if (
+              reminder.type === 'WHATSAPP_MESSAGE' &&
+              (!reminder.whatsappGroupId || reminder.whatsappGroupId === 'DIRECT' || !reminder.relatedProjectId)
+            ) {
+              return;
+            }
+
             if (!activeToasts.current.has(reminder._id)) {
               activeToasts.current.add(reminder._id);
               toast.custom((t) => {
@@ -55,7 +63,7 @@ export default function NotificationProvider() {
                       <div className="flex-1 w-0">
                         {isWhatsApp && (
                           <span className="inline-block px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 mb-1 border border-emerald-200">
-                            💬 Customer WhatsApp Message
+                            💬 Connected Group Message
                           </span>
                         )}
                         <p className="text-sm font-bold text-slate-900">

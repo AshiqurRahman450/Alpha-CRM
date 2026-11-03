@@ -160,6 +160,14 @@ export default function RemindersPage() {
       const isDue = new Date(r.dueAt) <= now && !isDismissed;
       const isUpcoming = new Date(r.dueAt) > now && !isDismissed;
 
+      // Strict filter: If it is a WhatsApp message, ONLY show if from a connected project group
+      if (
+        r.type === 'WHATSAPP_MESSAGE' &&
+        (!r.whatsappGroupId || r.whatsappGroupId === 'DIRECT' || !r.relatedProjectId)
+      ) {
+        return false;
+      }
+
       // Filter by category card
       if (activeFilter === 'DUE' && !isDue) return false;
       if (activeFilter === 'UPCOMING' && !isUpcoming) return false;
@@ -502,11 +510,11 @@ export default function RemindersPage() {
                     <div className="flex flex-wrap items-center gap-1.5">
                       <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-900 border border-emerald-300">
                         <MessageSquare className="w-3 h-3 text-emerald-600" />
-                        <span>💬 Customer WhatsApp Message</span>
+                        <span>💬 Connected Group Message</span>
                       </div>
-                      {reminder.whatsappGroupName && (
+                      {(reminder.whatsappGroupName || reminder.relatedProjectId?.projectName) && (
                         <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                          {reminder.whatsappGroupName}
+                          👥 {reminder.whatsappGroupName || reminder.relatedProjectId?.projectName}
                         </span>
                       )}
                     </div>

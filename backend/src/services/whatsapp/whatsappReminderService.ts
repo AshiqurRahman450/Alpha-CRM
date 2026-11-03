@@ -41,12 +41,12 @@ export async function notifyCrmOfCustomerWhatsAppMessage(
   const cleanPhone = (senderPhone || '').replace(/\D/g, '');
   const last10 = cleanPhone.slice(-10);
 
-  // Only proceed if this is from a connected/linked project group and from a customer
-  if (!groupId) {
+  // Only proceed if this is from a connected WhatsApp group
+  if (!groupId || !groupId.endsWith('@g.us') || groupId === 'DIRECT') {
     return null;
   }
 
-  // 1. Locate linked Project for this WhatsApp group
+  // 1. Locate linked Project for this connected WhatsApp group
   let project: any = await Project.findOne({
     $or: [
       { whatsappGroupId: groupId },
@@ -62,8 +62,73 @@ export async function notifyCrmOfCustomerWhatsAppMessage(
     }
   }
 
-  // Only show message reminders for CONNECTED project groups
+  // Check matching by groupSubject / project name / project code
+  if (!project && groupSubject) {
+    project = await Project.findOne({
+      $or: [
+        { projectName: { $regex: escapeRegex(groupSubject.trim()), $options: 'i' } },
+        { projectId: { $regex: escapeRegex(groupSubject.trim()), $options: 'i' } },
+      ],
+    }).populate('customerId');
+  }
+
+  // Check matching by invite link / code
   if (!project) {
+    const projectsWithWA = await Project.find({
+      $or: [
+        { whatsappGroupId: { $exists: true, $ne: '' } },
+        { 'whatsapp.groupId': { $exists: true, $ne: '' } },
+        { 'whatsapp.inviteLink': { $exists: true, $ne: '' } },
+      ],
+    }).populate('customerId');
+
+    for (const p of projectsWithWA) {
+      const candidates = [p.whatsappGroupId, p.whatsapp?.groupId, p.whatsapp?.inviteLink].filter(Boolean);
+      for (const cand of candidates) {
+        if (!cand) continue;
+        const code = cand.replace(/^.*chat\.whatsapp\.com\//, '').trim();
+        if (cand === groupId || (code && groupId.includes(code))) {
+          project = p;
+          break;
+        }
+      }
+      if (project) break;
+    }
+  }
+
+  // Match if customer's phone number belongs to a customer who has a project with WhatsApp enabled
+  if (!project && last10.length >= 10) {
+    const cust = await Customer.findOne({
+      $or: [
+        { phoneNumber: { $regex: last10 } },
+        { whatsappNumber: { $regex: last10 } },
+      ],
+    });
+    if (cust) {
+      const custProject = await Project.findOne({
+        customerId: cust._id,
+        $or: [
+          { whatsappGroupId: { $exists: true, $ne: '' } },
+          { 'whatsapp.groupId': { $exists: true, $ne: '' } },
+          { 'whatsapp.inviteLink': { $exists: true, $ne: '' } },
+        ],
+      }).populate('customerId');
+
+      if (custProject) {
+        project = custProject;
+        try {
+          custProject.whatsappGroupId = groupId;
+          if (custProject.whatsapp) {
+            custProject.whatsapp.groupId = groupId;
+          }
+          await custProject.save();
+        } catch {}
+      }
+    }
+  }
+
+  // STRICT REQUIREMENT: Only show message reminders for CONNECTED project groups
+  if (!project || !project._id) {
     return null;
   }
 
