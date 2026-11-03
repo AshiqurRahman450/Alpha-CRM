@@ -21,14 +21,22 @@ class WhatsAppWebBotService {
   private saveTimer: NodeJS.Timeout | null = null;
 
   constructor() {
-    const envAuthDir = process.env.WHATSAPP_AUTH_DIR;
-    if (envAuthDir) {
-      this.authDir = path.resolve(envAuthDir);
-    } else {
-      const primaryPath = path.resolve(__dirname, '../../../data/baileys_auth');
-      const cwdPath = path.resolve(process.cwd(), 'data/baileys_auth');
-      this.authDir = fs.existsSync(primaryPath) ? primaryPath : cwdPath;
+    const candidates = [
+      process.env.WHATSAPP_AUTH_DIR,
+      path.resolve(__dirname, '../../../data/baileys_auth'),
+      path.resolve(process.cwd(), 'data/baileys_auth'),
+      path.resolve(process.cwd(), 'backend/data/baileys_auth'),
+    ].filter(Boolean) as string[];
+
+    let chosenDir = candidates[1] || candidates[0];
+    for (const cand of candidates) {
+      if (fs.existsSync(path.join(cand, 'creds.json'))) {
+        chosenDir = cand;
+        console.log(`[WhatsAppWebBot] Found existing creds.json in: ${chosenDir}`);
+        break;
+      }
     }
+    this.authDir = chosenDir;
     if (!fs.existsSync(this.authDir)) {
       try {
         fs.mkdirSync(this.authDir, { recursive: true });
@@ -123,8 +131,16 @@ class WhatsAppWebBotService {
       const pino = (await import('pino')).default || (await import('pino'));
       const logger = pino({ level: 'silent' });
 
+      console.log(`[WhatsAppWebBot] Initializing bot socket... AuthDir: ${this.authDir}`);
       const { state, saveCreds } = await useMultiFileAuthState(this.authDir);
-      const { version } = await fetchLatestBaileysVersion();
+      
+      let version = [2, 3000, 1015901307];
+      try {
+        const v = await fetchLatestBaileysVersion();
+        if (v?.version) version = v.version;
+      } catch (verErr: any) {
+        console.warn('[WhatsAppWebBot] Could not fetch latest Baileys version online (using safe fallback):', verErr.message);
+      }
 
       this.sock = makeWASocket({
         version,
@@ -194,26 +210,36 @@ class WhatsAppWebBotService {
 
         if (connection === 'close') {
           const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
-          const shouldReconnect = statusCode !== (DisconnectReason?.loggedOut ?? 401);
-          console.log(`[WhatsAppWebBot] Connection closed (code: ${statusCode}). Reconnecting: ${shouldReconnect}`);
+          const isLoggedOut = statusCode === (DisconnectReason?.loggedOut ?? 401);
+          const isReplaced = statusCode === (DisconnectReason?.connectionReplaced ?? 440);
+
+          console.log(`[WhatsAppWebBot] Connection closed (code: ${statusCode}). LoggedOut: ${isLoggedOut}, Replaced: ${isReplaced}`);
           this.status = 'DISCONNECTED';
           this.qrCodeDataUrl = null;
           this.botPhoneNumber = null;
           this.isInitializing = false;
 
-          if (shouldReconnect) {
+          if (isReplaced) {
+            console.warn('[WhatsAppWebBot] ⚠️ Connection replaced! Another instance (e.g. Localhost) is connected with this session.');
             setTimeout(() => {
               this.initialize();
-            }, 3000);
-          } else {
-            // Logged out, clean up auth directory so a new QR code can be generated
-            console.log('[WhatsAppWebBot] Bot logged out. Clearing auth credentials.');
+            }, 10000);
+          } else if (isLoggedOut) {
+            console.log('[WhatsAppWebBot] Bot logged out. Clearing auth directory and regenerating fresh QR code...');
             try {
               fs.rmSync(this.authDir, { recursive: true, force: true });
               fs.mkdirSync(this.authDir, { recursive: true });
             } catch (err: any) {
               console.error('[WhatsAppWebBot] Error clearing auth dir:', err.message);
             }
+            setTimeout(() => {
+              this.initialize();
+            }, 3000);
+          } else {
+            console.log('[WhatsAppWebBot] Reconnecting in 3s...');
+            setTimeout(() => {
+              this.initialize();
+            }, 3000);
           }
         } else if (connection === 'open') {
           console.log('[WhatsAppWebBot] Connection successfully established with WhatsApp!');
