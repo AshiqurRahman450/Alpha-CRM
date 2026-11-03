@@ -21,9 +21,20 @@ class WhatsAppWebBotService {
   private saveTimer: NodeJS.Timeout | null = null;
 
   constructor() {
-    this.authDir = path.resolve(__dirname, '../../../data/baileys_auth');
+    const envAuthDir = process.env.WHATSAPP_AUTH_DIR;
+    if (envAuthDir) {
+      this.authDir = path.resolve(envAuthDir);
+    } else {
+      const primaryPath = path.resolve(__dirname, '../../../data/baileys_auth');
+      const cwdPath = path.resolve(process.cwd(), 'data/baileys_auth');
+      this.authDir = fs.existsSync(primaryPath) ? primaryPath : cwdPath;
+    }
     if (!fs.existsSync(this.authDir)) {
-      fs.mkdirSync(this.authDir, { recursive: true });
+      try {
+        fs.mkdirSync(this.authDir, { recursive: true });
+      } catch (err: any) {
+        console.warn('[WhatsAppWebBot] Notice creating auth directory:', err.message);
+      }
     }
     this.cacheFilePath = path.resolve(this.authDir, 'message_cache.json');
     this.loadMessageCache();
@@ -122,9 +133,10 @@ class WhatsAppWebBotService {
           creds: state.creds,
           keys: makeCacheableSignalKeyStore(state.keys, logger),
         },
-        printQRInTerminal: false,
+        printQRInTerminal: true, // Output QR in VPS terminal / pm2 logs
         browser: ['Alpha Elevators CRM', 'Chrome', '1.0.0'],
         defaultQueryTimeoutMs: 60000,
+        keepAliveIntervalMs: 25000, // Send keep-alive pings to keep VPS WebSocket connection active
         markOnlineOnConnect: true,
         syncFullHistory: false,
         getMessage: async (key: any) => {
@@ -187,10 +199,10 @@ class WhatsAppWebBotService {
           this.status = 'DISCONNECTED';
           this.qrCodeDataUrl = null;
           this.botPhoneNumber = null;
+          this.isInitializing = false;
 
           if (shouldReconnect) {
             setTimeout(() => {
-              this.isInitializing = false;
               this.initialize();
             }, 3000);
           } else {
@@ -202,7 +214,6 @@ class WhatsAppWebBotService {
             } catch (err: any) {
               console.error('[WhatsAppWebBot] Error clearing auth dir:', err.message);
             }
-            this.isInitializing = false;
           }
         } else if (connection === 'open') {
           console.log('[WhatsAppWebBot] Connection successfully established with WhatsApp!');

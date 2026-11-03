@@ -623,7 +623,7 @@ export const api = {
   },
 
   // WhatsApp Web Bot
-  getWhatsAppBotStatus: () => fetchWithAuth('/api/whatsapp/bot/status'),
+  getWhatsAppBotStatus: (autoInit = false) => fetchWithAuth(`/api/whatsapp/bot/status${autoInit ? '?autoInit=true' : ''}`),
   initWhatsAppBot: () => fetchWithAuth('/api/whatsapp/bot/initialize', { method: 'POST' }),
   logoutWhatsAppBot: () => fetchWithAuth('/api/whatsapp/bot/logout', { method: 'POST' }),
 

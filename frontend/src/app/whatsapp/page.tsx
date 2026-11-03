@@ -14,16 +14,21 @@ import {
   Filter,
 } from 'lucide-react';
 import { api } from '../../lib/api';
+import { QrCode } from 'lucide-react';
+import WhatsAppBotModal from '../../components/WhatsAppBotModal';
 
 export default function WhatsAppHubPage() {
   const [channels, setChannels] = useState<any[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'channels' | 'messages'>('channels');
+  const [isBotModalOpen, setIsBotModalOpen] = useState(false);
+  const [botStatus, setBotStatus] = useState<any>(null);
 
   const fetchData = async () => {
     try {
       setLoading(true);
+      api.getWhatsAppBotStatus().then(res => setBotStatus(res)).catch(() => {});
       const [channelsRes, messagesRes] = await Promise.all([
         api.getChannels(),
         api.getWhatsAppMessages({ limit: 100 }),
@@ -51,8 +56,18 @@ export default function WhatsAppHubPage() {
           </p>
         </div>
 
-        {/* Tab switch */}
-        <div className="bg-slate-200/80 p-1 rounded-xl flex items-center self-start text-xs font-bold">
+        {/* Bot Link & Tab switch */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={() => setIsBotModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95"
+            title="Open WhatsApp Web Bot QR Code scanner"
+          >
+            <QrCode className="w-3.5 h-3.5" />
+            <span>{botStatus?.isConnected ? `Bot Connected (${botStatus.botPhoneNumber || 'Active'})` : 'Link WhatsApp Bot (QR Code)'}</span>
+          </button>
+
+          <div className="bg-slate-200/80 p-1 rounded-xl flex items-center self-start text-xs font-bold">
           <button
             onClick={() => setActiveTab('channels')}
             className={`px-3 py-1.5 rounded-lg transition-all ${
@@ -69,6 +84,7 @@ export default function WhatsAppHubPage() {
           >
             Global Message Stream ({messages.length})
           </button>
+        </div>
         </div>
       </div>
 
@@ -210,6 +226,12 @@ export default function WhatsAppHubPage() {
           </div>
         </div>
       )}
+
+      <WhatsAppBotModal
+        isOpen={isBotModalOpen}
+        onClose={() => setIsBotModalOpen(false)}
+        onStatusChange={(st) => setBotStatus(st)}
+      />
     </div>
   );
 }

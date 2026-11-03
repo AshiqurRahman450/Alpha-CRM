@@ -23,6 +23,7 @@ import {
   Send,
   Loader2,
   MessageSquare,
+  QrCode,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
@@ -58,6 +59,7 @@ export default function RemindersPage() {
 
   useEffect(() => {
     fetchReminders();
+    api.getWhatsAppBotStatus().then(res => setBotStatus(res)).catch(() => {});
 
     if (typeof window !== 'undefined') {
       const sp = new URLSearchParams(window.location.search);
@@ -69,6 +71,8 @@ export default function RemindersPage() {
   }, []);
 
   const [approvingQuotationId, setApprovingQuotationId] = useState<string | null>(null);
+  const [isBotModalOpen, setIsBotModalOpen] = useState(false);
+  const [botStatus, setBotStatus] = useState<any>(null);
 
   const handleDismiss = async (id: string) => {
     try {
@@ -239,6 +243,31 @@ export default function RemindersPage() {
           <span>Add Reminder</span>
         </button>
       </div>
+
+      {botStatus && !botStatus.isConnected && (
+        <div className="p-3.5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+              <QrCode className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-amber-900">
+                WhatsApp Web Bot is not connected on live server
+              </p>
+              <p className="text-[11px] text-amber-700">
+                Group messages will not appear in reminders until you link your WhatsApp device.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setIsBotModalOpen(true)}
+            className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 shrink-0 inline-flex items-center gap-1.5"
+          >
+            <QrCode className="w-3.5 h-3.5" />
+            <span>Link WhatsApp Bot</span>
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="p-4 bg-rose-50 text-rose-700 rounded-2xl text-xs font-medium border border-rose-100 flex items-center gap-2">

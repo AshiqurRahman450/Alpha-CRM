@@ -1583,7 +1583,12 @@ whatsappRouter.post('/messages/:id/retry', authorize('ADMIN', 'CRM', 'MANAGER'),
  */
 whatsappRouter.get('/bot/status', async (req: AuthRequest, res: Response) => {
   try {
-    const status = whatsAppWebBot.getStatus();
+    const autoInit = req.query.autoInit === 'true';
+    let status = whatsAppWebBot.getStatus();
+    if (autoInit && status.status === 'DISCONNECTED') {
+      whatsAppWebBot.initialize().catch((e: any) => console.warn('[BotStatus] Auto-init notice:', e.message));
+      status = whatsAppWebBot.getStatus();
+    }
     return res.json({ success: true, ...status });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
