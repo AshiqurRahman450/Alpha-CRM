@@ -357,6 +357,24 @@ export function sanitizeProposalParagraphs(html: string, pageNum: number, data?:
         updated = updated.replace(/(<[^>]+>\+91 80151 29224)/, maskDiv + '$1');
       }
     }
+
+    // Convert green elements on Page 10 to black / monochrome
+    updated = updated.replace(/#0e4b31/g, '#000000');
+    updated = updated.replace(/#1a3f2e/g, '#000000');
+    updated = updated.replace(/#556b60/g, '#4b5563');
+    updated = updated.replace(/#3a5345/g, '#1f2937');
+    updated = updated.replace(/#d2ebd9/g, '#e5e7eb');
+    updated = updated.replace(/#eef6f1/g, '#f3f4f6');
+    updated = updated.replace(/#f7faf8/g, '#f9fafb');
+    updated = updated.replace(/#f0f7f3/g, '#f3f4f6');
+    updated = updated.replace(/#fafdfb/g, '#ffffff');
+    updated = updated.replace(/#fbfdfc/g, '#ffffff');
+    updated = updated.replace(/#c2dbcd/g, '#d1d5db');
+    updated = updated.replace(/#d5e5dc/g, '#d1d5db');
+    updated = updated.replace(/#e2ece6/g, '#e5e7eb');
+    updated = updated.replace(/rgba\(14,75,49,0\.06\)/g, 'rgba(0,0,0,0.06)');
+    updated = updated.replace(/class="t c10"/g, 'class="t c10" style="color:#000000 !important;"');
+    updated = updated.replace(/class="t c3"/g, 'class="t c3" style="color:#000000 !important;"');
   }
 
   // Remove three dots in header on pages 3-10 if an old cached draft or uncleaned template is loaded
@@ -426,6 +444,24 @@ export function buildPage10BillingShippingHtml(data: QuotationData): string {
     shippingAddress
   );
 
+  // Convert green elements on Page 10 to black / monochrome
+  html = html.replace(/#0e4b31/g, '#000000');
+  html = html.replace(/#1a3f2e/g, '#000000');
+  html = html.replace(/#556b60/g, '#4b5563');
+  html = html.replace(/#3a5345/g, '#1f2937');
+  html = html.replace(/#d2ebd9/g, '#e5e7eb');
+  html = html.replace(/#eef6f1/g, '#f3f4f6');
+  html = html.replace(/#f7faf8/g, '#f9fafb');
+  html = html.replace(/#f0f7f3/g, '#f3f4f6');
+  html = html.replace(/#fafdfb/g, '#ffffff');
+  html = html.replace(/#fbfdfc/g, '#ffffff');
+  html = html.replace(/#c2dbcd/g, '#d1d5db');
+  html = html.replace(/#d5e5dc/g, '#d1d5db');
+  html = html.replace(/#e2ece6/g, '#e5e7eb');
+  html = html.replace(/rgba\(14,75,49,0\.06\)/g, 'rgba(0,0,0,0.06)');
+  html = html.replace(/class="t c10"/g, 'class="t c10" style="color:#000000 !important;"');
+  html = html.replace(/class="t c3"/g, 'class="t c3" style="color:#000000 !important;"');
+
   return html;
 }
 
@@ -433,6 +469,7 @@ export function renderExactPdfPage(pageIdx: number, data: QuotationData): string
   if (pageIdx === 9) {
     let html = buildPage10BillingShippingHtml(data);
     html = html.replace(`id="p9"`, `id="p9" data-page="10" style="width:793.28px;height:1122.72px;position:relative;display:block;overflow:hidden;background:#ffffff;"`);
+    html = sanitizeProposalParagraphs(html, 10, data);
     return html;
   }
 

@@ -497,6 +497,24 @@ export default function QuotationLivePdf({
           updated = updated.replace(/(<[^>]+>\+91 80151 29224)/, maskDiv + '$1');
         }
       }
+
+      // Convert green elements on Page 10 to black / monochrome
+      updated = updated.replace(/#0e4b31/g, '#000000');
+      updated = updated.replace(/#1a3f2e/g, '#000000');
+      updated = updated.replace(/#556b60/g, '#4b5563');
+      updated = updated.replace(/#3a5345/g, '#1f2937');
+      updated = updated.replace(/#d2ebd9/g, '#e5e7eb');
+      updated = updated.replace(/#eef6f1/g, '#f3f4f6');
+      updated = updated.replace(/#f7faf8/g, '#f9fafb');
+      updated = updated.replace(/#f0f7f3/g, '#f3f4f6');
+      updated = updated.replace(/#fafdfb/g, '#ffffff');
+      updated = updated.replace(/#fbfdfc/g, '#ffffff');
+      updated = updated.replace(/#c2dbcd/g, '#d1d5db');
+      updated = updated.replace(/#d5e5dc/g, '#d1d5db');
+      updated = updated.replace(/#e2ece6/g, '#e5e7eb');
+      updated = updated.replace(/rgba\(14,75,49,0\.06\)/g, 'rgba(0,0,0,0.06)');
+      updated = updated.replace(/class="t c10"/g, 'class="t c10" style="color:#000000 !important;"');
+      updated = updated.replace(/class="t c3"/g, 'class="t c3" style="color:#000000 !important;"');
     }
 
     return updated;
@@ -652,7 +670,7 @@ export default function QuotationLivePdf({
               content: '';
               position: absolute;
               left: 710px;
-              top: 960px;
+              top: 960px; 
               width: 80px;
               height: 155px;
               background: #ffffff;
@@ -660,6 +678,8 @@ export default function QuotationLivePdf({
               pointer-events: none;
             }
             #p1 .c9 { color: #0e4b31 !important; }
+            #p9 .c3, #p9 .c10 { color: #000000 !important; }
+            #p9 .billing-page-container { color: #000000 !important; }
             #p10 .c35, #p10 .c37 { color: #000000 !important; }
             .exact-pdf-container .page::before,
             .proposal-page-wrapper .page::before {
@@ -732,7 +752,7 @@ export default function QuotationLivePdf({
             // Standard 11-page template
             if (pageNum === 1 && (!isEditing || !baseHtml || !baseHtml.includes('CLIENT NAME') || !baseHtml.includes('MODEL'))) {
               baseHtml = renderExactPdfPage(0, data);
-            } else if (pageNum === 10 && baseHtml && baseHtml.includes('Our Presence in INDIA')) {
+            } else if (pageNum === 10 && (!isEditing || !baseHtml || baseHtml.includes('Our Presence in INDIA') || baseHtml.includes('#0e4b31'))) {
               baseHtml = renderExactPdfPage(pageIdx, data);
             } else if (!baseHtml) {
               baseHtml = renderExactPdfPage(pageIdx, data);
