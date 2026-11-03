@@ -109,6 +109,13 @@ export default function QuotationLivePdf({
     if (!html) return html;
     let updated = sanitizeProposalParagraphs(html, pageNum || 1, data);
 
+    // Page 1: Ensure valid client name, model, and city elements
+    if (pageNum === 1) {
+      if (!updated.includes('CLIENT NAME') || !updated.includes('MODEL')) {
+        return renderExactPdfPage(0, data);
+      }
+    }
+
     // Page 2: Ensure customer name font color matches Dear's font color (#0e4b31)
     if (pageNum === 2) {
       updated = updated.replace(
@@ -723,7 +730,9 @@ export default function QuotationLivePdf({
             }
 
             // Standard 11-page template
-            if (pageNum === 10 && baseHtml && baseHtml.includes('Our Presence in INDIA')) {
+            if (pageNum === 1 && (!isEditing || !baseHtml || !baseHtml.includes('CLIENT NAME') || !baseHtml.includes('MODEL'))) {
+              baseHtml = renderExactPdfPage(0, data);
+            } else if (pageNum === 10 && baseHtml && baseHtml.includes('Our Presence in INDIA')) {
               baseHtml = renderExactPdfPage(pageIdx, data);
             } else if (!baseHtml) {
               baseHtml = renderExactPdfPage(pageIdx, data);

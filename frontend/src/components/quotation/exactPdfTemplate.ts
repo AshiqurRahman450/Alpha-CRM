@@ -5,6 +5,49 @@ export function sanitizeProposalParagraphs(html: string, pageNum: number, data?:
   if (!html) return html;
   let updated = html;
 
+  // ===================== PAGE 1 =====================
+  if ((pageNum === 1 || updated.includes('id="p0"')) && data) {
+    const clientName = data.clientName || 'Mr. Rathish Rajakumar';
+    const projectCity = data.projectCity || 'Chennai';
+    const model = data.model || 'AE 03 Gearless Belt Home series EV';
+    const offerNo = data.offerNo || 'AE/QTN/ AE-241026-131';
+
+    // Remove any duplicate style attributes from old drafts
+    updated = updated.replace(/style="[^"]*"\s*style=/g, 'style=');
+
+    // If client name or model is missing from an old broken draft, restore from raw template
+    if (!updated.includes('CLIENT NAME') || !updated.includes('MODEL')) {
+      return renderExactPdfPage(0, data);
+    }
+
+    // 1. Client Name (y = 841.78)
+    updated = updated.replace(
+      /<div[^>]*>[^<]*CLIENT NAME[^<]*<\/div>/i,
+      `<div class="t c1" style="z-index:68;transform:matrix(1,0,0,1,31.71,841.78);color:#0f4b31 !important;white-space:nowrap;">CLIENT NAME: ${clientName}</div>`
+    );
+
+    // 2. Project City (y = 927.06)
+    updated = updated.replace(
+      /<div[^>]*>[^<]*Project City[^<]*<\/div>/i,
+      `<div class="t c1" style="z-index:168;transform:matrix(1,0,0,1,36.7,927.06);color:#0f4b31 !important;white-space:nowrap;">Project City:  ${projectCity}</div>`
+    );
+
+    // 3. Model (y = 1006.64)
+    updated = updated.replace(
+      /<div[^>]*>[^<]*MODEL\s*:[^<]*<\/div>/i,
+      `<div class="t c1" style="z-index:102;transform:matrix(1,0,0,1,34.43,1006.64);color:#0f4b31 !important;white-space:nowrap;">MODEL : ${model}</div>`
+    );
+
+    // 4. Offer No (y = 1081.98)
+    updated = updated.replace(
+      /<div[^>]*>[^<]*Offer No[^<]*<\/div>/i,
+      `<div class="t c2" style="z-index:137;transform:matrix(1,0,0,1,39.71,1081.98);color:#0f4b31 !important;white-space:nowrap;">Offer No: ${offerNo}</div>`
+    );
+
+    // Remove bottom-right logo if present
+    updated = updated.replace(/<img class="im"[^>]*style="[^"]*714\.6[^"]*"[^>]*>/g, '');
+  }
+
   // ===================== PAGE 6 =====================
   if (pageNum === 6 || updated.includes('id="p5"')) {
     // 1. Taxes & Duties on Page 6
@@ -400,12 +443,27 @@ export function renderExactPdfPage(pageIdx: number, data: QuotationData): string
 
   if (pageIdx === 0) {
     // Page 1: Cover
-    html = html.replace('CLIENT NAME: Mr. Rathish Rajakumar', 'CLIENT NAME: ' + (data.clientName || 'Mr. Rathish Rajakumar'));
-    html = html.replace('Project City:  Chennai', 'Project City:  ' + (data.projectCity || 'Chennai'));
-    html = html.replace(/MODEL : [^\n<]+/i, 'MODEL : ' + (data.model || 'AE 03 Gearless Belt Home series EV') + ' ');
-    html = html.replace('Offer No: AE/QTN/ AE-241026-131', 'Offer No: ' + (data.offerNo || 'AE/QTN/ AE-241026-131'));
-    // Ensure Client Name, Project City, and Model match Project Proposal font color (#0f4b31)
-    html = html.replace(/class="t c1"/g, 'class="t c1" style="color:#0f4b31 !important;"');
+    const clientName = data.clientName || 'Mr. Rathish Rajakumar';
+    const projectCity = data.projectCity || 'Chennai';
+    const model = data.model || 'AE 03 Gearless Belt Home series EV';
+    const offerNo = data.offerNo || 'AE/QTN/ AE-241026-131';
+
+    html = html.replace(
+      /<div[^>]*>[^<]*CLIENT NAME[^<]*<\/div>/i,
+      `<div class="t c1" style="z-index:68;transform:matrix(1,0,0,1,31.71,841.78);color:#0f4b31 !important;white-space:nowrap;">CLIENT NAME: ${clientName}</div>`
+    );
+    html = html.replace(
+      /<div[^>]*>[^<]*Project City[^<]*<\/div>/i,
+      `<div class="t c1" style="z-index:168;transform:matrix(1,0,0,1,36.7,927.06);color:#0f4b31 !important;white-space:nowrap;">Project City:  ${projectCity}</div>`
+    );
+    html = html.replace(
+      /<div[^>]*>[^<]*MODEL\s*:[^<]*<\/div>/i,
+      `<div class="t c1" style="z-index:102;transform:matrix(1,0,0,1,34.43,1006.64);color:#0f4b31 !important;white-space:nowrap;">MODEL : ${model}</div>`
+    );
+    html = html.replace(
+      /<div[^>]*>[^<]*Offer No[^<]*<\/div>/i,
+      `<div class="t c2" style="z-index:137;transform:matrix(1,0,0,1,39.71,1081.98);color:#0f4b31 !important;white-space:nowrap;">Offer No: ${offerNo}</div>`
+    );
     html = html.replace(/<img class="im"[^>]*style="[^"]*714\.6[^"]*"[^>]*>/g, '');
   } else if (pageIdx === 1) {
     // Page 2: Letter
