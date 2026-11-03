@@ -16,6 +16,7 @@ class WhatsAppWebBotService {
   private groupJidCache: Map<string, string> = new Map(); // inviteCode -> groupJid
   private isInitializing: boolean = false;
   private messageCache: Map<string, any> = new Map(); // messageId -> proto.IMessage
+  private outgoingBotMessageIds: Set<string> = new Set();
   private cacheFilePath: string;
   private saveTimer: NodeJS.Timeout | null = null;
 
@@ -144,13 +145,23 @@ class WhatsAppWebBotService {
           if (msg?.key?.id && msg?.message) {
             this.cacheMessage(msg.key.id, msg.message);
 
-            // Notify CRM of incoming customer message in WhatsApp group or direct chat
-            if (!msg.key.fromMe) {
-              try {
-                await this.handleIncomingBaileysMessage(msg);
-              } catch (err: any) {
-                console.warn('[WhatsAppWebBot] Incoming message processing notice:', err.message);
-              }
+            // Skip automated outgoing bot broadcasts
+            if (this.outgoingBotMessageIds.has(msg.key.id)) {
+              continue;
+            }
+
+            const remoteJid = msg.key?.remoteJid || '';
+            const isGroup = remoteJid.endsWith('@g.us');
+
+            // Skip 1-on-1 self-echoes, but allow messages inside groups
+            if (msg.key.fromMe && !isGroup) {
+              continue;
+            }
+
+            try {
+              await this.handleIncomingBaileysMessage(msg);
+            } catch (err: any) {
+              console.warn('[WhatsAppWebBot] Incoming message processing notice:', err.message);
             }
           }
         }
@@ -223,15 +234,14 @@ class WhatsAppWebBotService {
     // Only process messages from connected WhatsApp groups
     if (!isGroup) return;
 
-    const participant = msg.key?.participant || (msg as any).participant || remoteJid;
-
-    const rawPhone = participant.split('@')[0].split(':')[0].replace(/\D/g, '');
-    if (!rawPhone) return;
-
-    // Do not notify for messages sent by the bot's own number
-    if (this.botPhoneNumber && rawPhone === this.botPhoneNumber.replace(/\D/g, '')) {
+    // Skip if it was an automated message sent programmatically by this bot
+    if (msg.key?.id && this.outgoingBotMessageIds.has(msg.key.id)) {
       return;
     }
+
+    const participant = msg.key?.participant || (msg as any).participant || remoteJid;
+    const rawPhone = participant.split('@')[0].split(':')[0].replace(/\D/g, '');
+    if (!rawPhone) return;
 
     // Unwrap potential ephemeral or view-once wrapper
     const unwrap = (obj: any): any => {
@@ -278,11 +288,13 @@ class WhatsAppWebBotService {
       }
     }
 
+    console.log(`[WhatsAppWebBot] Incoming group message in "${groupSubject || remoteJid}" from +${rawPhone}: "${text.slice(0, 50)}"`);
+
     await notifyCrmOfCustomerWhatsAppMessage({
       senderPhone: rawPhone,
       senderName: msg.pushName || undefined,
       messageText: text,
-      groupId: isGroup ? remoteJid : undefined,
+      groupId: remoteJid,
       groupSubject: groupSubject || undefined,
       metaMessageId: msg.key?.id,
     });
@@ -382,6 +394,7 @@ class WhatsAppWebBotService {
       console.log(`[WhatsAppWebBot] Dispatching message inside group JID: ${targetJid}`);
       const res = await this.sock.sendMessage(targetJid, { text: messageText });
       const messageId = res?.key?.id || `WB_${Date.now()}`;
+      if (res?.key?.id) this.outgoingBotMessageIds.add(res.key.id);
       if (res?.key?.id && res?.message) {
         this.cacheMessage(res.key.id, res.message);
       }
@@ -458,6 +471,7 @@ class WhatsAppWebBotService {
       }
 
       const messageId = res?.key?.id || `DOC_${Date.now()}`;
+      if (res?.key?.id) this.outgoingBotMessageIds.add(res.key.id);
       if (res?.key?.id && res?.message) {
         this.cacheMessage(res.key.id, res.message);
       }

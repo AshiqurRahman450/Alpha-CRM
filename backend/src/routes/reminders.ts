@@ -155,15 +155,14 @@ reminderRouter.get('/', async (req: AuthRequest, res: Response) => {
     }
 
     const orConditions: any[] = [
-      { userId: req.user?._id, type: { $ne: 'WHATSAPP_MESSAGE' } },
+      { userId: req.user?._id },
       { type: 'QUOTATION_APPROVAL' },
-    ];
-    if (isCrmOrAdmin) {
-      orConditions.push({
+      {
         type: 'WHATSAPP_MESSAGE',
         whatsappGroupId: { $exists: true, $nin: ['', null, 'DIRECT'] },
-        relatedProjectId: { $exists: true, $ne: null },
-      });
+      },
+    ];
+    if (isCrmOrAdmin) {
       orConditions.push({ type: 'PROJECT_NEXT_WORK' });
     }
 
@@ -197,15 +196,14 @@ reminderRouter.get('/due', async (req: AuthRequest, res: Response) => {
     const isCrmOrAdmin = req.user?.role === 'CRM' || req.user?.role === 'ADMIN';
 
     const orConditions: any[] = [
-      { userId: req.user?._id, type: { $ne: 'WHATSAPP_MESSAGE' } },
+      { userId: req.user?._id },
       { type: 'QUOTATION_APPROVAL' },
-    ];
-    if (isCrmOrAdmin) {
-      orConditions.push({
+      {
         type: 'WHATSAPP_MESSAGE',
         whatsappGroupId: { $exists: true, $nin: ['', null, 'DIRECT'] },
-        relatedProjectId: { $exists: true, $ne: null },
-      });
+      },
+    ];
+    if (isCrmOrAdmin) {
       orConditions.push({ type: 'PROJECT_NEXT_WORK' });
     }
 

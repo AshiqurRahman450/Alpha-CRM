@@ -160,10 +160,10 @@ export default function RemindersPage() {
       const isDue = new Date(r.dueAt) <= now && !isDismissed;
       const isUpcoming = new Date(r.dueAt) > now && !isDismissed;
 
-      // Strict filter: If it is a WhatsApp message, ONLY show if from a connected project group
+      // Strict filter: If it is a WhatsApp message, ONLY show if from a connected group
       if (
         r.type === 'WHATSAPP_MESSAGE' &&
-        (!r.whatsappGroupId || r.whatsappGroupId === 'DIRECT' || !r.relatedProjectId)
+        (!r.whatsappGroupId || r.whatsappGroupId === 'DIRECT')
       ) {
         return false;
       }

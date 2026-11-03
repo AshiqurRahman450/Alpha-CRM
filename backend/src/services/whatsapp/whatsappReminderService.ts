@@ -127,11 +127,6 @@ export async function notifyCrmOfCustomerWhatsAppMessage(
     }
   }
 
-  // STRICT REQUIREMENT: Only show message reminders for CONNECTED project groups
-  if (!project || !project._id) {
-    return null;
-  }
-
   // 2. Locate Customer by phone number (matches last 10 digits to handle country codes)
   let customer: any = null;
   if (last10.length >= 10) {
@@ -144,49 +139,42 @@ export async function notifyCrmOfCustomerWhatsAppMessage(
   }
 
   // If project has customerId and customer wasn't resolved by phone, check project's customer
-  if (project.customerId) {
+  if (project?.customerId) {
     const projectCustomer = project.customerId.fullName ? project.customerId : await Customer.findById(project.customerId);
     if (!customer) {
       customer = projectCustomer;
     }
   }
 
-  // Must be verified as a customer or belonging to this connected project
-  if (!customer) {
-    return null;
-  }
-
   const resolvedCustomerName =
     customer?.fullName ||
     senderName ||
-    (project ? `${project.projectName} Client` : `Customer (+${cleanPhone})`);
+    (project ? `${project.projectName} Client` : (cleanPhone ? `+${cleanPhone}` : 'Member'));
 
   const resolvedGroupName =
     groupSubject ||
     (project ? `${project.projectName} Group` : (groupId ? 'WhatsApp Group' : 'Direct Chat'));
 
   // 3. Find active CRM or Admin user to assign reminder to
-  const crmUser =
+  let crmUser =
     (await User.findOne({ role: 'CRM', isActive: true })) ||
     (await User.findOne({ role: 'ADMIN', isActive: true })) ||
-    (await User.findOne({ isActive: true }));
-
-  if (!crmUser) {
-    console.warn('[WhatsAppReminder] No active CRM/ADMIN user found to assign reminder.');
-    return null;
-  }
+    (await User.findOne({ role: 'CRM' })) ||
+    (await User.findOne({ role: 'ADMIN' })) ||
+    (await User.findOne());
 
   const messageId = metaMessageId || `WA_IN_${Date.now()}`;
 
   // 4. Idempotency check: avoid duplicate reminders for the exact same message
-  const recentCutoff = new Date(Date.now() - 45 * 1000);
+  const recentCutoff = new Date(Date.now() - 30 * 1000);
   const existingReminder = await Reminder.findOne({
     $or: [
       { whatsappMessageId: messageId },
       {
         type: 'WHATSAPP_MESSAGE',
+        whatsappGroupId: groupId,
         whatsappSenderPhone: cleanPhone,
-        notes: { $regex: escapeRegex(messageText.slice(0, 40)) },
+        notes: { $regex: escapeRegex(messageText.slice(0, 30)) },
         createdAt: { $gte: recentCutoff },
       },
     ],
@@ -197,19 +185,19 @@ export async function notifyCrmOfCustomerWhatsAppMessage(
   }
 
   // 5. Construct reminder title and notes
-  const projectSnippet = project ? ` [${project.projectName} (${project.projectId})]` : '';
+  const projectSnippet = project ? ` [${project.projectName}]` : ` [${resolvedGroupName}]`;
   const title = `💬 WhatsApp: ${resolvedCustomerName}${projectSnippet}`;
   const notes = `"${messageText}"\n\n• From: ${resolvedCustomerName} (+${cleanPhone})\n• Group: ${resolvedGroupName}${project ? `\n• Project: ${project.projectName} (${project.projectId})` : ''}`;
 
   const reminder = await Reminder.create({
-    userId: crmUser._id,
+    userId: crmUser?._id,
     title,
     notes,
     dueAt: new Date(), // Due now so it immediately triggers popup toasts for CRM
     status: 'PENDING',
     type: 'WHATSAPP_MESSAGE',
-    relatedProjectId: project?._id,
-    relatedCustomerId: customer?._id,
+    relatedProjectId: project?._id || undefined,
+    relatedCustomerId: customer?._id || undefined,
     customerName: resolvedCustomerName,
     actionRequired: true,
     whatsappSenderPhone: cleanPhone,
@@ -218,7 +206,7 @@ export async function notifyCrmOfCustomerWhatsAppMessage(
     whatsappMessageId: messageId,
   });
 
-  console.log(`[WhatsAppReminder] Created reminder for CRM: "${title}" (ID: ${reminder._id})`);
+  console.log(`[WhatsAppReminder] Successfully created reminder for CRM: "${title}" (ID: ${reminder._id}, Group: ${groupId})`);
 
   // 6. Record to WhatsAppMessage and ProjectActivity if project exists
   if (project) {
