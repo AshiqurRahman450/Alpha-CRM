@@ -147,16 +147,24 @@ reminderRouter.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const { status } = req.query;
 
+    const isCrmOrAdmin = req.user?.role === 'CRM' || req.user?.role === 'ADMIN';
+
     // For CRM and Admin, keep active project next-work reminders synchronized
-    if (req.user?.role === 'CRM' || req.user?.role === 'ADMIN') {
+    if (isCrmOrAdmin && req.user?._id) {
       await syncProjectNextWorkReminders(req.user._id);
     }
 
+    const orConditions: any[] = [
+      { userId: req.user?._id },
+      { type: 'QUOTATION_APPROVAL' },
+    ];
+    if (isCrmOrAdmin) {
+      orConditions.push({ type: 'WHATSAPP_MESSAGE' });
+      orConditions.push({ type: 'PROJECT_NEXT_WORK' });
+    }
+
     const query: any = {
-      $or: [
-        { userId: req.user?._id },
-        { type: 'QUOTATION_APPROVAL', status: 'PENDING' },
-      ],
+      $or: orConditions,
     };
 
     if (status) {
@@ -164,7 +172,7 @@ reminderRouter.get('/', async (req: AuthRequest, res: Response) => {
     }
 
     const reminders = await Reminder.find(query)
-      .sort({ dueAt: 1 })
+      .sort({ dueAt: -1 })
       .populate('relatedProjectId', 'projectId projectName projectStatus liftModel customerId')
       .populate('relatedQuotationId', 'offerNo customerName status data createdCustomerCode createdProjectCode')
       .populate('relatedCustomerId', 'fullName customerId phoneNumber city')
@@ -178,19 +186,27 @@ reminderRouter.get('/', async (req: AuthRequest, res: Response) => {
 
 /**
  * GET /api/reminders/due
- * Fetch reminders that are currently due and pending (including Quotation approvals & project next work)
+ * Fetch reminders that are currently due and pending (including Quotation approvals, project next work & WhatsApp customer messages)
  */
 reminderRouter.get('/due', async (req: AuthRequest, res: Response) => {
   try {
+    const isCrmOrAdmin = req.user?.role === 'CRM' || req.user?.role === 'ADMIN';
+
+    const orConditions: any[] = [
+      { userId: req.user?._id },
+      { type: 'QUOTATION_APPROVAL' },
+    ];
+    if (isCrmOrAdmin) {
+      orConditions.push({ type: 'WHATSAPP_MESSAGE' });
+      orConditions.push({ type: 'PROJECT_NEXT_WORK' });
+    }
+
     const reminders = await Reminder.find({
-      $or: [
-        { userId: req.user?._id },
-        { type: 'QUOTATION_APPROVAL' },
-      ],
+      $or: orConditions,
       status: 'PENDING',
       dueAt: { $lte: new Date() },
     })
-      .sort({ dueAt: 1 })
+      .sort({ dueAt: -1 })
       .populate('relatedProjectId', 'projectId projectName projectStatus liftModel customerId')
       .populate('relatedQuotationId', 'offerNo customerName status data createdCustomerCode createdProjectCode')
       .populate('relatedCustomerId', 'fullName customerId phoneNumber city')
@@ -276,7 +292,12 @@ reminderRouter.post('/', async (req: AuthRequest, res: Response) => {
  */
 reminderRouter.patch('/:id/dismiss', async (req: AuthRequest, res: Response) => {
   try {
-    const reminder = await Reminder.findOne({ _id: req.params.id, userId: req.user?._id });
+    let reminder;
+    if (req.user?.role === 'CRM' || req.user?.role === 'ADMIN') {
+      reminder = await Reminder.findById(req.params.id);
+    } else {
+      reminder = await Reminder.findOne({ _id: req.params.id, userId: req.user?._id });
+    }
     
     if (!reminder) {
       return res.status(404).json({ success: false, message: 'Reminder not found' });

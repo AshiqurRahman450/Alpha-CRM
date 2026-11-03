@@ -22,6 +22,7 @@ import {
   ArrowRight,
   Send,
   Loader2,
+  MessageSquare,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
@@ -169,9 +170,15 @@ export default function RemindersPage() {
         const q = search.toLowerCase();
         const matchTitle = r.title?.toLowerCase().includes(q);
         const matchNotes = r.notes?.toLowerCase().includes(q);
-        const matchProject = r.relatedProjectId?.projectName?.toLowerCase().includes(q) ||
+        const matchProject =
+          r.relatedProjectId?.projectName?.toLowerCase().includes(q) ||
           r.relatedProjectId?.projectId?.toLowerCase().includes(q);
-        return matchTitle || matchNotes || matchProject;
+        const matchCustomer =
+          r.customerName?.toLowerCase().includes(q) ||
+          r.relatedCustomerId?.fullName?.toLowerCase().includes(q) ||
+          r.whatsappSenderPhone?.includes(q) ||
+          r.whatsappGroupName?.toLowerCase().includes(q);
+        return matchTitle || matchNotes || matchProject || matchCustomer;
       }
 
       return true;
@@ -491,6 +498,20 @@ export default function RemindersPage() {
                     </div>
                   )}
 
+                  {reminder.type === 'WHATSAPP_MESSAGE' && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-900 border border-emerald-300">
+                        <MessageSquare className="w-3 h-3 text-emerald-600" />
+                        <span>💬 Customer WhatsApp Message</span>
+                      </div>
+                      {reminder.whatsappGroupName && (
+                        <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                          {reminder.whatsappGroupName}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   <div className="pr-16">
                     <h3
                       className={`text-sm font-extrabold ${
@@ -547,6 +568,30 @@ export default function RemindersPage() {
                             <Award className="w-3.5 h-3.5 text-amber-200" />
                           )}
                           <span>Approve & Auto-Create</span>
+                        </button>
+                      )}
+                    </div>
+                  ) : reminder.type === 'WHATSAPP_MESSAGE' ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      {reminder.whatsappSenderPhone && (
+                        <a
+                          href={`https://wa.me/${reminder.whatsappSenderPhone.replace(/\D/g, '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-xl transition-all inline-flex items-center gap-1.5"
+                          title="Open WhatsApp chat with customer"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Reply WhatsApp</span>
+                        </a>
+                      )}
+                      {reminder.relatedProjectId && (
+                        <button
+                          onClick={() => router.push(`/projects/${reminder.relatedProjectId._id || reminder.relatedProjectId}`)}
+                          className="text-xs font-bold text-sky-600 hover:text-sky-700 bg-sky-50 px-2.5 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1.5 border border-sky-100"
+                        >
+                          <CalendarDays className="w-3.5 h-3.5" />
+                          <span>{reminder.relatedProjectId.projectId || 'Project'}</span>
                         </button>
                       )}
                     </div>

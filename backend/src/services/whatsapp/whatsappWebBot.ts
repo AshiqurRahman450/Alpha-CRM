@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import path from 'path';
 import fs from 'fs';
 import { normalizeWhatsAppPhone } from './WatiService';
+import { notifyCrmOfCustomerWhatsAppMessage } from './whatsappReminderService';
 
 export type BotConnectionStatus = 'DISCONNECTED' | 'SCAN_QR' | 'CONNECTING' | 'CONNECTED';
 
@@ -142,6 +143,15 @@ class WhatsAppWebBotService {
         for (const msg of m.messages || []) {
           if (msg?.key?.id && msg?.message) {
             this.cacheMessage(msg.key.id, msg.message);
+
+            // Notify CRM of incoming customer message in WhatsApp group or direct chat
+            if (!msg.key.fromMe) {
+              try {
+                await this.handleIncomingBaileysMessage(msg);
+              } catch (err: any) {
+                console.warn('[WhatsAppWebBot] Incoming message processing notice:', err.message);
+              }
+            }
           }
         }
       });
@@ -200,6 +210,81 @@ class WhatsAppWebBotService {
       this.status = 'DISCONNECTED';
       this.isInitializing = false;
     }
+  }
+
+  /**
+   * Handle incoming message from customer in a WhatsApp group or direct chat
+   */
+  private async handleIncomingBaileysMessage(msg: any): Promise<void> {
+    const remoteJid = msg.key?.remoteJid || '';
+    if (!remoteJid || remoteJid === 'status@broadcast') return;
+
+    const isGroup = remoteJid.endsWith('@g.us');
+    const participant = isGroup
+      ? (msg.key?.participant || (msg as any).participant || remoteJid)
+      : remoteJid;
+
+    const rawPhone = participant.split('@')[0].split(':')[0].replace(/\D/g, '');
+    if (!rawPhone) return;
+
+    // Do not notify for messages sent by the bot's own number
+    if (this.botPhoneNumber && rawPhone === this.botPhoneNumber.replace(/\D/g, '')) {
+      return;
+    }
+
+    // Unwrap potential ephemeral or view-once wrapper
+    const unwrap = (obj: any): any => {
+      if (!obj) return null;
+      if (obj.ephemeralMessage?.message) return unwrap(obj.ephemeralMessage.message);
+      if (obj.viewOnceMessage?.message) return unwrap(obj.viewOnceMessage.message);
+      if (obj.viewOnceMessageV2?.message) return unwrap(obj.viewOnceMessageV2.message);
+      return obj;
+    };
+    const m = unwrap(msg.message);
+
+    let text =
+      m?.conversation ||
+      m?.extendedTextMessage?.text ||
+      m?.imageMessage?.caption ||
+      m?.videoMessage?.caption ||
+      m?.documentMessage?.caption ||
+      '';
+
+    if (!text || text.trim() === '') {
+      if (m?.imageMessage) text = '📷 [Photo received]';
+      else if (m?.videoMessage) text = '🎥 [Video received]';
+      else if (m?.documentMessage) text = `📄 [Document: ${m.documentMessage.fileName || 'file'}]`;
+      else if (m?.audioMessage) text = '🎤 [Voice note received]';
+      else if (m?.locationMessage) text = '📍 [Location shared]';
+      else if (m?.contactMessage) text = '👤 [Contact shared]';
+      else return; // Ignore protocol/empty messages
+    }
+
+    // Get group subject if in a group
+    let groupSubject = '';
+    if (isGroup) {
+      groupSubject = this.groupJidCache.get(remoteJid) || '';
+      if (!groupSubject && this.sock?.groupMetadata) {
+        try {
+          const meta = await this.sock.groupMetadata(remoteJid);
+          if (meta?.subject) {
+            groupSubject = meta.subject;
+            this.groupJidCache.set(remoteJid, groupSubject);
+          }
+        } catch {
+          // ignore metadata fetch failure
+        }
+      }
+    }
+
+    await notifyCrmOfCustomerWhatsAppMessage({
+      senderPhone: rawPhone,
+      senderName: msg.pushName || undefined,
+      messageText: text,
+      groupId: isGroup ? remoteJid : undefined,
+      groupSubject: groupSubject || undefined,
+      metaMessageId: msg.key?.id,
+    });
   }
 
   /**

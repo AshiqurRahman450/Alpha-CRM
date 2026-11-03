@@ -1,6 +1,6 @@
 import { Schema, model, Document, Types } from 'mongoose';
 
-export type ReminderType = 'GENERAL' | 'QUOTATION_APPROVAL' | 'PROJECT_NEXT_WORK' | 'SITE_VISIT';
+export type ReminderType = 'GENERAL' | 'QUOTATION_APPROVAL' | 'PROJECT_NEXT_WORK' | 'SITE_VISIT' | 'WHATSAPP_MESSAGE';
 
 export interface IReminder extends Document {
   userId: Types.ObjectId;
@@ -17,6 +17,10 @@ export interface IReminder extends Document {
   actionRequired?: boolean;
   whatsappSent?: boolean;
   whatsappSentAt?: Date;
+  whatsappSenderPhone?: string;
+  whatsappGroupId?: string;
+  whatsappGroupName?: string;
+  whatsappMessageId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -47,7 +51,7 @@ const ReminderSchema = new Schema<IReminder>(
     },
     type: {
       type: String,
-      enum: ['GENERAL', 'QUOTATION_APPROVAL', 'PROJECT_NEXT_WORK', 'SITE_VISIT'],
+      enum: ['GENERAL', 'QUOTATION_APPROVAL', 'PROJECT_NEXT_WORK', 'SITE_VISIT', 'WHATSAPP_MESSAGE'],
       default: 'GENERAL',
     },
     relatedProjectId: {
@@ -80,6 +84,22 @@ const ReminderSchema = new Schema<IReminder>(
     },
     whatsappSentAt: {
       type: Date,
+    },
+    whatsappSenderPhone: {
+      type: String,
+      trim: true,
+    },
+    whatsappGroupId: {
+      type: String,
+      trim: true,
+    },
+    whatsappGroupName: {
+      type: String,
+      trim: true,
+    },
+    whatsappMessageId: {
+      type: String,
+      trim: true,
     },
   },
   { timestamps: true }
