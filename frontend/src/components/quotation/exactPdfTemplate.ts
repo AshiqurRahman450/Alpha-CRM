@@ -425,7 +425,10 @@ export function renderExactPdfPage(pageIdx: number, data: QuotationData): string
       html = html.replace('AE 03 Home Elevator EV', data.model);
     }
     if (data.hoistWayShaftSize) html = html.replace('1450mm X 1800mm', data.hoistWayShaftSize);
-    if (data.pitDepth) html = html.replace('250mm', data.pitDepth);
+    if (data.pitDepth) {
+      html = html.replace(/<div class="t c16" style="z-index:142;transform:matrix\(1,0,0,1,489\.12,528\.02\)">[\s\S]*?<\/div>/, `<div class="t c16" style="z-index:142;transform:matrix(1,0,0,1,489.12,528.02)">${data.pitDepth}</div>`);
+      html = html.replace('250mm', data.pitDepth);
+    }
     if (data.minFloorHeight) html = html.replace('3000mm', data.minFloorHeight);
     if (data.finalStop) html = html.replace('3300mm', data.finalStop);
     if (data.lockableStorageRoom) {
@@ -550,9 +553,10 @@ export function renderExactPdfPage(pageIdx: number, data: QuotationData): string
   } else if (pageIdx === 4) {
     // Page 5: Shaft, Accessories, Terms
     html = html.replace('AE/QTN/AE-261026-131', data.offerNo || 'AE/QTN/AE-261026-131');
-    if (data.shaftType) {
-      html = html.replace(/<div class="t c13" style="z-index:381;transform:matrix\(1,0,0,1,260\.73,213\.5\)">[\s\S]*?<\/div>/, `<div class="t c13" style="z-index:381;transform:matrix(1,0,0,1,260.73,213.5)">${data.shaftType}</div>`);
-      html = html.replace(/Shaft-Glass Shaft\s*/i, data.shaftType);
+    const effectiveShaft = (data.shaftScope === 'Customer scope' || data.shaftType === 'Customer scope') ? 'Customer scope' : data.shaftType;
+    if (effectiveShaft) {
+      html = html.replace(/<div class="t c13" style="z-index:381;transform:matrix\(1,0,0,1,260\.73,213\.5\)">[\s\S]*?<\/div>/, `<div class="t c13" style="z-index:381;transform:matrix(1,0,0,1,260.73,213.5)">${effectiveShaft}</div>`);
+      html = html.replace(/Shaft-Glass Shaft\s*/i, effectiveShaft);
     }
     // Elevator Price
     const gstRate = data.gstRate !== undefined ? data.gstRate : 18;

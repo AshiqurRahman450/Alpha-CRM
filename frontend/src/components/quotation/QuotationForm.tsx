@@ -1092,13 +1092,17 @@ export default function QuotationForm({
                     <label className="block text-[11px] font-bold text-slate-700 mb-1">
                       Minimum Required Pit Depth:
                     </label>
-                    <input
-                      type="text"
-                      value={data.pitDepth || '150 mm/ Ramp'}
+                    <select
+                      value={data.pitDepth || 'None'}
                       onChange={(e) => updateField('pitDepth', e.target.value)}
-                      placeholder="e.g. 150 mm/ Ramp"
-                      className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 font-medium"
-                    />
+                      className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
+                    >
+                      <option value="None">None</option>
+                      <option value="200mm">200mm</option>
+                      {data.pitDepth && !['None', '200mm'].includes(data.pitDepth) && (
+                        <option value={data.pitDepth}>{data.pitDepth}</option>
+                      )}
+                    </select>
                   </div>
                 </div>
               </div>
@@ -1139,13 +1143,17 @@ export default function QuotationForm({
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Pit Depth:</label>
-                <input
-                  type="text"
-                  value={data.pitDepth}
+                <select
+                  value={data.pitDepth || '200mm'}
                   onChange={(e) => updateField('pitDepth', e.target.value)}
-                  placeholder="e.g. 250mm"
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
-                />
+                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
+                >
+                  <option value="None">None</option>
+                  <option value="200mm">200mm</option>
+                  {data.pitDepth && !['None', '200mm'].includes(data.pitDepth) && (
+                    <option value={data.pitDepth}>{data.pitDepth}</option>
+                  )}
+                </select>
               </div>
 
               <div>
@@ -1169,6 +1177,52 @@ export default function QuotationForm({
                   className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
                 />
               </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Shaft:</label>
+                <select
+                  value={
+                    data.shaftScope ||
+                    (data.shaftType === 'Customer scope' ? 'Customer scope' : 'Alpha Elevators scope')
+                  }
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    updateField('shaftScope', val);
+                    if (val === 'Customer scope') {
+                      updateField('shaftType', 'Customer scope');
+                    } else if (!data.shaftType || data.shaftType === 'Customer scope') {
+                      updateField('shaftType', 'Glass Shaft');
+                    }
+                  }}
+                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
+                >
+                  <option value="Customer scope">Customer scope</option>
+                  <option value="Alpha Elevators scope">Alpha Elevators scope</option>
+                </select>
+              </div>
+
+              {(data.shaftScope === 'Alpha Elevators scope' ||
+                (!data.shaftScope && data.shaftType !== 'Customer scope')) && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Shaft Specifications:
+                  </label>
+                  <select
+                    value={
+                      data.shaftType && data.shaftType !== 'Customer scope'
+                        ? data.shaftType
+                        : 'Glass Shaft'
+                    }
+                    onChange={(e) => updateField('shaftType', e.target.value)}
+                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
+                  >
+                    <option value="Glass Shaft">Glass Shaft</option>
+                    <option value="ACP Shaft">ACP Shaft</option>
+                    <option value="Welding Shaft">Welding Shaft</option>
+                    <option value="Civil Shaft">Civil Shaft</option>
+                  </select>
+                </div>
+              )}
             </div>
 
             <div>
@@ -1765,20 +1819,65 @@ export default function QuotationForm({
           <div className="space-y-4 animate-fade-in">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Shaft Specifications Box (Page 5 Dropdown):
+                Shaft:
               </label>
               <select
-                value={data.shaftType}
-                onChange={(e) => updateField('shaftType', e.target.value)}
+                value={
+                  data.shaftScope ||
+                  (data.shaftType === 'Customer scope' ? 'Customer scope' : 'Alpha Elevators scope')
+                }
+                onChange={(e) => {
+                  const val = e.target.value;
+                  updateField('shaftScope', val);
+                  if (val === 'Customer scope') {
+                    updateField('shaftType', 'Customer scope');
+                  } else if (!data.shaftType || data.shaftType === 'Customer scope') {
+                    updateField('shaftType', 'Glass Shaft');
+                  }
+                }}
                 className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
               >
-                <option value="Glass Shaft">Glass Shaft</option>
-                <option value="ACP Shaft">ACP Shaft</option>
-                <option value="Welding Shaft">Welding Shaft</option>
-                <option value="Civil Shaft">Civil Shaft</option>
                 <option value="Customer scope">Customer scope</option>
+                <option value="Alpha Elevators scope">Alpha Elevators scope</option>
               </select>
             </div>
+
+            {(data.shaftScope === 'Alpha Elevators scope' ||
+              (!data.shaftScope && data.shaftType !== 'Customer scope')) ? (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Shaft Specifications Box (Page 5 Dropdown):
+                </label>
+                <select
+                  value={
+                    data.shaftType && data.shaftType !== 'Customer scope'
+                      ? data.shaftType
+                      : 'Glass Shaft'
+                  }
+                  onChange={(e) => updateField('shaftType', e.target.value)}
+                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
+                >
+                  <option value="Glass Shaft">Glass Shaft</option>
+                  <option value="ACP Shaft">ACP Shaft</option>
+                  <option value="Welding Shaft">Welding Shaft</option>
+                  <option value="Civil Shaft">Civil Shaft</option>
+                </select>
+              </div>
+            ) : (
+              <div className="bg-amber-50/70 p-3 rounded-xl border border-amber-200 text-xs text-amber-800 flex items-center justify-between">
+                <span>Shaft is set to <strong>Customer scope</strong>. Shaft Specifications box is hidden.</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateField('shaftScope', 'Alpha Elevators scope');
+                    updateField('shaftType', 'Glass Shaft');
+                  }}
+                  className="text-[11px] font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 px-2 py-1 rounded transition-colors"
+                >
+                  Switch to Alpha Elevators Scope
+                </button>
+              </div>
+            )}
 
             <div>
               <div className="flex items-center justify-between mb-2">

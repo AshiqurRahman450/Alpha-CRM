@@ -35,6 +35,7 @@ export interface QuotationData {
   minFloorHeight: string;
   finalStop: string;
   lockableStorageRoom: string;
+  shaftScope?: string; // 'Customer scope' | 'Alpha Elevators scope'
 
   // Cabin Specifications (Page 3)
   cabinWalls: string;
@@ -134,6 +135,7 @@ export const DEFAULT_QUOTATION_DATA: QuotationData = {
   minFloorHeight: '3000mm',
   finalStop: '3300mm',
   lockableStorageRoom: 'To be Located In the Top Floor',
+  shaftScope: 'Alpha Elevators scope',
 
   cabinWalls: 'Premium Glass Cabin - SS Finish',
   cabinFloor: "Vinyl or Client's own Flooring",
@@ -256,6 +258,7 @@ export const QUOTATION_PRESETS: { name: string; description: string; data: Parti
       minFloorHeight: '2900mm',
       finalStop: '3200mm',
       lockableStorageRoom: 'To be Located In the Top Floor',
+  shaftScope: 'Alpha Elevators scope',
       cabinWalls: 'Standared Cabin- SS Finish',
       cabinFloor: "Vinyl or Client's own Flooring",
       copAndLop: 'Touch ( TFT Display)',
@@ -297,6 +300,7 @@ export const QUOTATION_PRESETS: { name: string; description: string; data: Parti
       minFloorHeight: '3000mm',
       finalStop: '3300mm',
       lockableStorageRoom: 'To be Located In the Top Floor',
+  shaftScope: 'Alpha Elevators scope',
       cabinWalls: 'Premium Glass Cabin - SS Finish',
       cabinFloor: "Vinyl or Client's own Flooring",
       copAndLop: 'Touch ( TFT Display)',
@@ -338,6 +342,7 @@ export const QUOTATION_PRESETS: { name: string; description: string; data: Parti
       minFloorHeight: '3000mm',
       finalStop: '3300mm',
       lockableStorageRoom: 'To be Located In the Top Floor',
+  shaftScope: 'Alpha Elevators scope',
       cabinWalls: 'Premium Glass Cabin - SS Finish',
       cabinFloor: "Vinyl or Client's own Flooring",
       copAndLop: 'Touch ( TFT Display)',
@@ -380,6 +385,7 @@ export const QUOTATION_PRESETS: { name: string; description: string; data: Parti
       minFloorHeight: '2800mm',
       finalStop: '3000mm',
       lockableStorageRoom: 'To be Located In the Top Floor',
+  shaftScope: 'Alpha Elevators scope',
       cabinWalls: 'MS',
       cabinFloor: "Vinyl or Client's own Flooring",
       copAndLop: 'Button',
@@ -468,6 +474,7 @@ export const QUOTATION_PRESETS: { name: string; description: string; data: Parti
       minFloorHeight: '3200mm',
       finalStop: '3600mm',
       lockableStorageRoom: 'To be Located In the Top Floor',
+  shaftScope: 'Alpha Elevators scope',
       cabinWalls: 'Premium Glass Cabin - SS Finish',
       cabinFloor: "Vinyl or Client's own Flooring",
       copAndLop: 'Touch ( TFT Display)',
