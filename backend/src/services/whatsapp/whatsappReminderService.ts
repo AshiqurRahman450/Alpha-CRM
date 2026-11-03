@@ -70,22 +70,6 @@ export async function notifyCrmOfCustomerWhatsAppMessage(
         { projectId: { $regex: escapeRegex(groupSubject.trim()), $options: 'i' } },
       ],
     }).populate('customerId');
-
-    if (!project) {
-      const allActiveProjects = await Project.find({
-        projectStatus: { $nin: ['COMPLETED', 'CANCELLED'] },
-      }).populate('customerId');
-
-      const cleanSubject = groupSubject.toLowerCase();
-      for (const p of allActiveProjects) {
-        const pCode = (p.projectId || '').toLowerCase().trim();
-        const pName = (p.projectName || '').toLowerCase().trim();
-        if ((pCode && cleanSubject.includes(pCode)) || (pName && cleanSubject.includes(pName))) {
-          project = p;
-          break;
-        }
-      }
-    }
   }
 
   // Check matching by invite link / code
@@ -112,7 +96,7 @@ export async function notifyCrmOfCustomerWhatsAppMessage(
     }
   }
 
-  // Match if customer's phone number belongs to a customer who has a project in CRM
+  // Match if customer's phone number belongs to a customer who has a project with WhatsApp enabled
   if (!project && last10.length >= 10) {
     const cust = await Customer.findOne({
       $or: [
@@ -123,33 +107,23 @@ export async function notifyCrmOfCustomerWhatsAppMessage(
     if (cust) {
       const custProject = await Project.findOne({
         customerId: cust._id,
-        projectStatus: { $nin: ['COMPLETED', 'CANCELLED'] },
+        $or: [
+          { whatsappGroupId: { $exists: true, $ne: '' } },
+          { 'whatsapp.groupId': { $exists: true, $ne: '' } },
+          { 'whatsapp.inviteLink': { $exists: true, $ne: '' } },
+        ],
       }).populate('customerId');
 
       if (custProject) {
         project = custProject;
+        try {
+          custProject.whatsappGroupId = groupId;
+          if (custProject.whatsapp) {
+            custProject.whatsapp.groupId = groupId;
+          }
+          await custProject.save();
+        } catch {}
       }
-    }
-  }
-
-  // STRICT REQUIREMENT: ONLY create reminders for WhatsApp groups that belong to an existing project in CRM!
-  if (!project || !project._id) {
-    console.log(
-      `[WhatsAppReminder] Ignoring message from group ${groupId} ("${groupSubject || 'Unknown'}") - not linked to any CRM project.`
-    );
-    return null;
-  }
-
-  // Auto-sync JID to project if not yet stored so subsequent lookups are instant
-  if (!project.whatsappGroupId || project.whatsappGroupId !== groupId) {
-    try {
-      project.whatsappGroupId = groupId;
-      if (project.whatsapp) {
-        project.whatsapp.groupId = groupId;
-      }
-      await project.save();
-    } catch (saveErr: any) {
-      console.warn('[WhatsAppReminder] Notice updating project whatsappGroupId:', saveErr.message);
     }
   }
 
@@ -210,10 +184,10 @@ export async function notifyCrmOfCustomerWhatsAppMessage(
     return existingReminder;
   }
 
-  // 5. Construct reminder title and notes for this project group message
-  const projectSnippet = ` [${project.projectName}]`;
+  // 5. Construct reminder title and notes
+  const projectSnippet = project ? ` [${project.projectName}]` : ` [${resolvedGroupName}]`;
   const title = `💬 WhatsApp: ${resolvedCustomerName}${projectSnippet}`;
-  const notes = `"${messageText}"\n\n• From: ${resolvedCustomerName} (+${cleanPhone})\n• Group: ${resolvedGroupName}\n• Project: ${project.projectName} (${project.projectId})`;
+  const notes = `"${messageText}"\n\n• From: ${resolvedCustomerName} (+${cleanPhone})\n• Group: ${resolvedGroupName}${project ? `\n• Project: ${project.projectName} (${project.projectId})` : ''}`;
 
   const reminder = await Reminder.create({
     userId: crmUser?._id,
@@ -222,8 +196,8 @@ export async function notifyCrmOfCustomerWhatsAppMessage(
     dueAt: new Date(), // Due now so it immediately triggers popup toasts for CRM
     status: 'PENDING',
     type: 'WHATSAPP_MESSAGE',
-    relatedProjectId: project._id,
-    relatedCustomerId: customer?._id || project.customerId?._id || project.customerId,
+    relatedProjectId: project?._id || undefined,
+    relatedCustomerId: customer?._id || undefined,
     customerName: resolvedCustomerName,
     actionRequired: true,
     whatsappSenderPhone: cleanPhone,
