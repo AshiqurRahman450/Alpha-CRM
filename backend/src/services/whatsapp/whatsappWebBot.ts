@@ -195,10 +195,14 @@ class WhatsAppWebBotService {
         },
         printQRInTerminal: true, // Output QR in VPS terminal / pm2 logs
         browser: (baileys as any).Browsers?.ubuntu ? (baileys as any).Browsers.ubuntu('Chrome') : ['Ubuntu', 'Chrome', '22.04.4'],
-        defaultQueryTimeoutMs: 60000,
+        connectTimeoutMs: 60000,
+        defaultQueryTimeoutMs: 120000,
         keepAliveIntervalMs: 25000, // Send keep-alive pings to keep VPS WebSocket connection active
         markOnlineOnConnect: true,
         syncFullHistory: false,
+        fireInitQueries: false, // Critical: Disables failing props query that caused 408 Request Time-out in init queries
+        shouldSyncHistoryMessage: () => false,
+        generateHighQualityLinkPreview: false,
         getMessage: async (key: any) => {
           if (!key?.id) return undefined;
           const msg = await this.getMessageFromCache(key.id);
@@ -322,7 +326,13 @@ class WhatsAppWebBotService {
       return;
     }
 
-    const participant = msg.key?.participant || (msg as any).participant || remoteJid;
+    let participant = msg.key?.participant || (msg as any).participant;
+    if (!participant && msg.key?.fromMe) {
+      participant = this.sock?.user?.id || this.botPhoneNumber || '';
+    }
+    if (!participant) {
+      participant = remoteJid;
+    }
     const rawPhone = participant.split('@')[0].split(':')[0].replace(/\D/g, '');
     if (!rawPhone) return;
 
@@ -360,7 +370,9 @@ class WhatsAppWebBotService {
       groupSubject = this.groupJidCache.get(remoteJid) || '';
       if (!groupSubject && this.sock?.groupMetadata) {
         try {
-          const meta = await this.sock.groupMetadata(remoteJid);
+          const metaPromise = this.sock.groupMetadata(remoteJid);
+          const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 1500));
+          const meta: any = await Promise.race([metaPromise, timeoutPromise]);
           if (meta?.subject) {
             groupSubject = meta.subject;
             this.groupJidCache.set(remoteJid, groupSubject);
