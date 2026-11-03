@@ -220,9 +220,10 @@ class WhatsAppWebBotService {
     if (!remoteJid || remoteJid === 'status@broadcast') return;
 
     const isGroup = remoteJid.endsWith('@g.us');
-    const participant = isGroup
-      ? (msg.key?.participant || (msg as any).participant || remoteJid)
-      : remoteJid;
+    // Only process messages from connected WhatsApp groups
+    if (!isGroup) return;
+
+    const participant = msg.key?.participant || (msg as any).participant || remoteJid;
 
     const rawPhone = participant.split('@')[0].split(':')[0].replace(/\D/g, '');
     if (!rawPhone) return;

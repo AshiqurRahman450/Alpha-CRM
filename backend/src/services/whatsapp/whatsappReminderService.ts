@@ -41,7 +41,33 @@ export async function notifyCrmOfCustomerWhatsAppMessage(
   const cleanPhone = (senderPhone || '').replace(/\D/g, '');
   const last10 = cleanPhone.slice(-10);
 
-  // 1. Locate Customer by phone number (matches last 10 digits to handle country codes)
+  // Only proceed if this is from a connected/linked project group and from a customer
+  if (!groupId) {
+    return null;
+  }
+
+  // 1. Locate linked Project for this WhatsApp group
+  let project: any = await Project.findOne({
+    $or: [
+      { whatsappGroupId: groupId },
+      { 'whatsapp.groupId': groupId },
+    ],
+  }).populate('customerId');
+
+  if (!project) {
+    // Check WhatsAppChannel mapping
+    const channel = await WhatsAppChannel.findOne({ whatsappGroupId: groupId });
+    if (channel && channel.projectId) {
+      project = await Project.findById(channel.projectId).populate('customerId');
+    }
+  }
+
+  // Only show message reminders for CONNECTED project groups
+  if (!project) {
+    return null;
+  }
+
+  // 2. Locate Customer by phone number (matches last 10 digits to handle country codes)
   let customer: any = null;
   if (last10.length >= 10) {
     customer = await Customer.findOne({
@@ -52,43 +78,16 @@ export async function notifyCrmOfCustomerWhatsAppMessage(
     });
   }
 
-  // 2. Locate linked Project
-  let project: any = null;
-  if (groupId) {
-    // Try matching project by whatsappGroupId or subdocument
-    project = await Project.findOne({
-      $or: [
-        { whatsappGroupId: groupId },
-        { 'whatsapp.groupId': groupId },
-      ],
-    }).populate('customerId');
-
-    if (!project) {
-      // Check WhatsAppChannel mapping
-      const channel = await WhatsAppChannel.findOne({ whatsappGroupId: groupId });
-      if (channel && channel.projectId) {
-        project = await Project.findById(channel.projectId).populate('customerId');
-      }
+  // If project has customerId and customer wasn't resolved by phone, check project's customer
+  if (project.customerId) {
+    const projectCustomer = project.customerId.fullName ? project.customerId : await Customer.findById(project.customerId);
+    if (!customer) {
+      customer = projectCustomer;
     }
   }
 
-  // Fallback: If project not found by group, try finding by customer
-  if (!project && customer) {
-    project = await Project.findOne({ customerId: customer._id });
-  }
-
-  // If project was found but customer wasn't, retrieve customer from project
-  if (project && !customer && project.customerId) {
-    if (project.customerId.fullName) {
-      customer = project.customerId;
-    } else {
-      customer = await Customer.findById(project.customerId);
-    }
-  }
-
-  // Only proceed if this is a customer or a project-linked group message
-  // (ignores random non-customer bot pings if not related to any customer or project)
-  if (!customer && !project && !groupId) {
+  // Must be verified as a customer or belonging to this connected project
+  if (!customer) {
     return null;
   }
 
