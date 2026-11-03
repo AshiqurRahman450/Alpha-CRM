@@ -19,6 +19,8 @@ class WhatsAppWebBotService {
   private outgoingBotMessageIds: Set<string> = new Set();
   private cacheFilePath: string;
   private saveTimer: NodeJS.Timeout | null = null;
+  private lastDisconnectInfo: any = null;
+  private recentEvents: Array<{ time: string; type: string; details: any }> = [];
 
   constructor() {
     const candidates = [
@@ -100,6 +102,38 @@ class WhatsAppWebBotService {
     return undefined;
   }
 
+  public logEvent(type: string, details: any) {
+    this.recentEvents.unshift({
+      time: new Date().toISOString(),
+      type,
+      details,
+    });
+    if (this.recentEvents.length > 50) this.recentEvents.pop();
+  }
+
+  public getDiagnostic() {
+    const credsPath = path.join(this.authDir, 'creds.json');
+    const hasCreds = fs.existsSync(credsPath);
+    let filesCount = 0;
+    try {
+      if (fs.existsSync(this.authDir)) {
+        filesCount = fs.readdirSync(this.authDir).length;
+      }
+    } catch {}
+
+    return {
+      status: this.status,
+      isConnected: this.status === 'CONNECTED',
+      botPhoneNumber: this.botPhoneNumber,
+      authDir: this.authDir,
+      credsExists: hasCreds,
+      totalAuthFiles: filesCount,
+      lastDisconnect: this.lastDisconnectInfo,
+      recentEvents: this.recentEvents.slice(0, 15),
+      activeSocket: !!this.sock,
+    };
+  }
+
   public getStatus() {
     return {
       status: this.status,
@@ -129,7 +163,17 @@ class WhatsAppWebBotService {
       } = baileys as any;
 
       const pino = (await import('pino')).default || (await import('pino'));
-      const logger = pino({ level: 'silent' });
+      const logger = pino({ level: 'warn' });
+
+      if (this.sock) {
+        try {
+          this.sock.ev.removeAllListeners('connection.update');
+          this.sock.ev.removeAllListeners('creds.update');
+          this.sock.ev.removeAllListeners('messages.upsert');
+          this.sock.end(new Error('Resetting socket'));
+        } catch {}
+        this.sock = null;
+      }
 
       console.log(`[WhatsAppWebBot] Initializing bot socket... AuthDir: ${this.authDir}`);
       const { state, saveCreds } = await useMultiFileAuthState(this.authDir);
@@ -150,7 +194,7 @@ class WhatsAppWebBotService {
           keys: makeCacheableSignalKeyStore(state.keys, logger),
         },
         printQRInTerminal: true, // Output QR in VPS terminal / pm2 logs
-        browser: ['Alpha Elevators CRM', 'Chrome', '1.0.0'],
+        browser: (baileys as any).Browsers?.ubuntu ? (baileys as any).Browsers.ubuntu('Chrome') : ['Ubuntu', 'Chrome', '22.04.4'],
         defaultQueryTimeoutMs: 60000,
         keepAliveIntervalMs: 25000, // Send keep-alive pings to keep VPS WebSocket connection active
         markOnlineOnConnect: true,
@@ -213,6 +257,8 @@ class WhatsAppWebBotService {
           const isLoggedOut = statusCode === (DisconnectReason?.loggedOut ?? 401);
           const isReplaced = statusCode === (DisconnectReason?.connectionReplaced ?? 440);
 
+          this.lastDisconnectInfo = { statusCode, isLoggedOut, isReplaced, time: new Date().toISOString() };
+          this.logEvent('CONNECTION_CLOSED', this.lastDisconnectInfo);
           console.log(`[WhatsAppWebBot] Connection closed (code: ${statusCode}). LoggedOut: ${isLoggedOut}, Replaced: ${isReplaced}`);
           this.status = 'DISCONNECTED';
           this.qrCodeDataUrl = null;

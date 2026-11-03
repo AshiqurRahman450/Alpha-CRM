@@ -1,14 +1,28 @@
 export function getApiBaseUrl(): string {
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    // Local development
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+    }
+
+    // Live deployment (VPS / Production Domain)
+    if (
+      process.env.NEXT_PUBLIC_API_URL &&
+      !process.env.NEXT_PUBLIC_API_URL.includes('localhost') &&
+      !process.env.NEXT_PUBLIC_API_URL.includes('127.0.0.1')
+    ) {
+      return process.env.NEXT_PUBLIC_API_URL;
+    }
+
+    // Default to the current origin so reverse proxy (/api) routes directly to the live backend
+    return window.location.origin;
+  }
+
   if (process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
   }
-  if (typeof window !== 'undefined') {
-    const host = window.location.hostname;
-    if (host === 'localhost' || host === '127.0.0.1') {
-      return 'http://localhost:5000';
-    }
-  }
-  return 'https://crmapi.alphaelevators.io';
+  return 'http://localhost:5000';
 }
 
 export const API_BASE_URL = getApiBaseUrl();

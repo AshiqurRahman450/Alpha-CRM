@@ -34,7 +34,10 @@ export async function notifyCrmOfCustomerWhatsAppMessage(
   const messageText = input.messageText || input.messageContent || '';
   const metaMessageId = input.metaMessageId || input.messageId;
 
+  console.log(`[WhatsAppReminder] 📩 Inbound message received: sender=${senderPhone}, group=${groupId} ("${groupSubject || 'No Subject'}"): "${messageText.slice(0, 50)}"`);
+
   if (!messageText || messageText.trim() === '') {
+    console.log('[WhatsAppReminder] Skipped: empty message text.');
     return null;
   }
 
@@ -43,6 +46,7 @@ export async function notifyCrmOfCustomerWhatsAppMessage(
 
   // Only proceed if this is from a connected WhatsApp group
   if (!groupId || !groupId.endsWith('@g.us') || groupId === 'DIRECT') {
+    console.log(`[WhatsAppReminder] Skipped: not a group message (groupId=${groupId})`);
     return null;
   }
 

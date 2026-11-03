@@ -6,6 +6,7 @@ import { config } from './config';
 import { connectDB } from './config/db';
 import path from 'path';
 import { initScheduler } from './services/scheduler/schedulerService';
+import { whatsAppWebBot } from './services/whatsapp';
 
 import { authRouter } from './routes/auth';
 import { customerRouter } from './routes/customers';
@@ -49,6 +50,21 @@ if (config.nodeEnv !== 'test') {
 
 // Serve uploaded documents
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// WhatsApp Web Bot Public Diagnostic Route
+app.get('/api/health/whatsapp-bot', async (req: Request, res: Response) => {
+  try {
+    const diag = whatsAppWebBot.getDiagnostic();
+    res.json({
+      success: true,
+      service: 'WhatsApp Web Bot',
+      timestamp: new Date().toISOString(),
+      ...diag,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 // Health Check
 app.get('/api/health', (req: Request, res: Response) => {
@@ -267,11 +283,13 @@ export async function startServer() {
     initScheduler();
 
     // Initialize WhatsApp Web Bot for automated inside-group posting
-    import('./services/whatsapp/whatsappWebBot').then(({ whatsAppWebBot }) => {
-      whatsAppWebBot.initialize().catch((err) => {
-        console.warn('[Server] WhatsApp Web Bot init notice:', err.message);
-      });
-    });
+    try {
+      console.log('[Server] 🤖 Starting WhatsApp Web Bot initialization...');
+      await whatsAppWebBot.initialize();
+      console.log('[Server] 🤖 WhatsApp Web Bot initialization routine completed.');
+    } catch (botErr: any) {
+      console.error('[Server] Fatal error initializing WhatsApp Web Bot:', botErr.message);
+    }
 
     const server = app.listen(config.port, () => {
       console.log(`====================================================`);
