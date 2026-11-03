@@ -77,6 +77,8 @@ export default function Navbar() {
                 ? 'Dashboard'
                 : pathname === '/qc'
                 ? 'QC Pre-Production Site Inspection'
+                : pathname === '/handover'
+                ? 'Handover Customers'
                 : pathname.startsWith('/projects/') && pathname !== '/projects'
                 ? 'Project Details'
                 : pathname.slice(1).charAt(0).toUpperCase() + pathname.slice(2)}

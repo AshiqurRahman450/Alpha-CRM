@@ -340,11 +340,15 @@ projectRouter.get('/', async (req: AuthRequest, res: Response) => {
     if (status && typeof status === 'string') {
       if (status.includes(',')) {
         query.projectStatus = { $in: status.split(',') };
+      } else if (status === 'HANDOVER') {
+        query.projectStatus = { $in: ['TESTING', 'COMPLETED'] };
       } else if (status === 'ACTIVE') {
-        query.projectStatus = { $nin: ['COMPLETED', 'CANCELLED'] };
+        query.projectStatus = { $nin: ['TESTING', 'COMPLETED', 'CANCELLED'] };
       } else {
         query.projectStatus = status;
       }
+    } else if (req.query.excludeHandover === 'true') {
+      query.projectStatus = { $nin: ['TESTING', 'COMPLETED', 'CANCELLED'] };
     }
 
     if (paymentStatus && typeof paymentStatus === 'string') {
@@ -571,11 +575,15 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
     if (status && typeof status === 'string') {
       if (status.includes(',')) {
         query.projectStatus = { $in: status.split(',') };
+      } else if (status === 'HANDOVER') {
+        query.projectStatus = { $in: ['TESTING', 'COMPLETED'] };
       } else if (status === 'ACTIVE') {
-        query.projectStatus = { $nin: ['COMPLETED', 'CANCELLED'] };
+        query.projectStatus = { $nin: ['TESTING', 'COMPLETED', 'CANCELLED'] };
       } else {
         query.projectStatus = status;
       }
+    } else if (req.query.excludeHandover === 'true') {
+      query.projectStatus = { $nin: ['TESTING', 'COMPLETED', 'CANCELLED'] };
     }
 
     if (paymentStatus && typeof paymentStatus === 'string') {

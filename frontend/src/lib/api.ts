@@ -436,19 +436,21 @@ export const api = {
     }),
 
   // Projects
-  getProjects: (params?: { status?: string; paymentStatus?: string; search?: string; updateDue?: string }) => {
+  getProjects: (params?: { status?: string; paymentStatus?: string; search?: string; updateDue?: string; excludeHandover?: boolean }) => {
     const q = new URLSearchParams();
     if (params?.status) q.append('status', params.status);
     if (params?.paymentStatus) q.append('paymentStatus', params.paymentStatus);
     if (params?.search) q.append('search', params.search);
     if (params?.updateDue) q.append('updateDue', params.updateDue);
+    if (params?.excludeHandover) q.append('excludeHandover', 'true');
     return fetchWithAuth(`/api/projects?${q.toString()}`);
   },
-  exportProjectsExcel: async (params?: { status?: string; paymentStatus?: string; search?: string }): Promise<Blob> => {
+  exportProjectsExcel: async (params?: { status?: string; paymentStatus?: string; search?: string; excludeHandover?: boolean }): Promise<Blob> => {
     const q = new URLSearchParams();
     if (params?.status) q.append('status', params.status);
     if (params?.paymentStatus) q.append('paymentStatus', params.paymentStatus);
     if (params?.search) q.append('search', params.search);
+    if (params?.excludeHandover) q.append('excludeHandover', 'true');
 
     const token = getAuthToken();
     const headers: Record<string, string> = {};
