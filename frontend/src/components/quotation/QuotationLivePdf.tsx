@@ -360,8 +360,8 @@ export default function QuotationLivePdf({
       const isEv = Boolean(
         (data.model && /\bEV\b|home\s*EV|battery/i.test(data.model)) || (data.battery && data.battery.trim() !== '')
       );
-      const rowH = isEv ? '39.85px' : '42.92px';
-      const fontSize = isEv ? '13px' : '13.5px';
+      const rowH = isEv ? '37.2px' : '39.85px';
+      const fontSize = isEv ? '12px' : '12.5px';
 
       const doorOpeningVal =
         data.doorOpening ||
@@ -373,7 +373,7 @@ export default function QuotationLivePdf({
         data.doorAccess &&
         !['inline', 'adjacent', 'Opposite Side', 'inline and adjacent', 'Same Side'].includes(data.doorAccess)
           ? data.doorAccess
-          : 'G - ABCD, 1 - ABCD, 2 - ABCD, 3 - ABCD';
+          : 'G - ABCG, 1 - ABCG, 2 - ABCG, 3 - ABCG';
 
       const batteryRowHtml = isEv ? `
 <tr style="height:${rowH};border-bottom:1px solid #000000;">
@@ -417,7 +417,7 @@ export default function QuotationLivePdf({
 </tr>
 <tr style="height:${rowH};border-bottom:1px solid #000000;">
 <td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">Speed</td>
-<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">${data.speed || 'upto 1 m/s '}</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">${data.speed || '.4 m/s'}</td>
 </tr>
 <tr style="height:${rowH};border-bottom:1px solid #000000;">
 <td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">Machine</td>
@@ -431,9 +431,13 @@ export default function QuotationLivePdf({
 <td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">Car Size</td>
 <td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">${data.carSize || 'TBC*'}</td>
 </tr>${batteryRowHtml}
-<tr style="height:${rowH};">
+<tr style="height:${rowH};border-bottom:1px solid #000000;">
 <td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">Clear Opening</td>
 <td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">${data.clearOpening || 'TBC*'}</td>
+</tr>
+<tr style="height:${rowH};">
+<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">Customer Specific requirements</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">${data.customerSpecificRequirements || 'Nil'}</td>
 </tr>
 </tbody>
 </table>`;
@@ -633,9 +637,41 @@ export default function QuotationLivePdf({
             transition: 'transform 0.15s ease-out',
           }}
         >
-          {/* Ensure customer name font color matches Dear's color on Page 2 and remove three dots in header on all pages */}
+          {/* Proposal styles: colors, cleanups, and watermark */}
           <style dangerouslySetInnerHTML={{ __html: `
+            #p0 .c1 { color: #0f4b31 !important; }
+            #p0 .im[style*="714.6"] { display: none !important; }
+            #p0::after {
+              content: '';
+              position: absolute;
+              left: 710px;
+              top: 960px;
+              width: 80px;
+              height: 155px;
+              background: #ffffff;
+              z-index: 10;
+              pointer-events: none;
+            }
             #p1 .c9 { color: #0e4b31 !important; }
+            #p10 .c35, #p10 .c37 { color: #000000 !important; }
+            .exact-pdf-container .page::before,
+            .proposal-page-wrapper .page::before {
+              content: '';
+              position: absolute;
+              left: 50%;
+              top: 50%;
+              transform: translate(-50%, -50%);
+              width: 520px;
+              height: 290px;
+              background-image: url('/logo-black.png');
+              background-size: contain;
+              background-repeat: no-repeat;
+              background-position: center;
+              opacity: 0.08;
+              mix-blend-mode: multiply;
+              pointer-events: none;
+              z-index: 5;
+            }
             .exact-pdf-container .page:not(#p0):not(#p1):not(#p10)::after {
               content: '';
               position: absolute;

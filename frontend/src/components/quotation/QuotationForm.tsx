@@ -96,10 +96,10 @@ export default function QuotationForm({
       data.doorAccess &&
       !['inline', 'adjacent', 'Opposite Side', 'inline and adjacent', 'Same Side'].includes(data.doorAccess)
     ) {
-      const regex = new RegExp(`(?:^|,|\\|)\\s*${floor}\\s*[-:]\\s*([A-D]+)`, 'i');
+      const regex = new RegExp(`(?:^|,|\\|)\\s*${floor}\\s*[-:]\\s*([A-CG]+)`, 'i');
       const match = data.doorAccess.match(regex);
       if (match && match[1]) {
-        return match[1].toUpperCase().split('').filter((c) => ['A', 'B', 'C', 'D'].includes(c));
+        return match[1].toUpperCase().split('').filter((c) => ['A', 'B', 'C', 'G'].includes(c));
       }
     }
     return ['A']; // Standard default
@@ -108,9 +108,10 @@ export default function QuotationForm({
   const handleToggleFloorLetter = (floor: string, letter: string) => {
     const currentFloors = getFloorsList();
     const currentSelected = getFloorLetters(floor);
+    const letterOrder: Record<string, number> = { A: 1, B: 2, C: 3, G: 4 };
     const newSelected = currentSelected.includes(letter)
       ? currentSelected.filter((l) => l !== letter)
-      : [...currentSelected, letter].sort();
+      : [...currentSelected, letter].sort((a, b) => (letterOrder[a] || 99) - (letterOrder[b] || 99));
 
     const updatedMap: Record<string, string[]> = { ...(data.doorAccessFloors || {}) };
     currentFloors.forEach((f) => {
@@ -131,13 +132,13 @@ export default function QuotationForm({
     });
   };
 
-  const handleSetAllFloorsAbcd = () => {
+  const handleSetAllFloorsAbcg = () => {
     const currentFloors = getFloorsList();
     const updatedMap: Record<string, string[]> = {};
     currentFloors.forEach((f) => {
-      updatedMap[f] = ['A', 'B', 'C', 'D'];
+      updatedMap[f] = ['A', 'B', 'C', 'G'];
     });
-    const formattedStr = currentFloors.map((f) => `${f} - ABCD`).join(', ');
+    const formattedStr = currentFloors.map((f) => `${f} - ABCG`).join(', ');
     onChange({
       ...data,
       doorAccessFloors: updatedMap,
@@ -145,11 +146,11 @@ export default function QuotationForm({
     });
   };
 
-  const handleSetFloorAbcd = (floor: string) => {
+  const handleSetFloorAbcg = (floor: string) => {
     const currentFloors = getFloorsList();
     const updatedMap: Record<string, string[]> = { ...(data.doorAccessFloors || {}) };
     currentFloors.forEach((f) => {
-      updatedMap[f] = f === floor ? ['A', 'B', 'C', 'D'] : getFloorLetters(f);
+      updatedMap[f] = f === floor ? ['A', 'B', 'C', 'G'] : getFloorLetters(f);
     });
     const formattedStr = currentFloors
       .map((f) => `${f} - ${(updatedMap[f] || []).join('') || 'None'}`)
@@ -214,6 +215,7 @@ export default function QuotationForm({
       onChange({
         ...data,
         ...preset.data,
+        speed: '.4 m/s',
         warranty,
       });
     }
@@ -1590,17 +1592,17 @@ export default function QuotationForm({
                   <div className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-teal-500"></span>
                     <label className="text-xs font-black text-slate-800 tracking-wide uppercase">
-                      Door Access (Floor-wise: A, B, C, D)
+                      Door Access (Floor-wise: A, B, C, G)
                     </label>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={handleSetAllFloorsAbcd}
+                      onClick={handleSetAllFloorsAbcg}
                       className="px-2.5 py-1 text-[11px] font-bold bg-teal-600 hover:bg-teal-700 text-white rounded-lg shadow-xs transition-colors cursor-pointer"
-                      title="Set all floors to ABCD"
+                      title="Set all floors to ABCG"
                     >
-                      All ABCD
+                      All ABCG
                     </button>
                     <button
                       type="button"
@@ -1614,7 +1616,7 @@ export default function QuotationForm({
                 </div>
 
                 <p className="text-[11px] text-slate-500 leading-tight">
-                  Tick the checkbox before each letter (A, B, C, D) to clearly specify door access per floor (e.g. G - ABCD, 1 - ABCD, 2 - ABCD, 3 - ABCD):
+                  Tick the checkbox before each letter (A, B, C, G) to clearly specify door access per floor (e.g. G - ABCG, 1 - ABCG, 2 - ABCG, 3 - ABCG):
                 </p>
 
                 <div className="space-y-2">
@@ -1633,7 +1635,7 @@ export default function QuotationForm({
 
                           {/* 4 Checkboxes with tick box before each letter */}
                           <div className="flex items-center gap-2.5">
-                            {(['A', 'B', 'C', 'D'] as const).map((letter) => {
+                            {(['A', 'B', 'C', 'G'] as const).map((letter) => {
                               const checked = letters.includes(letter);
                               return (
                                 <label
@@ -1661,10 +1663,10 @@ export default function QuotationForm({
                         <div className="flex items-center gap-1">
                           <button
                             type="button"
-                            onClick={() => handleSetFloorAbcd(floor)}
+                            onClick={() => handleSetFloorAbcg(floor)}
                             className="px-2 py-0.5 text-[10px] font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-md transition-colors cursor-pointer"
                           >
-                            ABCD
+                            ABCG
                           </button>
                         </div>
                       </div>
@@ -1790,6 +1792,17 @@ export default function QuotationForm({
                   value={data.clearOpening}
                   onChange={(e) => updateField('clearOpening', e.target.value)}
                   placeholder="e.g. TBC*"
+                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Customer Specific requirements:</label>
+                <input
+                  type="text"
+                  value={data.customerSpecificRequirements ?? 'Nil'}
+                  onChange={(e) => updateField('customerSpecificRequirements', e.target.value)}
+                  placeholder="e.g. Nil"
                   className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
                 />
               </div>
