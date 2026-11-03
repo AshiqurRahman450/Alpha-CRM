@@ -21,6 +21,7 @@ export interface IReminder extends Document {
   whatsappGroupId?: string;
   whatsappGroupName?: string;
   whatsappMessageId?: string;
+  whatsappSource?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -100,6 +101,11 @@ const ReminderSchema = new Schema<IReminder>(
     whatsappMessageId: {
       type: String,
       trim: true,
+    },
+    whatsappSource: {
+      type: String,
+      trim: true,
+      default: 'WHATSAPP_WEB_BOT',
     },
   },
   { timestamps: true }

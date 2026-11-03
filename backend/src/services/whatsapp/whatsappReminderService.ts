@@ -204,6 +204,7 @@ export async function notifyCrmOfCustomerWhatsAppMessage(
     whatsappGroupId: groupId,
     whatsappGroupName: resolvedGroupName,
     whatsappMessageId: messageId,
+    whatsappSource: 'WHATSAPP_WEB_BOT',
   });
 
   console.log(`[WhatsAppReminder] Successfully created reminder for CRM: "${title}" (ID: ${reminder._id}, Group: ${groupId})`);

@@ -63,7 +63,7 @@ export default function NotificationProvider() {
                       <div className="flex-1 w-0">
                         {isWhatsApp && (
                           <span className="inline-block px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 mb-1 border border-emerald-200">
-                            💬 Connected Group Message
+                            🤖 Web Bot • Connected Group Message
                           </span>
                         )}
                         <p className="text-sm font-bold text-slate-900">

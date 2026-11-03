@@ -10,7 +10,7 @@ import {
   SystemSettings,
 } from '../models';
 import { logProjectActivity } from '../services/activity/activityService';
-import { whatsappService, watiService, notifyCrmOfCustomerWhatsAppMessage } from '../services/whatsapp';
+import { whatsappService, watiService } from '../services/whatsapp';
 
 export const webhookRouter = Router();
 
@@ -237,20 +237,6 @@ async function handleIncomingMessage(messageObj: any, contacts: any[] = []): Pro
   } else {
     console.warn(`[Webhook:POST] Unlinked WhatsApp message received from ${senderPhone} (Group: ${groupId}). Content: "${messageContent}"`);
   }
-
-  // Notify CRM via Reminder regardless of project linkage if from customer or group
-  try {
-    await notifyCrmOfCustomerWhatsAppMessage({
-      senderPhone,
-      senderName,
-      messageText: messageContent,
-      groupId,
-      groupSubject: (channel as any)?.whatsappGroupName || project?.projectName,
-      metaMessageId: messageId,
-    });
-  } catch (err: any) {
-    console.warn('[Webhook:POST] Error creating WhatsApp reminder for CRM:', err.message);
-  }
 }
 
 /**
@@ -401,20 +387,6 @@ webhookRouter.post('/wati', async (req: Request, res: Response) => {
           description: `Message received via WATI from ${senderName}: "${incomingText}"`,
           metadata: { providerMsgId, senderPhone },
         });
-      }
-
-      // Create CRM reminder for customer incoming WhatsApp message
-      try {
-        await notifyCrmOfCustomerWhatsAppMessage({
-          senderPhone,
-          senderName,
-          messageContent: incomingText,
-          groupId: groupId || undefined,
-          messageId: providerMsgId,
-          source: 'WATI',
-        });
-      } catch (remErr: any) {
-        console.error('[WatiWebhook:POST] Failed to create CRM reminder:', remErr.message);
       }
     }
   } catch (err: any) {
