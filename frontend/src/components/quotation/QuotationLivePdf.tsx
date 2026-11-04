@@ -490,7 +490,7 @@ export default function QuotationLivePdf({
       }
       // Ensure the 4 empty boxes before contact footer are removed/masked
       if (!updated.includes('top:840px')) {
-        const maskDiv = '<div style="position:absolute;left:25px;top:840px;width:745px;height:195px;background:#ffffff;z-index:90;"></div>\n';
+        const maskDiv = '<div style="position:absolute;left:25px;top:840px;width:745px;height:190px;background:#ffffff;z-index:90;"></div>\n';
         if (updated.includes('<p style="display:contents">\n<div class="t c10" style="z-index:5334')) {
           updated = updated.replace('<p style="display:contents">\n<div class="t c10" style="z-index:5334', maskDiv + '<p style="display:contents">\n<div class="t c10" style="z-index:5334');
         } else if (updated.includes('+91 80151 29224')) {
@@ -513,8 +513,24 @@ export default function QuotationLivePdf({
       updated = updated.replace(/#d5e5dc/g, '#d1d5db');
       updated = updated.replace(/#e2ece6/g, '#e5e7eb');
       updated = updated.replace(/rgba\(14,75,49,0\.06\)/g, 'rgba(0,0,0,0.06)');
-      updated = updated.replace(/class="t c10"/g, 'class="t c10" style="color:#000000 !important;"');
-      updated = updated.replace(/class="t c3"/g, 'class="t c3" style="color:#000000 !important;"');
+
+      // Ensure Page 10 footer contact elements maintain their exact coordinates and clean styling
+      updated = updated.replace(
+        /<div[^>]*>[^<]*\+91\s*80151\s*29224[^<]*<\/div>/i,
+        '<div class="t c10" style="z-index:5334;transform:matrix(1,0,0,1,98.53,1048.25);color:#000000 !important;">+91 80151 29224</div>'
+      );
+      updated = updated.replace(
+        /<div[^>]*>[^<]*info@alphaelevators\.in[^<]*<\/div>/i,
+        '<div class="t c3" style="z-index:5349;transform:matrix(1,0,0,1,329.28,1050.37);color:#000000 !important;">info@alphaelevators.in </div>'
+      );
+      updated = updated.replace(
+        /<div[^>]*>[^<]*(?<!@)(?:www\.)?alphaelevators\.in[^<]*<\/div>/i,
+        '<div class="t c3" style="z-index:5373;transform:matrix(1,0,0,1,587.97,1050.37);color:#000000 !important;">alphaelevators.in </div>'
+      );
+      updated = updated.replace(
+        /<div[^>]*>[^<]*99,\s*A-Block[^<]*<\/div>/i,
+        '<div class="t c10" style="z-index:5393;transform:matrix(1,0,0,1,107.17,1085.88);color:#000000 !important;">99, A-Block, 3rd  Street, Annanagar, Anna Nagar East, Chennai- 600102, Tamil Nadu</div>'
+      );
     }
 
     return updated;
