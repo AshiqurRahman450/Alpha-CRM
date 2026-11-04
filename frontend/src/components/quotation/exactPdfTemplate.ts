@@ -393,6 +393,18 @@ export function sanitizeProposalParagraphs(html: string, pageNum: number, data?:
     );
   }
 
+  // ===================== PAGE 11 =====================
+  if (pageNum === 11 || updated.includes('Our Presence in INDIA') || updated.includes('id="p10"')) {
+    updated = updated.replace(
+      /<div[^>]*>[^<]*Contact Details:?\s*<\/div>/i,
+      '<div class="t c35" style="z-index:14;transform:matrix(1,0,0,1,29.02,805.73);color:#000000 !important;">Contact Details: </div>'
+    );
+    updated = updated.replace(
+      /<div[^>]*>[^<]*Our Presence in INDIA[^<]*<\/div>/i,
+      '<div class="t c37" style="z-index:45;transform:matrix(1,0,0,1,28.96,713.41);color:#000000 !important;">Our Presence in INDIA</div>'
+    );
+  }
+
   // Remove three dots in header on pages 3-10 if an old cached draft or uncleaned template is loaded
   if ((pageNum >= 3 && pageNum <= 10) || /id="p[2-9]"/.test(updated)) {
     if (!updated.includes('header-dot-remover')) {
@@ -788,9 +800,15 @@ export function renderExactPdfPage(pageIdx: number, data: QuotationData): string
       }
     }
   } else if (pageIdx === 10) {
-    // Page 11: Back Cover - change green elements to black
-    html = html.replace(/class="t c35"/g, 'class="t c35" style="color:#000000 !important;"');
-    html = html.replace(/class="t c37"/g, 'class="t c37" style="color:#000000 !important;"');
+    // Page 11: Back Cover - ensure clean styling and exact coordinates
+    html = html.replace(
+      /<div[^>]*>[^<]*Contact Details:?\s*<\/div>/i,
+      '<div class="t c35" style="z-index:14;transform:matrix(1,0,0,1,29.02,805.73);color:#000000 !important;">Contact Details: </div>'
+    );
+    html = html.replace(
+      /<div[^>]*>[^<]*Our Presence in INDIA[^<]*<\/div>/i,
+      '<div class="t c37" style="z-index:45;transform:matrix(1,0,0,1,28.96,713.41);color:#000000 !important;">Our Presence in INDIA</div>'
+    );
   }
 
   // Ensure dual id for both pdf2html styles (#p0..#p9) and html2canvas print (#quotation-page-1..#quotation-page-10)

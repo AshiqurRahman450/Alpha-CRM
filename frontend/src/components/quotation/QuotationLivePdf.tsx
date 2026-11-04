@@ -531,6 +531,16 @@ export default function QuotationLivePdf({
         /<div[^>]*>[^<]*99,\s*A-Block[^<]*<\/div>/i,
         '<div class="t c10" style="z-index:5393;transform:matrix(1,0,0,1,107.17,1085.88);color:#000000 !important;">99, A-Block, 3rd  Street, Annanagar, Anna Nagar East, Chennai- 600102, Tamil Nadu</div>'
       );
+    } else if (pageNum === 11 && updated) {
+      // Ensure Page 11 Contact Details and Presence in INDIA maintain their exact coordinates and clean styling
+      updated = updated.replace(
+        /<div[^>]*>[^<]*Contact Details:?\s*<\/div>/i,
+        '<div class="t c35" style="z-index:14;transform:matrix(1,0,0,1,29.02,805.73);color:#000000 !important;">Contact Details: </div>'
+      );
+      updated = updated.replace(
+        /<div[^>]*>[^<]*Our Presence in INDIA[^<]*<\/div>/i,
+        '<div class="t c37" style="z-index:45;transform:matrix(1,0,0,1,28.96,713.41);color:#000000 !important;">Our Presence in INDIA</div>'
+      );
     }
 
     return updated;
