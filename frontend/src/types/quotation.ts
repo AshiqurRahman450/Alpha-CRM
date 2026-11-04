@@ -124,12 +124,12 @@ export const DEFAULT_QUOTATION_DATA: QuotationData = {
 
   salutation: 'Dear Mr. Rathish Rajakumar',
   introParagraph1:
-    'Welcome to Alpha Elevators, where vertical mobility meets sophistication! We are a fast-emerging brand in the elevator industry Powered by NK Group of Companies, we blend Indian ingenuity with Italian craftsmanship to redefine excellence in vertical transportation.',
+    'At Alpha Elevators, we are redefining vertical mobility through innovative technology, precision engineering, and refined craftsmanship. We combine Indian ingenuity with Italian expertise to deliver elevator solutions that bring together luxury, safety, and reliability.',
   introParagraph2:
-    'With a state-of-the-art manufacturing facility in Bangalore and partnerships with Italian companies for motors and controllers, our elevators offer a seamless fusion of precision engineering and artisanal craftsmanship, Backed by over 08 years of expertise, our team ensures effortless installations and reliable servicing. From bustling commercial spaces to serene residences, Alpha Elevators symbolizes luxury, safety, and efficiency.',
+    'With over 8 years of industry experience, our team is committed to delivering seamless installations, dependable servicing, and exceptional customer experiences. From elegant residential spaces to modern commercial environments, we create elevator solutions tailored to diverse needs.',
   introParagraph3:
-    'Thank you for joining us as we elevate your expectations and ascend new heights together!',
-  visionText: 'Elevating possibilities and building lasting bonds — one lift at a time',
+    'Thank you for choosing Alpha Elevators. We look forward to elevating your expectations and creating new possibilities together.',
+  visionText: 'Elevating possibilities and building lasting bonds — one lift at a time.',
 
   hoistWayShaftSize: '1450mm X 1800mm',
   pitDepth: '250mm',

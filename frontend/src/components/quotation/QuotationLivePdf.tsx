@@ -116,8 +116,11 @@ export default function QuotationLivePdf({
       }
     }
 
-    // Page 2: Ensure customer name font color matches Dear's font color (#0e4b31)
-    if (pageNum === 2) {
+    // Page 2: Ensure new letter content and customer name font color
+    if (pageNum === 2 && updated) {
+      if (updated.includes('NK Group of Companies') || !updated.includes('Where Vertical Mobility Meets Sophistication')) {
+        return renderExactPdfPage(1, data);
+      }
       updated = updated.replace(
         '<div class="t c9" style="z-index:1263;transform:matrix(1,0,0,1,94.46,200.44)">',
         '<div class="t c8" style="z-index:1263;transform:matrix(1,0,0,1,94.46,200.44);color:#0e4b31;">'
@@ -778,6 +781,8 @@ export default function QuotationLivePdf({
             // Standard 11-page template
             if (pageNum === 1 && (!isEditing || !baseHtml || !baseHtml.includes('CLIENT NAME') || !baseHtml.includes('MODEL'))) {
               baseHtml = renderExactPdfPage(0, data);
+            } else if (pageNum === 2 && (!isEditing || !baseHtml || baseHtml.includes('NK Group of Companies') || !baseHtml.includes('Where Vertical Mobility Meets Sophistication'))) {
+              baseHtml = renderExactPdfPage(1, data);
             } else if (pageNum === 10 && (!isEditing || !baseHtml || baseHtml.includes('Our Presence in INDIA') || baseHtml.includes('#0e4b31'))) {
               baseHtml = renderExactPdfPage(pageIdx, data);
             } else if (!baseHtml) {

@@ -48,6 +48,14 @@ export function sanitizeProposalParagraphs(html: string, pageNum: number, data?:
     updated = updated.replace(/<img class="im"[^>]*style="[^"]*714\.6[^"]*"[^>]*>/g, '');
   }
 
+  // ===================== PAGE 2 =====================
+  if ((pageNum === 2 || updated.includes('id="p1"')) && data) {
+    if (updated.includes('NK Group of Companies') || !updated.includes('Where Vertical Mobility Meets Sophistication')) {
+      return renderExactPdfPage(1, data);
+    }
+    updated = buildPage2LetterHtml(updated, data);
+  }
+
   // ===================== PAGE 6 =====================
   if (pageNum === 6 || updated.includes('id="p5"')) {
     // 1. Taxes & Duties on Page 6
@@ -509,6 +517,147 @@ export function buildPage10BillingShippingHtml(data: QuotationData): string {
   return html;
 }
 
+export function buildPage2LetterHtml(html: string, data?: QuotationData): string {
+  if (!html) return html;
+
+  // Offer No
+  html = html.replace('AE/QTN/AE- 261026-131', data?.offerNo || 'AE/QTN/AE- 261026-131');
+
+  // Customer Name & Salutation
+  const rawClientName = data?.clientName?.trim() || (data?.salutation ? data.salutation.replace(/^Dear\s*/i, '').trim() : '');
+  const salutationName = (rawClientName ? rawClientName.replace(/^Dear\s*/i, '').trim() : '') || 'Mr. Rathish Rajakumar';
+  html = html.replace('Mr. Rathish Rajakumar ', salutationName + ' ');
+  html = html.replace('Mr. Rathish Rajakumar', salutationName);
+  html = html.replace(
+    '<div class="t c9" style="z-index:1263;transform:matrix(1,0,0,1,94.46,200.44)">',
+    '<div class="t c8" style="z-index:1263;transform:matrix(1,0,0,1,94.46,200.44);color:#0e4b31;">'
+  );
+
+  // Subject
+  if (data?.subject) {
+    html = html.replace('Sub: Supply, Install, test and commission of one Belt Type Home Elevator EV ', 'Sub: ' + data.subject + ' ');
+  }
+
+  const p1 =
+    data?.introParagraph1 ||
+    'At Alpha Elevators, we are redefining vertical mobility through innovative technology, precision engineering, and refined craftsmanship. We combine Indian ingenuity with Italian expertise to deliver elevator solutions that bring together luxury, safety, and reliability.';
+  const p2 =
+    data?.introParagraph2 ||
+    'With over 8 years of industry experience, our team is committed to delivering seamless installations, dependable servicing, and exceptional customer experiences. From elegant residential spaces to modern commercial environments, we create elevator solutions tailored to diverse needs.';
+  const p3 =
+    data?.introParagraph3 ||
+    'Thank you for choosing Alpha Elevators. We look forward to elevating your expectations and creating new possibilities together.';
+  const visionText =
+    data?.visionText || 'Elevating possibilities and building lasting bonds — one lift at a time.';
+
+  // Build replacement content
+  const page2NewContent = `
+    <!-- Top Intro Block -->
+    <div class="page2-intro-block" style="position:absolute;left:40px;top:265px;width:713px;z-index:20;">
+      <div style="font-family:'f4',sans-serif;font-size:18px;font-weight:bold;color:#0e4b31;letter-spacing:0.3px;margin-bottom:3px;">
+        Welcome to Alpha Elevators
+      </div>
+      <div style="font-family:'f2',sans-serif;font-size:12px;font-weight:600;color:#0e4b31;letter-spacing:0.5px;font-style:italic;margin-bottom:14px;">
+        Where Vertical Mobility Meets Sophistication
+      </div>
+      <div style="font-family:'f3',sans-serif;font-size:11.2px;line-height:17px;color:#1a3f2e;text-align:justify;margin-bottom:12px;">
+        ${p1}
+      </div>
+      <div style="font-family:'f3',sans-serif;font-size:11.2px;line-height:17px;color:#1a3f2e;text-align:justify;margin-bottom:12px;">
+        ${p2}
+      </div>
+      <div style="font-family:'f3',sans-serif;font-size:11.2px;line-height:17px;color:#1a3f2e;text-align:justify;margin-bottom:0;">
+        ${p3}
+      </div>
+    </div>
+
+    <!-- Vision Block -->
+    <div class="page2-vision-block" style="position:absolute;left:40px;top:570px;width:713px;z-index:20;">
+      <div style="font-family:'f4',sans-serif;font-size:15px;font-weight:bold;color:#0e4b31;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;">
+        Our Vision
+      </div>
+      <div style="font-family:'f3',sans-serif;font-size:11.5px;font-weight:600;color:#1a3f2e;font-style:italic;line-height:16px;border-left:3px solid #0e4b31;padding-left:10px;">
+        ${visionText}
+      </div>
+    </div>
+
+    <!-- Promise White Mask to cover background dots -->
+    <div style="position:absolute;left:365px;top:670px;width:390px;height:310px;background:#ffffff;z-index:15;"></div>
+
+    <!-- Promise Block -->
+    <div class="page2-promise-block" style="position:absolute;left:370px;top:672px;width:380px;z-index:20;">
+      <div style="font-family:'f4',sans-serif;font-size:16px;font-weight:bold;color:#0e4b31;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px;">
+        Our Promise
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div style="display:flex;align-items:flex-start;gap:8px;">
+          <span style="color:#0e4b31;font-size:13px;line-height:15px;font-weight:bold;">&bull;</span>
+          <div style="font-family:'f3',sans-serif;font-size:10.5px;line-height:15px;color:#1a3f2e;text-align:justify;">
+            <span style="font-family:'f1',sans-serif;font-weight:bold;color:#0e4b31;">Innovation with Precision:</span> Combining advanced technology and thoughtful design to deliver reliable, tailored elevator solutions.
+          </div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;">
+          <span style="color:#0e4b31;font-size:13px;line-height:15px;font-weight:bold;">&bull;</span>
+          <div style="font-family:'f3',sans-serif;font-size:10.5px;line-height:15px;color:#1a3f2e;text-align:justify;">
+            <span style="font-family:'f1',sans-serif;font-weight:bold;color:#0e4b31;">Seamless Service:</span> Providing dependable support and professional assistance throughout your elevator journey.
+          </div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;">
+          <span style="color:#0e4b31;font-size:13px;line-height:15px;font-weight:bold;">&bull;</span>
+          <div style="font-family:'f3',sans-serif;font-size:10.5px;line-height:15px;color:#1a3f2e;text-align:justify;">
+            <span style="font-family:'f1',sans-serif;font-weight:bold;color:#0e4b31;">Safety First:</span> Maintaining high safety standards to ensure confidence, comfort, and peace of mind.
+          </div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;">
+          <span style="color:#0e4b31;font-size:13px;line-height:15px;font-weight:bold;">&bull;</span>
+          <div style="font-family:'f3',sans-serif;font-size:10.5px;line-height:15px;color:#1a3f2e;text-align:justify;">
+            <span style="font-family:'f1',sans-serif;font-weight:bold;color:#0e4b31;">Customer-Centric Approach:</span> Understanding your needs and delivering solutions that exceed expectations.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tagline Block -->
+    <div class="page2-tagline-block" style="position:absolute;left:40px;top:990px;width:713px;text-align:center;z-index:20;">
+      <div style="width:160px;height:1px;background:#c2dbcd;margin:0 auto 7px auto;"></div>
+      <div style="font-family:'f2',sans-serif;font-size:11px;font-weight:800;color:#0e4b31;letter-spacing:3.5px;text-transform:uppercase;">
+        ELEVATE &bull; EXPERIENCE &bull; EXCEL
+      </div>
+    </div>
+  `;
+
+  // If page already has new content blocks, return it (updating dynamic values if needed)
+  if (html.includes('page2-intro-block')) {
+    return html;
+  }
+
+  // Remove old vision and promise titles
+  html = html.replace(/<div class="t c7"[^>]*>VISION -<\/div>/g, '');
+  html = html.replace(/<div class="t c7"[^>]*>OUR PROMISE:<\/div>/g, '');
+
+  // Find start and end markers of old body
+  const startMarker = '<div class="t c3" style="z-index:11;transform:matrix(1,0,0,1,62.53,282.21)">';
+  const endMarker = 'understanding, and delivering. </div>\n</p>';
+  const sIdx = html.indexOf(startMarker);
+  const eIdx = html.indexOf(endMarker);
+
+  if (sIdx !== -1 && eIdx !== -1) {
+    html = html.substring(0, sIdx) + page2NewContent + html.substring(eIdx + endMarker.length);
+  } else {
+    const oldP2Regex = /<p style="display:contents">\s*<div class="t c3" style="z-index:11;transform:matrix\(1,0,0,1,62\.53,282\.21\)">[\s\S]*?understanding, and delivering\.\s*<\/div>\s*<\/p>/;
+    if (oldP2Regex.test(html)) {
+      html = html.replace(oldP2Regex, page2NewContent);
+    } else {
+      const closeDivIdx = html.lastIndexOf('</div>');
+      if (closeDivIdx !== -1) {
+        html = html.substring(0, closeDivIdx) + page2NewContent + html.substring(closeDivIdx);
+      }
+    }
+  }
+
+  return html;
+}
+
 export function renderExactPdfPage(pageIdx: number, data: QuotationData): string {
   if (pageIdx === 9) {
     let html = buildPage10BillingShippingHtml(data);
@@ -548,23 +697,7 @@ export function renderExactPdfPage(pageIdx: number, data: QuotationData): string
     html = html.replace(/<img class="im"[^>]*style="[^"]*714\.6[^"]*"[^>]*>/g, '');
   } else if (pageIdx === 1) {
     // Page 2: Letter
-    html = html.replace('AE/QTN/AE- 261026-131', data.offerNo || 'AE/QTN/AE- 261026-131');
-    // Prioritize client full name typed in form, or custom salutation
-    const rawClientName = data.clientName?.trim() || (data.salutation ? data.salutation.replace(/^Dear\s*/i, '').trim() : '');
-    const salutationName = (rawClientName ? rawClientName.replace(/^Dear\s*/i, '').trim() : '') || 'Mr. Rathish Rajakumar';
-    html = html.replace('Mr. Rathish Rajakumar ', salutationName + ' ');
-    html = html.replace('Mr. Rathish Rajakumar', salutationName);
-    // Ensure customer name font color matches Dear's font color (#0e4b31)
-    html = html.replace(
-      '<div class="t c9" style="z-index:1263;transform:matrix(1,0,0,1,94.46,200.44)">',
-      '<div class="t c8" style="z-index:1263;transform:matrix(1,0,0,1,94.46,200.44);color:#0e4b31;">'
-    );
-    if (data.subject) {
-      html = html.replace('Sub: Supply, Install, test and commission of one Belt Type Home Elevator EV ', 'Sub: ' + data.subject + ' ');
-    }
-    if (data.visionText) {
-      html = html.replace('Elevating possibilities and building lasting bonds — one lift at a time', data.visionText);
-    }
+    html = buildPage2LetterHtml(html, data);
   } else if (pageIdx === 2) {
     // Page 3: Civil & Cabin
     html = html.replace('AE-261026-131', data.offerNo ? data.offerNo.replace(/^AE\/QTN\/\s*/i, '') : 'AE-261026-131');
