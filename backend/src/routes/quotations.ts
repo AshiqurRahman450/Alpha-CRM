@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { Quotation, Customer, Project, User, Reminder } from '../models';
 import { whatsAppWebBot, watiService } from '../services/whatsapp';
 import { generateOrSaveQuotationPdf } from '../services/quotation/quotationPdfGenerator';
+import { getNextProjectId, getNextCustomerId } from '../utils/idGenerators';
 import * as XLSX from 'xlsx';
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
@@ -750,7 +751,10 @@ quotationRouter.post('/request-approval', async (req: any, res: Response) => {
     for (const u of notifyUsers) {
       const existing = await Reminder.findOne({
         userId: u._id,
-        relatedQuotationId: quotation._id,
+        $or: [
+          { relatedQuotationId: quotation._id },
+          { relatedQuotationOfferNo: quotation.offerNo },
+        ],
         status: 'PENDING',
       });
 
@@ -807,6 +811,37 @@ quotationRouter.post('/crm-approve', async (req: any, res: Response) => {
       return res.status(404).json({ success: false, message: 'Quotation not found for CRM approval' });
     }
 
+    // If quotation was already CRM approved, return existing customer & project idempotently
+    if (quotation.status === 'CRM_APPROVED' && quotation.createdProjectId) {
+      const existingProject = await Project.findById(quotation.createdProjectId);
+      const existingCustomer = quotation.createdCustomerId
+        ? await Customer.findById(quotation.createdCustomerId)
+        : null;
+
+      // Ensure any lingering approval reminders are dismissed
+      await Reminder.updateMany(
+        {
+          $or: [
+            { relatedQuotationId: quotation._id },
+            { relatedQuotationOfferNo: quotation.offerNo },
+          ],
+          status: 'PENDING',
+        },
+        { status: 'DISMISSED' }
+      );
+
+      if (existingProject) {
+        return res.json({
+          success: true,
+          alreadyApproved: true,
+          message: `Quotation ${quotation.offerNo} is already approved! Project ${existingProject.projectId} and Customer ${existingCustomer?.customerId || quotation.createdCustomerCode} are active.`,
+          customer: existingCustomer,
+          project: existingProject,
+          quotation,
+        });
+      }
+    }
+
     const qData = quotation.data || {};
     const elevatorPrice = Number(qData.elevatorPrice || 0);
     const effectiveElevatorPrice = Number((qData.elevatorDiscountPrice && Number(qData.elevatorDiscountPrice) > 0) ? qData.elevatorDiscountPrice : elevatorPrice);
@@ -841,7 +876,10 @@ quotationRouter.post('/crm-approve', async (req: any, res: Response) => {
       for (const u of notifyUsers) {
         const existing = await Reminder.findOne({
           userId: u._id,
-          relatedQuotationId: quotation._id,
+          $or: [
+            { relatedQuotationId: quotation._id },
+            { relatedQuotationOfferNo: quotation.offerNo },
+          ],
           status: 'PENDING',
         });
 
@@ -946,8 +984,7 @@ quotationRouter.post('/crm-approve', async (req: any, res: Response) => {
     });
 
     if (!customer) {
-      const custCount = await Customer.countDocuments();
-      const customerId = `CUST-${String(custCount + 1).padStart(3, '0')}`;
+      const customerId = await getNextCustomerId();
       customer = await Customer.create({
         customerId,
         fullName: fullName.trim(),
@@ -983,39 +1020,50 @@ quotationRouter.post('/crm-approve', async (req: any, res: Response) => {
       }
     }
 
-    // 2. Create Project linked to the particular BDM
-    const advPct = 30;
-    const advanceAmount = Math.round((orderValue * advPct) / 100);
+    // 2. Check or Create Project linked to the particular BDM
+    let newProject: any = null;
+    if (quotation.createdProjectId) {
+      newProject = await Project.findById(quotation.createdProjectId);
+    }
+    if (!newProject) {
+      newProject = await Project.findOne({
+        customerId: customer._id,
+        notes: new RegExp(quotation.offerNo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'),
+      });
+    }
 
-    const projCount = await Project.countDocuments();
-    const projectId = `ALP-${String(projCount + 1).padStart(3, '0')}`;
+    if (!newProject) {
+      const advPct = 30;
+      const advanceAmount = Math.round((orderValue * advPct) / 100);
+      const projectId = await getNextProjectId();
 
-    const newProject = await Project.create({
-      projectId,
-      customerId: customer._id,
-      customerCode: customer.customerId,
-      projectName: `${fullName.replace(/^Dear\s*/i, '').trim()} Residence`,
-      siteAddress,
-      liftModel: qData.model || 'AE 03 Gearless Belt Home series EV',
-      liftType: 'Home Lift',
-      numberOfFloors: qData.noOfStops || 'G+2',
-      shaftModel: qData.shaftType || 'Glass Shaft',
-      liftAmount: effectiveElevatorPrice,
-      shaftAmount: effectiveShaftPrice,
-      orderValue,
-      advancePercentage: advPct,
-      advanceAmount,
-      balanceAmount: orderValue,
-      totalPaid: 0,
-      paymentStatus: 'PENDING',
-      orderDate: new Date(),
-      expectedDeliveryDate: new Date(Date.now() + 120 * 24 * 60 * 60 * 1000),
-      projectStatus: 'PAYMENT_RECEIVED',
-      assignedEmployee: targetBdmName || undefined,
-      bdmId: targetBdmId || undefined,
-      bdmPhone: targetBdmPhone || undefined,
-      notes: `Generated automatically from approved Stage 3 Quotation ${quotation.offerNo}${targetBdmName ? ` (Assigned BDM: ${targetBdmName})` : ''}. Travel: ${qData.totalTravelHeight || '7000mm'}, Door: ${qData.doorSpecifications || 'SS 304 Grade'}, Power: ${qData.powerSupply || 'Single Phase'}.`,
-    });
+      newProject = await Project.create({
+        projectId,
+        customerId: customer._id,
+        customerCode: customer.customerId,
+        projectName: `${fullName.replace(/^Dear\s*/i, '').trim()} Residence`,
+        siteAddress,
+        liftModel: qData.model || 'AE 03 Gearless Belt Home series EV',
+        liftType: 'Home Lift',
+        numberOfFloors: qData.noOfStops || 'G+2',
+        shaftModel: qData.shaftType || 'Glass Shaft',
+        liftAmount: effectiveElevatorPrice,
+        shaftAmount: effectiveShaftPrice,
+        orderValue,
+        advancePercentage: advPct,
+        advanceAmount,
+        balanceAmount: orderValue,
+        totalPaid: 0,
+        paymentStatus: 'PENDING',
+        orderDate: new Date(),
+        expectedDeliveryDate: new Date(Date.now() + 120 * 24 * 60 * 60 * 1000),
+        projectStatus: 'PAYMENT_RECEIVED',
+        assignedEmployee: targetBdmName || undefined,
+        bdmId: targetBdmId || undefined,
+        bdmPhone: targetBdmPhone || undefined,
+        notes: `Generated automatically from approved Stage 3 Quotation ${quotation.offerNo}${targetBdmName ? ` (Assigned BDM: ${targetBdmName})` : ''}. Travel: ${qData.totalTravelHeight || '7000mm'}, Door: ${qData.doorSpecifications || 'SS 304 Grade'}, Power: ${qData.powerSupply || 'Single Phase'}.`,
+      });
+    }
 
     // 3. Mark Quotation as CRM_APPROVED
     quotation.status = 'CRM_APPROVED';
@@ -1029,39 +1077,65 @@ quotationRouter.post('/crm-approve', async (req: any, res: Response) => {
 
     // 4. Dismiss pending Quotation Approval Reminders for this quotation
     await Reminder.updateMany(
-      { relatedQuotationId: quotation._id, status: 'PENDING' },
+      {
+        $or: [
+          { relatedQuotationId: quotation._id },
+          { relatedQuotationOfferNo: quotation.offerNo },
+        ],
+        status: 'PENDING',
+      },
       { status: 'DISMISSED' }
     );
 
     // 5. Create initial "Next Work" reminder for CRM for this new project
     const crmUsers = await User.find({ role: { $in: ['CRM', 'ADMIN'] }, isActive: true });
     for (const u of crmUsers) {
-      await Reminder.create({
+      const existingWorkRem = await Reminder.findOne({
         userId: u._id,
-        title: `Next Move: Schedule Site Visit (PM) - ${newProject.projectName} (${newProject.projectId})`,
-        notes: `Customer: ${customer.fullName}. Project auto-created from Quotation ${quotation.offerNo}. Next work: Coordinate with customer to schedule site visit for shaft measurements.${targetBdmName ? ` (BDM: ${targetBdmName})` : ''}`,
-        dueAt: new Date(),
-        status: 'PENDING',
-        type: 'PROJECT_NEXT_WORK',
         relatedProjectId: newProject._id,
-        relatedCustomerId: customer._id,
-        customerName: customer.fullName,
+        type: 'PROJECT_NEXT_WORK',
+        status: 'PENDING',
       });
+      if (!existingWorkRem) {
+        await Reminder.create({
+          userId: u._id,
+          title: `Next Move: Schedule Site Visit (PM) - ${newProject.projectName} (${newProject.projectId})`,
+          notes: `Customer: ${customer.fullName}. Project auto-created from Quotation ${quotation.offerNo}. Next work: Coordinate with customer to schedule site visit for shaft measurements.${targetBdmName ? ` (BDM: ${targetBdmName})` : ''}`,
+          dueAt: new Date(),
+          status: 'PENDING',
+          type: 'PROJECT_NEXT_WORK',
+          relatedProjectId: newProject._id,
+          relatedCustomerId: customer._id,
+          customerName: customer.fullName,
+          actionRequired: true,
+        });
+      }
     }
 
     // 6. Notify the assigned BDM that their quotation was approved and customer + project was assigned to them
     if (targetBdmId) {
-      await Reminder.create({
+      const existingBdmRem = await Reminder.findOne({
         userId: targetBdmId,
-        title: `🎉 Quotation Approved: ${customer.fullName} (${customer.customerId})`,
-        notes: `Your Stage 3 Quotation (${quotation.offerNo}) for ${customer.fullName} has been approved by CRM/Admin! Customer ${customer.customerId} and Project ${newProject.projectId} have been created and added to your portfolio.`,
-        dueAt: new Date(),
+        $or: [
+          { relatedQuotationId: quotation._id },
+          { relatedProjectId: newProject._id },
+        ],
         status: 'PENDING',
-        type: 'GENERAL',
-        relatedCustomerId: customer._id,
-        relatedProjectId: newProject._id,
-        customerName: customer.fullName,
       });
+      if (!existingBdmRem) {
+        await Reminder.create({
+          userId: targetBdmId,
+          title: `🎉 Quotation Approved: ${customer.fullName} (${customer.customerId})`,
+          notes: `Your Stage 3 Quotation (${quotation.offerNo}) for ${customer.fullName} has been approved by CRM/Admin! Customer ${customer.customerId} and Project ${newProject.projectId} have been created and added to your portfolio.`,
+          dueAt: new Date(),
+          status: 'PENDING',
+          type: 'GENERAL',
+          relatedCustomerId: customer._id,
+          relatedProjectId: newProject._id,
+          relatedQuotationId: quotation._id,
+          actionRequired: false,
+        });
+      }
     }
 
     return res.json({

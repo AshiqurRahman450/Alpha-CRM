@@ -37,6 +37,7 @@ import {
 } from '../services/installation/workingDaysService';
 import { DEFAULT_INSTALLATION_STAGES } from '../models/Project';
 import { config } from '../config';
+import { getNextProjectId } from '../utils/idGenerators';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -454,8 +455,7 @@ projectRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthRe
       (effectiveAddress.startsWith('http') || effectiveAddress.includes('maps') ? effectiveAddress : undefined)
     )?.trim();
 
-    const count = await Project.countDocuments();
-    const projectId = `ALP-${String(count + 1).padStart(3, '0')}`;
+    const projectId = await getNextProjectId();
 
     const numOrderValue = Number(orderValue);
     let advanceAmount = 0;

@@ -49,7 +49,22 @@ export default function RemindersPage() {
     try {
       setLoading(true);
       const res = await api.getReminders();
-      setReminders(res.data || []);
+      const rawList: any[] = res.data || [];
+      const seenApprovals = new Set<string>();
+      const seenProjects = new Set<string>();
+      const deduped = rawList.filter((r) => {
+        if (r.type === 'QUOTATION_APPROVAL' && r.status === 'PENDING') {
+          const key = String(r.relatedQuotationId?._id || r.relatedQuotationId || r.relatedQuotationOfferNo || r.customerName || r._id);
+          if (seenApprovals.has(key)) return false;
+          seenApprovals.add(key);
+        } else if (r.type === 'PROJECT_NEXT_WORK' && r.status === 'PENDING') {
+          const key = String(r.relatedProjectId?._id || r.relatedProjectId || r.title || r._id);
+          if (seenProjects.has(key)) return false;
+          seenProjects.add(key);
+        }
+        return true;
+      });
+      setReminders(deduped);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch reminders');
     } finally {
@@ -159,6 +174,9 @@ export default function RemindersPage() {
   // Filtered Reminders List
   const displayedReminders = useMemo(() => {
     const now = new Date();
+    const seenApprovals = new Set<string>();
+    const seenProjects = new Set<string>();
+
     return reminders.filter((r) => {
       const isDismissed = r.status === 'DISMISSED';
       const isDue = new Date(r.dueAt) <= now && !isDismissed;
@@ -170,6 +188,17 @@ export default function RemindersPage() {
         (!r.whatsappGroupId || r.whatsappGroupId === 'DIRECT')
       ) {
         return false;
+      }
+
+      // Deduplicate pending quotation approvals and project next work
+      if (r.type === 'QUOTATION_APPROVAL' && !isDismissed) {
+        const key = String(r.relatedQuotationId?._id || r.relatedQuotationId || r.relatedQuotationOfferNo || r.customerName || r._id);
+        if (seenApprovals.has(key)) return false;
+        seenApprovals.add(key);
+      } else if (r.type === 'PROJECT_NEXT_WORK' && !isDismissed) {
+        const key = String(r.relatedProjectId?._id || r.relatedProjectId || r.title || r._id);
+        if (seenProjects.has(key)) return false;
+        seenProjects.add(key);
       }
 
       // Filter by category card

@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { Customer, Project, Payment, WhatsAppMessage, ProjectActivity, User, Quotation } from '../models';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { PROJECT_STAGE_NEXT_WORK } from './reminders';
+import { getNextCustomerId } from '../utils/idGenerators';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -196,8 +197,7 @@ customerRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM'), async (req
     }
 
     // Auto-generate customerId CUST-XXX
-    const count = await Customer.countDocuments();
-    const customerId = `CUST-${String(count + 1).padStart(3, '0')}`;
+    const customerId = await getNextCustomerId();
 
     let assignedBdmId: any = undefined;
     let assignedEmployeeName = assignedEmployee;

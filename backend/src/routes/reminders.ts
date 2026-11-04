@@ -156,14 +156,16 @@ reminderRouter.get('/', async (req: AuthRequest, res: Response) => {
 
     const orConditions: any[] = [
       { userId: req.user?._id },
-      { type: 'QUOTATION_APPROVAL' },
       {
         type: 'WHATSAPP_MESSAGE',
         whatsappGroupId: { $exists: true, $nin: ['', null, 'DIRECT'] },
       },
     ];
     if (isCrmOrAdmin) {
-      orConditions.push({ type: 'PROJECT_NEXT_WORK' });
+      orConditions.push({
+        userId: { $in: [null, undefined] },
+        type: { $in: ['QUOTATION_APPROVAL', 'PROJECT_NEXT_WORK'] },
+      });
     }
 
     const query: any = {
@@ -174,12 +176,41 @@ reminderRouter.get('/', async (req: AuthRequest, res: Response) => {
       query.status = status;
     }
 
-    const reminders = await Reminder.find(query)
+    const rawReminders = await Reminder.find(query)
       .sort({ dueAt: -1 })
       .populate('relatedProjectId', 'projectId projectName projectStatus liftModel customerId')
       .populate('relatedQuotationId', 'offerNo customerName status data createdCustomerCode createdProjectCode')
       .populate('relatedCustomerId', 'fullName customerId phoneNumber city')
       .lean();
+
+    // Deduplicate reminders: ensure that if there are any duplicate pending quotation approvals
+    // or project next work reminders in the DB, only one reminder per quotation/project is returned
+    const seenApprovalQuotations = new Set<string>();
+    const seenProjectNextWork = new Set<string>();
+
+    const reminders = rawReminders.filter((rem: any) => {
+      if (rem.type === 'QUOTATION_APPROVAL' && rem.status === 'PENDING') {
+        const quotKey = String(
+          rem.relatedQuotationId?._id ||
+          rem.relatedQuotationId ||
+          rem.relatedQuotationOfferNo ||
+          rem.customerName ||
+          rem._id
+        );
+        if (seenApprovalQuotations.has(quotKey)) return false;
+        seenApprovalQuotations.add(quotKey);
+      } else if (rem.type === 'PROJECT_NEXT_WORK' && rem.status === 'PENDING') {
+        const projKey = String(
+          rem.relatedProjectId?._id ||
+          rem.relatedProjectId ||
+          rem.title ||
+          rem._id
+        );
+        if (seenProjectNextWork.has(projKey)) return false;
+        seenProjectNextWork.add(projKey);
+      }
+      return true;
+    });
 
     return res.json({ success: true, data: reminders });
   } catch (err: any) {
@@ -197,17 +228,19 @@ reminderRouter.get('/due', async (req: AuthRequest, res: Response) => {
 
     const orConditions: any[] = [
       { userId: req.user?._id },
-      { type: 'QUOTATION_APPROVAL' },
       {
         type: 'WHATSAPP_MESSAGE',
         whatsappGroupId: { $exists: true, $nin: ['', null, 'DIRECT'] },
       },
     ];
     if (isCrmOrAdmin) {
-      orConditions.push({ type: 'PROJECT_NEXT_WORK' });
+      orConditions.push({
+        userId: { $in: [null, undefined] },
+        type: { $in: ['QUOTATION_APPROVAL', 'PROJECT_NEXT_WORK'] },
+      });
     }
 
-    const reminders = await Reminder.find({
+    const rawReminders = await Reminder.find({
       $or: orConditions,
       status: 'PENDING',
       dueAt: { $lte: new Date() },
@@ -217,6 +250,33 @@ reminderRouter.get('/due', async (req: AuthRequest, res: Response) => {
       .populate('relatedQuotationId', 'offerNo customerName status data createdCustomerCode createdProjectCode')
       .populate('relatedCustomerId', 'fullName customerId phoneNumber city')
       .lean();
+
+    const seenApprovalQuotations = new Set<string>();
+    const seenProjectNextWork = new Set<string>();
+
+    const reminders = rawReminders.filter((rem: any) => {
+      if (rem.type === 'QUOTATION_APPROVAL' && rem.status === 'PENDING') {
+        const quotKey = String(
+          rem.relatedQuotationId?._id ||
+          rem.relatedQuotationId ||
+          rem.relatedQuotationOfferNo ||
+          rem.customerName ||
+          rem._id
+        );
+        if (seenApprovalQuotations.has(quotKey)) return false;
+        seenApprovalQuotations.add(quotKey);
+      } else if (rem.type === 'PROJECT_NEXT_WORK' && rem.status === 'PENDING') {
+        const projKey = String(
+          rem.relatedProjectId?._id ||
+          rem.relatedProjectId ||
+          rem.title ||
+          rem._id
+        );
+        if (seenProjectNextWork.has(projKey)) return false;
+        seenProjectNextWork.add(projKey);
+      }
+      return true;
+    });
 
     return res.json({ success: true, data: reminders });
   } catch (err: any) {
@@ -311,6 +371,17 @@ reminderRouter.patch('/:id/dismiss', async (req: AuthRequest, res: Response) => 
 
     reminder.status = 'DISMISSED';
     await reminder.save();
+
+    // If dismissing a quotation approval reminder, dismiss all copies across users
+    if (reminder.type === 'QUOTATION_APPROVAL') {
+      const dismissFilter: any = { type: 'QUOTATION_APPROVAL', status: 'PENDING' };
+      if (reminder.relatedQuotationId) {
+        dismissFilter.relatedQuotationId = reminder.relatedQuotationId;
+      } else if (reminder.relatedQuotationOfferNo) {
+        dismissFilter.relatedQuotationOfferNo = reminder.relatedQuotationOfferNo;
+      }
+      await Reminder.updateMany(dismissFilter, { status: 'DISMISSED' });
+    }
 
     return res.json({ success: true, data: reminder });
   } catch (err: any) {
