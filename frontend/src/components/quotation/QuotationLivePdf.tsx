@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { QuotationData, buildPage6WarrantyParagraph, parseDeliveryDays } from '../../types/quotation';
-import { renderExactPdfPage, sanitizeProposalParagraphs } from './exactPdfTemplate';
+import { renderExactPdfPage, sanitizeProposalParagraphs, buildPage2LetterHtml } from './exactPdfTemplate';
 import { renderCirclePdfPage, sanitizeCircleParagraphs } from './circlePdfTemplate';
 import { Edit3, Save, RotateCcw, Check, X } from 'lucide-react';
 
@@ -109,17 +109,10 @@ export default function QuotationLivePdf({
     if (!html) return html;
     let updated = sanitizeProposalParagraphs(html, pageNum || 1, data);
 
-    // Page 1: Ensure valid client name, model, and city elements
-    if (pageNum === 1) {
-      if (!updated.includes('CLIENT NAME') || !updated.includes('MODEL')) {
-        return renderExactPdfPage(0, data);
-      }
-    }
-
     // Page 2: Ensure new letter content and customer name font color
     if (pageNum === 2 && updated) {
       if (updated.includes('NK Group of Companies') || !updated.includes('Where Vertical Mobility Meets Sophistication')) {
-        return renderExactPdfPage(1, data);
+        updated = buildPage2LetterHtml(updated, data);
       }
       updated = updated.replace(
         '<div class="t c9" style="z-index:1263;transform:matrix(1,0,0,1,94.46,200.44)">',
