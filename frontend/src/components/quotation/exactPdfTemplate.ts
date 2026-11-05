@@ -674,6 +674,47 @@ export function buildPage2LetterHtml(html: string, data?: QuotationData): string
   return html;
 }
 
+export function buildPage5WarrantyHtml(text?: string): string {
+  if (!text) return '';
+  const idx1 = text.indexOf('Free Maintenance');
+  const idx2 = text.indexOf('years service');
+
+  if (idx1 !== -1 && idx2 !== -1 && idx2 > idx1) {
+    const l1 = text.substring(0, idx1).trimEnd();
+    const l2 = text.substring(idx1, idx2).trimEnd();
+    const l3 = text.substring(idx2).trim();
+    return `<div class="t c26" style="z-index:907;transform:matrix(1,0,0,1,252.41,682.01);white-space:nowrap;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;">${l1} </div>\n<div class="t c26" style="z-index:976;transform:matrix(1,0,0,1,249.21,696.41);white-space:nowrap;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;">${l2} </div>\n<div class="t c26" style="z-index:1048;transform:matrix(1,0,0,1,249.21,710.81);white-space:nowrap;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;">${l3}</div>`;
+  }
+
+  // If text has newline characters:
+  if (text.includes('\n')) {
+    const lines = text.split('\n').filter(Boolean);
+    const yCoords = [682.01, 696.41, 710.81];
+    return lines.slice(0, 3).map((l, i) => 
+      `<div class="t c26" style="z-index:${907 + i * 50};transform:matrix(1,0,0,1,${i === 0 ? 252.41 : 249.21},${yCoords[i] || (682.01 + i * 14.4)});white-space:nowrap;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;">${l}</div>`
+    ).join('\n');
+  }
+
+  // For general custom text, wrap into max 68 char lines:
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let current = '';
+  for (const w of words) {
+    if ((current + ' ' + w).trim().length <= 68) {
+      current = (current + ' ' + w).trim();
+    } else {
+      lines.push(current);
+      current = w;
+    }
+  }
+  if (current) lines.push(current);
+
+  const yCoords = [682.01, 696.41, 710.81];
+  return lines.slice(0, 3).map((l, i) => 
+    `<div class="t c26" style="z-index:${907 + i * 50};transform:matrix(1,0,0,1,${i === 0 ? 252.41 : 249.21},${yCoords[i] || (682.01 + i * 14.4)});white-space:nowrap;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;">${l}</div>`
+  ).join('\n');
+}
+
 export function renderExactPdfPage(pageIdx: number, data?: QuotationData): string {
   const safeData = data || DEFAULT_QUOTATION_DATA;
   if (pageIdx === 9) {
@@ -915,15 +956,14 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
     } else if (safeData.shaftPrice) {
       html = html.replace('Rs.4,00,000 + 18% GST', shaftMRP);
     }
-    const warrantyCellRegex = /<div class="t c26" style="z-index:907;transform:matrix\(1,0,0,1,252\.41,682\.01\)">[\s\S]*?years service\.<\/div>/;
-    if (safeData.warranty && warrantyCellRegex.test(html)) {
-      html = html.replace(warrantyCellRegex, `<div class="t c26" style="position:absolute;left:252.41px;top:682.01px;width:490px;white-space:normal;line-height:14.4px;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;z-index:907;">${safeData.warranty}</div>`);
-    } else if (safeData.warranty) {
+    const page5WarrantyHtml = buildPage5WarrantyHtml(safeData.warranty);
+    const warrantyCellRegex = /<div class="t c26" style="z-index:907;transform:matrix\(1,0,0,1,252\.41,682\.01\)[^"]*">[\s\S]*?(?:years service\.<\/div>|<div class="t c26" style="z-index:1048;transform:matrix\(1,0,0,1,249\.21,710\.81\)[^"]*">[\s\S]*?<\/div>)/;
+    if (page5WarrantyHtml && warrantyCellRegex.test(html)) {
+      html = html.replace(warrantyCellRegex, page5WarrantyHtml);
+    } else if (page5WarrantyHtml) {
       const customWarrantyRegex = /<div class="t c26" style="position:absolute;left:252\.41px;top:682\.01px;[\s\S]*?<\/div>/;
       if (customWarrantyRegex.test(html)) {
-        html = html.replace(customWarrantyRegex, `<div class="t c26" style="position:absolute;left:252.41px;top:682.01px;width:490px;white-space:normal;line-height:14.4px;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;z-index:907;">${safeData.warranty}</div>`);
-      } else {
-        html = html.replace('Lifetime- MOTOR WARRANTY, 5 years - manufacturing warranty + 1 Years', safeData.warranty);
+        html = html.replace(customWarrantyRegex, page5WarrantyHtml);
       }
     }
     if (safeData.deliveryTime) {
