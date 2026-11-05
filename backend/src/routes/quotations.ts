@@ -978,10 +978,11 @@ quotationRouter.post('/crm-approve', async (req: any, res: Response) => {
     if (targetBdmPhone) quotation.bdmPhone = targetBdmPhone;
     if (targetBdmEmail) quotation.bdmEmail = targetBdmEmail;
 
-    // 1. Check or Create Customer and link to the particular BDM
-    let customer = await Customer.findOne({
-      $or: [{ phoneNumber: phone }, { whatsappNumber: phone }],
-    });
+    // 1. Resolve or Create individual Customer for this quotation
+    let customer: any = null;
+    if (quotation.createdCustomerId) {
+      customer = await Customer.findById(quotation.createdCustomerId);
+    }
 
     if (!customer) {
       const customerId = await getNextCustomerId();
@@ -1020,16 +1021,10 @@ quotationRouter.post('/crm-approve', async (req: any, res: Response) => {
       }
     }
 
-    // 2. Check or Create Project linked to the particular BDM
+    // 2. Resolve or Create individual Project linked to this individual customer
     let newProject: any = null;
     if (quotation.createdProjectId) {
       newProject = await Project.findById(quotation.createdProjectId);
-    }
-    if (!newProject) {
-      newProject = await Project.findOne({
-        customerId: customer._id,
-        notes: new RegExp(quotation.offerNo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'),
-      });
     }
 
     if (!newProject) {

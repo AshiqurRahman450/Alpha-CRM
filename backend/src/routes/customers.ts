@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { Customer, Project, Payment, WhatsAppMessage, ProjectActivity, User, Quotation } from '../models';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { PROJECT_STAGE_NEXT_WORK } from './reminders';
-import { getNextCustomerId } from '../utils/idGenerators';
+import { getNextCustomerId, splitSharedCustomerProjects } from '../utils/idGenerators';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -29,6 +29,9 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const { search, optIn, customerType, bdmId } = req.query;
     const query: any = {};
+
+    // Ensure each project has its own dedicated individual customer
+    await splitSharedCustomerProjects();
 
     // Auto-link any customer created from an approved quotation that is missing bdmId
     try {

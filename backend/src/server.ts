@@ -21,6 +21,7 @@ import { webhookRouter } from './routes/webhooks';
 import { reminderRouter } from './routes/reminders';
 import { qcRouter } from './routes/qc';
 import { quotationRouter } from './routes/quotations';
+import { splitSharedCustomerProjects } from './utils/idGenerators';
 import bcrypt from 'bcryptjs';
 
 const app = express();
@@ -278,6 +279,13 @@ export async function startServer() {
       }
     } catch (seedErr: any) {
       console.warn('[Server] Auto-bootstrap warning:', seedErr.message);
+    }
+
+    // Ensure all projects have their own dedicated individual customer
+    try {
+      await splitSharedCustomerProjects();
+    } catch (splitErr: any) {
+      console.warn('[Server] Auto-split customer projects warning:', splitErr.message);
     }
 
     initScheduler();

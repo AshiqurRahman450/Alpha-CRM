@@ -1,4 +1,4 @@
-import { Project, Customer } from '../models';
+import { Project, Customer, Quotation, Payment, Reminder } from '../models';
 
 /**
  * Generates the next unique projectId in sequence: ALP-001, ALP-002, ..., ALP-019, etc.
@@ -81,3 +81,83 @@ export async function getNextCustomerId(): Promise<string> {
 
   return candidate;
 }
+
+/**
+ * Ensures every project has its own unique, individual customer.
+ * If multiple projects currently share the same customer document,
+ * separates projects 1..N into their own individual customer documents
+ * (with the same customer name, phone, address) and updates all associated records.
+ */
+export async function splitSharedCustomerProjects(): Promise<void> {
+  try {
+    const customers = await Customer.find().lean();
+    for (const cust of customers) {
+      const projects = await Project.find({ customerId: cust._id }).sort({ createdAt: 1 });
+      if (projects.length > 1) {
+        // Project index 0 keeps original customer cust
+        // Projects index 1..N get their own individual customer
+        for (let i = 1; i < projects.length; i++) {
+          const proj = projects[i];
+
+          // Check if this project was created from an approved quotation
+          const linkedQuotation = await Quotation.findOne({
+            $or: [
+              { createdProjectId: proj._id },
+              { createdProjectCode: proj.projectId },
+            ],
+          });
+
+          const qData = linkedQuotation?.data || {};
+          const newCustomerId = await getNextCustomerId();
+
+          const newCust = await Customer.create({
+            customerId: newCustomerId,
+            fullName: qData.clientName || cust.fullName,
+            phoneNumber: qData.customerPhone || cust.phoneNumber,
+            whatsappNumber: qData.customerPhone || cust.whatsappNumber || cust.phoneNumber,
+            address: proj.siteAddress || cust.address,
+            city: qData.projectCity || cust.city || 'Mumbai',
+            state: cust.state || 'Maharashtra',
+            pincode: cust.pincode || '400001',
+            customerType: cust.customerType || 'Residential',
+            leadSource: cust.leadSource || 'Quotation Proposal',
+            assignedEmployee: proj.assignedEmployee || cust.assignedEmployee,
+            bdmId: proj.bdmId || cust.bdmId,
+            bdmPhone: proj.bdmPhone || cust.bdmPhone,
+            notes: `Individual customer auto-created for Project ${proj.projectId} (${proj.projectName})`,
+          });
+
+          // Update Project to point to this individual customer
+          proj.customerId = newCust._id;
+          proj.customerCode = newCust.customerId;
+          await proj.save();
+
+          // Update Quotation if linked
+          if (linkedQuotation) {
+            linkedQuotation.createdCustomerId = newCust._id;
+            linkedQuotation.createdCustomerCode = newCust.customerId;
+            await linkedQuotation.save();
+          }
+
+          // Update Payments
+          await Payment.updateMany(
+            { projectId: proj._id },
+            { $set: { customerId: newCust._id, customerCode: newCust.customerId } }
+          );
+
+          // Update Reminders
+          await Reminder.updateMany(
+            { relatedProjectId: proj._id },
+            { $set: { relatedCustomerId: newCust._id } }
+          );
+
+          console.log(`[splitSharedCustomerProjects] Separated project ${proj.projectId} to new individual customer ${newCust.customerId} (${newCust.fullName})`);
+        }
+      }
+    }
+  } catch (err: any) {
+    console.warn('[splitSharedCustomerProjects] Error during separation:', err.message);
+  }
+}
+
+
