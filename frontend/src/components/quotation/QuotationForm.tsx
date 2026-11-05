@@ -288,31 +288,40 @@ export default function QuotationForm({
   };
 
   // Calculations
+  // Formula: (Elevator Price (₹) - Discount Price) * 1.18
   const elevatorPrice = Number(data.elevatorPrice || 0);
   const elevatorDiscountPrice =
     data.elevatorDiscountPrice !== undefined &&
     data.elevatorDiscountPrice !== null &&
     Number(data.elevatorDiscountPrice) > 0
       ? Number(data.elevatorDiscountPrice)
-      : undefined;
-  const effectiveElevatorPrice = elevatorDiscountPrice !== undefined ? elevatorDiscountPrice : elevatorPrice;
+      : 0;
+  const netElevatorPrice = Math.max(0, elevatorPrice - elevatorDiscountPrice);
+  const effectiveElevatorPrice = netElevatorPrice;
 
+  // Shaft formula: (Shaft Price - Discount Price) * 1.18
   const shaftPrice = Number(data.shaftPrice || 0);
   const shaftDiscountPrice =
     data.shaftDiscountPrice !== undefined &&
     data.shaftDiscountPrice !== null &&
     Number(data.shaftDiscountPrice) > 0
       ? Number(data.shaftDiscountPrice)
-      : undefined;
-  const effectiveShaftPrice = shaftDiscountPrice !== undefined ? shaftDiscountPrice : shaftPrice;
+      : 0;
+  const netShaftPrice = Math.max(0, shaftPrice - shaftDiscountPrice);
+  const effectiveShaftPrice = netShaftPrice;
 
-  const subtotal = effectiveElevatorPrice + effectiveShaftPrice;
-  const gstAmount = Math.round((subtotal * (data.gstRate || 18)) / 100);
+  const gstRate = data.gstRate !== undefined ? Number(data.gstRate) : 18;
+  const gstMultiplier = 1 + gstRate / 100;
+  const elevatorTotalWithGst = Math.round(netElevatorPrice * gstMultiplier);
+  const shaftTotalWithGst = Math.round(netShaftPrice * gstMultiplier);
+
+  const subtotal = netElevatorPrice + netShaftPrice;
+  const gstAmount = Math.round((subtotal * gstRate) / 100);
   const grandTotal = subtotal + gstAmount;
 
   const baseSubtotal = elevatorPrice + shaftPrice;
-  const totalSavings = Math.max(0, baseSubtotal - subtotal);
-  const hasDiscounts = elevatorDiscountPrice !== undefined || shaftDiscountPrice !== undefined;
+  const totalSavings = elevatorDiscountPrice + shaftDiscountPrice;
+  const hasDiscounts = elevatorDiscountPrice > 0 || shaftDiscountPrice > 0;
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col h-full overflow-hidden">
@@ -1981,10 +1990,10 @@ export default function QuotationForm({
 
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
-                      <span>Elevators Discount Price (₹):</span>
-                      {elevatorDiscountPrice !== undefined && elevatorPrice > elevatorDiscountPrice && (
+                      <span>Discount Price (₹):</span>
+                      {elevatorDiscountPrice > 0 && (
                         <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1 py-0.2 rounded">
-                          -₹{(elevatorPrice - elevatorDiscountPrice).toLocaleString('en-IN')}
+                          -₹{elevatorDiscountPrice.toLocaleString('en-IN')}
                         </span>
                       )}
                     </label>
@@ -1992,11 +2001,13 @@ export default function QuotationForm({
                       type="number"
                       value={data.elevatorDiscountPrice ?? ''}
                       onChange={(e) => updateField('elevatorDiscountPrice', e.target.value === '' ? undefined : Number(e.target.value))}
-                      placeholder="Optional discount price"
+                      placeholder="Optional discount amount (e.g. 100000)"
                       className="w-full text-xs px-2.5 py-1.5 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-900 bg-emerald-50/30 placeholder:text-slate-400 placeholder:font-normal"
                     />
-                    <span className="text-[10px] text-slate-400 mt-0.5 block">
-                      Reflects as: ₹{Number(data.elevatorDiscountPrice || data.elevatorPrice || 1100000).toLocaleString('en-IN')} + {data.gstRate || 18}% GST
+                    <span className="text-[10px] text-slate-500 mt-0.5 block">
+                      {elevatorDiscountPrice > 0
+                        ? `(₹${elevatorPrice.toLocaleString('en-IN')} - ₹${elevatorDiscountPrice.toLocaleString('en-IN')}) × ${gstMultiplier.toFixed(2)} = ₹${elevatorTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`
+                        : `Total with GST: ₹${elevatorTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`}
                     </span>
                   </div>
 
@@ -2093,36 +2104,44 @@ export default function QuotationForm({
                     </span>
                   )}
                 </span>
-                <span>GST @ {data.gstRate}%</span>
+                <span>GST @ {data.gstRate || 18}%</span>
               </div>
               <div className="grid grid-cols-3 gap-2 pt-1 border-t border-white/10 text-center">
                 <div>
                   <div className="text-[10px] text-slate-400">Elevator Total</div>
-                  {elevatorDiscountPrice !== undefined ? (
+                  {elevatorDiscountPrice > 0 ? (
                     <div>
-                      <div className="text-[11px] text-slate-400 line-through">₹{elevatorPrice.toLocaleString('en-IN')}</div>
-                      <div className="text-sm font-bold text-emerald-400">₹{elevatorDiscountPrice.toLocaleString('en-IN')}</div>
+                      <div className="text-[11px] text-slate-400 line-through">₹{Math.round(elevatorPrice * gstMultiplier).toLocaleString('en-IN')}</div>
+                      <div className="text-sm font-bold text-emerald-400">₹{elevatorTotalWithGst.toLocaleString('en-IN')}</div>
+                      <div className="text-[10px] text-slate-300 font-normal">Base: ₹{netElevatorPrice.toLocaleString('en-IN')}</div>
                     </div>
                   ) : (
-                    <div className="text-sm font-bold">₹{elevatorPrice.toLocaleString('en-IN')}</div>
+                    <div>
+                      <div className="text-sm font-bold">₹{elevatorTotalWithGst.toLocaleString('en-IN')}</div>
+                      <div className="text-[10px] text-slate-300 font-normal">Base: ₹{netElevatorPrice.toLocaleString('en-IN')}</div>
+                    </div>
                   )}
                 </div>
                 <div>
                   <div className="text-[10px] text-slate-400">Shaft Package</div>
-                  {shaftDiscountPrice !== undefined ? (
+                  {shaftDiscountPrice > 0 ? (
                     <div>
-                      <div className="text-[11px] text-slate-400 line-through">₹{shaftPrice.toLocaleString('en-IN')}</div>
-                      <div className="text-sm font-bold text-emerald-400">₹{shaftDiscountPrice.toLocaleString('en-IN')}</div>
+                      <div className="text-[11px] text-slate-400 line-through">₹{Math.round(shaftPrice * gstMultiplier).toLocaleString('en-IN')}</div>
+                      <div className="text-sm font-bold text-emerald-400">₹{shaftTotalWithGst.toLocaleString('en-IN')}</div>
+                      <div className="text-[10px] text-slate-300 font-normal">Base: ₹{netShaftPrice.toLocaleString('en-IN')}</div>
                     </div>
                   ) : (
-                    <div className="text-sm font-bold">₹{shaftPrice.toLocaleString('en-IN')}</div>
+                    <div>
+                      <div className="text-sm font-bold">₹{shaftTotalWithGst.toLocaleString('en-IN')}</div>
+                      <div className="text-[10px] text-slate-300 font-normal">Base: ₹{netShaftPrice.toLocaleString('en-IN')}</div>
+                    </div>
                   )}
                 </div>
                 <div>
                   <div className="text-[10px] text-teal-400 font-bold">Total (Inc. GST)</div>
                   <div className="text-sm font-black text-amber-300">₹{grandTotal.toLocaleString('en-IN')}</div>
                   {totalSavings > 0 && (
-                    <div className="text-[10px] text-emerald-400 font-bold">Save ₹{totalSavings.toLocaleString('en-IN')}</div>
+                    <div className="text-[10px] text-emerald-400 font-bold">Save ₹{Math.round(totalSavings * gstMultiplier).toLocaleString('en-IN')}</div>
                   )}
                 </div>
               </div>
@@ -2160,10 +2179,10 @@ export default function QuotationForm({
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
-                    <span>Elevators Discount Price (₹):</span>
-                    {elevatorDiscountPrice !== undefined && elevatorPrice > elevatorDiscountPrice && (
+                    <span>Discount Price (₹):</span>
+                    {elevatorDiscountPrice > 0 && (
                       <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
-                        -₹{(elevatorPrice - elevatorDiscountPrice).toLocaleString('en-IN')}
+                        -₹{elevatorDiscountPrice.toLocaleString('en-IN')}
                       </span>
                     )}
                   </label>
@@ -2173,14 +2192,14 @@ export default function QuotationForm({
                       type="number"
                       value={data.elevatorDiscountPrice ?? ''}
                       onChange={(e) => updateField('elevatorDiscountPrice', e.target.value === '' ? undefined : Number(e.target.value))}
-                      placeholder="Optional discounted offer price"
+                      placeholder="Optional discount amount (e.g. 100000)"
                       className="w-full text-xs pl-7 pr-3 py-2 border border-emerald-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-900 bg-white placeholder:text-slate-400 placeholder:font-normal"
                     />
                   </div>
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">
-                    {elevatorDiscountPrice !== undefined
-                      ? `Offer price reflected on quotation: ₹${elevatorDiscountPrice.toLocaleString('en-IN')} + ${data.gstRate || 18}% GST`
-                      : 'Leave empty if no discount is applicable'}
+                  <span className="text-[10px] text-slate-500 mt-0.5 block">
+                    {elevatorDiscountPrice > 0
+                      ? `Net: (₹${elevatorPrice.toLocaleString('en-IN')} - ₹${elevatorDiscountPrice.toLocaleString('en-IN')}) × ${gstMultiplier.toFixed(2)} = ₹${elevatorTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`
+                      : `Total with GST: ₹${elevatorTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`}
                   </span>
                 </div>
               </div>
@@ -2216,10 +2235,10 @@ export default function QuotationForm({
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
-                    <span>Shaft Discount Price (₹):</span>
-                    {shaftDiscountPrice !== undefined && shaftPrice > shaftDiscountPrice && (
+                    <span>Discount Price (₹):</span>
+                    {shaftDiscountPrice > 0 && (
                       <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
-                        -₹{(shaftPrice - shaftDiscountPrice).toLocaleString('en-IN')}
+                        -₹{shaftDiscountPrice.toLocaleString('en-IN')}
                       </span>
                     )}
                   </label>
@@ -2229,14 +2248,14 @@ export default function QuotationForm({
                       type="number"
                       value={data.shaftDiscountPrice ?? ''}
                       onChange={(e) => updateField('shaftDiscountPrice', e.target.value === '' ? undefined : Number(e.target.value))}
-                      placeholder="Optional discounted offer price"
+                      placeholder="Optional discount amount (e.g. 50000)"
                       className="w-full text-xs pl-7 pr-3 py-2 border border-emerald-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-900 bg-white placeholder:text-slate-400 placeholder:font-normal"
                     />
                   </div>
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">
-                    {shaftDiscountPrice !== undefined
-                      ? `Offer price reflected on quotation: ₹${shaftDiscountPrice.toLocaleString('en-IN')} + ${data.gstRate || 18}% GST`
-                      : 'Leave empty if no discount is applicable'}
+                  <span className="text-[10px] text-slate-500 mt-0.5 block">
+                    {shaftDiscountPrice > 0
+                      ? `Net: (₹${shaftPrice.toLocaleString('en-IN')} - ₹${shaftDiscountPrice.toLocaleString('en-IN')}) × ${gstMultiplier.toFixed(2)} = ₹${shaftTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`
+                      : `Total with GST: ₹${shaftTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`}
                   </span>
                 </div>
               </div>

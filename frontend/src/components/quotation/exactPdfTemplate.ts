@@ -1021,14 +1021,12 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
     // Elevator Price
     const gstRate = safeData.gstRate !== undefined ? safeData.gstRate : 18;
     const elvMRP = safeData.elevatorPrice ? 'Rs. ' + formatINR(safeData.elevatorPrice) + ' + ' + gstRate + '% GST' : '';
-    const hasElvDiscount = Boolean(
-      safeData.elevatorDiscountPrice &&
-      Number(safeData.elevatorDiscountPrice) > 0 &&
-      Number(safeData.elevatorDiscountPrice) !== Number(safeData.elevatorPrice)
-    );
+    const elvDiscountAmount = Number(safeData.elevatorDiscountPrice || 0);
+    const hasElvDiscount = Boolean(elvDiscountAmount > 0);
+    const netElevatorPrice = Math.max(0, Number(safeData.elevatorPrice || 0) - elvDiscountAmount);
 
     if (hasElvDiscount && safeData.elevatorPrice) {
-      const elvDiscText = 'Rs. ' + formatINR(Number(safeData.elevatorDiscountPrice)) + ' + ' + gstRate + '% GST';
+      const elvDiscText = 'Rs. ' + formatINR(netElevatorPrice) + ' + ' + gstRate + '% GST';
       const elvReplacement = `<div class="t c21" style="position:absolute;left:320.51px;top:605px;line-height:13.5px;white-space:normal;z-index:825;"><div style="text-decoration:line-through;color:#718096;font-size:10px;">MRP: ${elvMRP}</div><div style="color:#0e4b31;font-weight:bold;font-size:12px;">Discount Price: ${elvDiscText}</div></div>`;
       const elvRegex = /<div class="t c21" style="z-index:825;transform:matrix\(1,0,0,1,320\.51,611\.2\)">[\s\S]*?<\/div>/;
       if (elvRegex.test(html)) {
@@ -1042,14 +1040,12 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
 
     // Shaft Price
     const shaftMRP = safeData.shaftPrice ? 'Rs. ' + formatINR(safeData.shaftPrice) + ' + ' + gstRate + '% GST' : '';
-    const hasShaftDiscount = Boolean(
-      safeData.shaftDiscountPrice &&
-      Number(safeData.shaftDiscountPrice) > 0 &&
-      Number(safeData.shaftDiscountPrice) !== Number(safeData.shaftPrice)
-    );
+    const shaftDiscountAmount = Number(safeData.shaftDiscountPrice || 0);
+    const hasShaftDiscount = Boolean(shaftDiscountAmount > 0);
+    const netShaftPrice = Math.max(0, Number(safeData.shaftPrice || 0) - shaftDiscountAmount);
 
     if (hasShaftDiscount && safeData.shaftPrice) {
-      const shaftDiscText = 'Rs. ' + formatINR(Number(safeData.shaftDiscountPrice)) + ' + ' + gstRate + '% GST';
+      const shaftDiscText = 'Rs. ' + formatINR(netShaftPrice) + ' + ' + gstRate + '% GST';
       const shaftReplacement = `<div class="t c25" style="position:absolute;left:325.09px;top:649px;line-height:13.5px;white-space:normal;z-index:878;"><div style="text-decoration:line-through;color:#718096;font-size:10px;">MRP: ${shaftMRP}</div><div style="color:#0e4b31;font-weight:bold;font-size:12px;">Discount Price: ${shaftDiscText}</div></div>`;
       const shaftRegex = /<div class="t c25" style="z-index:878;transform:matrix\(1,0,0,1,325\.09,655\.24\)">[\s\S]*?<\/div>/;
       if (shaftRegex.test(html)) {
