@@ -253,7 +253,7 @@ export default function QuotationLivePdf({
     // Fix Page 5 Warranty & Delivery in savedPages
     if (updated.includes('Lifetime- MOTOR WARRANTY') || updated.includes('Time of Material Delivery') || updated.includes('years service') || updated.includes('warranty-term-box')) {
       const page5WarrantyHtml = buildPage5WarrantyHtml(data.warranty);
-      const warrantyBoxRegex = /<div class="t c26[^"]*warranty-term-box[^"]*"[\s\S]*?<\/div>\s*<\/div>/;
+      const warrantyBoxRegex = /<div class="t c26[^"]*warranty-term-box[^"]*"[\s\S]*?(?:<!-- END_WARRANTY_BOX -->|<\/div>\s*<\/div>|<\/div>(?=\s*<\/p>|\s*<\/td>|\s*<div class="t c21"[^>]*>Time of Material Delivery))/;
       const warrantyCellRegex = /<div class="t c26" style="z-index:907;transform:matrix\(1,0,0,1,252\.41,682\.01\)[^"]*">[\s\S]*?(?:years service\.<\/div>|<div class="t c26" style="z-index:1048;transform:matrix\(1,0,0,1,249\.21,710\.81\)[^"]*">[\s\S]*?<\/div>)/;
       const customWarrantyRegex = /<div class="t c26" style="position:absolute;left:25[02]\.?\d*px;top:6[78]\d\.?\d*px;[\s\S]*?<\/div>/;
 
@@ -838,7 +838,7 @@ export default function QuotationLivePdf({
               baseHtml = renderExactPdfPage(1, data);
             } else if (pageNum === 3 && (!isEditing || !baseHtml || baseHtml.includes('490.24,806.2') || !baseHtml.includes('color:#1a3f2e'))) {
               baseHtml = renderExactPdfPage(2, data);
-            } else if (pageNum === 5 && (!isEditing || !baseHtml || !baseHtml.includes('warranty-term-box') || !baseHtml.includes('height:48px') || !baseHtml.includes('page5-accessories-list'))) {
+            } else if (pageNum === 5 && (!isEditing || !baseHtml || !baseHtml.includes('warranty-term-box') || !baseHtml.includes('height:48px') || !baseHtml.includes('page5-accessories-list') || !baseHtml.includes('Time of Material Delivery'))) {
               baseHtml = renderExactPdfPage(4, data);
             } else if (pageNum === 6 && (!isEditing || !baseHtml || !baseHtml.includes('customer-scope-underline-remover'))) {
               baseHtml = renderExactPdfPage(5, data);

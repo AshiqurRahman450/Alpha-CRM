@@ -114,7 +114,7 @@ export function sanitizeProposalParagraphs(html: string, pageNum: number, data?:
 
     // 3. Warranty
     const page5WarrantyHtml = buildPage5WarrantyHtml(safeData.warranty);
-    const warrantyBoxRegex = /<div class="t c26[^"]*warranty-term-box[^"]*"[\s\S]*?<\/div>\s*<\/div>/;
+    const warrantyBoxRegex = /<div class="t c26[^"]*warranty-term-box[^"]*"[\s\S]*?(?:<!-- END_WARRANTY_BOX -->|<\/div>\s*<\/div>|<\/div>(?=\s*<\/p>|\s*<\/td>|\s*<div class="t c21"[^>]*>Time of Material Delivery))/;
     const warrantyCellRegex = /<div class="t c26[^"]*" style="z-index:907;transform:matrix\(1,0,0,1,252\.41,682\.01\)[^"]*">[\s\S]*?(?:years service\.<\/div>|<div class="t c26[^"]*" style="z-index:1048;transform:matrix\(1,0,0,1,249\.21,710\.81\)[^"]*">[\s\S]*?<\/div>)/;
     const customWarrantyRegex = /<div class="t c26[^"]*" style="position:absolute;left:25[02]\.?\d*px;top:6[78]\d\.?\d*px;[\s\S]*?<\/div>/;
 
@@ -746,17 +746,25 @@ export function buildPage5WarrantyHtml(text?: string): string {
     const l1 = text.substring(0, idx1).trimEnd();
     const l2 = text.substring(idx1, idx2).trimEnd();
     const l3 = text.substring(idx2).trim();
-    return `<div class="t c26 warranty-term-box" style="position:absolute;left:250px;top:677px;width:530px;height:48px;min-height:48px;line-height:15px;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;z-index:907;"><div style="white-space:nowrap;">${l1} </div><div style="white-space:nowrap;">${l2} </div><div style="white-space:nowrap;">${l3}</div></div>`;
+    return `<div class="t c26 warranty-term-box" style="position:absolute;left:250px;top:677px;width:530px;height:48px;min-height:48px;line-height:15px;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;z-index:907;"><div style="white-space:nowrap;">${l1} </div><div style="white-space:nowrap;">${l2} </div><div style="white-space:nowrap;">${l3}</div></div><!-- END_WARRANTY_BOX -->`;
   }
 
   // If text has newline characters:
   if (text.includes('\n')) {
     const lines = text.split('\n').filter(Boolean);
     const inner = lines.slice(0, 3).map((l) => `<div style="white-space:nowrap;">${l}</div>`).join('');
-    return `<div class="t c26 warranty-term-box" style="position:absolute;left:250px;top:677px;width:530px;height:48px;min-height:48px;line-height:15px;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;z-index:907;">${inner}</div>`;
+    return `<div class="t c26 warranty-term-box" style="position:absolute;left:250px;top:677px;width:530px;height:48px;min-height:48px;line-height:15px;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;z-index:907;">${inner}</div><!-- END_WARRANTY_BOX -->`;
   }
 
-  return `<div class="t c26 warranty-term-box" style="position:absolute;left:250px;top:677px;width:530px;height:48px;min-height:48px;white-space:normal;line-height:15px;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;z-index:907;">${text}</div>`;
+  // Non-EV 2-line warranty split
+  if (text.includes('+') && text.includes('manufacturing warranty')) {
+    const parts = text.split('+');
+    const l1 = parts[0].trim();
+    const l2 = '+ ' + parts.slice(1).join('+').trim();
+    return `<div class="t c26 warranty-term-box" style="position:absolute;left:250px;top:677px;width:530px;height:48px;min-height:48px;line-height:15px;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;z-index:907;"><div style="white-space:nowrap;">${l1}</div><div style="white-space:nowrap;">${l2}</div></div><!-- END_WARRANTY_BOX -->`;
+  }
+
+  return `<div class="t c26 warranty-term-box" style="position:absolute;left:250px;top:677px;width:530px;height:48px;min-height:48px;line-height:15px;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;z-index:907;"><div style="white-space:normal;">${text}</div></div><!-- END_WARRANTY_BOX -->`;
 }
 
 export function buildPage5AccessoriesHtml(features?: string[]): string {
@@ -1053,7 +1061,7 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
       html = html.replace('Rs.4,00,000 + 18% GST', shaftMRP);
     }
     const page5WarrantyHtml = buildPage5WarrantyHtml(safeData.warranty);
-    const warrantyBoxRegex = /<div class="t c26[^"]*warranty-term-box[^"]*"[\s\S]*?<\/div>\s*<\/div>/;
+    const warrantyBoxRegex = /<div class="t c26[^"]*warranty-term-box[^"]*"[\s\S]*?(?:<!-- END_WARRANTY_BOX -->|<\/div>\s*<\/div>|<\/div>(?=\s*<\/p>|\s*<\/td>|\s*<div class="t c21"[^>]*>Time of Material Delivery))/;
     const warrantyCellRegex = /<div class="t c26" style="z-index:907;transform:matrix\(1,0,0,1,252\.41,682\.01\)[^"]*">[\s\S]*?(?:years service\.<\/div>|<div class="t c26" style="z-index:1048;transform:matrix\(1,0,0,1,249\.21,710\.81\)[^"]*">[\s\S]*?<\/div>)/;
     const customWarrantyRegex = /<div class="t c26" style="position:absolute;left:25[02]\.?\d*px;top:6[78]\d\.?\d*px;[\s\S]*?<\/div>/;
     if (page5WarrantyHtml && warrantyBoxRegex.test(html)) {
