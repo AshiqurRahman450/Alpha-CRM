@@ -186,23 +186,42 @@ Alpha Elevators Team`,
 
   PRODUCTION_UPDATE_STAGE_1: `Dear Sir/Madam,
 
-Your elevator production is currently in the fabrication and material processing stage, including structure, cabin, and door fabrication.
-We will share the next production update within 10 days.
+Your elevator is currently in the fabrication and material processing stage. We will keep you informed about the next stage of production within 15 days.
 
 Regards,
 Alpha Elevators Team`,
 
   PRODUCTION_UPDATE_STAGE_2: `Dear Sir/Madam,
 
-Your elevator is currently in the finishing and assembly stage, including painting, cabin finishing, and electrical & mechanical assembly.
-We will share the next production update within 10 days.
+The brackets, guide rails, counterweights, and other elevator accessories and hardware have moved to the production stage. You can expect our next production update within the next 15 days.
 
 Regards,
 Alpha Elevators Team`,
 
   PRODUCTION_UPDATE_STAGE_3: `Dear Sir/Madam,
 
-Your elevator is in the final inspection stage. Quality checks are being completed, and the material will be prepared for dispatch upon completion.
+Your elevator is currently in the door fabrication stage, which includes doors, door motors, and ceiling components. We will provide you with further progress details within 15 days.
+
+Regards,
+Alpha Elevators Team`,
+
+  PRODUCTION_UPDATE_STAGE_4: `Dear Sir/Madam,
+
+Your elevator is currently in the assembly stage, which includes electrical and mechanical assembly. We will share an update on the assembly progress within the next 15 days.
+
+Regards,
+Alpha Elevators Team`,
+
+  PRODUCTION_UPDATE_STAGE_5: `Dear Sir/Madam,
+
+Your elevator is currently in the finishing stage, including powder coating and cabin finishing. We will keep you updated on the finishing progress over the next 15 days.
+
+Regards,
+Alpha Elevators Team`,
+
+  PRODUCTION_UPDATE_STAGE_6: `Dear Sir/Madam,
+
+Your elevator is currently in the final inspection stage. All quality checks are being completed, after which the materials will be prepared for dispatch. We will notify you once the final inspection is completed and the material is ready for dispatch.
 
 Regards,
 Alpha Elevators Team`,
@@ -308,8 +327,14 @@ export function generateProjectUpdateText(
       const pStage = project?.productionStage || 1;
       if (pStage === 2) {
         templateKey = 'PRODUCTION_UPDATE_STAGE_2';
-      } else if (pStage >= 3) {
+      } else if (pStage === 3) {
         templateKey = 'PRODUCTION_UPDATE_STAGE_3';
+      } else if (pStage === 4) {
+        templateKey = 'PRODUCTION_UPDATE_STAGE_4';
+      } else if (pStage === 5) {
+        templateKey = 'PRODUCTION_UPDATE_STAGE_5';
+      } else if (pStage >= 6) {
+        templateKey = 'PRODUCTION_UPDATE_STAGE_6';
       } else {
         templateKey = 'PRODUCTION_UPDATE_STAGE_1';
       }
@@ -322,10 +347,10 @@ export function generateProjectUpdateText(
 
   let text = APPROVED_MILESTONE_TEMPLATES[templateKey] || APPROVED_MILESTONE_TEMPLATES.SITE_VISIT_COMPLETED;
 
-  // Substitute interval days into production stage 1 & 2 templates if interval is not 10 days
-  const intervalDays = project?.whatsapp?.intervalDays || project?.updateFrequencyDays || 10;
+  // Substitute interval days into production stage templates if interval is not 15 days
+  const intervalDays = project?.whatsapp?.intervalDays || project?.updateFrequencyDays || 15;
   const intervalText = intervalDays === 1 ? 'within 1 day' : `within ${intervalDays} days`;
-  text = text.replace(/within 10 days/gi, intervalText);
+  text = text.replace(/within (?:10|15) days/gi, intervalText);
 
   // Substitute [Date] placeholder
   if (text.includes('[Date]')) {
@@ -398,7 +423,7 @@ export async function processDueWhatsAppUpdates(): Promise<{
         { projectStatus: { $in: POST_PRODUCTION_PAYMENT_STAGES } },
         {
           $or: [
-            { productionStage: { $in: [1, 2, 3] } },
+            { productionStage: { $in: [1, 2, 3, 4, 5, 6] } },
             { productionStage: { $exists: false } },
             { productionStage: null },
           ],
@@ -477,7 +502,7 @@ export async function processDueWhatsAppUpdates(): Promise<{
         continue;
       }
 
-      // Determine current production update stage (1, 2, or 3)
+      // Determine current production update stage (1, 2, 3, 4, 5, or 6)
       let currentStage = project.productionStage || 1;
       if (!project.productionStage || project.productionStage === 1) {
         const stage1Sent = await WhatsAppMessageLog.findOne({
@@ -497,7 +522,7 @@ export async function processDueWhatsAppUpdates(): Promise<{
           projectId: project._id,
           $or: [
             { idempotencyKey: new RegExp(`^${project.projectId}_prod_stage_2`) },
-            { messageText: new RegExp('finishing and assembly', 'i') },
+            { messageText: new RegExp('brackets, guide rails|accessories and hardware', 'i') },
           ],
           status: { $in: ['SENT', 'DELIVERED', 'READ'] },
         });
@@ -510,7 +535,7 @@ export async function processDueWhatsAppUpdates(): Promise<{
           projectId: project._id,
           $or: [
             { idempotencyKey: new RegExp(`^${project.projectId}_prod_stage_3`) },
-            { messageText: new RegExp('final inspection stage', 'i') },
+            { messageText: new RegExp('door fabrication stage', 'i') },
           ],
           status: { $in: ['SENT', 'DELIVERED', 'READ'] },
         });
@@ -518,10 +543,49 @@ export async function processDueWhatsAppUpdates(): Promise<{
           currentStage = 4;
         }
       }
+      if (currentStage === 4) {
+        const stage4Sent = await WhatsAppMessageLog.findOne({
+          projectId: project._id,
+          $or: [
+            { idempotencyKey: new RegExp(`^${project.projectId}_prod_stage_4`) },
+            { messageText: new RegExp('assembly stage', 'i') },
+          ],
+          status: { $in: ['SENT', 'DELIVERED', 'READ'] },
+        });
+        if (stage4Sent) {
+          currentStage = 5;
+        }
+      }
+      if (currentStage === 5) {
+        const stage5Sent = await WhatsAppMessageLog.findOne({
+          projectId: project._id,
+          $or: [
+            { idempotencyKey: new RegExp(`^${project.projectId}_prod_stage_5`) },
+            { messageText: new RegExp('finishing stage', 'i') },
+          ],
+          status: { $in: ['SENT', 'DELIVERED', 'READ'] },
+        });
+        if (stage5Sent) {
+          currentStage = 6;
+        }
+      }
+      if (currentStage === 6) {
+        const stage6Sent = await WhatsAppMessageLog.findOne({
+          projectId: project._id,
+          $or: [
+            { idempotencyKey: new RegExp(`^${project.projectId}_prod_stage_6`) },
+            { messageText: new RegExp('final inspection stage', 'i') },
+          ],
+          status: { $in: ['SENT', 'DELIVERED', 'READ'] },
+        });
+        if (stage6Sent) {
+          currentStage = 7;
+        }
+      }
 
-      if (currentStage >= 4) {
-        console.log(`[Scheduler] Project ${project.projectId}: All 3 production update stages completed. Clearing nextUpdateAt.`);
-        project.productionStage = 4;
+      if (currentStage >= 7) {
+        console.log(`[Scheduler] Project ${project.projectId}: All 6 production update stages completed. Clearing nextUpdateAt.`);
+        project.productionStage = 7;
         project.nextUpdateAt = undefined;
         if (project.whatsapp) {
           project.whatsapp.nextUpdateAt = undefined;
@@ -531,7 +595,7 @@ export async function processDueWhatsAppUpdates(): Promise<{
         results.push({
           projectId: project.projectId,
           status: 'SKIPPED',
-          reason: 'All 3 production update stages completed',
+          reason: 'All 6 production update stages completed',
         });
         continue;
       }
@@ -541,7 +605,13 @@ export async function processDueWhatsAppUpdates(): Promise<{
           ? 'PRODUCTION_UPDATE_STAGE_1'
           : currentStage === 2
           ? 'PRODUCTION_UPDATE_STAGE_2'
-          : 'PRODUCTION_UPDATE_STAGE_3';
+          : currentStage === 3
+          ? 'PRODUCTION_UPDATE_STAGE_3'
+          : currentStage === 4
+          ? 'PRODUCTION_UPDATE_STAGE_4'
+          : currentStage === 5
+          ? 'PRODUCTION_UPDATE_STAGE_5'
+          : 'PRODUCTION_UPDATE_STAGE_6';
 
       // 2. Build atomic Idempotency Key per stage: `${projectId}_prod_stage_${currentStage}_interval${intervalDays}`
       const idempotencyKey = `${project.projectId}_prod_stage_${currentStage}_interval${intervalDays}`;
@@ -557,7 +627,7 @@ export async function processDueWhatsAppUpdates(): Promise<{
         skippedCount++;
         // Advance stage if stuck
         project.productionStage = currentStage + 1;
-        if (project.productionStage >= 4) {
+        if (project.productionStage >= 7) {
           project.nextUpdateAt = undefined;
           if (project.whatsapp) project.whatsapp.nextUpdateAt = undefined;
         } else {
@@ -666,14 +736,14 @@ export async function processDueWhatsAppUpdates(): Promise<{
         project.lastUpdateAt = new Date();
         project.postponedUntil = undefined;
 
-        if (nextStage >= 4) {
-          // All 3 stages completed: clear nextUpdateAt so no further interval messages occur!
+        if (nextStage >= 7) {
+          // All 6 stages completed: clear nextUpdateAt so no further interval messages occur!
           project.nextUpdateAt = undefined;
           if (project.whatsapp) {
             project.whatsapp.lastUpdateAt = project.lastUpdateAt;
             project.whatsapp.nextUpdateAt = undefined;
           }
-          console.log(`[Scheduler] Project ${project.projectId}: Finished final production stage (Stage 3). Stopped interval updates.`);
+          console.log(`[Scheduler] Project ${project.projectId}: Finished final production stage (Stage 6). Stopped interval updates.`);
         } else {
           // Advance nextUpdateAt by configured interval for next stage
           project.nextUpdateAt = calculateNextUpdateDate(intervalDays, now);
@@ -699,7 +769,7 @@ export async function processDueWhatsAppUpdates(): Promise<{
           metadata: {
             providerMessageId: sendResult.messageId,
             productionStage: currentStage,
-            nextProductionStage: nextStage <= 3 ? nextStage : 'COMPLETED',
+            nextProductionStage: nextStage <= 6 ? nextStage : 'COMPLETED',
             intervalDays,
           },
         });

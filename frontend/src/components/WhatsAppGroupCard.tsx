@@ -761,11 +761,17 @@ export default function WhatsAppGroupCard({
           {['MANUFACTURING', 'QUALITY_CHECK', 'DELIVERY', 'DISPATCH', 'INSTALLATION', 'TESTING'].includes(project.projectStatus) && (
             <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-block mt-0.5">
               {project.productionStage === 2
-                ? 'Production Stage 2 (Finishing & Assembly)'
+                ? 'Production Stage 2 (Accessories & Hardware)'
                 : project.productionStage === 3
-                ? 'Production Stage 3 (Final Inspection)'
-                : project.productionStage >= 4
-                ? 'All 3 Production Stages Completed'
+                ? 'Production Stage 3 (Door Fabrication)'
+                : project.productionStage === 4
+                ? 'Production Stage 4 (Assembly)'
+                : project.productionStage === 5
+                ? 'Production Stage 5 (Finishing)'
+                : project.productionStage === 6
+                ? 'Production Stage 6 (Final Inspection)'
+                : project.productionStage >= 7
+                ? 'All 6 Production Stages Completed'
                 : 'Production Stage 1 (Fabrication)'}
             </span>
           )}

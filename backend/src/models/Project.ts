@@ -68,7 +68,7 @@ export interface IProject extends Document {
   nextUpdateAt?: Date;
   postponedUntil?: Date;
   pauseReason?: string;
-  productionStage?: number; // 1: Stage 1 due, 2: Stage 2 due, 3: Stage 3 due, 4: All 3 stages completed
+  productionStage?: number; // 1 to 6: Stages 1-6 due, 7: All 6 stages completed
   escalationMatrixScheduledAt?: Date;
   escalationMatrixSent?: boolean;
   escalationMatrixSentAt?: Date;

@@ -65,7 +65,10 @@ export default function SendUpdateModal({
             defName = 'PRODUCTION_PAYMENT_RECEIVED';
           } else if (project?.projectStatus === 'MANUFACTURING') {
             if (project?.productionStage === 2) defName = 'PRODUCTION_UPDATE_STAGE_2';
-            else if (project?.productionStage >= 3) defName = 'PRODUCTION_UPDATE_STAGE_3';
+            else if (project?.productionStage === 3) defName = 'PRODUCTION_UPDATE_STAGE_3';
+            else if (project?.productionStage === 4) defName = 'PRODUCTION_UPDATE_STAGE_4';
+            else if (project?.productionStage === 5) defName = 'PRODUCTION_UPDATE_STAGE_5';
+            else if (project?.productionStage >= 6) defName = 'PRODUCTION_UPDATE_STAGE_6';
             else defName = 'PRODUCTION_UPDATE_STAGE_1';
           } else if (project?.projectStatus === 'SITE_MEASUREMENT') {
             defName = 'SITE_VISIT_COMPLETED';

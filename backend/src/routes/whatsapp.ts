@@ -297,6 +297,15 @@ whatsappRouter.post('/send', authorize('ADMIN', 'CRM', 'MANAGER', 'TECHNICAL_LEA
           project.nextUpdateAt = calculateNextUpdateDate(interval, new Date());
         } else if (templateName === 'PRODUCTION_UPDATE_STAGE_3') {
           project.productionStage = 4;
+          project.nextUpdateAt = calculateNextUpdateDate(interval, new Date());
+        } else if (templateName === 'PRODUCTION_UPDATE_STAGE_4') {
+          project.productionStage = 5;
+          project.nextUpdateAt = calculateNextUpdateDate(interval, new Date());
+        } else if (templateName === 'PRODUCTION_UPDATE_STAGE_5') {
+          project.productionStage = 6;
+          project.nextUpdateAt = calculateNextUpdateDate(interval, new Date());
+        } else if (templateName === 'PRODUCTION_UPDATE_STAGE_6') {
+          project.productionStage = 7;
           project.nextUpdateAt = undefined;
         } else {
           project.nextUpdateAt = calculateNextUpdateDate(interval, new Date());

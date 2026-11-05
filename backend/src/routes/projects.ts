@@ -852,8 +852,8 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
       if (!project.productionStage || project.productionStage < 1) {
         project.productionStage = 1;
       }
-      // If the 3 production updates are still in progress, ensure nextUpdateAt is scheduled
-      if (project.productionStage <= 3) {
+      // If the 6 production updates are still in progress, ensure nextUpdateAt is scheduled
+      if (project.productionStage <= 6) {
         if (!project.nextUpdateAt) {
           project.lastUpdateAt = project.lastUpdateAt || new Date();
           project.nextUpdateAt = calculateNextUpdateDate(intervalDays, new Date());
