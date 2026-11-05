@@ -57,6 +57,25 @@ export default function QuotationLivePdf({
     }
   }, [storageKey, externalSavedPages]);
 
+  // Preload and inject PDF base stylesheet with all embedded @font-face rules into document.head
+  useEffect(() => {
+    const cssUrl = isCircle ? '/quotation/circle/circle.css' : '/quotation/exact/pdf2html.css';
+    const styleId = isCircle ? 'alpha-circle-stylesheet' : 'alpha-exact-stylesheet';
+    if (typeof document !== 'undefined' && !document.getElementById(styleId)) {
+      fetch(cssUrl)
+        .then((res) => res.text())
+        .then((cssText) => {
+          if (!document.getElementById(styleId)) {
+            const style = document.createElement('style');
+            style.id = styleId;
+            style.innerHTML = cssText;
+            document.head.appendChild(style);
+          }
+        })
+        .catch((err) => console.warn('Could not inject PDF base stylesheet:', err));
+    }
+  }, [isCircle]);
+
   // Handle Save Content button click
   const handleSaveContent = () => {
     if (externalOnSaveContent) {
@@ -731,6 +750,17 @@ export default function QuotationLivePdf({
               background: #ffffff;
               z-index: 10;
               pointer-events: none;
+            }
+            .exact-pdf-container .page,
+            .proposal-page-wrapper .page {
+              margin: 0 !important;
+              box-shadow: none !important;
+              border-radius: 0 !important;
+            }
+            .exact-pdf-container * {
+              -webkit-font-smoothing: antialiased;
+              -moz-osx-font-smoothing: grayscale;
+              text-rendering: geometricPrecision;
             }
           ` }} />
           {pagesToRender.map((pageNum) => {

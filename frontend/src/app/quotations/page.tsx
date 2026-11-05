@@ -647,25 +647,108 @@ export default function QuotationCreatorPage() {
     toast.success('Uploaded PDF removed. Showing live proposal template.');
   };
 
-  // Multi-page PDF Download using jsPDF and html2canvas with full text visibility
+  // Multi-page PDF Download using jsPDF and html2canvas with full text visibility and exact live preview alignment
   const handleDownloadPdf = async () => {
     setIsDownloading(true);
     setDownloadProgress('Preparing high-resolution PDF with your updated name & details...');
 
-    try {
-      const previousActivePage = activePage;
-      const previousScale = scale;
+    const previousActivePage = activePage;
+    const previousScale = scale;
 
+    try {
       // 1. Switch to all pages if viewing single page
       if (activePage !== null) {
         setActivePage(null);
       }
 
-      // 2. Temporarily reset zoom to 1.0 so html2canvas captures at exact 1:1 scale without CSS transform distortion
+      // 2. Temporarily reset zoom to 1.0 and disable CSS transitions to prevent scaling distortion
       setScale(1.0);
+      const printContainer = document.getElementById('quotation-print-container');
+      if (printContainer) {
+        printContainer.style.transition = 'none';
+      }
 
-      // Brief tick to let DOM repaint without scale
-      await new Promise((r) => setTimeout(r, 300));
+      // Brief tick to let DOM repaint without scale and let React re-render
+      await new Promise((r) => setTimeout(r, 250));
+
+      // Ensure all browser fonts are ready
+      if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
+        await document.fonts.ready;
+      }
+
+      // Preload CSS text with all embedded @font-face rules
+      const isCircle = data.templateType === 'circle';
+      const styleId = isCircle ? 'alpha-circle-stylesheet' : 'alpha-exact-stylesheet';
+      let baseCssText = '';
+      try {
+        const existingStyle = document.getElementById(styleId);
+        if (existingStyle && existingStyle.innerHTML) {
+          baseCssText = existingStyle.innerHTML;
+        } else {
+          const res = await fetch(isCircle ? '/quotation/circle/circle.css' : '/quotation/exact/pdf2html.css');
+          baseCssText = await res.text();
+        }
+      } catch (e) {
+        console.warn('Could not read base PDF css:', e);
+      }
+
+      const proposalOverrides = `
+        #p0 .c1 { color: #0f4b31 !important; }
+        #p0 .im[style*="714.6"] { display: none !important; }
+        #p0::after {
+          content: '';
+          position: absolute;
+          left: 710px;
+          top: 960px; 
+          width: 80px;
+          height: 155px;
+          background: #ffffff;
+          z-index: 10;
+          pointer-events: none;
+        }
+        #p1 .c9 { color: #0e4b31 !important; }
+        #p9 .c3, #p9 .c10 { color: #000000 !important; }
+        #p9 .billing-page-container { color: #000000 !important; }
+        #p10 .c35, #p10 .c37 { color: #000000 !important; }
+        .page::before {
+          content: '';
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          transform: translate(-50%, -50%);
+          width: 520px;
+          height: 290px;
+          background-image: url('/logo-black.png');
+          background-size: contain;
+          background-repeat: no-repeat;
+          background-position: center;
+          opacity: 0.08;
+          mix-blend-mode: multiply;
+          pointer-events: none;
+          z-index: 5;
+        }
+        .page:not(#p0):not(#p1):not(#p10)::after {
+          content: '';
+          position: absolute;
+          top: 50px;
+          right: 20px;
+          width: 140px;
+          height: 65px;
+          background: #ffffff;
+          z-index: 10;
+          pointer-events: none;
+        }
+        .page {
+          margin: 0 !important;
+          box-shadow: none !important;
+          border-radius: 0 !important;
+        }
+        * {
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+          text-rendering: geometricPrecision;
+        }
+      `;
 
       // Dynamic import of jspdf and html2canvas
       const { jsPDF } = await import('jspdf');
@@ -680,22 +763,55 @@ export default function QuotationCreatorPage() {
 
       const totalPages = previewSource === 'uploaded' && uploadedPageImages.length > 0
         ? uploadedPageImages.length
-        : (data.templateType === 'circle' ? 5 : 11);
+        : (isCircle ? 5 : 11);
+
+      const pageWidth = isCircle ? 720 : 793.28;
+      const pageHeight = isCircle ? 1040 : 1122.72;
 
       for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
-        setDownloadProgress(`Rendering Page ${pageNum} of ${totalPages} (high clarity)...`);
+        setDownloadProgress(`Rendering Page ${pageNum} of ${totalPages} (exact alignment)...`);
         const pageEl = document.getElementById(`quotation-page-${pageNum}`);
 
         if (pageEl) {
-          // Capture at 2x resolution for razor-sharp typography
-          const canvas = await html2canvas(pageEl, {
+          // Identify exact page container (.page) or fallback to pageEl
+          const targetEl = (pageEl.querySelector('.page') as HTMLElement) || pageEl;
+
+          // Capture with exact dimensions matching the live preview and embedded fonts
+          const canvas = await html2canvas(targetEl, {
             scale: 2,
             useCORS: true,
             allowTaint: true,
             logging: false,
             backgroundColor: '#ffffff',
+            width: pageWidth,
+            height: pageHeight,
+            windowWidth: 1200,
+            windowHeight: 1600,
             scrollX: 0,
             scrollY: 0,
+            onclone: async (clonedDoc, clonedElement) => {
+              // Ensure full base stylesheet with all embedded fonts is injected into clone
+              if (baseCssText || proposalOverrides) {
+                const styleEl = clonedDoc.createElement('style');
+                styleEl.id = 'alpha-pdf-cloned-styles';
+                styleEl.innerHTML = (baseCssText || '') + '\n' + proposalOverrides;
+                clonedDoc.head.appendChild(styleEl);
+              }
+
+              // Normalize cloned target element to match exact preview box
+              clonedElement.style.margin = '0';
+              clonedElement.style.padding = '0';
+              clonedElement.style.borderRadius = '0';
+              clonedElement.style.boxShadow = 'none';
+              clonedElement.style.transform = 'none';
+              clonedElement.style.position = 'relative';
+              clonedElement.style.left = '0';
+              clonedElement.style.top = '0';
+
+              if (clonedDoc.fonts && clonedDoc.fonts.ready) {
+                await clonedDoc.fonts.ready;
+              }
+            },
           });
 
           // Lossless PNG data URL ensures text never blurs or gets compression artifacts
@@ -716,18 +832,21 @@ export default function QuotationCreatorPage() {
       const filename = `Alpha_Proposal_${cleanClient}_${cleanOfferNo}.pdf`;
       pdf.save(filename);
 
-      // Restore scale and active page preference
-      setScale(previousScale);
-      if (previousActivePage !== null) {
-        setActivePage(previousActivePage);
-      }
-
       toast.success(`Downloaded ${filename} successfully!`);
     } catch (err: any) {
       console.error('PDF generation error:', err);
       toast.error('Direct download failed. Falling back to browser Print to PDF.');
       window.print();
     } finally {
+      // Restore transition, scale, and active page preference
+      const printContainer = document.getElementById('quotation-print-container');
+      if (printContainer) {
+        printContainer.style.transition = 'transform 0.15s ease-out';
+      }
+      setScale(previousScale);
+      if (previousActivePage !== null) {
+        setActivePage(previousActivePage);
+      }
       setIsDownloading(false);
       setDownloadProgress('');
     }
