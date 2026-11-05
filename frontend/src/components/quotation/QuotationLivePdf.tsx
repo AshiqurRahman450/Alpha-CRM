@@ -235,16 +235,18 @@ export default function QuotationLivePdf({
     }
 
     // Fix Page 5 Warranty & Delivery in savedPages
-    if (updated.includes('Lifetime- MOTOR WARRANTY') || updated.includes('Time of Material Delivery') || updated.includes('years service')) {
+    if (updated.includes('Lifetime- MOTOR WARRANTY') || updated.includes('Time of Material Delivery') || updated.includes('years service') || updated.includes('warranty-term-box')) {
       const page5WarrantyHtml = buildPage5WarrantyHtml(data.warranty);
+      const warrantyBoxRegex = /<div class="t c26[^"]*warranty-term-box[^"]*"[\s\S]*?<\/div>\s*<\/div>/;
       const warrantyCellRegex = /<div class="t c26" style="z-index:907;transform:matrix\(1,0,0,1,252\.41,682\.01\)[^"]*">[\s\S]*?(?:years service\.<\/div>|<div class="t c26" style="z-index:1048;transform:matrix\(1,0,0,1,249\.21,710\.81\)[^"]*">[\s\S]*?<\/div>)/;
-      if (page5WarrantyHtml && warrantyCellRegex.test(updated)) {
+      const customWarrantyRegex = /<div class="t c26" style="position:absolute;left:25[02]\.?\d*px;top:6[78]\d\.?\d*px;[\s\S]*?<\/div>/;
+
+      if (page5WarrantyHtml && warrantyBoxRegex.test(updated)) {
+        updated = updated.replace(warrantyBoxRegex, page5WarrantyHtml);
+      } else if (page5WarrantyHtml && warrantyCellRegex.test(updated)) {
         updated = updated.replace(warrantyCellRegex, page5WarrantyHtml);
-      } else if (page5WarrantyHtml) {
-        const customWarrantyRegex = /<div class="t c26" style="position:absolute;left:252\.41px;top:682\.01px;[\s\S]*?<\/div>/;
-        if (customWarrantyRegex.test(updated)) {
-          updated = updated.replace(customWarrantyRegex, page5WarrantyHtml);
-        }
+      } else if (page5WarrantyHtml && customWarrantyRegex.test(updated)) {
+        updated = updated.replace(customWarrantyRegex, page5WarrantyHtml);
       }
       if (data.deliveryTime) {
         updated = updated.replace(/\b\d+\s*days post confirmation on drawings and finishes\./, data.deliveryTime);
@@ -809,7 +811,7 @@ export default function QuotationLivePdf({
               baseHtml = renderExactPdfPage(1, data);
             } else if (pageNum === 3 && (!isEditing || !baseHtml || baseHtml.includes('490.24,806.2'))) {
               baseHtml = renderExactPdfPage(2, data);
-            } else if (pageNum === 5 && (!isEditing || !baseHtml || baseHtml.includes('position:absolute;left:252.41px;top:682.01px'))) {
+            } else if (pageNum === 5 && (!isEditing || !baseHtml || !baseHtml.includes('warranty-term-box') || !baseHtml.includes('width:530px'))) {
               baseHtml = renderExactPdfPage(4, data);
             } else if (pageNum === 10 && (!isEditing || !baseHtml || baseHtml.includes('Our Presence in INDIA') || baseHtml.includes('#0e4b31'))) {
               baseHtml = renderExactPdfPage(pageIdx, data);

@@ -71,6 +71,22 @@ export function sanitizeProposalParagraphs(html: string, pageNum: number, data?:
     }
   }
 
+  // ===================== PAGE 5 =====================
+  if (pageNum === 5 || updated.includes('id="p4"')) {
+    const page5WarrantyHtml = buildPage5WarrantyHtml(safeData.warranty);
+    const warrantyBoxRegex = /<div class="t c26[^"]*warranty-term-box[^"]*"[\s\S]*?<\/div>\s*<\/div>/;
+    const warrantyCellRegex = /<div class="t c26[^"]*" style="z-index:907;transform:matrix\(1,0,0,1,252\.41,682\.01\)[^"]*">[\s\S]*?(?:years service\.<\/div>|<div class="t c26[^"]*" style="z-index:1048;transform:matrix\(1,0,0,1,249\.21,710\.81\)[^"]*">[\s\S]*?<\/div>)/;
+    const customWarrantyRegex = /<div class="t c26[^"]*" style="position:absolute;left:25[02]\.?\d*px;top:6[78]\d\.?\d*px;[\s\S]*?<\/div>/;
+
+    if (page5WarrantyHtml && warrantyBoxRegex.test(updated)) {
+      updated = updated.replace(warrantyBoxRegex, page5WarrantyHtml);
+    } else if (page5WarrantyHtml && warrantyCellRegex.test(updated)) {
+      updated = updated.replace(warrantyCellRegex, page5WarrantyHtml);
+    } else if (page5WarrantyHtml && customWarrantyRegex.test(updated)) {
+      updated = updated.replace(customWarrantyRegex, page5WarrantyHtml);
+    }
+  }
+
   // ===================== PAGE 6 =====================
   if (pageNum === 6 || updated.includes('id="p5"')) {
     // 1. Taxes & Duties on Page 6
@@ -683,36 +699,17 @@ export function buildPage5WarrantyHtml(text?: string): string {
     const l1 = text.substring(0, idx1).trimEnd();
     const l2 = text.substring(idx1, idx2).trimEnd();
     const l3 = text.substring(idx2).trim();
-    return `<div class="t c26" style="z-index:907;transform:matrix(1,0,0,1,252.41,682.01);white-space:nowrap;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;">${l1} </div>\n<div class="t c26" style="z-index:976;transform:matrix(1,0,0,1,249.21,696.41);white-space:nowrap;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;">${l2} </div>\n<div class="t c26" style="z-index:1048;transform:matrix(1,0,0,1,249.21,710.81);white-space:nowrap;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;">${l3}</div>`;
+    return `<div class="t c26 warranty-term-box" style="position:absolute;left:250px;top:680px;width:530px;line-height:14.2px;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;z-index:907;"><div style="white-space:nowrap;">${l1} </div><div style="white-space:nowrap;">${l2} </div><div style="white-space:nowrap;">${l3}</div></div>`;
   }
 
   // If text has newline characters:
   if (text.includes('\n')) {
     const lines = text.split('\n').filter(Boolean);
-    const yCoords = [682.01, 696.41, 710.81];
-    return lines.slice(0, 3).map((l, i) => 
-      `<div class="t c26" style="z-index:${907 + i * 50};transform:matrix(1,0,0,1,${i === 0 ? 252.41 : 249.21},${yCoords[i] || (682.01 + i * 14.4)});white-space:nowrap;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;">${l}</div>`
-    ).join('\n');
+    const inner = lines.slice(0, 3).map((l) => `<div style="white-space:nowrap;">${l}</div>`).join('');
+    return `<div class="t c26 warranty-term-box" style="position:absolute;left:250px;top:680px;width:530px;line-height:14.2px;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;z-index:907;">${inner}</div>`;
   }
 
-  // For general custom text, wrap into max 68 char lines:
-  const words = text.split(' ');
-  const lines: string[] = [];
-  let current = '';
-  for (const w of words) {
-    if ((current + ' ' + w).trim().length <= 68) {
-      current = (current + ' ' + w).trim();
-    } else {
-      lines.push(current);
-      current = w;
-    }
-  }
-  if (current) lines.push(current);
-
-  const yCoords = [682.01, 696.41, 710.81];
-  return lines.slice(0, 3).map((l, i) => 
-    `<div class="t c26" style="z-index:${907 + i * 50};transform:matrix(1,0,0,1,${i === 0 ? 252.41 : 249.21},${yCoords[i] || (682.01 + i * 14.4)});white-space:nowrap;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;">${l}</div>`
-  ).join('\n');
+  return `<div class="t c26 warranty-term-box" style="position:absolute;left:250px;top:680px;width:530px;white-space:normal;line-height:14.2px;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;z-index:907;">${text}</div>`;
 }
 
 export function renderExactPdfPage(pageIdx: number, data?: QuotationData): string {
@@ -957,14 +954,15 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
       html = html.replace('Rs.4,00,000 + 18% GST', shaftMRP);
     }
     const page5WarrantyHtml = buildPage5WarrantyHtml(safeData.warranty);
+    const warrantyBoxRegex = /<div class="t c26[^"]*warranty-term-box[^"]*"[\s\S]*?<\/div>\s*<\/div>/;
     const warrantyCellRegex = /<div class="t c26" style="z-index:907;transform:matrix\(1,0,0,1,252\.41,682\.01\)[^"]*">[\s\S]*?(?:years service\.<\/div>|<div class="t c26" style="z-index:1048;transform:matrix\(1,0,0,1,249\.21,710\.81\)[^"]*">[\s\S]*?<\/div>)/;
-    if (page5WarrantyHtml && warrantyCellRegex.test(html)) {
+    const customWarrantyRegex = /<div class="t c26" style="position:absolute;left:25[02]\.?\d*px;top:6[78]\d\.?\d*px;[\s\S]*?<\/div>/;
+    if (page5WarrantyHtml && warrantyBoxRegex.test(html)) {
+      html = html.replace(warrantyBoxRegex, page5WarrantyHtml);
+    } else if (page5WarrantyHtml && warrantyCellRegex.test(html)) {
       html = html.replace(warrantyCellRegex, page5WarrantyHtml);
-    } else if (page5WarrantyHtml) {
-      const customWarrantyRegex = /<div class="t c26" style="position:absolute;left:252\.41px;top:682\.01px;[\s\S]*?<\/div>/;
-      if (customWarrantyRegex.test(html)) {
-        html = html.replace(customWarrantyRegex, page5WarrantyHtml);
-      }
+    } else if (page5WarrantyHtml && customWarrantyRegex.test(html)) {
+      html = html.replace(customWarrantyRegex, page5WarrantyHtml);
     }
     if (safeData.deliveryTime) {
       html = html.replace(/\b\d+\s*days post confirmation on drawings and finishes\./, safeData.deliveryTime);
