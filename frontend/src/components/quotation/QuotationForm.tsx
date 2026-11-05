@@ -8,6 +8,7 @@ import {
   buildWarrantyText,
   parseWarrantyText,
   parseDeliveryDays,
+  getPresetAccessoriesFeatures,
 } from '../../types/quotation';
 import {
   User,
@@ -212,9 +213,13 @@ export default function QuotationForm({
           isEv,
         });
 
+      const features =
+        preset.data.accessoriesFeatures || getPresetAccessoriesFeatures(preset.data.model);
+
       onChange({
         ...data,
         ...preset.data,
+        accessoriesFeatures: features,
         speed: '.4 m/s',
         warranty,
       });
@@ -1184,15 +1189,14 @@ export default function QuotationForm({
                 <label className="block text-xs font-bold text-slate-700 mb-1">Shaft:</label>
                 <select
                   value={
-                    data.shaftScope ||
-                    (data.shaftType === 'Customer scope' ? 'Customer scope' : 'Alpha Elevators scope')
+                    data.shaftScope === 'Customer scope' || data.shaftType === 'Customer scope'
+                      ? 'Customer scope'
+                      : 'Alpha Elevators scope'
                   }
                   onChange={(e) => {
                     const val = e.target.value;
                     updateField('shaftScope', val);
-                    if (val === 'Customer scope') {
-                      updateField('shaftType', 'Customer scope');
-                    } else if (!data.shaftType || data.shaftType === 'Customer scope') {
+                    if (data.shaftType === 'Customer scope') {
                       updateField('shaftType', 'Glass Shaft');
                     }
                   }}
@@ -1203,28 +1207,25 @@ export default function QuotationForm({
                 </select>
               </div>
 
-              {(data.shaftScope === 'Alpha Elevators scope' ||
-                (!data.shaftScope && data.shaftType !== 'Customer scope')) && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Shaft Specifications:
-                  </label>
-                  <select
-                    value={
-                      data.shaftType && data.shaftType !== 'Customer scope'
-                        ? data.shaftType
-                        : 'Glass Shaft'
-                    }
-                    onChange={(e) => updateField('shaftType', e.target.value)}
-                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
-                  >
-                    <option value="Glass Shaft">Glass Shaft</option>
-                    <option value="ACP Shaft">ACP Shaft</option>
-                    <option value="Welding Shaft">Welding Shaft</option>
-                    <option value="Civil Shaft">Civil Shaft</option>
-                  </select>
-                </div>
-              )}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Shaft Specifications:
+                </label>
+                <select
+                  value={
+                    data.shaftType && data.shaftType !== 'Customer scope'
+                      ? data.shaftType.replace(/^(Customer scope|Alpha Elevators [sS]cope)\s*[-–—:]\s*/i, '')
+                      : 'Glass Shaft'
+                  }
+                  onChange={(e) => updateField('shaftType', e.target.value)}
+                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
+                >
+                  <option value="Glass Shaft">Glass Shaft</option>
+                  <option value="ACP Shaft">ACP Shaft</option>
+                  <option value="Welding Shaft">Welding Shaft</option>
+                  <option value="Civil Shaft">Civil Shaft</option>
+                </select>
+              </div>
             </div>
 
             <div>
@@ -1836,15 +1837,14 @@ export default function QuotationForm({
               </label>
               <select
                 value={
-                  data.shaftScope ||
-                  (data.shaftType === 'Customer scope' ? 'Customer scope' : 'Alpha Elevators scope')
+                  data.shaftScope === 'Customer scope' || data.shaftType === 'Customer scope'
+                    ? 'Customer scope'
+                    : 'Alpha Elevators scope'
                 }
                 onChange={(e) => {
                   const val = e.target.value;
                   updateField('shaftScope', val);
-                  if (val === 'Customer scope') {
-                    updateField('shaftType', 'Customer scope');
-                  } else if (!data.shaftType || data.shaftType === 'Customer scope') {
+                  if (data.shaftType === 'Customer scope') {
                     updateField('shaftType', 'Glass Shaft');
                   }
                 }}
@@ -1855,42 +1855,28 @@ export default function QuotationForm({
               </select>
             </div>
 
-            {(data.shaftScope === 'Alpha Elevators scope' ||
-              (!data.shaftScope && data.shaftType !== 'Customer scope')) ? (
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Shaft Specifications Box (Page 5 Dropdown):
-                </label>
-                <select
-                  value={
-                    data.shaftType && data.shaftType !== 'Customer scope'
-                      ? data.shaftType
-                      : 'Glass Shaft'
-                  }
-                  onChange={(e) => updateField('shaftType', e.target.value)}
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
-                >
-                  <option value="Glass Shaft">Glass Shaft</option>
-                  <option value="ACP Shaft">ACP Shaft</option>
-                  <option value="Welding Shaft">Welding Shaft</option>
-                  <option value="Civil Shaft">Civil Shaft</option>
-                </select>
-              </div>
-            ) : (
-              <div className="bg-amber-50/70 p-3 rounded-xl border border-amber-200 text-xs text-amber-800 flex items-center justify-between">
-                <span>Shaft is set to <strong>Customer scope</strong>. Shaft Specifications box is hidden.</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    updateField('shaftScope', 'Alpha Elevators scope');
-                    updateField('shaftType', 'Glass Shaft');
-                  }}
-                  className="text-[11px] font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 px-2 py-1 rounded transition-colors"
-                >
-                  Switch to Alpha Elevators Scope
-                </button>
-              </div>
-            )}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Shaft Specifications Box (Page 5 Dropdown):
+              </label>
+              <select
+                value={
+                  data.shaftType && data.shaftType !== 'Customer scope'
+                    ? data.shaftType.replace(/^(Customer scope|Alpha Elevators [sS]cope)\s*[-–—:]\s*/i, '')
+                    : 'Glass Shaft'
+                }
+                onChange={(e) => updateField('shaftType', e.target.value)}
+                className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
+              >
+                <option value="Glass Shaft">Glass Shaft</option>
+                <option value="ACP Shaft">ACP Shaft</option>
+                <option value="Welding Shaft">Welding Shaft</option>
+                <option value="Civil Shaft">Civil Shaft</option>
+              </select>
+              <p className="text-[11px] text-teal-700 mt-1">
+                Reflected on Page 5 as: <strong>{(data.shaftScope === 'Customer scope' || data.shaftType === 'Customer scope') ? 'Customer scope' : 'Alpha Elevators Scope'} - {data.shaftType && data.shaftType !== 'Customer scope' ? data.shaftType.replace(/^(Customer scope|Alpha Elevators [sS]cope)\s*[-–—:]\s*/i, '') : 'Glass Shaft'}</strong>
+              </p>
+            </div>
 
             <div>
               <div className="flex items-center justify-between mb-2">

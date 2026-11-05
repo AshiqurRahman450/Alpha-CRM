@@ -838,7 +838,7 @@ export default function QuotationLivePdf({
               baseHtml = renderExactPdfPage(1, data);
             } else if (pageNum === 3 && (!isEditing || !baseHtml || baseHtml.includes('490.24,806.2') || !baseHtml.includes('color:#1a3f2e'))) {
               baseHtml = renderExactPdfPage(2, data);
-            } else if (pageNum === 5 && (!isEditing || !baseHtml || !baseHtml.includes('warranty-term-box') || !baseHtml.includes('height:48px'))) {
+            } else if (pageNum === 5 && (!isEditing || !baseHtml || !baseHtml.includes('warranty-term-box') || !baseHtml.includes('height:48px') || !baseHtml.includes('page5-accessories-list'))) {
               baseHtml = renderExactPdfPage(4, data);
             } else if (pageNum === 6 && (!isEditing || !baseHtml || !baseHtml.includes('customer-scope-underline-remover'))) {
               baseHtml = renderExactPdfPage(5, data);

@@ -170,7 +170,7 @@ export const DEFAULT_QUOTATION_DATA: QuotationData = {
     'Multi-beam Light Curtains',
     'Single Phase Protection',
     'Interlocking Switches',
-    'Imported Machine',
+    'Imported Motor',
     'Reverse Phase Protection',
     'Digital Display - Up & Down + Floor',
     'Anti-Squeeze Door system',
@@ -209,10 +209,10 @@ export const DEFAULT_QUOTATION_DATA: QuotationData = {
 
 export const QUOTATION_PRESETS: { name: string; description: string; data: Partial<QuotationData> }[] = [
   {
-    name: 'AE 01 Hydraulic Home series',
+    name: 'AE 01 Home Series',
     description: 'Compact pit-less hydraulic villa lift with ground-floor storage and quiet power pack',
     data: {
-      model: 'AE 01 Hydraulic Home series',
+      model: 'AE 01 Home Series',
       seriesTitle: 'Alpha Hydraulic Series: AE 01 Ultra Compact Home Lift',
       hoistWayShaftSize: '1350mm X 1500mm',
       pitDepth: '150mm',
@@ -239,7 +239,23 @@ export const QUOTATION_PRESETS: { name: string; description: string; data: Parti
       clearOpening: 'TBC*',
       customerSpecificRequirements: 'Nil',
       doorSpecifications: 'Auto Swing Doors- SS 304 Grade',
+      shaftScope: 'Alpha Elevators scope',
       shaftType: 'Glass Shaft',
+      accessoriesFeatures: [
+        'Imported Controller',
+        'Extra Soft Start & Landing',
+        'ARD',
+        'Multi-beam Light Curtains',
+        'Single Phase Protection',
+        'Interlocking Switches',
+        'Imported Motor and controller',
+        'Reverse Phase Protection',
+        'Digital Display - Up & Down + Floor',
+        'Anti-Squeeze Door system',
+        'Self Diagnostic Control System',
+        'Alarm with SOS + Phone',
+        'BCG Buttons',
+      ],
       elevatorPrice: 1350000,
       shaftPrice: 350000,
       warranty: 'Lifetime- MOTOR WARRANTY, 5 years - manufacturing warranty + 1 Years Free Maintenance',
@@ -261,7 +277,7 @@ export const QUOTATION_PRESETS: { name: string; description: string; data: Parti
       minFloorHeight: '2900mm',
       finalStop: '3200mm',
       lockableStorageRoom: 'To be Located In the Top Floor',
-  shaftScope: 'Alpha Elevators scope',
+      shaftScope: 'Alpha Elevators scope',
       cabinWalls: 'Standared Cabin- SS Finish',
       cabinFloor: "Vinyl or Client's own Flooring",
       copAndLop: 'Touch ( TFT Display)',
@@ -283,6 +299,19 @@ export const QUOTATION_PRESETS: { name: string; description: string; data: Parti
       customerSpecificRequirements: 'Nil',
       doorSpecifications: 'Center Door Opening - SS 304 Grade',
       shaftType: 'Glass Shaft',
+      accessoriesFeatures: [
+        'Imported Controller',
+        'Extra Soft Start & Landing',
+        'ARD',
+        'Multi-beam Light Curtains',
+        'Single Phase Protection',
+        'Interlocking Switches',
+        'Imported Motor and controller',
+        'Reverse Phase Protection',
+        'Anti-Squeeze Door system',
+        'Self Diagnostic Control System',
+        'Alarm with SOS + Phone',
+      ],
       elevatorPrice: 1500000,
       shaftPrice: 380000,
       warranty: 'Lifetime- MOTOR WARRANTY, 5 years - manufacturing warranty + 1 Years Free Maintenance',
@@ -304,7 +333,7 @@ export const QUOTATION_PRESETS: { name: string; description: string; data: Parti
       minFloorHeight: '3000mm',
       finalStop: '3300mm',
       lockableStorageRoom: 'To be Located In the Top Floor',
-  shaftScope: 'Alpha Elevators scope',
+      shaftScope: 'Alpha Elevators scope',
       cabinWalls: 'Premium Glass Cabin - SS Finish',
       cabinFloor: "Vinyl or Client's own Flooring",
       copAndLop: 'Touch ( TFT Display)',
@@ -326,6 +355,20 @@ export const QUOTATION_PRESETS: { name: string; description: string; data: Parti
       customerSpecificRequirements: 'Nil',
       doorSpecifications: 'Telescopic Doors- SS 304 Grade',
       shaftType: 'Glass Shaft',
+      accessoriesFeatures: [
+        'Imported Controller',
+        'Extra Soft Start & Landing',
+        'ARD',
+        'Multi-beam Light Curtains',
+        'Single Phase Protection',
+        'Interlocking Switches',
+        'Imported Motor and controller',
+        'Reverse Phase Protection',
+        'Digital Display - Up & Down + Floor',
+        'Anti-Squeeze Door system',
+        'Self Diagnostic Control System',
+        'Alarm with SOS + Phone',
+      ],
       elevatorPrice: 1600000,
       shaftPrice: 400000,
       warranty: 'Lifetime- MOTOR WARRANTY, 5 years - manufacturing warranty + 1 Years Free Maintenance',
@@ -347,7 +390,7 @@ export const QUOTATION_PRESETS: { name: string; description: string; data: Parti
       minFloorHeight: '3000mm',
       finalStop: '3300mm',
       lockableStorageRoom: 'To be Located In the Top Floor',
-  shaftScope: 'Alpha Elevators scope',
+      shaftScope: 'Alpha Elevators scope',
       cabinWalls: 'Premium Glass Cabin - SS Finish',
       cabinFloor: "Vinyl or Client's own Flooring",
       copAndLop: 'Touch ( TFT Display)',
@@ -369,6 +412,20 @@ export const QUOTATION_PRESETS: { name: string; description: string; data: Parti
       customerSpecificRequirements: 'Nil',
       doorSpecifications: 'Telescopic Doors- SS 304 Grade',
       shaftType: 'Glass Shaft',
+      accessoriesFeatures: [
+        'Imported Controller',
+        'Extra Soft Start & Landing',
+        'Supports up to 100 operating cycles during a power failure',
+        'Multi-beam Light Curtains',
+        'Single Phase Protection',
+        'Interlocking Switches',
+        'Imported Motor',
+        'Reverse Phase Protection',
+        'Digital Display - Up & Down + Floor',
+        'Anti-Squeeze Door system',
+        'Self Diagnostic Control System',
+        'Alarm with SOS + Phone',
+      ],
       elevatorPrice: 1600000,
       shaftPrice: 400000,
       warranty:
@@ -596,4 +653,111 @@ export function buildPage6WarrantyParagraph(data: QuotationData): string {
   const batteryText = isEv ? ', 5 years battery warranty (3 years replaceable and 2 years service)' : '';
 
   return `<div class="t c23" style="position:absolute;left:33.41px;top:346.51px;width:731px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#0e4b31;text-align:justify;text-justify:inter-word;z-index:3526;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">Warranty &amp; Maintenance : </span>Your Elevator comes with ${motorText} warranty for motor &amp; ${mfgText} warranty against any manufacturing defect${batteryText}. We also Provide ${maintText} free service from the date of installation or 60 days from the date of delivery, whichever is earlier. We will provide 2 routine services in a year. From 2nd year onwards there will be option for Annual Maintenance Contract (AMC) Comprehensive AMC 5% of the Basic Cost: Routine maintenance service and Complaints will be attended wherein the parts are also covered. - Applicable after ${mfgNum} years Non-comprehensive AMC 3% of the Basic Cost: Routine maintenance service will be carried out and complaints will be attended, but any part that needs replacement will be charged. - Applicable after ${maintNum} years On-Call Basis Annual Maintenance Contract (AMC) - a convenient and cost-effective solution for all your maintenance needs. For just ₹7,000 per standard visit and ₹5,000 per emergency visit, our certified technicians provide top-notch service, ensuring your equipment and systems remain in optimal condition - Applicable after ${maintNum} years.</div>`;
+}
+
+export function formatEffectiveShaft(shaftScope?: string, shaftType?: string): string {
+  let cleanType = (shaftType || 'Glass Shaft').trim();
+  cleanType = cleanType.replace(/^(Customer scope|Alpha Elevators [sS]cope|Shaft)\s*[-–—:]\s*/i, '').trim();
+  if (!cleanType || cleanType.toLowerCase() === 'customer scope') {
+    cleanType = 'Glass Shaft';
+  }
+
+  const isCustomer = (shaftScope === 'Customer scope' || shaftType === 'Customer scope');
+  if (isCustomer) {
+    return `Customer scope - ${cleanType}`;
+  } else {
+    return `Alpha Elevators Scope - ${cleanType}`;
+  }
+}
+
+export function getPresetAccessoriesFeatures(model?: string): string[] {
+  const m = (model || '').toLowerCase().trim();
+
+  // 1. AE 03 Gearless Belt Home Series EV (Flagship EV)
+  if (/\bev\b|battery/i.test(m) || (m.includes('ae03') && m.includes('ev')) || (m.includes('ae 03') && m.includes('ev'))) {
+    return [
+      'Imported Controller',
+      'Extra Soft Start & Landing',
+      'Supports up to 100 operating cycles during a power failure',
+      'Multi-beam Light Curtains',
+      'Single Phase Protection',
+      'Interlocking Switches',
+      'Imported Motor',
+      'Reverse Phase Protection',
+      'Digital Display - Up & Down + Floor',
+      'Anti-Squeeze Door system',
+      'Self Diagnostic Control System',
+      'Alarm with SOS + Phone',
+    ];
+  }
+
+  // 2. AE 02 Gearless Rope Home Series
+  if (m.includes('ae 02') || m.includes('ae02') || m.includes('rope')) {
+    return [
+      'Imported Controller',
+      'Extra Soft Start & Landing',
+      'ARD',
+      'Multi-beam Light Curtains',
+      'Single Phase Protection',
+      'Interlocking Switches',
+      'Imported Motor and controller',
+      'Reverse Phase Protection',
+      'Anti-Squeeze Door system',
+      'Self Diagnostic Control System',
+      'Alarm with SOS + Phone',
+    ];
+  }
+
+  // 3. AE 01 Home Series (Hydraulic / Home Series with BCG Buttons)
+  if (m.includes('ae 01') || m.includes('ae01') || m.includes('hydraulic')) {
+    return [
+      'Imported Controller',
+      'Extra Soft Start & Landing',
+      'ARD',
+      'Multi-beam Light Curtains',
+      'Single Phase Protection',
+      'Interlocking Switches',
+      'Imported Motor and controller',
+      'Reverse Phase Protection',
+      'Digital Display - Up & Down + Floor',
+      'Anti-Squeeze Door system',
+      'Self Diagnostic Control System',
+      'Alarm with SOS + Phone',
+      'BCG Buttons',
+    ];
+  }
+
+  // 4. AE 03 Gearless Belt (without EV)
+  if (m.includes('ae 03') || m.includes('ae03') || m.includes('belt')) {
+    return [
+      'Imported Controller',
+      'Extra Soft Start & Landing',
+      'ARD',
+      'Multi-beam Light Curtains',
+      'Single Phase Protection',
+      'Interlocking Switches',
+      'Imported Motor and controller',
+      'Reverse Phase Protection',
+      'Digital Display - Up & Down + Floor',
+      'Anti-Squeeze Door system',
+      'Self Diagnostic Control System',
+      'Alarm with SOS + Phone',
+    ];
+  }
+
+  // Default fallback (EV features)
+  return [
+    'Imported Controller',
+    'Extra Soft Start & Landing',
+    'Supports up to 100 operating cycles during a power failure',
+    'Multi-beam Light Curtains',
+    'Single Phase Protection',
+    'Interlocking Switches',
+    'Imported Motor',
+    'Reverse Phase Protection',
+    'Digital Display - Up & Down + Floor',
+    'Anti-Squeeze Door system',
+    'Self Diagnostic Control System',
+    'Alarm with SOS + Phone',
+  ];
 }

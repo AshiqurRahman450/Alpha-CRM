@@ -1,5 +1,12 @@
 // Auto-generated 100% faithful pdf2htmlEX 10-page proposal template
-import { QuotationData, buildPage6WarrantyParagraph, parseDeliveryDays, DEFAULT_QUOTATION_DATA } from '../../types/quotation';
+import {
+  QuotationData,
+  buildPage6WarrantyParagraph,
+  parseDeliveryDays,
+  DEFAULT_QUOTATION_DATA,
+  formatEffectiveShaft,
+  getPresetAccessoriesFeatures,
+} from '../../types/quotation';
 
 export function sanitizeProposalParagraphs(html: string, pageNum: number, data?: QuotationData): string {
   if (!html) return html;
@@ -84,6 +91,28 @@ export function sanitizeProposalParagraphs(html: string, pageNum: number, data?:
 
   // ===================== PAGE 5 =====================
   if (pageNum === 5 || updated.includes('id="p4"')) {
+    // 1. Shaft Specifications on Page 5
+    const effectiveShaft = formatEffectiveShaft(safeData.shaftScope, safeData.shaftType);
+    if (effectiveShaft) {
+      const shaftRegex = /<div class="t c13" style="z-index:381;transform:matrix\(1,0,0,1,260\.73,213\.5\)[^"]*">[\s\S]*?<\/div>/;
+      if (shaftRegex.test(updated)) {
+        updated = updated.replace(shaftRegex, `<div class="t c13" style="z-index:381;transform:matrix(1,0,0,1,260.73,213.5);white-space:nowrap;">${effectiveShaft}</div>`);
+      } else {
+        updated = updated.replace(/Shaft-Glass Shaft\s*/i, effectiveShaft);
+      }
+    }
+
+    // 2. Accessories + Features on Page 5
+    const featuresList = (safeData.accessoriesFeatures && safeData.accessoriesFeatures.length > 0)
+      ? safeData.accessoriesFeatures
+      : getPresetAccessoriesFeatures(safeData.model);
+    const accessoriesHtml = buildPage5AccessoriesHtml(featuresList);
+    const ulRegex = /<ul role="list"[^>]*>[\s\S]*?<\/ul>/;
+    if (ulRegex.test(updated)) {
+      updated = updated.replace(ulRegex, accessoriesHtml);
+    }
+
+    // 3. Warranty
     const page5WarrantyHtml = buildPage5WarrantyHtml(safeData.warranty);
     const warrantyBoxRegex = /<div class="t c26[^"]*warranty-term-box[^"]*"[\s\S]*?<\/div>\s*<\/div>/;
     const warrantyCellRegex = /<div class="t c26[^"]*" style="z-index:907;transform:matrix\(1,0,0,1,252\.41,682\.01\)[^"]*">[\s\S]*?(?:years service\.<\/div>|<div class="t c26[^"]*" style="z-index:1048;transform:matrix\(1,0,0,1,249\.21,710\.81\)[^"]*">[\s\S]*?<\/div>)/;
@@ -730,6 +759,38 @@ export function buildPage5WarrantyHtml(text?: string): string {
   return `<div class="t c26 warranty-term-box" style="position:absolute;left:250px;top:677px;width:530px;height:48px;min-height:48px;white-space:normal;line-height:15px;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;z-index:907;">${text}</div>`;
 }
 
+export function buildPage5AccessoriesHtml(features?: string[]): string {
+  const items = (features && features.length > 0) ? features : [
+    'Imported Controller',
+    'Extra Soft Start & Landing',
+    'Supports up to 100 operating cycles during a power failure',
+    'Multi-beam Light Curtains',
+    'Single Phase Protection',
+    'Interlocking Switches',
+    'Imported Motor',
+    'Reverse Phase Protection',
+    'Digital Display - Up & Down + Floor',
+    'Anti-Squeeze Door system',
+    'Self Diagnostic Control System',
+    'Alarm with SOS + Phone',
+  ];
+
+  const baseY = 294.28;
+  const arrowBaseY = 295.11;
+  const stepY = 20;
+
+  const liElements = items.map((feat, idx) => {
+    const textY = (baseY + idx * stepY).toFixed(2);
+    const arrowY = (arrowBaseY + idx * stepY).toFixed(2);
+    const zArrow = 10 + idx * 28;
+    const zText = 11 + idx * 28;
+    const cleanFeat = feat.replace(/^[➢•\-\*\s]+/, '').trim();
+    return `<li role="listitem" style="display:contents">\n<div class="t c20" style="z-index:${zArrow};transform:matrix(1,0,0,1,52.67,${arrowY})">➢</div>\n<div class="t c21" style="z-index:${zText};transform:matrix(1,0,0,1,62.11,${textY})"> ${cleanFeat} </div>\n</li>`;
+  }).join('\n');
+
+  return `<ul role="list" class="page5-accessories-list" style="display:contents">\n${liElements}\n</ul>`;
+}
+
 export function renderExactPdfPage(pageIdx: number, data?: QuotationData): string {
   const safeData = data || DEFAULT_QUOTATION_DATA;
   if (pageIdx === 9) {
@@ -935,10 +996,19 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
   } else if (pageIdx === 4) {
     // Page 5: Shaft, Accessories, Terms
     html = html.replace('AE/QTN/AE-261026-131', safeData.offerNo || 'AE/QTN/AE-261026-131');
-    const effectiveShaft = (safeData.shaftScope === 'Customer scope' || safeData.shaftType === 'Customer scope') ? 'Customer scope' : safeData.shaftType;
+    const effectiveShaft = formatEffectiveShaft(safeData.shaftScope, safeData.shaftType);
     if (effectiveShaft) {
-      html = html.replace(/<div class="t c13" style="z-index:381;transform:matrix\(1,0,0,1,260\.73,213\.5\)">[\s\S]*?<\/div>/, `<div class="t c13" style="z-index:381;transform:matrix(1,0,0,1,260.73,213.5)">${effectiveShaft}</div>`);
+      html = html.replace(/<div class="t c13" style="z-index:381;transform:matrix\(1,0,0,1,260\.73,213\.5\)">[\s\S]*?<\/div>/, `<div class="t c13" style="z-index:381;transform:matrix(1,0,0,1,260.73,213.5);white-space:nowrap;">${effectiveShaft}</div>`);
       html = html.replace(/Shaft-Glass Shaft\s*/i, effectiveShaft);
+    }
+
+    const featuresList = (safeData.accessoriesFeatures && safeData.accessoriesFeatures.length > 0)
+      ? safeData.accessoriesFeatures
+      : getPresetAccessoriesFeatures(safeData.model);
+    const accessoriesHtml = buildPage5AccessoriesHtml(featuresList);
+    const ulRegex = /<ul role="list"[^>]*>[\s\S]*?<\/ul>/;
+    if (ulRegex.test(html)) {
+      html = html.replace(ulRegex, accessoriesHtml);
     }
     // Elevator Price
     const gstRate = safeData.gstRate !== undefined ? safeData.gstRate : 18;
