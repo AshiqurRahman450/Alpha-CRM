@@ -216,17 +216,17 @@ export default function QuotationLivePdf({
     }
 
     // Fix Page 5 Warranty & Delivery in savedPages
-    if (updated.includes('Lifetime- MOTOR WARRANTY') || updated.includes('Time of Material Delivery')) {
+    if (updated.includes('Lifetime- MOTOR WARRANTY') || updated.includes('Time of Material Delivery') || updated.includes('id="p4"')) {
+      const warrantyVal = data?.warranty || 'Lifetime- MOTOR WARRANTY, 5 years - manufacturing warranty + 1 Years Free Maintenance , 5 years Battery warranty ( 3 Years replaceable and 2 years service.';
+      const cleanWarrantyDiv = `<div class="t c26" style="position:absolute;left:252.41px;top:676px;width:504px;white-space:normal;line-height:13.5px;font-family:'f6',sans-serif;font-size:10.5px;color:#1a3f2e;z-index:907;">${warrantyVal}</div>`;
       const warrantyCellRegex = /<div class="t c26" style="z-index:907;transform:matrix\(1,0,0,1,252\.41,682\.01\)">[\s\S]*?years service\.<\/div>/;
-      if (data.warranty && warrantyCellRegex.test(updated)) {
-        updated = updated.replace(warrantyCellRegex, `<div class="t c26" style="position:absolute;left:252.41px;top:682.01px;width:490px;white-space:normal;line-height:14.4px;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;z-index:907;">${data.warranty}</div>`);
-      } else if (data.warranty) {
-        const customWarrantyRegex = /<div class="t c26" style="position:absolute;left:252\.41px;top:682\.01px;[\s\S]*?<\/div>/;
-        if (customWarrantyRegex.test(updated)) {
-          updated = updated.replace(customWarrantyRegex, `<div class="t c26" style="position:absolute;left:252.41px;top:682.01px;width:490px;white-space:normal;line-height:14.4px;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;z-index:907;">${data.warranty}</div>`);
-        }
+      const customWarrantyRegex = /<div class="t c26" style="position:absolute;left:252\.41px;top:6[78][0-9]\.?[0-9]*px;[\s\S]*?<\/div>/;
+      if (warrantyCellRegex.test(updated)) {
+        updated = updated.replace(warrantyCellRegex, cleanWarrantyDiv);
+      } else if (customWarrantyRegex.test(updated)) {
+        updated = updated.replace(customWarrantyRegex, cleanWarrantyDiv);
       }
-      if (data.deliveryTime) {
+      if (data?.deliveryTime) {
         updated = updated.replace(/\b\d+\s*days post confirmation on drawings and finishes\./, data.deliveryTime);
       }
     }
@@ -772,10 +772,16 @@ export default function QuotationLivePdf({
             }
 
             // Standard 11-page template
-            if (pageNum === 1 && (!isEditing || !baseHtml || !baseHtml.includes('CLIENT NAME') || !baseHtml.includes('MODEL'))) {
+            if (pageNum === 1 && (!isEditing || !baseHtml || !baseHtml.includes('CLIENT NAME') || !baseHtml.includes('MODEL') || baseHtml.includes('-3.33,641.44'))) {
               baseHtml = renderExactPdfPage(0, data);
             } else if (pageNum === 2 && (!isEditing || !baseHtml || baseHtml.includes('NK Group of Companies') || !baseHtml.includes('Where Vertical Mobility Meets Sophistication'))) {
               baseHtml = renderExactPdfPage(1, data);
+            } else if (pageNum === 3 && (!isEditing || !baseHtml || baseHtml.includes('490.24,806.2'))) {
+              baseHtml = renderExactPdfPage(2, data);
+            } else if (pageNum === 4 && (!isEditing || !baseHtml || !baseHtml.includes('Customer Specific requirements') || baseHtml.includes('height:558px'))) {
+              baseHtml = renderExactPdfPage(3, data);
+            } else if (pageNum === 5 && (!isEditing || !baseHtml || baseHtml.includes('682.01') || baseHtml.includes('years service.') || baseHtml.includes('44.83,250.97'))) {
+              baseHtml = renderExactPdfPage(4, data);
             } else if (pageNum === 10 && (!isEditing || !baseHtml || baseHtml.includes('Our Presence in INDIA') || baseHtml.includes('#0e4b31'))) {
               baseHtml = renderExactPdfPage(pageIdx, data);
             } else if (!baseHtml) {
