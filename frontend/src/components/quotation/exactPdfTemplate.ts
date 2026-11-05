@@ -75,6 +75,11 @@ export function sanitizeProposalParagraphs(html: string, pageNum: number, data?:
     } else {
       updated = updated.replace('<div class="t c15" style="z-index:159;transform:matrix(1,0,0,1,490.24,806.2)">SS Cabin</div>', centeredCabinWalls);
     }
+
+    // Ensure model name has same font color as Offer No (#1a3f2e)
+    updated = updated.replace(/<div class="t c9" style="z-index:791;transform:matrix\(1,0,0,1,310\.59,191\.55\)[^"]*">/g, '<div class="t c9" style="z-index:791;transform:matrix(1,0,0,1,310.59,191.55);color:#1a3f2e !important;">');
+    updated = updated.replace(/<div class="t c9" style="z-index:816;transform:matrix\(1,0,0,1,62\.53,216\.83\)[^"]*">/g, '<div class="t c9" style="z-index:816;transform:matrix(1,0,0,1,62.53,216.83);color:#1a3f2e !important;">');
+    updated = updated.replace(/<div class="t c17" style="z-index:729;transform:matrix\(1,0,0,1,346\.53,364\.86\)[^"]*">/g, '<div class="t c17" style="z-index:729;transform:matrix(1,0,0,1,346.53,364.86);color:#1a3f2e !important;">');
   }
 
   // ===================== PAGE 5 =====================
@@ -159,6 +164,13 @@ export function sanitizeProposalParagraphs(html: string, pageNum: number, data?:
         const cleanParagraph = `<div class="t c23" style="position:absolute;left:28.64px;top:800.64px;width:736px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#0e4b31;text-align:justify;text-justify:inter-word;z-index:274;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">Civil work requirements: </span>1. All minor builder work related to the installation of the elevator. 2. Enclosed &amp; Lockable area near the hoist way for storage of material to be provided as per our requirement. 3. Provide us with finished and dry hoist way, machine room, pit and complete the preparatory work as per the norms laid out in the Indian Standards 14665:2000. 4. The lobby architrave would need to be carried out on our completing the entrances. Also, after installation of doors, adequate measures would need to be taken to protect the landing doors and landing fixtures from damage and breakage during the architrave work. 5. Adequate measures need to be taken to prevent water from seeping into the hoist way. 6. Adequate ventilation for Head room with rain protected windows or Louvers. Temperature of machine area not to exceed 45°C. 7. White washing and plastering of elevator hoist way before start of installation. 8. Making of buffer blocks in lift pit. 9. Providing lintels as per our requirement as specified in the layout at each landing. 10. Necessary hoisting beams/hooks need to be provided. 11. Where ever required Machine pedestal or I-Beams to be provided according to our instructions. 12. Hoistway size should be as per our required size and if not separator beams to be provided and fixed as per our engineer's instructions. Partition and recession from shaft top slab to the pit floor. 13. Supply &amp; Fixing of Pit Ladder. 14. Only Alpha Elevators or Alpha Elevators authorized personnel shall remove the barricades. 15. Fascias for flush hoist way walls free of setbacks or projections. 16. Full height fascia to be provided were the distance between car sill to front wall shaft inside is more than 135 mm. Electrical work requirements.</div>`;
         updated = updated.substring(0, sIdx) + cleanParagraph + updated.substring(eIdx + targetEnd.length);
       }
+    }
+
+    // 6. Customer Scope of Work - remove underline
+    const scopeUnderlineRegex = /<div class="t c31" style="z-index:8;transform:matrix\(1,0,0,1,33\.41,508\.32\)">Customer Scope of Work:\s*<\/div>/;
+    const cleanScope = `<div class="t c31" style="z-index:10;transform:matrix(1,0,0,1,33.41,508.32);background:#ffffff;">Customer Scope of Work: </div><div class="customer-scope-underline-remover" style="position:absolute;left:32px;top:517.5px;width:150px;height:4.5px;background:#ffffff;z-index:9;pointer-events:none;"></div>`;
+    if (scopeUnderlineRegex.test(updated)) {
+      updated = updated.replace(scopeUnderlineRegex, cleanScope);
     }
   }
 
@@ -779,10 +791,15 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
     // Page 3: Civil & Cabin
     html = html.replace('AE-261026-131', safeData.offerNo ? safeData.offerNo.replace(/^AE\/QTN\/\s*/i, '') : 'AE-261026-131');
     if (safeData.model) {
-      html = html.replace(/<div class="t c9" style="z-index:791;transform:matrix\(1,0,0,1,310\.59,191\.55\)">[\s\S]*?<\/div>/, `<div class="t c9" style="z-index:791;transform:matrix(1,0,0,1,310.59,191.55)">${safeData.model}</div>`);
-      html = html.replace(/<div class="t c17" style="z-index:729;transform:matrix\(1,0,0,1,346\.53,364\.86\)">[\s\S]*?<\/div>/, `<div class="t c17" style="z-index:729;transform:matrix(1,0,0,1,346.53,364.86)">${safeData.model}</div>`);
+      html = html.replace(/<div class="t c9" style="z-index:791;transform:matrix\(1,0,0,1,310\.59,191\.55\)">[\s\S]*?<\/div>/, `<div class="t c9" style="z-index:791;transform:matrix(1,0,0,1,310.59,191.55);color:#1a3f2e !important;">${safeData.model}</div>`);
+      html = html.replace(/<div class="t c9" style="z-index:816;transform:matrix\(1,0,0,1,62\.53,216\.83\)">[\s\S]*?<\/div>/, '');
+      html = html.replace(/<div class="t c17" style="z-index:729;transform:matrix\(1,0,0,1,346\.53,364\.86\)">[\s\S]*?<\/div>/, `<div class="t c17" style="z-index:729;transform:matrix(1,0,0,1,346.53,364.86);color:#1a3f2e !important;">${safeData.model}</div>`);
       html = html.replace('AE 03 Gearless Belt Home', safeData.model);
       html = html.replace('AE 03 Home Elevator EV', safeData.model);
+    } else {
+      html = html.replace(/<div class="t c9" style="z-index:791;transform:matrix\(1,0,0,1,310\.59,191\.55\)[^"]*">/g, '<div class="t c9" style="z-index:791;transform:matrix(1,0,0,1,310.59,191.55);color:#1a3f2e !important;">');
+      html = html.replace(/<div class="t c9" style="z-index:816;transform:matrix\(1,0,0,1,62\.53,216\.83\)[^"]*">/g, '<div class="t c9" style="z-index:816;transform:matrix(1,0,0,1,62.53,216.83);color:#1a3f2e !important;">');
+      html = html.replace(/<div class="t c17" style="z-index:729;transform:matrix\(1,0,0,1,346\.53,364\.86\)[^"]*">/g, '<div class="t c17" style="z-index:729;transform:matrix(1,0,0,1,346.53,364.86);color:#1a3f2e !important;">');
     }
     if (safeData.hoistWayShaftSize) html = html.replace('1450mm X 1800mm', safeData.hoistWayShaftSize);
     if (safeData.pitDepth) {
@@ -991,6 +1008,13 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
     const warrantyRegex = /<div class="t c23" style="position:absolute;left:33\.41px;top:346\.51px;[\s\S]*?Applicable after \d+ years\.<\/div>/;
     if (warrantyRegex.test(html)) {
       html = html.replace(warrantyRegex, page6Warranty);
+    }
+
+    // Remove underline under Customer Scope of Work
+    const scopeUnderlineRegex = /<div class="t c31" style="z-index:8;transform:matrix\(1,0,0,1,33\.41,508\.32\)">Customer Scope of Work:\s*<\/div>/;
+    const cleanScope = `<div class="t c31" style="z-index:10;transform:matrix(1,0,0,1,33.41,508.32);background:#ffffff;">Customer Scope of Work: </div><div class="customer-scope-underline-remover" style="position:absolute;left:32px;top:517.5px;width:150px;height:4.5px;background:#ffffff;z-index:9;pointer-events:none;"></div>`;
+    if (scopeUnderlineRegex.test(html)) {
+      html = html.replace(scopeUnderlineRegex, cleanScope);
     }
   } else if (pageIdx === 8) {
     // Page 9: Signatures

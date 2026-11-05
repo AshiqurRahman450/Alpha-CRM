@@ -707,6 +707,17 @@ export default function QuotationCreatorPage() {
           pointer-events: none;
         }
         #p1 .c9 { color: #0e4b31 !important; }
+        #p2 .c9, #p2 .c17 { color: #1a3f2e !important; }
+        #p5 .customer-scope-underline-remover {
+          position: absolute;
+          left: 32px;
+          top: 517.5px;
+          width: 150px;
+          height: 4.5px;
+          background: #ffffff;
+          z-index: 9;
+          pointer-events: none;
+        }
         #p9 .c3, #p9 .c10 { color: #000000 !important; }
         #p9 .billing-page-container { color: #000000 !important; }
         #p10 .c35, #p10 .c37 { color: #000000 !important; }

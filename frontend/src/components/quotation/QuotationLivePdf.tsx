@@ -234,6 +234,22 @@ export default function QuotationLivePdf({
       updated = updated.replace(/(Delivery of material shall be )\d+( working days)/, `$1${deliveryDays}$2`);
     }
 
+    // Fix Customer Scope of Work underline on Page 6
+    if (updated.includes('Customer Scope of Work')) {
+      const scopeUnderlineRegex = /<div class="t c31" style="z-index:8;transform:matrix\(1,0,0,1,33\.41,508\.32\)">Customer Scope of Work:\s*<\/div>/;
+      const cleanScope = `<div class="t c31" style="z-index:10;transform:matrix(1,0,0,1,33.41,508.32);background:#ffffff;">Customer Scope of Work: </div><div class="customer-scope-underline-remover" style="position:absolute;left:32px;top:517.5px;width:150px;height:4.5px;background:#ffffff;z-index:9;pointer-events:none;"></div>`;
+      if (scopeUnderlineRegex.test(updated)) {
+        updated = updated.replace(scopeUnderlineRegex, cleanScope);
+      }
+    }
+
+    // Fix Page 3 Model Name Font Color
+    if (pageNum === 3 || updated.includes('id="p2"') || (updated.includes('Gearless Belt') && updated.includes('310.59,191.55'))) {
+      updated = updated.replace(/<div class="t c9" style="z-index:791;transform:matrix\(1,0,0,1,310\.59,191\.55\)[^"]*">/g, '<div class="t c9" style="z-index:791;transform:matrix(1,0,0,1,310.59,191.55);color:#1a3f2e !important;">');
+      updated = updated.replace(/<div class="t c9" style="z-index:816;transform:matrix\(1,0,0,1,62\.53,216\.83\)[^"]*">/g, '<div class="t c9" style="z-index:816;transform:matrix(1,0,0,1,62.53,216.83);color:#1a3f2e !important;">');
+      updated = updated.replace(/<div class="t c17" style="z-index:729;transform:matrix\(1,0,0,1,346\.53,364\.86\)[^"]*">/g, '<div class="t c17" style="z-index:729;transform:matrix(1,0,0,1,346.53,364.86);color:#1a3f2e !important;">');
+    }
+
     // Fix Page 5 Warranty & Delivery in savedPages
     if (updated.includes('Lifetime- MOTOR WARRANTY') || updated.includes('Time of Material Delivery') || updated.includes('years service') || updated.includes('warranty-term-box')) {
       const page5WarrantyHtml = buildPage5WarrantyHtml(data.warranty);
@@ -722,6 +738,17 @@ export default function QuotationLivePdf({
               pointer-events: none;
             }
             #p1 .c9 { color: #0e4b31 !important; }
+            #p2 .c9, #p2 .c17 { color: #1a3f2e !important; }
+            #p5 .customer-scope-underline-remover {
+              position: absolute;
+              left: 32px;
+              top: 517.5px;
+              width: 150px;
+              height: 4.5px;
+              background: #ffffff;
+              z-index: 9;
+              pointer-events: none;
+            }
             #p9 .c3, #p9 .c10 { color: #000000 !important; }
             #p9 .billing-page-container { color: #000000 !important; }
             #p10 .c35, #p10 .c37 { color: #000000 !important; }
@@ -809,10 +836,12 @@ export default function QuotationLivePdf({
               baseHtml = renderExactPdfPage(0, data);
             } else if (pageNum === 2 && (!isEditing || !baseHtml || baseHtml.includes('NK Group of Companies') || !baseHtml.includes('Where Vertical Mobility Meets Sophistication'))) {
               baseHtml = renderExactPdfPage(1, data);
-            } else if (pageNum === 3 && (!isEditing || !baseHtml || baseHtml.includes('490.24,806.2'))) {
+            } else if (pageNum === 3 && (!isEditing || !baseHtml || baseHtml.includes('490.24,806.2') || !baseHtml.includes('color:#1a3f2e'))) {
               baseHtml = renderExactPdfPage(2, data);
             } else if (pageNum === 5 && (!isEditing || !baseHtml || !baseHtml.includes('warranty-term-box') || !baseHtml.includes('height:48px'))) {
               baseHtml = renderExactPdfPage(4, data);
+            } else if (pageNum === 6 && (!isEditing || !baseHtml || !baseHtml.includes('customer-scope-underline-remover'))) {
+              baseHtml = renderExactPdfPage(5, data);
             } else if (pageNum === 10 && (!isEditing || !baseHtml || baseHtml.includes('Our Presence in INDIA') || baseHtml.includes('#0e4b31'))) {
               baseHtml = renderExactPdfPage(pageIdx, data);
             } else if (!baseHtml) {
