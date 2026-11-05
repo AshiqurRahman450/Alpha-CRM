@@ -698,9 +698,9 @@ export default function QuotationCreatorPage() {
         #p0::after {
           content: '';
           position: absolute;
-          left: 710px;
+          left: 530px;
           top: 960px; 
-          width: 80px;
+          width: 260px;
           height: 155px;
           background: #ffffff;
           z-index: 10;

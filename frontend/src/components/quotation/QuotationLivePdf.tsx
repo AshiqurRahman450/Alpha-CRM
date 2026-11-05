@@ -713,9 +713,9 @@ export default function QuotationLivePdf({
             #p0::after {
               content: '';
               position: absolute;
-              left: 710px;
+              left: 530px;
               top: 960px; 
-              width: 80px;
+              width: 260px;
               height: 155px;
               background: #ffffff;
               z-index: 10;
@@ -805,13 +805,13 @@ export default function QuotationLivePdf({
             }
 
             // Standard 11-page template
-            if (pageNum === 1 && (!isEditing || !baseHtml || !baseHtml.includes('CLIENT NAME') || !baseHtml.includes('MODEL') || baseHtml.includes('-3.33,641.44'))) {
+            if (pageNum === 1 && (!isEditing || !baseHtml || !baseHtml.includes('CLIENT NAME') || !baseHtml.includes('MODEL') || baseHtml.includes('-3.33,641.44') || !baseHtml.includes('page1-dot-remover'))) {
               baseHtml = renderExactPdfPage(0, data);
             } else if (pageNum === 2 && (!isEditing || !baseHtml || baseHtml.includes('NK Group of Companies') || !baseHtml.includes('Where Vertical Mobility Meets Sophistication'))) {
               baseHtml = renderExactPdfPage(1, data);
             } else if (pageNum === 3 && (!isEditing || !baseHtml || baseHtml.includes('490.24,806.2'))) {
               baseHtml = renderExactPdfPage(2, data);
-            } else if (pageNum === 5 && (!isEditing || !baseHtml || !baseHtml.includes('warranty-term-box') || !baseHtml.includes('width:530px'))) {
+            } else if (pageNum === 5 && (!isEditing || !baseHtml || !baseHtml.includes('warranty-term-box') || !baseHtml.includes('height:48px'))) {
               baseHtml = renderExactPdfPage(4, data);
             } else if (pageNum === 10 && (!isEditing || !baseHtml || baseHtml.includes('Our Presence in INDIA') || baseHtml.includes('#0e4b31'))) {
               baseHtml = renderExactPdfPage(pageIdx, data);

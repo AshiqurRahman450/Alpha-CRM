@@ -43,6 +43,12 @@ export function sanitizeProposalParagraphs(html: string, pageNum: number, data?:
     // Remove bottom-right logo if present
     updated = updated.replace(/<img class="im"[^>]*style="[^"]*714\.6[^"]*"[^>]*>/g, '');
 
+    // Remove three dots at bottom right of Page 1
+    if (!updated.includes('page1-dot-remover')) {
+      const page1DotMask = '<div class="page1-dot-remover" style="position:absolute;left:530px;top:1045px;width:185px;height:55px;background:#ffffff;z-index:10;pointer-events:none;"></div>';
+      updated = updated.replace(/<\/div>\s*$/, `${page1DotMask}</div>`);
+    }
+
     // Project Proposal: add one tab space indent (shift x from -3.33 to 35)
     updated = updated.replace(
       /<div class="t c0" style="z-index:45;transform:matrix\(1,0,0,1,-3\.33,641\.44\)">/g,
@@ -699,17 +705,17 @@ export function buildPage5WarrantyHtml(text?: string): string {
     const l1 = text.substring(0, idx1).trimEnd();
     const l2 = text.substring(idx1, idx2).trimEnd();
     const l3 = text.substring(idx2).trim();
-    return `<div class="t c26 warranty-term-box" style="position:absolute;left:250px;top:680px;width:530px;line-height:14.2px;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;z-index:907;"><div style="white-space:nowrap;">${l1} </div><div style="white-space:nowrap;">${l2} </div><div style="white-space:nowrap;">${l3}</div></div>`;
+    return `<div class="t c26 warranty-term-box" style="position:absolute;left:250px;top:677px;width:530px;height:48px;min-height:48px;line-height:15px;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;z-index:907;"><div style="white-space:nowrap;">${l1} </div><div style="white-space:nowrap;">${l2} </div><div style="white-space:nowrap;">${l3}</div></div>`;
   }
 
   // If text has newline characters:
   if (text.includes('\n')) {
     const lines = text.split('\n').filter(Boolean);
     const inner = lines.slice(0, 3).map((l) => `<div style="white-space:nowrap;">${l}</div>`).join('');
-    return `<div class="t c26 warranty-term-box" style="position:absolute;left:250px;top:680px;width:530px;line-height:14.2px;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;z-index:907;">${inner}</div>`;
+    return `<div class="t c26 warranty-term-box" style="position:absolute;left:250px;top:677px;width:530px;height:48px;min-height:48px;line-height:15px;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;z-index:907;">${inner}</div>`;
   }
 
-  return `<div class="t c26 warranty-term-box" style="position:absolute;left:250px;top:680px;width:530px;white-space:normal;line-height:14.2px;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;z-index:907;">${text}</div>`;
+  return `<div class="t c26 warranty-term-box" style="position:absolute;left:250px;top:677px;width:530px;height:48px;min-height:48px;white-space:normal;line-height:15px;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;z-index:907;">${text}</div>`;
 }
 
 export function renderExactPdfPage(pageIdx: number, data?: QuotationData): string {
@@ -750,6 +756,12 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
       `<div class="t c2" style="z-index:137;transform:matrix(1,0,0,1,39.71,1081.98);color:#0f4b31 !important;white-space:nowrap;">Offer No: ${offerNo}</div>`
     );
     html = html.replace(/<img class="im"[^>]*style="[^"]*714\.6[^"]*"[^>]*>/g, '');
+
+    // Remove three dots at bottom right of Page 1
+    if (!html.includes('page1-dot-remover')) {
+      const page1DotMask = '<div class="page1-dot-remover" style="position:absolute;left:530px;top:1045px;width:185px;height:55px;background:#ffffff;z-index:10;pointer-events:none;"></div>';
+      html = html.replace(/<\/div>\s*$/, `${page1DotMask}</div>`);
+    }
 
     // Project Proposal: add one tab space indent (shift x from -3.33 to 35)
     html = html.replace(
