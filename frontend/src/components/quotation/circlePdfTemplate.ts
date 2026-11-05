@@ -79,8 +79,8 @@ export function renderCirclePdfPage(pageIdx: number, data: QuotationData): strin
     const elevatorPriceNum = Number(data.elevatorPrice) || 1100000;
     const discountNum = Number(data.elevatorDiscountPrice || 0);
     const hasDiscount = Boolean(discountNum > 0);
-    const finalPriceNum = hasDiscount ? Math.max(0, elevatorPriceNum - discountNum) : elevatorPriceNum;
-    const mrpPriceNum = elevatorPriceNum;
+    const mrpPriceNum = hasDiscount ? elevatorPriceNum + discountNum : elevatorPriceNum;
+    const finalPriceNum = elevatorPriceNum;
     const gstPct = data.gstRate !== undefined ? data.gstRate : 18;
 
     html = replaceExactText(html, 'Rs. 13,00,000 + 18% GST', `Rs. ${formatINR(mrpPriceNum)} + ${gstPct}% GST`);

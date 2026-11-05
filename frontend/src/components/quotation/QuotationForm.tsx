@@ -288,7 +288,8 @@ export default function QuotationForm({
   };
 
   // Calculations
-  // Formula: (Elevator Price (₹) - Discount Price) * 1.18
+  // Formula: =((elevator Price + discount elevator price) - discount elevator price) * 1.18)
+  // same calculation also shaft
   const elevatorPrice = Number(data.elevatorPrice || 0);
   const elevatorDiscountPrice =
     data.elevatorDiscountPrice !== undefined &&
@@ -296,10 +297,11 @@ export default function QuotationForm({
     Number(data.elevatorDiscountPrice) > 0
       ? Number(data.elevatorDiscountPrice)
       : 0;
-  const netElevatorPrice = Math.max(0, elevatorPrice - elevatorDiscountPrice);
+  const elevatorMRP = elevatorPrice + elevatorDiscountPrice;
+  const netElevatorPrice = elevatorMRP - elevatorDiscountPrice;
   const effectiveElevatorPrice = netElevatorPrice;
 
-  // Shaft formula: (Shaft Price - Discount Price) * 1.18
+  // Shaft formula: =((shaft Price + discount shaft price) - discount shaft price) * 1.18)
   const shaftPrice = Number(data.shaftPrice || 0);
   const shaftDiscountPrice =
     data.shaftDiscountPrice !== undefined &&
@@ -307,19 +309,23 @@ export default function QuotationForm({
     Number(data.shaftDiscountPrice) > 0
       ? Number(data.shaftDiscountPrice)
       : 0;
-  const netShaftPrice = Math.max(0, shaftPrice - shaftDiscountPrice);
+  const shaftMRP = shaftPrice + shaftDiscountPrice;
+  const netShaftPrice = shaftMRP - shaftDiscountPrice;
   const effectiveShaftPrice = netShaftPrice;
 
   const gstRate = data.gstRate !== undefined ? Number(data.gstRate) : 18;
   const gstMultiplier = 1 + gstRate / 100;
-  const elevatorTotalWithGst = Math.round(netElevatorPrice * gstMultiplier);
-  const shaftTotalWithGst = Math.round(netShaftPrice * gstMultiplier);
+  const elevatorTotalWithGst = Math.round((elevatorMRP - elevatorDiscountPrice) * gstMultiplier);
+  const elevatorMRPTotalWithGst = Math.round(elevatorMRP * gstMultiplier);
+
+  const shaftTotalWithGst = Math.round((shaftMRP - shaftDiscountPrice) * gstMultiplier);
+  const shaftMRPTotalWithGst = Math.round(shaftMRP * gstMultiplier);
 
   const subtotal = netElevatorPrice + netShaftPrice;
   const gstAmount = Math.round((subtotal * gstRate) / 100);
   const grandTotal = subtotal + gstAmount;
 
-  const baseSubtotal = elevatorPrice + shaftPrice;
+  const baseSubtotal = elevatorMRP + shaftMRP;
   const totalSavings = elevatorDiscountPrice + shaftDiscountPrice;
   const hasDiscounts = elevatorDiscountPrice > 0 || shaftDiscountPrice > 0;
 
@@ -2006,7 +2012,7 @@ export default function QuotationForm({
                     />
                     <span className="text-[10px] text-slate-500 mt-0.5 block">
                       {elevatorDiscountPrice > 0
-                        ? `(₹${elevatorPrice.toLocaleString('en-IN')} - ₹${elevatorDiscountPrice.toLocaleString('en-IN')}) × ${gstMultiplier.toFixed(2)} = ₹${elevatorTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`
+                        ? `=((₹${elevatorPrice.toLocaleString('en-IN')} + ₹${elevatorDiscountPrice.toLocaleString('en-IN')}) - ₹${elevatorDiscountPrice.toLocaleString('en-IN')}) × ${gstMultiplier.toFixed(2)} = ₹${elevatorTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`
                         : `Total with GST: ₹${elevatorTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`}
                     </span>
                   </div>
@@ -2111,7 +2117,7 @@ export default function QuotationForm({
                   <div className="text-[10px] text-slate-400">Elevator Total</div>
                   {elevatorDiscountPrice > 0 ? (
                     <div>
-                      <div className="text-[11px] text-slate-400 line-through">₹{Math.round(elevatorPrice * gstMultiplier).toLocaleString('en-IN')}</div>
+                      <div className="text-[11px] text-slate-400 line-through">₹{elevatorMRPTotalWithGst.toLocaleString('en-IN')}</div>
                       <div className="text-sm font-bold text-emerald-400">₹{elevatorTotalWithGst.toLocaleString('en-IN')}</div>
                       <div className="text-[10px] text-slate-300 font-normal">Base: ₹{netElevatorPrice.toLocaleString('en-IN')}</div>
                     </div>
@@ -2126,7 +2132,7 @@ export default function QuotationForm({
                   <div className="text-[10px] text-slate-400">Shaft Package</div>
                   {shaftDiscountPrice > 0 ? (
                     <div>
-                      <div className="text-[11px] text-slate-400 line-through">₹{Math.round(shaftPrice * gstMultiplier).toLocaleString('en-IN')}</div>
+                      <div className="text-[11px] text-slate-400 line-through">₹{shaftMRPTotalWithGst.toLocaleString('en-IN')}</div>
                       <div className="text-sm font-bold text-emerald-400">₹{shaftTotalWithGst.toLocaleString('en-IN')}</div>
                       <div className="text-[10px] text-slate-300 font-normal">Base: ₹{netShaftPrice.toLocaleString('en-IN')}</div>
                     </div>
@@ -2198,7 +2204,7 @@ export default function QuotationForm({
                   </div>
                   <span className="text-[10px] text-slate-500 mt-0.5 block">
                     {elevatorDiscountPrice > 0
-                      ? `Net: (₹${elevatorPrice.toLocaleString('en-IN')} - ₹${elevatorDiscountPrice.toLocaleString('en-IN')}) × ${gstMultiplier.toFixed(2)} = ₹${elevatorTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`
+                      ? `=((₹${elevatorPrice.toLocaleString('en-IN')} + ₹${elevatorDiscountPrice.toLocaleString('en-IN')}) - ₹${elevatorDiscountPrice.toLocaleString('en-IN')}) × ${gstMultiplier.toFixed(2)} = ₹${elevatorTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`
                       : `Total with GST: ₹${elevatorTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`}
                   </span>
                 </div>
@@ -2254,7 +2260,7 @@ export default function QuotationForm({
                   </div>
                   <span className="text-[10px] text-slate-500 mt-0.5 block">
                     {shaftDiscountPrice > 0
-                      ? `Net: (₹${shaftPrice.toLocaleString('en-IN')} - ₹${shaftDiscountPrice.toLocaleString('en-IN')}) × ${gstMultiplier.toFixed(2)} = ₹${shaftTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`
+                      ? `=((₹${shaftPrice.toLocaleString('en-IN')} + ₹${shaftDiscountPrice.toLocaleString('en-IN')}) - ₹${shaftDiscountPrice.toLocaleString('en-IN')}) × ${gstMultiplier.toFixed(2)} = ₹${shaftTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`
                       : `Total with GST: ₹${shaftTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`}
                   </span>
                 </div>
