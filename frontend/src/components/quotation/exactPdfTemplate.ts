@@ -71,44 +71,6 @@ export function sanitizeProposalParagraphs(html: string, pageNum: number, data?:
     }
   }
 
-  // ===================== PAGE 4 =====================
-  if (pageNum === 4 || updated.includes('id="p3"')) {
-    updated = updated.replace(
-      /(<td[^>]*font-size:[^;]+;color:#1a3f2e;padding:0;margin:0;">Customer Specific requirements<\/td>)/i,
-      `<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:11px;line-height:13px;padding:2px 4px 6px 4px;box-sizing:border-box;color:#1a3f2e;margin:0;">Customer Specific requirements</td>`
-    );
-  }
-
-  // ===================== PAGE 5 =====================
-  if (pageNum === 5 || updated.includes('id="p4"')) {
-    // 1. Shift Shaft Specifications header up to create space below it
-    updated = updated.replace(
-      /<div class="t c8" style="z-index:435;transform:matrix\(1,0,0,1,44\.83,180\.09\)">/g,
-      '<div class="t c8" style="z-index:435;transform:matrix(1,0,0,1,44.83,176.09)">'
-    );
-    // 2. Shaft value vertically centered in box
-    updated = updated.replace(
-      /<div class="t c13" style="z-index:381;transform:matrix\(1,0,0,1,260\.73,213\.5\)">/g,
-      '<div class="t c13" style="z-index:381;transform:matrix(1,0,0,1,260.73,222)">'
-    );
-    // 3. Shift Accessories + Features down to add space below Shaft Specification box
-    updated = updated.replace(
-      /<div class="t c8" style="z-index:456;transform:matrix\(1,0,0,1,44\.83,250\.97\)">/g,
-      '<div class="t c8" style="z-index:456;transform:matrix(1,0,0,1,44.83,262.5)">'
-    );
-
-    // 4. Warranty: clean clearance, never touch the horizontal line
-    const warrantyVal = safeData.warranty || 'Lifetime- MOTOR WARRANTY, 5 years - manufacturing warranty + 1 Years Free Maintenance , 5 years Battery warranty ( 3 Years replaceable and 2 years service.';
-    const cleanWarrantyDiv = `<div class="t c26" style="position:absolute;left:252.41px;top:676px;width:504px;white-space:normal;line-height:13.5px;font-family:'f6',sans-serif;font-size:10.5px;color:#1a3f2e;z-index:907;">${warrantyVal}</div>`;
-    const rawWarrantyRegex = /<div class="t c26" style="z-index:907;transform:matrix\(1,0,0,1,252\.41,682\.01\)">[\s\S]*?years service\.<\/div>/;
-    const customWarrantyRegex = /<div class="t c26" style="position:absolute;left:252\.41px;top:6[78][0-9]\.?[0-9]*px;[\s\S]*?<\/div>/;
-    if (rawWarrantyRegex.test(updated)) {
-      updated = updated.replace(rawWarrantyRegex, cleanWarrantyDiv);
-    } else if (customWarrantyRegex.test(updated)) {
-      updated = updated.replace(customWarrantyRegex, cleanWarrantyDiv);
-    }
-  }
-
   // ===================== PAGE 6 =====================
   if (pageNum === 6 || updated.includes('id="p5"')) {
     // 1. Taxes & Duties on Page 6
@@ -830,7 +792,6 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
     const customerSpecificRequirementsVal = safeData.customerSpecificRequirements || 'Nil';
 
     const rowH = isEv ? '37.2px' : '39.85px';
-    const lastRowH = isEv ? '40px' : '42px';
     const fontSize = isEv ? '12px' : '12.5px';
 
     const batteryRowHtml = isEv ? `
@@ -839,7 +800,7 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
 <td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">${batteryVal}</td>
 </tr>` : '';
 
-    const specTable = `<table style="position:absolute;left:58.25px;top:243.5px;width:655.5px;height:564px;border-collapse:collapse;background:#ffffff;z-index:50;border:1px solid #000000;box-sizing:border-box;">
+    const specTable = `<table style="position:absolute;left:58.25px;top:243.5px;width:655.5px;height:558px;border-collapse:collapse;background:#ffffff;z-index:50;border:1px solid #000000;box-sizing:border-box;">
 <tbody>
 <tr style="height:${rowH};border-bottom:1px solid #000000;">
 <td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">Rated Load</td>
@@ -893,9 +854,9 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
 <td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">Clear Opening</td>
 <td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">${clearOpeningVal}</td>
 </tr>
-<tr style="height:${lastRowH};">
-<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:11px;line-height:13px;padding:2px 4px 6px 4px;box-sizing:border-box;color:#1a3f2e;margin:0;">Customer Specific requirements</td>
-<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};line-height:14px;padding:2px 4px 4px 4px;box-sizing:border-box;color:#1a3f2e;margin:0;">${customerSpecificRequirementsVal}</td>
+<tr style="height:${rowH};">
+<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">Customer Specific requirements</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">${customerSpecificRequirementsVal}</td>
 </tr>
 </tbody>
 </table>`;
@@ -907,26 +868,11 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
   } else if (pageIdx === 4) {
     // Page 5: Shaft, Accessories, Terms
     html = html.replace('AE/QTN/AE-261026-131', safeData.offerNo || 'AE/QTN/AE-261026-131');
-
-    // 1. Shift Shaft Specifications header up to create space below it
-    html = html.replace(
-      /<div class="t c8" style="z-index:435;transform:matrix\(1,0,0,1,44\.83,180\.09\)">/g,
-      '<div class="t c8" style="z-index:435;transform:matrix(1,0,0,1,44.83,176.09)">'
-    );
-
-    // 2. Shaft value vertically centered in box
-    const effectiveShaft = (safeData.shaftScope === 'Customer scope' || safeData.shaftType === 'Customer scope') ? 'Customer scope' : (safeData.shaftType || 'Glass Shaft');
-    html = html.replace(
-      /<div class="t c13" style="z-index:381;transform:matrix\(1,0,0,1,260\.73,213\.5\)">[\s\S]*?<\/div>/,
-      `<div class="t c13" style="z-index:381;transform:matrix(1,0,0,1,260.73,222)">${effectiveShaft}</div>`
-    );
-    html = html.replace(/Shaft-Glass Shaft\s*/i, effectiveShaft);
-
-    // 3. Shift Accessories + Features down to add space below Shaft Specification box
-    html = html.replace(
-      /<div class="t c8" style="z-index:456;transform:matrix\(1,0,0,1,44\.83,250\.97\)">/g,
-      '<div class="t c8" style="z-index:456;transform:matrix(1,0,0,1,44.83,262.5)">'
-    );
+    const effectiveShaft = (safeData.shaftScope === 'Customer scope' || safeData.shaftType === 'Customer scope') ? 'Customer scope' : safeData.shaftType;
+    if (effectiveShaft) {
+      html = html.replace(/<div class="t c13" style="z-index:381;transform:matrix\(1,0,0,1,260\.73,213\.5\)">[\s\S]*?<\/div>/, `<div class="t c13" style="z-index:381;transform:matrix(1,0,0,1,260.73,213.5)">${effectiveShaft}</div>`);
+      html = html.replace(/Shaft-Glass Shaft\s*/i, effectiveShaft);
+    }
     // Elevator Price
     const gstRate = safeData.gstRate !== undefined ? safeData.gstRate : 18;
     const elvMRP = safeData.elevatorPrice ? 'Rs. ' + formatINR(safeData.elevatorPrice) + ' + ' + gstRate + '% GST' : '';
@@ -969,18 +915,16 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
     } else if (safeData.shaftPrice) {
       html = html.replace('Rs.4,00,000 + 18% GST', shaftMRP);
     }
-
-    // 4. Warranty: clean clearance, never touch the horizontal line
-    const warrantyVal = safeData.warranty || 'Lifetime- MOTOR WARRANTY, 5 years - manufacturing warranty + 1 Years Free Maintenance , 5 years Battery warranty ( 3 Years replaceable and 2 years service.';
-    const cleanWarrantyDiv = `<div class="t c26" style="position:absolute;left:252.41px;top:676px;width:504px;white-space:normal;line-height:13.5px;font-family:'f6',sans-serif;font-size:10.5px;color:#1a3f2e;z-index:907;">${warrantyVal}</div>`;
     const warrantyCellRegex = /<div class="t c26" style="z-index:907;transform:matrix\(1,0,0,1,252\.41,682\.01\)">[\s\S]*?years service\.<\/div>/;
-    const customWarrantyRegex = /<div class="t c26" style="position:absolute;left:252\.41px;top:6[78][0-9]\.?[0-9]*px;[\s\S]*?<\/div>/;
-    if (warrantyCellRegex.test(html)) {
-      html = html.replace(warrantyCellRegex, cleanWarrantyDiv);
-    } else if (customWarrantyRegex.test(html)) {
-      html = html.replace(customWarrantyRegex, cleanWarrantyDiv);
-    } else {
-      html = html.replace('Lifetime- MOTOR WARRANTY, 5 years - manufacturing warranty + 1 Years', warrantyVal);
+    if (safeData.warranty && warrantyCellRegex.test(html)) {
+      html = html.replace(warrantyCellRegex, `<div class="t c26" style="position:absolute;left:252.41px;top:682.01px;width:490px;white-space:normal;line-height:14.4px;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;z-index:907;">${safeData.warranty}</div>`);
+    } else if (safeData.warranty) {
+      const customWarrantyRegex = /<div class="t c26" style="position:absolute;left:252\.41px;top:682\.01px;[\s\S]*?<\/div>/;
+      if (customWarrantyRegex.test(html)) {
+        html = html.replace(customWarrantyRegex, `<div class="t c26" style="position:absolute;left:252.41px;top:682.01px;width:490px;white-space:normal;line-height:14.4px;font-family:'f6',sans-serif;font-size:12px;color:#1a3f2e;z-index:907;">${safeData.warranty}</div>`);
+      } else {
+        html = html.replace('Lifetime- MOTOR WARRANTY, 5 years - manufacturing warranty + 1 Years', safeData.warranty);
+      }
     }
     if (safeData.deliveryTime) {
       html = html.replace(/\b\d+\s*days post confirmation on drawings and finishes\./, safeData.deliveryTime);
