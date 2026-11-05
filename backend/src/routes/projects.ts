@@ -879,7 +879,7 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
       description: status === 'CUSTOMER_APPROVAL'
         ? `Project status updated to Drawing and Cabin Design Approval. Production timeline set to ${project.productionTimelineDays || 60} days. ${notes ? `Note: ${notes}` : ''}`
         : status === 'MANUFACTURING'
-          ? `Project status updated to MANUFACTURING (Approval Drawing to factory). Stage 1 Production Update scheduled in ${intervalDays <= 0.025 ? '30 minutes' : intervalDays < 0.1 ? '1 hour' : intervalDays >= 1.24 && intervalDays <= 1.26 ? '30 hours' : `${intervalDays} days`}.`
+          ? `Project status updated to MANUFACTURING (Approval Drawing to factory). Stage 1 Production Update scheduled in ${intervalDays <= 0.003 ? '2 minutes' : intervalDays <= 0.025 ? '30 minutes' : intervalDays < 0.1 ? '1 hour' : intervalDays >= 1.24 && intervalDays <= 1.26 ? '30 hours' : `${intervalDays} days`}.`
           : status === 'DISPATCH' && project.vrlLrNumber
             ? `Project status updated to DISPATCH (Expected Delivery). VRL Tracking No: ${project.vrlLrNumber}. ${notes ? `Note: ${notes}` : ''}`
             : `Project status updated from ${prevStatus} to ${status}. ${notes ? `Note: ${notes}` : ''}`,
@@ -1035,7 +1035,7 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
       const days = project.productionTimelineDays || 60;
       resultMsg = `Drawing & Cabin Approved! 2 WhatsApp messages sent to group (${days} days delivery timeline) and follow-up scheduled for 2 days later.`;
     } else if (status === 'MANUFACTURING') {
-      resultMsg = `Stage updated to Approval Drawing to factory. Automated Stage 1 Production Update scheduled in ${intervalDays <= 0.025 ? '30 minutes' : intervalDays < 0.1 ? '1 hour' : intervalDays >= 1.24 && intervalDays <= 1.26 ? '30 hours' : `${intervalDays} days`}.`;
+      resultMsg = `Stage updated to Approval Drawing to factory. Automated Stage 1 Production Update scheduled in ${intervalDays <= 0.003 ? '2 minutes' : intervalDays <= 0.025 ? '30 minutes' : intervalDays < 0.1 ? '1 hour' : intervalDays >= 1.24 && intervalDays <= 1.26 ? '30 hours' : `${intervalDays} days`}.`;
     } else if (status === 'DISPATCH' && project.vrlLrNumber && groupMessageDispatched) {
       resultMsg = `Stage updated to Expected Delivery! VRL Tracking No (${project.vrlLrNumber}) attached and template message posted directly inside WhatsApp group!`;
     } else if (status === 'DISPATCH' && project.vrlLrNumber) {

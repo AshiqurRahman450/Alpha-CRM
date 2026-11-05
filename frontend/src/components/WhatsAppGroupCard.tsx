@@ -341,7 +341,9 @@ export default function WhatsAppGroupCard({
       const numVal = Number(newVal);
       await api.updateWhatsAppConfig(project._id, { intervalDays: numVal });
       const label =
-        numVal <= 0.025
+        numVal <= 0.003
+          ? '2 minutes (2 mins once)'
+          : numVal <= 0.025
           ? '30 minutes (30 mins once)'
           : numVal < 0.1
           ? '1 hour (1 hour once)'
@@ -719,7 +721,9 @@ export default function WhatsAppGroupCard({
           <div className="flex items-center gap-2">
             <select
               value={
-                Number(intervalDays) <= 0.025
+                Number(intervalDays) <= 0.003
+                  ? '0.001388'
+                  : Number(intervalDays) <= 0.025
                   ? '0.0208'
                   : Number(intervalDays) < 0.1
                   ? '0.0416'
@@ -731,6 +735,7 @@ export default function WhatsAppGroupCard({
               disabled={loading || !groupId}
               className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
             >
+              <option value="0.001388">Every 2 Minutes (2 mins once)</option>
               <option value="0.0208">Every 30 Minutes (30 mins once)</option>
               <option value="0.0416">Every 1 Hour (1 hour once)</option>
               <option value="1.25">Every 30 Hours (30 hours once)</option>
@@ -740,7 +745,7 @@ export default function WhatsAppGroupCard({
               <option value="20">Every 20 Days</option>
             </select>
           </div>
-          <span className="text-[10px] text-slate-400 block">Checked every 15 mins by persistent scheduler</span>
+          <span className="text-[10px] text-slate-400 block">Checked every minute by persistent scheduler</span>
         </div>
 
         {/* Next Scheduled Dispatch */}
@@ -1175,6 +1180,7 @@ export default function WhatsAppGroupCard({
                   onChange={(e) => setSelectedInterval(e.target.value)}
                   className="w-full text-xs p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-semibold text-slate-800 bg-white"
                 >
+                  <option value="0.001388">Every 2 Minutes (2 mins once)</option>
                   <option value="0.0208">Every 30 Minutes (30 mins once)</option>
                   <option value="0.0416">Every 1 Hour (1 hour once)</option>
                   <option value="1.25">Every 30 Hours (30 hours once)</option>

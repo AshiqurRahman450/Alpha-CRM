@@ -659,7 +659,7 @@ whatsappRouter.post('/projects/:id/group', authorize('ADMIN', 'CRM', 'MANAGER'),
     const groupName = groupNameOverride?.trim() || `${project.projectName} — Alpha Updates`;
 
     // Validate intervalDays
-    const allowedIntervals = [1, 10, 15, 20];
+    const allowedIntervals = [0.001388, 0.0014, 0.0208, 0.0416, 1, 1.25, 10, 15, 20];
     const chosenInterval = allowedIntervals.includes(Number(intervalDays)) ? Number(intervalDays) : 15;
     const nextUpdate = calculateNextUpdateDate(chosenInterval, new Date());
 
@@ -983,7 +983,7 @@ whatsappRouter.patch('/projects/:id/config', authorize('ADMIN', 'CRM', 'MANAGER'
     }
 
     if (intervalDays !== undefined) {
-      const allowed = [0.0208, 0.0416, 0.04, 1, 1.25, 10, 15, 20];
+      const allowed = [0.001388, 0.0014, 0.0208, 0.0416, 0.04, 1, 1.25, 10, 15, 20];
       const parsedDays = Number(intervalDays);
       const isCustomValid =
         (parsedDays > 0 && parsedDays < 0.1) ||
@@ -992,7 +992,7 @@ whatsappRouter.patch('/projects/:id/config', authorize('ADMIN', 'CRM', 'MANAGER'
       if (!allowed.includes(parsedDays) && !isCustomValid) {
         return res.status(400).json({
           success: false,
-          message: `Invalid interval value: ${intervalDays}. Allowed update intervals are 30 mins, 1 hour, 30 hours, 1, 10, 15, or 20 days.`,
+          message: `Invalid interval value: ${intervalDays}. Allowed update intervals are 2 mins, 30 mins, 1 hour, 30 hours, 1, 10, 15, or 20 days.`,
         });
       }
       project.updateFrequencyDays = parsedDays;

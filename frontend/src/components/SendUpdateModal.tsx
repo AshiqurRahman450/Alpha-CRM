@@ -334,7 +334,9 @@ export default function SendUpdateModal({
             <ShieldAlert className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
             <span>
               This will send this template to the linked WhatsApp group and advance the next update date by{' '}
-              {Number(project.updateFrequencyDays) <= 0.025
+              {Number(project.updateFrequencyDays) <= 0.003
+                ? '2 minutes'
+                : Number(project.updateFrequencyDays) <= 0.025
                 ? '30 minutes'
                 : Number(project.updateFrequencyDays) < 0.1
                 ? '1 hour'

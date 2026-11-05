@@ -88,8 +88,15 @@ export function formatDateKey(date: Date): string {
 export function calculateNextUpdateDate(days: number = 15, fromDate: Date = new Date()): Date {
   const numDays = Number(days);
 
+  // 2 minutes once (0.001388 day or <= 0.003)
+  if (numDays > 0 && numDays <= 0.003) {
+    const nextDate = new Date(fromDate);
+    nextDate.setMinutes(nextDate.getMinutes() + 2);
+    return nextDate;
+  }
+
   // 30 minutes once (0.0208 day or <= 0.025)
-  if (numDays > 0 && numDays <= 0.025) {
+  if (numDays > 0.003 && numDays <= 0.025) {
     const nextDate = new Date(fromDate);
     nextDate.setMinutes(nextDate.getMinutes() + 30);
     return nextDate;
@@ -349,7 +356,18 @@ export function generateProjectUpdateText(
 
   // Substitute interval days into production stage templates if interval is not 15 days
   const intervalDays = project?.whatsapp?.intervalDays || project?.updateFrequencyDays || 15;
-  const intervalText = intervalDays === 1 ? 'within 1 day' : `within ${intervalDays} days`;
+  const intervalText =
+    intervalDays <= 0.003
+      ? 'within 2 minutes'
+      : intervalDays <= 0.025
+      ? 'within 30 minutes'
+      : intervalDays < 0.1
+      ? 'within 1 hour'
+      : intervalDays >= 1.24 && intervalDays <= 1.26
+      ? 'within 30 hours'
+      : intervalDays === 1
+      ? 'within 1 day'
+      : `within ${intervalDays} days`;
   text = text.replace(/within (?:10|15) days/gi, intervalText);
 
   // Substitute [Date] placeholder
@@ -1689,9 +1707,13 @@ export function initScheduler(): void {
     }
   );
 
-  // Periodic heartbeat: Checks every 15 minutes for any manually triggered, scheduled, or newly un-postponed updates, plus 3-hour CRM reminders, due escalation matrices, and 2-day production payment reminders
-  cron.schedule('*/15 * * * *', async () => {
+  // Periodic check: Checks every 1 minute for due WhatsApp milestone updates (supporting fast cadences like 2 minutes or 30 minutes)
+  cron.schedule('* * * * *', async () => {
     await processDueWhatsAppUpdates();
+  });
+
+  // Periodic heartbeat: Checks every 15 minutes for 3-hour CRM reminders, due escalation matrices, and 2-day production payment reminders
+  cron.schedule('*/15 * * * *', async () => {
     await checkScheduleDateReminders();
     await processDueReminders();
     await processDueEscalationMatrixUpdates();
