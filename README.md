@@ -153,6 +153,7 @@ npm run dev
 
 ### 5. Demo Login Credentials
 - **Admin**: `admin@alphaelevators.com` / `admin123` (Full system access)
+- **Admin (Abeal)**: `abeal@alphaelevators.in` / `abeal123` (Operational Head & Admin)
 - **CRM Agent**: `crm@alphaelevators.com` / `crm123` (Customers, Projects, Payments, WhatsApp)
 
 ---

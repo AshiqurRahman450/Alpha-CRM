@@ -372,6 +372,16 @@ export async function seed() {
     phone: '+91 98200 12345',
   });
 
+  const abealPasswordHash = await bcrypt.hash('abeal123', 10);
+  const abealAdmin = await User.create({
+    name: 'Abeal (Operational Head)',
+    email: 'abeal@alphaelevators.in',
+    passwordHash: abealPasswordHash,
+    role: 'ADMIN',
+    phone: '+91 93848 20499',
+    isActive: true,
+  });
+
   const crmUser = await User.create({
     name: 'Sneha Roy (CRM Specialist)',
     email: 'crm@alphaelevators.com',

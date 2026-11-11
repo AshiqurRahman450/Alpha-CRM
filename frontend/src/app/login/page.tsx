@@ -29,11 +29,14 @@ export default function LoginPage() {
 
   const [bdmSelect, setBdmSelect] = useState('');
 
-  const handleQuickFill = (userType: 'admin' | 'crm' | 'accountant' | 'qc' | 'techlead' | 'techmanager' | 'bdm', bdmEmail?: string) => {
+  const handleQuickFill = (userType: 'admin' | 'abeal' | 'crm' | 'accountant' | 'qc' | 'techlead' | 'techmanager' | 'bdm', bdmEmail?: string) => {
     setError(null);
     if (userType === 'admin') {
       setEmail('admin@alphaelevators.com');
       setPassword('admin123');
+    } else if (userType === 'abeal') {
+      setEmail('abeal@alphaelevators.in');
+      setPassword('abeal123');
     } else if (userType === 'crm') {
       setEmail('crm@alphaelevators.com');
       setPassword('crm123');
@@ -135,6 +138,13 @@ export default function LoginPage() {
               className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-sky-300 rounded-lg border border-slate-700 transition-colors"
             >
               Admin
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickFill('abeal')}
+              className="px-2.5 py-1 bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300 rounded-lg border border-cyan-500/50 transition-colors font-semibold shadow-sm"
+            >
+              Admin (Abeal)
             </button>
             <button
               type="button"

@@ -190,6 +190,37 @@ export async function startServer() {
         console.warn('[Server] Notice initializing Technical Manager Kishore:', userInitErr.message);
       }
 
+      // Ensure Admin (Abeal) exists
+      try {
+        const abealUser = await User.findOne({
+          $or: [
+            { email: 'abeal@alphaelevators.in' },
+            { email: 'abeal@alphaelevators.com' },
+            { name: /abeal/i },
+          ],
+        });
+        if (!abealUser) {
+          const hash = await bcrypt.hash('abeal123', 10);
+          await User.create({
+            name: 'Abeal (Operational Head)',
+            email: 'abeal@alphaelevators.in',
+            passwordHash: hash,
+            role: 'ADMIN',
+            phone: '+91 93848 20499',
+            isActive: true,
+          });
+          console.log('[Server] Created Admin user: abeal@alphaelevators.in / abeal123');
+        } else if (abealUser.role !== 'ADMIN') {
+          await User.updateOne(
+            { _id: abealUser._id },
+            { $set: { role: 'ADMIN', isActive: true, phone: '+91 93848 20499' } }
+          );
+          console.log('[Server] Updated Abeal role to ADMIN');
+        }
+      } catch (abealInitErr: any) {
+        console.warn('[Server] Notice initializing Admin Abeal:', abealInitErr.message);
+      }
+
       // Ensure all 10 BDM users from login page exist with login credentials and pilot data
       try {
         await seedBdms(true);
