@@ -58,7 +58,7 @@ export default function Navbar() {
 
   return (
     <>
-      <header className="h-16 bg-white border-b border-slate-200/90 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-20">
+      <header className="h-16 bg-white border-b border-slate-200/90 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-20 shrink-0">
         <div className="flex items-center space-x-2.5 sm:space-x-3">
           {/* Mobile Hamburger Drawer Toggle */}
           <button

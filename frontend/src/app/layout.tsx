@@ -19,7 +19,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className="h-full">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -28,10 +28,10 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="font-poppins bg-[#F8FAFC] min-h-screen text-slate-900 antialiased flex flex-row">
+      <body className="font-poppins bg-[#F8FAFC] h-[100dvh] md:h-screen overflow-hidden text-slate-900 antialiased flex flex-row">
         <NotificationProvider />
         <Sidebar />
-        <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+        <div className="flex-1 flex flex-col min-w-0 h-[100dvh] md:h-screen overflow-hidden">
           <Navbar />
           <MainContainer>{children}</MainContainer>
         </div>
