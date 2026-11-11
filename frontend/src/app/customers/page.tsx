@@ -466,9 +466,9 @@ export default function CustomersPage() {
             <p className="text-xs font-bold text-slate-700">No customers found</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-auto max-h-[65vh] xl:max-h-[72vh] custom-scrollbar">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-400 uppercase text-[10px]">
+              <thead className="bg-slate-100 border-b border-slate-200 text-slate-600 uppercase text-[10px] sticky top-0 z-10 shadow-xs">
                 <tr>
                   <th className="py-3 px-4 font-bold">Customer ID</th>
                   <th className="py-3 px-4 font-bold">Full Name</th>

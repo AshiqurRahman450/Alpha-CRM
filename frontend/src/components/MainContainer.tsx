@@ -18,7 +18,7 @@ export default function MainContainer({ children }: { children: React.ReactNode 
   return (
     <main
       id="main-scroll-container"
-      className="flex-1 min-w-0 w-full h-full overflow-y-auto overflow-x-hidden custom-scrollbar"
+      className="flex-1 min-h-0 min-w-0 w-full overflow-y-auto overflow-x-hidden custom-scrollbar"
     >
       <div className="p-3 sm:p-6 md:p-8 max-w-7xl w-full mx-auto">
         {children}
