@@ -125,7 +125,10 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
 
     if (String(isOldCustomer) === 'true') {
       const oldFilter = {
-        $or: [{ isOldCustomer: true }, { customerId: /^OLD-CUST-/i }],
+        $or: [
+          { isOldCustomer: true },
+          { customerId: { $regex: /^OLD/i } },
+        ],
       };
       if (query.$or) {
         query.$and = (query.$and || []).concat([{ $or: query.$or }, oldFilter]);
@@ -138,7 +141,7 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
     } else if (String(isOldCustomer) === 'false') {
       const regularFilter = {
         isOldCustomer: { $ne: true },
-        customerId: { $not: /^OLD-CUST-/i },
+        customerId: { $regex: /^(?!OLD)/i },
       };
       if (query.$and) {
         query.$and.push(regularFilter);
@@ -149,7 +152,21 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
 
     const customers = await Customer.find(query).populate('bdmId', 'name email phone').sort({ createdAt: -1 });
 
-    const custIds = customers.map((c) => c._id);
+    // Strict post-filtering guarantees 100% mutually exclusive separation
+    let strictlyFiltered = customers;
+    if (String(isOldCustomer) === 'true') {
+      strictlyFiltered = customers.filter((c) => {
+        const cid = String(c.customerId || '').trim().toUpperCase();
+        return c.isOldCustomer === true || cid.startsWith('OLD');
+      });
+    } else if (String(isOldCustomer) === 'false') {
+      strictlyFiltered = customers.filter((c) => {
+        const cid = String(c.customerId || '').trim().toUpperCase();
+        return c.isOldCustomer !== true && !cid.startsWith('OLD');
+      });
+    }
+
+    const custIds = strictlyFiltered.map((c) => c._id);
     const activeProjects = await Project.find({
       customerId: { $in: custIds },
       projectStatus: { $nin: ['COMPLETED', 'CANCELLED'] },
@@ -168,7 +185,7 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
       }
     });
 
-    const data = customers.map((c) => {
+    const data = strictlyFiltered.map((c) => {
       const cObj: any = c.toObject ? c.toObject() : c;
       cObj.activeProject = projectMap.get(String(c._id)) || null;
       return cObj;

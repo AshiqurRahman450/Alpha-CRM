@@ -206,7 +206,10 @@ export default function CustomersPage() {
         bdmId: bdmFilter || undefined,
         isOldCustomer: 'false',
       });
-      setCustomers(res.data || []);
+      const list = (res.data || []).filter(
+        (c: any) => c.isOldCustomer !== true && !String(c.customerId || '').trim().toUpperCase().startsWith('OLD')
+      );
+      setCustomers(list);
     } catch (err: any) {
       console.error(err);
     } finally {

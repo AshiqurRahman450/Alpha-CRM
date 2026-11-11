@@ -288,6 +288,21 @@ export async function startServer() {
       console.warn('[Server] Auto-split customer projects warning:', splitErr.message);
     }
 
+    // Ensure strict classification consistency for Old Customers vs Regular Customers in database
+    try {
+      const { Customer } = await import('./models');
+      await Customer.updateMany(
+        { customerId: /^OLD/i, $or: [{ isOldCustomer: false }, { isOldCustomer: { $exists: false } }] },
+        { $set: { isOldCustomer: true } }
+      );
+      await Customer.updateMany(
+        { customerId: /^(?!OLD)/i, isOldCustomer: true },
+        { $set: { isOldCustomer: false } }
+      );
+    } catch (normErr: any) {
+      console.warn('[Server] Customer classification normalization warning:', normErr.message);
+    }
+
     initScheduler();
 
     // Initialize WhatsApp Web Bot for automated inside-group posting
