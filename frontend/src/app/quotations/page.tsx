@@ -909,7 +909,7 @@ export default function QuotationCreatorPage() {
     : (data.templateType === 'circle' ? 5 : 11);
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-4rem)] md:h-[calc(100vh-1rem)] animate-fade-in -m-3 sm:-m-4 md:-m-6 w-full max-w-full overflow-x-hidden">
+    <div className="flex flex-col h-[calc(100dvh-4rem)] md:h-[calc(100vh-4rem)] animate-fade-in w-full max-w-full overflow-x-hidden">
       {/* Hidden PDF file input */}
       <input
         type="file"
