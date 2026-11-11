@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { Customer, Project, Payment, WhatsAppMessage, ProjectActivity, User, Quotation } from '../models';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { PROJECT_STAGE_NEXT_WORK } from './reminders';
-import { getNextCustomerId, splitSharedCustomerProjects } from '../utils/idGenerators';
+import { getNextCustomerId, getNextOldCustomerId, splitSharedCustomerProjects } from '../utils/idGenerators';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -27,7 +27,7 @@ customerRouter.use(authenticate);
  */
 customerRouter.get('/', async (req: AuthRequest, res: Response) => {
   try {
-    const { search, optIn, customerType, bdmId } = req.query;
+    const { search, optIn, customerType, bdmId, isOldCustomer } = req.query;
     const query: any = {};
 
     // Ensure each project has its own dedicated individual customer
@@ -123,6 +123,30 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
       query.customerType = customerType;
     }
 
+    if (String(isOldCustomer) === 'true') {
+      const oldFilter = {
+        $or: [{ isOldCustomer: true }, { customerId: /^OLD-CUST-/i }],
+      };
+      if (query.$or) {
+        query.$and = (query.$and || []).concat([{ $or: query.$or }, oldFilter]);
+        delete query.$or;
+      } else if (query.$and) {
+        query.$and.push(oldFilter);
+      } else {
+        query.$or = oldFilter.$or;
+      }
+    } else if (String(isOldCustomer) === 'false') {
+      const regularFilter = {
+        isOldCustomer: { $ne: true },
+        customerId: { $not: /^OLD-CUST-/i },
+      };
+      if (query.$and) {
+        query.$and.push(regularFilter);
+      } else {
+        Object.assign(query, regularFilter);
+      }
+    }
+
     const customers = await Customer.find(query).populate('bdmId', 'name email phone').sort({ createdAt: -1 });
 
     const custIds = customers.map((c) => c._id);
@@ -199,8 +223,16 @@ customerRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM'), async (req
       return res.status(400).json({ success: false, message: 'Full name, phone number, and address or Google Maps link are required' });
     }
 
-    // Auto-generate customerId CUST-XXX
-    const customerId = await getNextCustomerId();
+    // Determine if old customer: default to true for manual customer creation per requirement
+    const isOld = req.body.isOldCustomer !== undefined
+      ? (req.body.isOldCustomer === true || req.body.isOldCustomer === 'true')
+      : true;
+
+    // Auto-generate customerId: OLD-CUST-XXX for old customer, CUST-XXX for regular
+    let customerId = req.body.customerId ? String(req.body.customerId).trim().toUpperCase() : '';
+    if (!customerId) {
+      customerId = isOld ? await getNextOldCustomerId() : await getNextCustomerId();
+    }
 
     let assignedBdmId: any = undefined;
     let assignedEmployeeName = assignedEmployee;
@@ -242,6 +274,7 @@ customerRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM'), async (req
 
     const newCustomer = await Customer.create({
       customerId,
+      isOldCustomer: isOld,
       fullName: fullName.trim(),
       phoneNumber: phoneNumber.trim(),
       whatsappNumber: (whatsappNumber || phoneNumber).trim(),

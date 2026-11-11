@@ -984,10 +984,35 @@ quotationRouter.post('/crm-approve', async (req: any, res: Response) => {
       customer = await Customer.findById(quotation.createdCustomerId);
     }
 
+    // Check if quotation references an existing customer code or ID
+    const existingCode = qData?.existingCustomerId || quotation.createdCustomerCode;
+    if (!customer && existingCode) {
+      customer = await Customer.findOne({
+        $or: [
+          { customerId: String(existingCode).trim().toUpperCase() },
+          ...(String(existingCode).match(/^[0-9a-fA-F]{24}$/) ? [{ _id: existingCode }] : []),
+        ],
+      });
+    }
+
+    // Check if customer exists by phone number
+    if (!customer && phone) {
+      const cleanPhone = phone.replace(/\D/g, '').slice(-10);
+      if (cleanPhone && cleanPhone.length >= 10) {
+        customer = await Customer.findOne({
+          $or: [
+            { phoneNumber: new RegExp(cleanPhone) },
+            { whatsappNumber: new RegExp(cleanPhone) },
+          ],
+        });
+      }
+    }
+
     if (!customer) {
       const customerId = await getNextCustomerId();
       customer = await Customer.create({
         customerId,
+        isOldCustomer: false,
         fullName: fullName.trim(),
         phoneNumber: phone.trim(),
         whatsappNumber: phone.trim(),

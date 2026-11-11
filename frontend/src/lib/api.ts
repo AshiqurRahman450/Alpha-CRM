@@ -414,13 +414,15 @@ export const api = {
   },
 
   // Customers
-  getCustomers: (params?: { search?: string; optIn?: string; customerType?: string; bdmId?: string }) => {
+  getCustomers: (params?: { search?: string; optIn?: string; customerType?: string; bdmId?: string; isOldCustomer?: boolean | string }) => {
     const q = new URLSearchParams();
     if (params?.search) q.append('search', params.search);
     if (params?.optIn) q.append('optIn', params.optIn);
     if (params?.customerType) q.append('customerType', params.customerType);
     if (params?.bdmId) q.append('bdmId', params.bdmId);
-    return fetchWithAuth(`/api/customers?${q.toString()}`);
+    if (params?.isOldCustomer !== undefined) q.append('isOldCustomer', String(params.isOldCustomer));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return fetchWithAuth(`/api/customers${qs}`);
   },
   getCustomerById: (id: string) => fetchWithAuth(`/api/customers/${id}`),
   createCustomer: (data: any) =>

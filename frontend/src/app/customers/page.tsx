@@ -25,6 +25,7 @@ import {
   User,
   Home,
   Tag,
+  UserCheck,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { api } from '../../lib/api';
@@ -203,6 +204,7 @@ export default function CustomersPage() {
         search: search || undefined,
         optIn: optInFilter || undefined,
         bdmId: bdmFilter || undefined,
+        isOldCustomer: 'false',
       });
       setCustomers(res.data || []);
     } catch (err: any) {
@@ -270,7 +272,7 @@ export default function CustomersPage() {
 
     try {
       setSubmitting(true);
-      await api.createCustomer({
+      const created = await api.createCustomer({
         ...newCust,
         fullName: newCust.fullName.trim(),
         phoneNumber: newCust.phoneNumber.trim(),
@@ -285,7 +287,13 @@ export default function CustomersPage() {
         bdmPhone: newCust.bdmPhone ? newCust.bdmPhone.trim() : undefined,
       });
 
-      toast.success('Customer record created successfully!');
+      const custCode = created?.data?.customerId || '';
+      toast.success(
+        custCode
+          ? `Customer ${custCode} created! Manually entered clients are listed in the Old Customers tab.`
+          : 'Customer record created! Manually entered clients are listed in the Old Customers tab.',
+        { duration: 5000 }
+      );
       setIsAddOpen(false);
       setFieldErrors({});
       setMissingFieldsList([]);
@@ -343,6 +351,33 @@ export default function CustomersPage() {
           <Plus className="w-4 h-4" />
           <span>Add New Customer</span>
         </button>
+      </div>
+
+      {/* Old Customers Switch Banner */}
+      <div className="bg-gradient-to-r from-indigo-50 via-purple-50 to-indigo-50 border border-indigo-200/80 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-indigo-100 border border-indigo-200 flex items-center justify-center text-indigo-700 flex-shrink-0">
+            <UserCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-slate-800">Quotation-Approved Customer Directory</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
+                Auto-Created upon Approval
+              </span>
+            </div>
+            <p className="text-slate-500 text-[11px] mt-0.5">
+              Clients in this tab originate from approved quotations (<code className="text-sky-700 font-bold">CUST-XXX</code>). Manually entered clients are tracked under <strong>Old Customers</strong> (<code className="text-indigo-700 font-bold">OLD-CUST-XXX</code>).
+            </p>
+          </div>
+        </div>
+        <Link
+          href="/old-customers"
+          className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 shadow-sm shadow-indigo-950/20 transition-all whitespace-nowrap active:scale-95 flex-shrink-0"
+        >
+          <span>Open Old Customers</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
       </div>
 
       {/* Search and Filters */}

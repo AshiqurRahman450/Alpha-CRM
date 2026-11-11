@@ -576,16 +576,19 @@ export default function QuotationCreatorPage() {
     if (phone) {
       setWhatsAppPhone(phone);
     }
+    const custName = customer.fullName || customer.name || data.clientName;
+    const cleanSalutation = custName ? custName.replace(/^Dear\s*/i, '').trim() : 'Client';
     setData((prev) => ({
       ...prev,
-      clientName: customer.name || prev.clientName,
+      clientName: custName,
       projectCity: customer.city || prev.projectCity,
       customerPhone: phone || prev.customerPhone,
       siteAddress: customer.address || prev.siteAddress,
-      salutation: `Dear ${customer.name || 'Client'}`,
-      clientSignatoryName: customer.name || prev.clientSignatoryName,
+      salutation: `Dear ${cleanSalutation}`,
+      clientSignatoryName: custName,
+      existingCustomerId: customer.customerId || customer._id,
     }));
-    toast.success(`Loaded details for customer: ${customer.name}`);
+    toast.success(`Loaded details for customer: ${custName} (${customer.customerId || ''})`);
   };
 
   // Zoom controls

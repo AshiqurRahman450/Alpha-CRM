@@ -24,6 +24,7 @@ export interface ICustomer extends Document {
   optInSource?: string; // PROJECT_CONFIRMATION, CONTRACT_SIGNING, DIRECT
   optInPhone?: string;
   notes?: string;
+  isOldCustomer?: boolean;
   documents?: {
     name: string;
     url: string;
@@ -135,6 +136,11 @@ const CustomerSchema = new Schema<ICustomer>(
     },
     notes: {
       type: String,
+    },
+    isOldCustomer: {
+      type: Boolean,
+      default: false,
+      index: true,
     },
     documents: [
       {

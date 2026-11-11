@@ -202,26 +202,35 @@ export default function CustomerDetailPage() {
   return (
     <div className="space-y-6 animate-fade-in pb-12">
       <Link
-        href="/customers"
+        href={customer.isOldCustomer || customer.customerId?.startsWith('OLD-CUST-') ? '/old-customers' : '/customers'}
         className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors"
       >
         <ChevronLeft className="w-4 h-4" />
-        <span>Back to Customers Directory</span>
+        <span>Back to {customer.isOldCustomer || customer.customerId?.startsWith('OLD-CUST-') ? 'Old Customers' : 'Customers'} Directory</span>
       </Link>
 
       {/* Customer Profile Header */}
       <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-200 shadow-sm space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
           <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-sky-600 to-blue-800 text-white flex items-center justify-center font-bold text-lg shadow-md">
+            <div className={`w-12 h-12 rounded-2xl ${customer.isOldCustomer || customer.customerId?.startsWith('OLD-CUST-') ? 'bg-gradient-to-tr from-indigo-600 to-purple-800' : 'bg-gradient-to-tr from-sky-600 to-blue-800'} text-white flex items-center justify-center font-bold text-lg shadow-md`}>
               {customer.fullName.charAt(0)}
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-mono font-bold text-sky-600 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
+                <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded border ${customer.isOldCustomer || customer.customerId?.startsWith('OLD-CUST-') ? 'text-indigo-700 bg-indigo-50 border-indigo-200' : 'text-sky-600 bg-sky-50 border-sky-200'}`}>
                   {customer.customerId}
                 </span>
                 <h2 className="text-xl font-black text-slate-900 tracking-tight">{customer.fullName}</h2>
+                {customer.isOldCustomer || customer.customerId?.startsWith('OLD-CUST-') ? (
+                  <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded-full border border-indigo-200">
+                    Old Customer
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold px-2 py-0.5 bg-sky-100 text-sky-800 rounded-full border border-sky-200">
+                    Quotation Customer
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-500 mt-0.5">{customer.customerType} • Lead: {customer.leadSource}</p>
             </div>

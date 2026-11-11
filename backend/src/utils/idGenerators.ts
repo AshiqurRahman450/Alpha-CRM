@@ -83,6 +83,47 @@ export async function getNextCustomerId(): Promise<string> {
 }
 
 /**
+ * Generates the next unique customerId for Old Customers in sequence: OLD-CUST-001, OLD-CUST-002, etc.
+ * Finds the maximum numeric suffix across all existing old customers to prevent duplicate key errors.
+ */
+export async function getNextOldCustomerId(): Promise<string> {
+  const customers = await Customer.find(
+    { customerId: /^OLD-CUST-\d+$/i },
+    { customerId: 1 }
+  ).lean();
+
+  let maxNum = 0;
+  for (const c of customers) {
+    if (c.customerId) {
+      const match = c.customerId.match(/^OLD-CUST-(\d+)$/i);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (!isNaN(num) && num > maxNum) {
+          maxNum = num;
+        }
+      }
+    }
+  }
+
+  const totalCount = await Customer.countDocuments({
+    $or: [{ customerId: /^OLD-CUST-\d+$/i }, { isOldCustomer: true }],
+  });
+  if (totalCount > maxNum) {
+    maxNum = totalCount;
+  }
+
+  let nextNum = maxNum + 1;
+  let candidate = `OLD-CUST-${String(nextNum).padStart(3, '0')}`.toUpperCase();
+
+  while (await Customer.exists({ customerId: candidate })) {
+    nextNum++;
+    candidate = `OLD-CUST-${String(nextNum).padStart(3, '0')}`.toUpperCase();
+  }
+
+  return candidate;
+}
+
+/**
  * Ensures every project has its own unique, individual customer.
  * If multiple projects currently share the same customer document,
  * separates projects 1..N into their own individual customer documents
@@ -108,10 +149,12 @@ export async function splitSharedCustomerProjects(): Promise<void> {
           });
 
           const qData = linkedQuotation?.data || {};
-          const newCustomerId = await getNextCustomerId();
+          const isOld = (cust as any).isOldCustomer || cust.customerId?.startsWith('OLD-CUST-');
+          const newCustomerId = isOld ? await getNextOldCustomerId() : await getNextCustomerId();
 
           const newCust = await Customer.create({
             customerId: newCustomerId,
+            isOldCustomer: isOld,
             fullName: qData.clientName || cust.fullName,
             phoneNumber: qData.customerPhone || cust.phoneNumber,
             whatsappNumber: qData.customerPhone || cust.whatsappNumber || cust.phoneNumber,

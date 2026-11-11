@@ -21,6 +21,7 @@ import {
   FileText,
   Briefcase,
   Handshake,
+  UserCheck,
 } from 'lucide-react';
 import { getStoredUser, removeAuthToken } from '../lib/api';
 
@@ -30,6 +31,7 @@ const navItems = [
   { name: 'BDM Quotations', href: '/quotations/bdm', icon: Briefcase, badge: 'Stages' },
   { name: 'QC Site Report', href: '/qc', icon: ClipboardCheck, badge: 'New' },
   { name: 'Customers', href: '/customers', icon: Users },
+  { name: 'Old Customers', href: '/old-customers', icon: UserCheck, badge: 'Old' },
   { name: 'Projects', href: '/projects', icon: Building2 },
   { name: 'Handover Customers', href: '/handover', icon: Handshake, badge: 'Handover' },
   { name: 'WhatsApp Hub', href: '/whatsapp', icon: MessageSquare },

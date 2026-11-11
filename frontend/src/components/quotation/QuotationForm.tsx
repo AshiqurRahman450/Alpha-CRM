@@ -433,7 +433,7 @@ export default function QuotationForm({
               </label>
               <select
                 onChange={(e) => {
-                  const cust = customers.find((c) => c._id === e.target.value || c.id === e.target.value);
+                  const cust = customers.find((c) => (c._id || c.id) === e.target.value || c.customerId === e.target.value);
                   if (cust && onSelectCustomer) {
                     onSelectCustomer(cust);
                   }
@@ -442,11 +442,11 @@ export default function QuotationForm({
                 className="w-full text-xs bg-slate-800/90 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-teal-400 font-medium"
               >
                 <option value="" disabled>
-                  -- Choose Customer --
+                  -- Choose Existing / Old Customer --
                 </option>
                 {customers.map((c) => (
-                  <option key={c._id || c.id} value={c._id || c.id}>
-                    {c.name} {c.city ? `(${c.city})` : ''} - {c.phone}
+                  <option key={c._id || c.id || c.customerId} value={c._id || c.id || c.customerId}>
+                    {c.customerId ? `[${c.customerId}] ` : ''}{c.fullName || c.name} {c.city ? `(${c.city})` : ''} - {c.phoneNumber || c.phone || c.whatsappNumber || ''}
                   </option>
                 ))}
               </select>

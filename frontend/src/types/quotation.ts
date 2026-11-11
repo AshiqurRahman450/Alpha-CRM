@@ -21,6 +21,7 @@ export interface QuotationData {
   sameAsBilling?: boolean;
   hasGst?: boolean;
   gstNumber?: string;
+  existingCustomerId?: string;
 
   // Introduction & Vision (Page 2)
   salutation: string;
