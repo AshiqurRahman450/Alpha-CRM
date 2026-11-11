@@ -909,7 +909,7 @@ export default function QuotationCreatorPage() {
     : (data.templateType === 'circle' ? 5 : 11);
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-4rem)] md:h-[calc(100vh-1rem)] animate-fade-in -m-3 sm:-m-6 md:-m-8">
+    <div className="flex flex-col h-[calc(100dvh-4rem)] md:h-[calc(100vh-1rem)] animate-fade-in -m-3 sm:-m-4 md:-m-6 w-full max-w-full overflow-x-hidden">
       {/* Hidden PDF file input */}
       <input
         type="file"
@@ -922,7 +922,7 @@ export default function QuotationCreatorPage() {
       {/* TOP HEADER / ACTION BAR */}
       <div
         id="quotation-top-bar"
-        className="no-print bg-[#0A192F] text-white px-3 py-2 sm:px-4 sm:py-3 border-b border-slate-800 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5 shrink-0 shadow-md z-20"
+        className="no-print bg-[#0A192F] text-white px-3 py-2 sm:px-4 sm:py-2.5 border-b border-slate-800 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5 shrink-0 shadow-md z-20 w-full flex-wrap overflow-hidden"
       >
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
@@ -1087,7 +1087,7 @@ export default function QuotationCreatorPage() {
         )}
 
         {/* Desktop Page Switcher, Zoom Controls & Action Buttons */}
-        <div className="hidden lg:flex items-center gap-2">
+        <div className="hidden lg:flex items-center gap-1.5 xl:gap-2 flex-wrap justify-end">
           {/* Page Selector Pills */}
           <div className="flex items-center bg-slate-900/90 rounded-xl p-1 border border-slate-700/60 text-xs">
             <button
@@ -1315,7 +1315,7 @@ export default function QuotationCreatorPage() {
       )}
 
       {/* MAIN TWO-COLUMN SPLIT LAYOUT */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative w-full max-w-full">
         {/* LEFT COLUMN: LIVE PDF PREVIEW & UPLOAD ZONE */}
         {showPdfPreview && (
           <div

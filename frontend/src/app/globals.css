@@ -11,11 +11,14 @@
   --font-family: var(--font-poppins);
 }
 
+html,
 body {
   font-family: var(--font-family);
   background-color: #F8FAFC;
   color: #0F172A;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  max-width: 100%;
 }
 
 /* Custom Scrollbar */
