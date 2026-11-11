@@ -28,6 +28,8 @@ import {
   MapPin,
   Truck,
   Receipt,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 interface QuotationFormProps {
@@ -73,6 +75,26 @@ export default function QuotationForm({
       ];
   const [newFeatureText, setNewFeatureText] = useState('');
   const [doorAccessAlert, setDoorAccessAlert] = useState<string | null>(null);
+
+  const currentTabIndex = formTabs.findIndex((t) => t.id === activeTab);
+  const prevTab = currentTabIndex > 0 ? formTabs[currentTabIndex - 1] : null;
+  const nextTab = currentTabIndex < formTabs.length - 1 ? formTabs[currentTabIndex + 1] : null;
+
+  const goToPrevTab = () => {
+    if (prevTab) {
+      setActiveTab(prevTab.id as any);
+      const el = document.getElementById('quotation-form-content-area');
+      if (el) el.scrollTop = 0;
+    }
+  };
+
+  const goToNextTab = () => {
+    if (nextTab) {
+      setActiveTab(nextTab.id as any);
+      const el = document.getElementById('quotation-form-content-area');
+      if (el) el.scrollTop = 0;
+    }
+  };
 
   // Helper to get active list of floors from floorNumbering or noOfStops
   const getFloorsList = (): string[] => {
@@ -373,11 +395,11 @@ export default function QuotationForm({
                 : '11-Page Full Proposal (Standard Technical Contract)'}
             </div>
           </div>
-          <div className="flex items-center gap-1.5 bg-slate-950/80 p-1 rounded-lg border border-slate-700/80">
+          <div className="grid grid-cols-2 sm:flex items-center gap-1.5 bg-slate-950/80 p-1 rounded-lg border border-slate-700/80 w-full sm:w-auto">
             <button
               type="button"
               onClick={() => onChange({ ...data, templateType: 'standard' })}
-              className={`px-3 py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3 py-1 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                 data.templateType !== 'circle'
                   ? 'bg-teal-600 text-white shadow-xs'
                   : 'text-slate-400 hover:text-white'
@@ -389,7 +411,7 @@ export default function QuotationForm({
             <button
               type="button"
               onClick={() => onChange({ ...data, templateType: 'circle' })}
-              className={`px-3 py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3 py-1 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                 data.templateType === 'circle'
                   ? 'bg-teal-600 text-white shadow-xs'
                   : 'text-slate-400 hover:text-white'
@@ -455,8 +477,40 @@ export default function QuotationForm({
         </div>
       </div>
 
+      {/* Mobile Step Navigator Header */}
+      <div className="sm:hidden flex items-center justify-between px-3 py-2 bg-slate-900 border-b border-slate-800 text-white text-xs">
+        <button
+          type="button"
+          onClick={goToPrevTab}
+          disabled={!prevTab}
+          className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-lg disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1 cursor-pointer"
+        >
+          <ChevronLeft className="w-3.5 h-3.5" />
+          <span>Prev</span>
+        </button>
+
+        <div className="text-center px-1">
+          <span className="text-[10px] font-bold text-teal-400 block uppercase tracking-wider">
+            Step {currentTabIndex + 1} of {formTabs.length}
+          </span>
+          <span className="text-xs font-bold text-white truncate max-w-[170px] inline-block">
+            {formTabs[currentTabIndex]?.label.replace(/\(.*?\)/g, '').trim()}
+          </span>
+        </div>
+
+        <button
+          type="button"
+          onClick={goToNextTab}
+          disabled={!nextTab}
+          className="px-2.5 py-1 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-lg disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1 shadow-xs cursor-pointer"
+        >
+          <span>Next</span>
+          <ChevronRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
       {/* Tabs Navigation */}
-      <div className="flex border-b border-slate-200 bg-slate-50/80 overflow-x-auto p-1.5 gap-1 shrink-0 text-xs font-semibold">
+      <div className="flex border-b border-slate-200 bg-slate-50/80 overflow-x-auto p-1.5 gap-1 shrink-0 text-xs font-semibold no-scrollbar">
         {formTabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -479,7 +533,7 @@ export default function QuotationForm({
       </div>
 
       {/* Tab Contents - Scrollable */}
-      <div className="p-5 overflow-y-auto flex-1 space-y-4">
+      <div id="quotation-form-content-area" className="p-3.5 sm:p-5 overflow-y-auto flex-1 space-y-4 pb-20 sm:pb-8">
 
         {/* TAB 1: CLIENT & OFFER */}
         {activeTab === 'client' && (
@@ -2897,6 +2951,34 @@ export default function QuotationForm({
           </div>
         )}
 
+        {/* Bottom Step Progress & Next Button for easy mobile workflow */}
+        <div className="pt-4 mt-6 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={goToPrevTab}
+            disabled={!prevTab}
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-300 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1.5 transition-all cursor-pointer"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            <span>Previous Step</span>
+          </button>
+
+          {nextTab ? (
+            <button
+              type="button"
+              onClick={goToNextTab}
+              className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs rounded-xl shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
+            >
+              <span>Next: {nextTab.label.replace(/\(.*?\)/g, '').trim()}</span>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          ) : (
+            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200 flex items-center gap-1">
+              <CheckCircle className="w-3.5 h-3.5" />
+              <span>All Sections Complete</span>
+            </span>
+          )}
+        </div>
 
       </div>
 

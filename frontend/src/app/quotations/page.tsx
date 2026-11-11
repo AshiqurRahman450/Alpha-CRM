@@ -99,6 +99,32 @@ export default function QuotationCreatorPage() {
   // Live PDF Document Preview Visibility (Hide / Unhide Full Screen Form)
   const [showPdfPreview, setShowPdfPreview] = useState<boolean>(true);
 
+  // Mobile Phone Responsive View ('form' | 'preview')
+  const [mobileTab, setMobileTab] = useState<'form' | 'preview'>('form');
+  const [showMobileTools, setShowMobileTools] = useState<boolean>(false);
+
+  // Auto-fit PDF preview scale dynamically to phone / tablet / desktop screen
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const updateResponsiveScale = () => {
+        if (window.innerWidth < 640) {
+          // Mobile Phone (360px - 480px width): fit full width inside phone screen
+          const fit = Math.max(0.35, Math.min(0.60, (window.innerWidth - 24) / 793.28));
+          setScale(Number(fit.toFixed(2)));
+        } else if (window.innerWidth < 1024) {
+          // Tablet
+          setScale(0.55);
+        } else {
+          // Desktop split view
+          setScale(0.72);
+        }
+      };
+      updateResponsiveScale();
+      window.addEventListener('resize', updateResponsiveScale);
+      return () => window.removeEventListener('resize', updateResponsiveScale);
+    }
+  }, []);
+
   // Excel Export Modal State
   const [showExcelModal, setShowExcelModal] = useState<boolean>(false);
   const [excelOfferNo, setExcelOfferNo] = useState<string>('');
@@ -883,7 +909,7 @@ export default function QuotationCreatorPage() {
     : (data.templateType === 'circle' ? 5 : 11);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-1rem)] animate-fade-in -m-4 md:-m-6">
+    <div className="flex flex-col h-[calc(100dvh-4rem)] md:h-[calc(100vh-1rem)] animate-fade-in -m-3 sm:-m-6 md:-m-8">
       {/* Hidden PDF file input */}
       <input
         type="file"
@@ -896,39 +922,174 @@ export default function QuotationCreatorPage() {
       {/* TOP HEADER / ACTION BAR */}
       <div
         id="quotation-top-bar"
-        className="no-print bg-[#0A192F] text-white px-4 py-3 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0 shadow-md z-20"
+        className="no-print bg-[#0A192F] text-white px-3 py-2 sm:px-4 sm:py-3 border-b border-slate-800 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5 shrink-0 shadow-md z-20"
       >
-        <div className="flex items-center space-x-3">
-          <Link
-            href="/"
-            className="p-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
-            title="Back to Dashboard"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
-          <div className="flex items-center space-x-2">
-            <div className="h-7 w-20 flex items-center justify-center">
-              <img src="/logo.png" alt="Alpha Elevators" className="h-full object-contain" />
-            </div>
-            <div className="h-4 w-px bg-slate-700" />
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-sm font-extrabold text-white">Quotation Proposal Studio</h1>
-                <span className="text-[10px] font-mono font-bold bg-teal-500/20 text-teal-300 px-2 py-0.5 rounded-full border border-teal-500/30">
-                  {data.offerNo}
-                </span>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+            <Link
+              href="/"
+              className="p-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors shrink-0"
+              title="Back to Dashboard"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Link>
+            <div className="flex items-center space-x-2 min-w-0">
+              <div className="h-6 sm:h-7 w-16 sm:w-20 flex items-center justify-center shrink-0">
+                <img src="/logo.png" alt="Alpha Elevators" className="h-full object-contain" />
               </div>
-              <p className="text-[10px] text-slate-400">
-                Live 2-Way Realtime Sync • Client: {data.clientName || 'Unassigned'}
-              </p>
+              <div className="h-4 w-px bg-slate-700 hidden sm:block shrink-0" />
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <h1 className="text-xs sm:text-sm font-extrabold text-white truncate max-w-[130px] sm:max-w-none">
+                    Quotation Studio
+                  </h1>
+                  <span className="text-[9px] sm:text-[10px] font-mono font-bold bg-teal-500/20 text-teal-300 px-1.5 py-0.5 rounded-full border border-teal-500/30 truncate max-w-[140px] sm:max-w-none">
+                    {data.offerNo}
+                  </span>
+                </div>
+                <p className="text-[9px] sm:text-[10px] text-slate-400 truncate max-w-[200px] sm:max-w-none hidden xs:block">
+                  Live 2-Way Sync • {data.clientName || 'Unassigned'}
+                </p>
+              </div>
             </div>
+          </div>
+
+          {/* Mobile Phone Segmented Mode Switcher: Form vs Preview */}
+          <div className="flex lg:hidden bg-slate-900/90 rounded-xl p-0.5 border border-slate-700/80 shrink-0 shadow-inner">
+            <button
+              type="button"
+              onClick={() => setMobileTab('form')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                mobileTab === 'form'
+                  ? 'bg-teal-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Form</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileTab('preview')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                mobileTab === 'preview'
+                  ? 'bg-teal-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span>Preview</span>
+            </button>
           </div>
         </div>
 
-        {/* Page Switcher & Zoom Controls */}
-        <div className="flex items-center gap-2">
+        {/* Mobile secondary toolstrip (shown on small screens) */}
+        <div className="flex lg:hidden items-center justify-between gap-1.5 pt-1.5 border-t border-slate-800/80">
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+            <button
+              type="button"
+              onClick={handleSaveCurrentStage}
+              disabled={isSavingStage}
+              className="px-2.5 py-1 bg-blue-600/90 hover:bg-blue-500 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-xs active:scale-95 disabled:opacity-50 cursor-pointer"
+            >
+              {isSavingStage ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+              <span>Save</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={isDownloading || isRenderingPdf}
+              className="px-2.5 py-1 bg-teal-600 hover:bg-teal-500 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-xs active:scale-95 disabled:opacity-50 cursor-pointer"
+            >
+              {isDownloading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+              <span>Download PDF</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setWhatsAppPhone(data.customerPhone || '');
+                setShowWhatsAppModal(true);
+              }}
+              className="px-2 py-1 bg-emerald-800/80 hover:bg-emerald-700 text-emerald-200 rounded-lg text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+            >
+              <Send className="w-3 h-3" />
+              <span>WhatsApp</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setShowMobileTools((prev) => !prev)}
+              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] font-semibold border border-slate-700 flex items-center gap-1 cursor-pointer"
+            >
+              <span>More</span>
+              {showMobileTools ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Collapsible Mobile Extra Tools Bar */}
+        {showMobileTools && (
+          <div className="lg:hidden flex flex-wrap items-center gap-2 p-2 bg-slate-900/95 rounded-xl border border-slate-700/80 mt-1 animate-fade-in text-xs">
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg flex items-center gap-1 cursor-pointer"
+            >
+              <Printer className="w-3 h-3 text-sky-400" />
+              <span>Print / Vector</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setExcelOfferNo(data.offerNo);
+                setShowExcelModal(true);
+              }}
+              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-300 rounded-lg flex items-center gap-1 cursor-pointer"
+            >
+              <FileSpreadsheet className="w-3 h-3 text-emerald-400" />
+              <span>Export Excel</span>
+            </button>
+            <Link
+              href="/quotations/bdm"
+              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-sky-300 rounded-lg flex items-center gap-1"
+            >
+              <Briefcase className="w-3 h-3 text-sky-400" />
+              <span>BDM Pipeline</span>
+            </Link>
+            <button
+              type="button"
+              onClick={() => setIsPdfEditing(!isPdfEditing)}
+              className="px-2.5 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg flex items-center gap-1 cursor-pointer"
+            >
+              <Edit3 className="w-3 h-3" />
+              <span>{isPdfEditing ? 'Stop PDF Edit' : 'Edit on PDF'}</span>
+            </button>
+            <div className="flex items-center gap-1 ml-auto">
+              <button
+                type="button"
+                onClick={handleZoomOut}
+                className="p-1 text-slate-400 hover:text-white bg-slate-800 rounded cursor-pointer"
+              >
+                <ZoomOut className="w-3 h-3" />
+              </button>
+              <span className="text-[10px] font-mono text-slate-300">{Math.round(scale * 100)}%</span>
+              <button
+                type="button"
+                onClick={handleZoomIn}
+                className="p-1 text-slate-400 hover:text-white bg-slate-800 rounded cursor-pointer"
+              >
+                <ZoomIn className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Desktop Page Switcher, Zoom Controls & Action Buttons */}
+        <div className="hidden lg:flex items-center gap-2">
           {/* Page Selector Pills */}
-          <div className="hidden lg:flex items-center bg-slate-900/90 rounded-xl p-1 border border-slate-700/60 text-xs">
+          <div className="flex items-center bg-slate-900/90 rounded-xl p-1 border border-slate-700/60 text-xs">
             <button
               type="button"
               onClick={() => setActivePage(null)}
@@ -1070,7 +1231,7 @@ export default function QuotationCreatorPage() {
           <button
             type="button"
             onClick={handlePrint}
-            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
+            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
             title="Print or Save as Vector PDF"
           >
             <Printer className="w-3.5 h-3.5 text-sky-400" />
@@ -1084,7 +1245,7 @@ export default function QuotationCreatorPage() {
               setExcelOfferNo(data.offerNo);
               setShowExcelModal(true);
             }}
-            className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md shadow-emerald-950/40 active:scale-95 transition-all"
+            className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md shadow-emerald-950/40 active:scale-95 transition-all cursor-pointer"
             title="Export Stage 1 vs 2 vs 3 Comparison in Excel (.xlsx) format"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-200" />
@@ -1122,7 +1283,7 @@ export default function QuotationCreatorPage() {
             type="button"
             onClick={handleDownloadPdf}
             disabled={isDownloading || isRenderingPdf}
-            className="px-4 py-1.5 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-400 hover:to-cyan-500 text-white rounded-xl text-xs font-black flex items-center gap-2 shadow-md shadow-teal-900/40 active:scale-95 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+            className="px-4 py-1.5 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-400 hover:to-cyan-500 text-white rounded-xl text-xs font-black flex items-center gap-2 shadow-md shadow-teal-900/40 active:scale-95 transition-all disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
           >
             {isDownloading ? (
               <>
@@ -1157,7 +1318,11 @@ export default function QuotationCreatorPage() {
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
         {/* LEFT COLUMN: LIVE PDF PREVIEW & UPLOAD ZONE */}
         {showPdfPreview && (
-          <div className="flex-1 bg-[#1e293b]/90 overflow-y-auto overflow-x-auto p-4 md:p-6 flex flex-col items-center custom-scrollbar">
+          <div
+            className={`flex-1 bg-[#1e293b]/90 overflow-y-auto overflow-x-auto p-2 sm:p-4 md:p-6 flex-col items-center custom-scrollbar ${
+              mobileTab === 'preview' ? 'flex w-full h-full pb-24' : 'hidden lg:flex'
+            }`}
+          >
             {/* Preview Navigation Notice */}
             <div className="no-print mb-3 px-3 py-1.5 bg-slate-800/80 rounded-full border border-slate-700/80 text-[11px] text-slate-300 flex items-center gap-2 shadow-sm">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
@@ -1373,7 +1538,9 @@ export default function QuotationCreatorPage() {
           id="quotation-form-column"
           className={`no-print border-t lg:border-t-0 ${
             showPdfPreview ? 'lg:border-l w-full lg:w-[500px] xl:w-[560px] shrink-0' : 'w-full flex-1 max-w-full'
-          } border-slate-200 bg-slate-50 shadow-xl flex flex-col h-full overflow-hidden z-10 transition-all duration-200`}
+          } border-slate-200 bg-slate-50 shadow-xl flex flex-col h-full overflow-hidden z-10 transition-all duration-200 ${
+            mobileTab === 'form' ? 'flex w-full h-full pb-24 lg:pb-0' : 'hidden lg:flex'
+          }`}
         >
           {/* Full Screen Form Banner when PDF preview is hidden */}
           {!showPdfPreview && (
@@ -1697,10 +1864,80 @@ export default function QuotationCreatorPage() {
         </div>
       </div>
 
+      {/* MOBILE FLOATING STICKY ACTION BAR */}
+      <div className="lg:hidden no-print fixed bottom-0 left-0 right-0 bg-[#0A192F]/95 backdrop-blur-md border-t border-slate-800 p-2.5 px-3 flex items-center justify-between gap-2 z-40 shadow-2xl">
+        {mobileTab === 'form' ? (
+          <>
+            <button
+              type="button"
+              onClick={() => setMobileTab('preview')}
+              className="flex-1 py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+            >
+              <Eye className="w-4 h-4 text-teal-400" />
+              <span>Preview PDF</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSaveCurrentStage}
+              disabled={isSavingStage}
+              className="py-2 px-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
+            >
+              {isSavingStage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              <span>Save</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={isDownloading || isRenderingPdf}
+              className="flex-1 py-2 px-3 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-400 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-md shadow-teal-950/40 active:scale-95 disabled:opacity-50 cursor-pointer"
+            >
+              {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              <span>Download PDF</span>
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => setMobileTab('form')}
+              className="flex-1 py-2 px-3 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+            >
+              <Edit3 className="w-4 h-4" />
+              <span>Back to Form</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setWhatsAppPhone(data.customerPhone || '');
+                setShowWhatsAppModal(true);
+              }}
+              className="py-2 px-3 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+              title="Send to WhatsApp"
+            >
+              <Send className="w-4 h-4" />
+              <span>WhatsApp</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={isDownloading || isRenderingPdf}
+              className="flex-1 py-2 px-3 bg-teal-500 hover:bg-teal-400 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-md active:scale-95 disabled:opacity-50 cursor-pointer"
+            >
+              {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              <span>Download PDF</span>
+            </button>
+          </>
+        )}
+      </div>
+
       {/* 1. WHATSAPP SEND MODAL (GET NUMBER VIA POPUP) */}
       {showWhatsAppModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 animate-fade-in backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto m-2 sm:m-0">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2.5">
                 <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold">
@@ -1806,7 +2043,7 @@ export default function QuotationCreatorPage() {
       {/* 2. EXCEL EXPORT MODAL */}
       {showExcelModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 animate-fade-in backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto m-2 sm:m-0">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2.5">
                 <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
@@ -1872,7 +2109,7 @@ export default function QuotationCreatorPage() {
       {/* 3. CRM APPROVAL SUCCESS MODAL */}
       {showCrmApproveModal && crmApproveResult && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 animate-fade-in backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-emerald-300 space-y-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-emerald-300 space-y-4 max-h-[90vh] overflow-y-auto m-2 sm:m-0">
             <div className="text-center space-y-2">
               <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto text-2xl shadow-inner">
                 🎉
