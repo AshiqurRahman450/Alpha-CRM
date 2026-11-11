@@ -25,6 +25,7 @@ import {
   Tag,
   UserCheck,
   History,
+  Trash2,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { api } from '../../lib/api';
@@ -161,6 +162,34 @@ export default function OldCustomersPage() {
     }
   };
 
+  const handleDeleteCustomer = async (cust: any) => {
+    const code = cust.customerId || 'this customer';
+    const name = cust.fullName || '';
+    if (
+      !window.confirm(
+        `Are you sure you want to delete old customer [${code}] ${name}?\n\nAll subsequent customer IDs will automatically shift down (e.g. CUST-003 becomes CUST-002) to maintain continuous numbering without gaps.`
+      )
+    ) {
+      return;
+    }
+    try {
+      setLoading(true);
+      const res = await api.deleteCustomer(cust._id || cust.id);
+      if (res?.success) {
+        toast.success(res.message || `Customer ${code} deleted and remaining IDs resequenced!`, {
+          duration: 5000,
+        });
+        fetchCustomers();
+      } else {
+        toast.error(res?.message || 'Failed to delete customer');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete customer');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     const fetchInit = async () => {
       try {
@@ -289,7 +318,7 @@ export default function OldCustomersPage() {
           <div className="flex items-center gap-2">
             <h2 className="text-xl font-black text-slate-900 tracking-tight">Old Customers Directory</h2>
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-indigo-100 text-indigo-800 border border-indigo-200 uppercase">
-              OLD-CUST-XXX
+              CUST-XXX (Continuous)
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -479,10 +508,19 @@ export default function OldCustomersPage() {
                         <Link
                           href={`/customers/${c._id}`}
                           className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1"
+                          title="Manage customer profile"
                         >
                           <span>Manage</span>
                           <ArrowRight className="w-3 h-3" />
                         </Link>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCustomer(c)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200 cursor-pointer"
+                          title={`Delete old customer ${c.customerId} and automatically adjust sequence (e.g. CUST-003 becomes CUST-002)`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </td>
                   </tr>

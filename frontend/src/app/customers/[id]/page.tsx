@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   Users,
@@ -95,6 +95,7 @@ const PROJECT_STAGE_NEXT_WORK: Record<
 
 export default function CustomerDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const customerId = params.id as string;
 
   const [data, setData] = useState<any>(null);
@@ -178,6 +179,33 @@ export default function CustomerDetailPage() {
     }
   };
 
+  const handleDeleteCustomer = async () => {
+    if (!data?.customer) return;
+    const code = data.customer.customerId || 'this customer';
+    const name = data.customer.fullName || '';
+    if (
+      !confirm(
+        `Are you sure you want to delete customer [${code}] ${name}?\n\nAll subsequent customer IDs will automatically shift down (e.g. CUST-003 becomes CUST-002) to maintain continuous numbering without gaps.`
+      )
+    ) {
+      return;
+    }
+    try {
+      setLoading(true);
+      const res = await api.deleteCustomer(data.customer._id);
+      if (res?.success) {
+        alert(res.message || `Customer ${code} deleted and remaining IDs resequenced!`);
+        router.push(data.customer.isOldCustomer ? '/old-customers' : '/customers');
+      } else {
+        alert(res?.message || 'Failed to delete customer');
+      }
+    } catch (err: any) {
+      alert(`Error deleting customer: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -253,6 +281,14 @@ export default function CustomerDetailPage() {
               }`}
             >
               {customer.whatsappOptIn ? 'Disable' : 'Enable Opt-In'}
+            </button>
+            <button
+              onClick={handleDeleteCustomer}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 flex items-center gap-1 transition-colors cursor-pointer"
+              title={`Delete customer ${customer.customerId} and automatically adjust sequence (e.g. CUST-003 becomes CUST-002)`}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete Customer</span>
             </button>
           </div>
         </div>

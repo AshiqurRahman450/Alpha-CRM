@@ -1687,16 +1687,16 @@ export default function QuotationForm({
                     updateField('doorOpening', val);
                     if (val === 'adjacent' || val === 'inline and adjacent') {
                       setDoorAccessAlert(
-                        `Door Opening "${val}" selected! Please note: An extra ₹50,000 per extra opening door will be applicable.`
+                        `Door Opening "${val}" selected! Please note: An extra ₹80,000 per extra opening door will be applicable.`
                       );
                     }
                   }}
                   className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
                 >
                   <option value="inline">inline</option>
-                  <option value="adjacent">adjacent (Notice: ₹50,000 extra per opening)</option>
+                  <option value="adjacent">adjacent (Notice: ₹80,000 extra per opening)</option>
                   <option value="Opposite Side">Opposite Side</option>
-                  <option value="inline and adjacent">inline and adjacent (Notice: ₹50,000 extra per opening)</option>
+                  <option value="inline and adjacent">inline and adjacent (Notice: ₹80,000 extra per opening)</option>
                 </select>
               </div>
 
@@ -3052,7 +3052,7 @@ export default function QuotationForm({
               <p className="mb-2">{doorAccessAlert}</p>
               <div className="p-2.5 bg-white/80 rounded-lg border border-amber-200 flex items-center justify-between">
                 <span className="font-bold text-slate-700">Extra per opening Door:</span>
-                <span className="font-extrabold text-rose-600 text-sm">₹50,000</span>
+                <span className="font-extrabold text-rose-600 text-sm">₹80,000</span>
               </div>
             </div>
             <div className="flex justify-end pt-1">

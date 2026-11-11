@@ -21,7 +21,7 @@ import { webhookRouter } from './routes/webhooks';
 import { reminderRouter } from './routes/reminders';
 import { qcRouter } from './routes/qc';
 import { quotationRouter } from './routes/quotations';
-import { splitSharedCustomerProjects } from './utils/idGenerators';
+import { splitSharedCustomerProjects, resequenceCustomerIds } from './utils/idGenerators';
 import bcrypt from 'bcryptjs';
 
 const app = express();
@@ -319,19 +319,16 @@ export async function startServer() {
       console.warn('[Server] Auto-split customer projects warning:', splitErr.message);
     }
 
-    // Ensure strict classification consistency for Old Customers vs Regular Customers in database
+    // Ensure all historical old customers retain isOldCustomer: true and resequence all IDs continuously (CUST-001, CUST-002, ...)
     try {
       const { Customer } = await import('./models');
       await Customer.updateMany(
-        { customerId: /^OLD/i, $or: [{ isOldCustomer: false }, { isOldCustomer: { $exists: false } }] },
+        { customerId: /^OLD/i },
         { $set: { isOldCustomer: true } }
       );
-      await Customer.updateMany(
-        { customerId: /^(?!OLD)/i, isOldCustomer: true },
-        { $set: { isOldCustomer: false } }
-      );
+      await resequenceCustomerIds();
     } catch (normErr: any) {
-      console.warn('[Server] Customer classification normalization warning:', normErr.message);
+      console.warn('[Server] Customer classification & resequencing warning:', normErr.message);
     }
 
     initScheduler();

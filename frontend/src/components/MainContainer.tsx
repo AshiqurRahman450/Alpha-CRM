@@ -19,3 +19,4 @@ export default function MainContainer({ children }: { children: React.ReactNode 
     </main>
   );
 }
+

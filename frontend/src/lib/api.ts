@@ -436,6 +436,10 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ whatsappOptIn, optInSource }),
     }),
+  deleteCustomer: (id: string) =>
+    fetchWithAuth(`/api/customers/${id}`, { method: 'DELETE' }),
+  resequenceCustomers: () =>
+    fetchWithAuth('/api/customers/resequence', { method: 'POST' }),
 
   // Projects
   getProjects: (params?: { status?: string; paymentStatus?: string; search?: string; updateDue?: string; excludeHandover?: boolean }) => {

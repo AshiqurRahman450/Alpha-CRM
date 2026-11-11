@@ -26,6 +26,7 @@ import {
   Home,
   Tag,
   UserCheck,
+  Trash2,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { api } from '../../lib/api';
@@ -204,14 +205,38 @@ export default function CustomersPage() {
         search: search || undefined,
         optIn: optInFilter || undefined,
         bdmId: bdmFilter || undefined,
-        isOldCustomer: 'false',
       });
-      const list = (res.data || []).filter(
-        (c: any) => c.isOldCustomer !== true && !String(c.customerId || '').trim().toUpperCase().startsWith('OLD')
-      );
-      setCustomers(list);
+      setCustomers(res.data || []);
     } catch (err: any) {
       console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteCustomer = async (cust: any) => {
+    const code = cust.customerId || 'this customer';
+    const name = cust.fullName || '';
+    if (
+      !window.confirm(
+        `Are you sure you want to delete customer [${code}] ${name}?\n\nAll subsequent customer IDs will automatically adjust (e.g. CUST-003 becomes CUST-002) to maintain continuous numbering without gaps.`
+      )
+    ) {
+      return;
+    }
+    try {
+      setLoading(true);
+      const res = await api.deleteCustomer(cust._id || cust.id);
+      if (res?.success) {
+        toast.success(res.message || `Customer ${code} deleted and remaining IDs resequenced!`, {
+          duration: 5000,
+        });
+        fetchCustomers();
+      } else {
+        toast.error(res?.message || 'Failed to delete customer');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete customer');
     } finally {
       setLoading(false);
     }
@@ -277,6 +302,7 @@ export default function CustomersPage() {
       setSubmitting(true);
       const created = await api.createCustomer({
         ...newCust,
+        isOldCustomer: false,
         fullName: newCust.fullName.trim(),
         phoneNumber: newCust.phoneNumber.trim(),
         whatsappNumber: (newCust.whatsappNumber || newCust.phoneNumber).trim(),
@@ -293,8 +319,8 @@ export default function CustomersPage() {
       const custCode = created?.data?.customerId || '';
       toast.success(
         custCode
-          ? `Customer ${custCode} created! Manually entered clients are listed in the Old Customers tab.`
-          : 'Customer record created! Manually entered clients are listed in the Old Customers tab.',
+          ? `Customer ${custCode} created with continuous sequence!`
+          : 'Customer record created successfully!',
         { duration: 5000 }
       );
       setIsAddOpen(false);
@@ -457,7 +483,14 @@ export default function CustomersPage() {
                 {customers.map((c) => (
                   <tr key={c._id} className="hover:bg-slate-50/70 transition-colors">
                     <td className="py-4 px-4 font-mono font-bold text-sky-600">
-                      {c.customerId}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span>{c.customerId}</span>
+                        {c.isOldCustomer && (
+                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 uppercase" title="Historical / Manually Entered Customer">
+                            Old
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     <td className="py-4 px-4">
@@ -536,13 +569,24 @@ export default function CustomersPage() {
                     </td>
 
                     <td className="py-4 px-4 text-right">
-                      <Link
-                        href={`/customers/${c._id}`}
-                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1"
-                      >
-                        <span>View</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </Link>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Link
+                          href={`/customers/${c._id}`}
+                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1"
+                          title="View customer profile"
+                        >
+                          <span>View</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCustomer(c)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200 cursor-pointer"
+                          title={`Delete customer ${c.customerId} and automatically adjust sequence (e.g. CUST-003 becomes CUST-002)`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

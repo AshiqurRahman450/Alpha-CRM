@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { Customer, Project, Payment, WhatsAppMessage, ProjectActivity, User, Quotation } from '../models';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { PROJECT_STAGE_NEXT_WORK } from './reminders';
-import { getNextCustomerId, getNextOldCustomerId, splitSharedCustomerProjects } from '../utils/idGenerators';
+import { getNextCustomerId, getNextOldCustomerId, splitSharedCustomerProjects, resequenceCustomerIds } from '../utils/idGenerators';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -150,7 +150,17 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
       }
     }
 
-    const customers = await Customer.find(query).populate('bdmId', 'name email phone').sort({ createdAt: -1 });
+    const customers = await Customer.find(query).populate('bdmId', 'name email phone').lean();
+
+    // Natural numeric sorting: CUST-001, CUST-002, ..., CUST-025
+    customers.sort((a, b) => {
+      const numA = parseInt(String(a.customerId || '').replace(/\D/g, '') || '0', 10);
+      const numB = parseInt(String(b.customerId || '').replace(/\D/g, '') || '0', 10);
+      if (numA !== numB) return numA - numB;
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return timeB - timeA;
+    });
 
     // Strict post-filtering guarantees 100% mutually exclusive separation
     let strictlyFiltered = customers;
@@ -240,15 +250,13 @@ customerRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM'), async (req
       return res.status(400).json({ success: false, message: 'Full name, phone number, and address or Google Maps link are required' });
     }
 
-    // Determine if old customer: default to true for manual customer creation per requirement
-    const isOld = req.body.isOldCustomer !== undefined
-      ? (req.body.isOldCustomer === true || req.body.isOldCustomer === 'true')
-      : true;
+    // Determine if old customer: default to false unless explicitly specified as true
+    const isOld = req.body.isOldCustomer === true || req.body.isOldCustomer === 'true';
 
-    // Auto-generate customerId: OLD-CUST-XXX for old customer, CUST-XXX for regular
+    // Auto-generate unified customerId (CUST-001, CUST-002, etc. continuous sequence for all customers)
     let customerId = req.body.customerId ? String(req.body.customerId).trim().toUpperCase() : '';
     if (!customerId) {
-      customerId = isOld ? await getNextOldCustomerId() : await getNextCustomerId();
+      customerId = await getNextCustomerId();
     }
 
     let assignedBdmId: any = undefined;
@@ -504,14 +512,55 @@ customerRouter.patch('/:id/assign-bdm', authorize('ADMIN', 'CRM', 'MANAGER'), as
 
 /**
  * DELETE /api/customers/:id
+ * Deletes a customer and automatically resequences all remaining customer IDs (e.g. CUST-003 becomes CUST-002)
  */
-customerRouter.delete('/:id', authorize('ADMIN'), async (req: AuthRequest, res: Response) => {
+customerRouter.delete('/:id', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthRequest, res: Response) => {
   try {
-    const deleted = await Customer.findByIdAndDelete(req.params.id);
-    if (!deleted) {
+    const customer = await Customer.findById(req.params.id);
+    if (!customer) {
       return res.status(404).json({ success: false, message: 'Customer not found' });
     }
-    return res.json({ success: true, message: 'Customer deleted successfully' });
+
+    const deletedCode = customer.customerId;
+    const deletedName = customer.fullName;
+
+    // 1. Delete customer
+    await Customer.findByIdAndDelete(req.params.id);
+
+    // 2. Cascade cleanup on linked collections
+    await Project.deleteMany({ customerId: customer._id });
+    await Payment.deleteMany({ customerId: customer._id });
+    await WhatsAppMessage.deleteMany({ customerId: customer._id });
+    await Quotation.updateMany(
+      { createdCustomerId: customer._id },
+      { $unset: { createdCustomerId: '', createdCustomerCode: '' } }
+    );
+
+    // 3. Automatically resequence remaining customer IDs to shift down numbers with zero gaps
+    const resequenceResult = await resequenceCustomerIds();
+
+    return res.json({
+      success: true,
+      message: `Customer ${deletedCode} (${deletedName}) deleted successfully. Remaining ${resequenceResult.totalResequenced} customer IDs resequenced dynamically.`,
+      resequenceResult,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * POST /api/customers/resequence
+ * Manually trigger resequencing of all customer IDs across database
+ */
+customerRouter.post('/resequence', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthRequest, res: Response) => {
+  try {
+    const result = await resequenceCustomerIds();
+    return res.json({
+      success: true,
+      message: `Resequenced customer IDs: ${result.updatedCount} updated out of ${result.totalResequenced} total customers.`,
+      data: result,
+    });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
   }
