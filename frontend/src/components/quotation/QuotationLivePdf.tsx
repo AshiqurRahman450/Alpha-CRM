@@ -114,7 +114,7 @@ export default function QuotationLivePdf({
       setLocalSavedPages({});
       try {
         localStorage.removeItem(storageKey);
-      } catch (e) {}
+      } catch (e) { }
       setLocalIsEditing(false);
       setSaveNotice('Reset to original template.');
       setTimeout(() => setSaveNotice(null), 3000);
@@ -412,7 +412,7 @@ export default function QuotationLivePdf({
 
       const doorAccessVal =
         data.doorAccess &&
-        !['inline', 'adjacent', 'Opposite Side', 'inline and adjacent', 'Same Side'].includes(data.doorAccess)
+          !['inline', 'adjacent', 'Opposite Side', 'inline and adjacent', 'Same Side'].includes(data.doorAccess)
           ? data.doorAccess
           : 'G - ABCG, 1 - ABCG, 2 - ABCG, 3 - ABCG';
 
@@ -458,7 +458,7 @@ export default function QuotationLivePdf({
 </tr>
 <tr style="height:${rowH};border-bottom:1px solid #000000;">
 <td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">Speed</td>
-<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">${data.speed || 'upto 1 m/s'}</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">${data.speed || 'Up to 1 m/s'}</td>
 </tr>
 <tr style="height:${rowH};border-bottom:1px solid #000000;">
 <td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">Machine</td>
@@ -723,7 +723,8 @@ export default function QuotationLivePdf({
           }}
         >
           {/* Proposal styles: colors, cleanups, and watermark */}
-          <style dangerouslySetInnerHTML={{ __html: `
+          <style dangerouslySetInnerHTML={{
+            __html: `
             #p0 .c1 { color: #0f4b31 !important; }
             #p0 .im[style*="714.6"] { display: none !important; }
             #p0::after {
@@ -809,11 +810,10 @@ export default function QuotationLivePdf({
                   id={`quotation-page-${pageNum}`}
                   contentEditable={isEditing}
                   suppressContentEditableWarning={true}
-                  className={`proposal-page-wrapper select-text shadow-2xl my-3 transition-all flex justify-center ${
-                    isEditing
+                  className={`proposal-page-wrapper select-text shadow-2xl my-3 transition-all flex justify-center ${isEditing
                       ? 'ring-4 ring-amber-400 cursor-text hover:ring-amber-300'
                       : ''
-                  }`}
+                    }`}
                   style={{
                     width: baseWidth,
                     minWidth: baseWidth,
@@ -855,11 +855,10 @@ export default function QuotationLivePdf({
                 id={`quotation-page-${pageNum}`}
                 contentEditable={isEditing}
                 suppressContentEditableWarning={true}
-                className={`proposal-page-wrapper select-text shadow-2xl my-3 transition-all flex justify-center ${
-                  isEditing
+                className={`proposal-page-wrapper select-text shadow-2xl my-3 transition-all flex justify-center ${isEditing
                     ? 'ring-4 ring-amber-400 cursor-text hover:ring-amber-300'
                     : ''
-                }`}
+                  }`}
                 style={{
                   width: baseWidth,
                   minWidth: baseWidth,

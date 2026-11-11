@@ -61,21 +61,21 @@ export default function QuotationForm({
 
   const formTabs = isCircle
     ? [
-        { id: 'client', label: '1. Client & Offer (Pgs 1 & 2)', icon: User },
-        { id: 'civil', label: '2. Lift Specs & Dimensions (Pg 3)', icon: Building },
-        { id: 'elevator', label: '3. Technical & Cabin Specs (Pg 4)', icon: Wrench },
-        { id: 'pricing', label: '4. Pricing & Payment Terms (Pg 4)', icon: IndianRupee },
-        { id: 'signatures', label: '5. Terms & Acceptance (Pg 5)', icon: ShieldCheck },
-      ]
+      { id: 'client', label: '1. Client & Offer (Pgs 1 & 2)', icon: User },
+      { id: 'civil', label: '2. Lift Specs & Dimensions (Pg 3)', icon: Building },
+      { id: 'elevator', label: '3. Technical & Cabin Specs (Pg 4)', icon: Wrench },
+      { id: 'pricing', label: '4. Pricing & Payment Terms (Pg 4)', icon: IndianRupee },
+      { id: 'signatures', label: '5. Terms & Acceptance (Pg 5)', icon: ShieldCheck },
+    ]
     : [
-        { id: 'client', label: '1. Client & Offer', icon: User },
-        { id: 'civil', label: '2. Civil & Cabin (Page 3)', icon: Building },
-        { id: 'elevator', label: '3. Elevator & Doors (Page 4)', icon: Wrench },
-        { id: 'shaft', label: '4. Shaft & Features (Page 5)', icon: Layers },
-        { id: 'pricing', label: '5. Pricing & Terms (Page 6)', icon: IndianRupee },
-        { id: 'signatures', label: '6. Signatures (Page 9)', icon: ShieldCheck },
-        { id: 'billing', label: '7. Billing & Shipping (Page 10)', icon: Truck },
-      ];
+      { id: 'client', label: '1. Client & Offer', icon: User },
+      { id: 'civil', label: '2. Civil & Cabin (Page 3)', icon: Building },
+      { id: 'elevator', label: '3. Elevator & Doors (Page 4)', icon: Wrench },
+      { id: 'shaft', label: '4. Shaft & Features (Page 5)', icon: Layers },
+      { id: 'pricing', label: '5. Pricing & Terms (Page 6)', icon: IndianRupee },
+      { id: 'signatures', label: '6. Signatures (Page 9)', icon: ShieldCheck },
+      { id: 'billing', label: '7. Billing & Shipping (Page 10)', icon: Truck },
+    ];
   const [newFeatureText, setNewFeatureText] = useState('');
   const [doorAccessAlert, setDoorAccessAlert] = useState<string | null>(null);
 
@@ -245,7 +245,7 @@ export default function QuotationForm({
         ...data,
         ...preset.data,
         accessoriesFeatures: features,
-        speed: 'upto 1 m/s',
+        speed: 'Up to 1 m/s',
         warranty,
       });
     }
@@ -318,8 +318,8 @@ export default function QuotationForm({
   const elevatorPrice = Number(data.elevatorPrice || 0);
   const elevatorDiscountPrice =
     data.elevatorDiscountPrice !== undefined &&
-    data.elevatorDiscountPrice !== null &&
-    Number(data.elevatorDiscountPrice) > 0
+      data.elevatorDiscountPrice !== null &&
+      Number(data.elevatorDiscountPrice) > 0
       ? Number(data.elevatorDiscountPrice)
       : 0;
   const elevatorMRP = elevatorPrice + elevatorDiscountPrice;
@@ -330,8 +330,8 @@ export default function QuotationForm({
   const shaftPrice = Number(data.shaftPrice || 0);
   const shaftDiscountPrice =
     data.shaftDiscountPrice !== undefined &&
-    data.shaftDiscountPrice !== null &&
-    Number(data.shaftDiscountPrice) > 0
+      data.shaftDiscountPrice !== null &&
+      Number(data.shaftDiscountPrice) > 0
       ? Number(data.shaftDiscountPrice)
       : 0;
   const shaftMRP = shaftPrice + shaftDiscountPrice;
@@ -441,11 +441,10 @@ export default function QuotationForm({
                 <button
                   type="button"
                   onClick={() => onChange({ ...data, templateType: 'standard' })}
-                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                    data.templateType !== 'circle'
+                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${data.templateType !== 'circle'
                       ? 'bg-teal-600 text-white shadow-xs'
                       : 'text-slate-400 hover:text-white'
-                  }`}
+                    }`}
                 >
                   <FileText className="w-3.5 h-3.5" />
                   <span>Standard (11 Pgs)</span>
@@ -453,11 +452,10 @@ export default function QuotationForm({
                 <button
                   type="button"
                   onClick={() => onChange({ ...data, templateType: 'circle' })}
-                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                    data.templateType === 'circle'
+                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${data.templateType === 'circle'
                       ? 'bg-teal-600 text-white shadow-xs'
                       : 'text-slate-400 hover:text-white'
-                  }`}
+                    }`}
                 >
                   <Sparkles className="w-3.5 h-3.5 text-amber-300" />
                   <span>Circle Lift (5 Pgs)</span>
@@ -563,11 +561,10 @@ export default function QuotationForm({
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id as any)}
-              className={`px-3 py-2 rounded-xl flex items-center gap-1.5 whitespace-nowrap transition-all cursor-pointer ${
-                isActive
+              className={`px-3 py-2 rounded-xl flex items-center gap-1.5 whitespace-nowrap transition-all cursor-pointer ${isActive
                   ? 'bg-white text-teal-700 shadow-sm border border-slate-200/80 font-bold'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
+                }`}
             >
               <Icon className="w-3.5 h-3.5" />
               <span>{tab.label}</span>
@@ -744,11 +741,10 @@ export default function QuotationForm({
                   <button
                     type="button"
                     onClick={() => updateField('hasGst', true)}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                      data.hasGst
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${data.hasGst
                         ? 'bg-teal-600 text-white shadow-2xs'
                         : 'text-slate-600 hover:text-slate-900'
-                    }`}
+                      }`}
                   >
                     Yes
                   </button>
@@ -761,11 +757,10 @@ export default function QuotationForm({
                         gstNumber: '',
                       });
                     }}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                      !data.hasGst
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${!data.hasGst
                         ? 'bg-slate-700 text-white shadow-2xs'
                         : 'text-slate-600 hover:text-slate-900'
-                    }`}
+                      }`}
                   >
                     No
                   </button>
@@ -852,11 +847,10 @@ export default function QuotationForm({
                   disabled={data.sameAsBilling !== false}
                   onChange={(e) => updateField('shippingAddress', e.target.value)}
                   placeholder="Enter complete site shipping / delivery address"
-                  className={`w-full text-xs px-3 py-2 border rounded-xl font-medium transition-colors ${
-                    data.sameAsBilling !== false
+                  className={`w-full text-xs px-3 py-2 border rounded-xl font-medium transition-colors ${data.sameAsBilling !== false
                       ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
                       : 'bg-white border-slate-300 focus:ring-2 focus:ring-teal-500'
-                  }`}
+                    }`}
                 />
                 {data.sameAsBilling !== false ? (
                   <p className="text-[10px] text-teal-600 mt-1">
@@ -1141,9 +1135,9 @@ export default function QuotationForm({
                     <label className="block text-[11px] font-bold text-slate-700 mb-1">Speed:</label>
                     <input
                       type="text"
-                      value={data.speed || 'upto 1 m/s'}
+                      value={data.speed || 'Up to 1 m/s'}
                       onChange={(e) => updateField('speed', e.target.value)}
-                      placeholder="e.g. upto 1 m/s"
+                      placeholder="e.g. Up to 1 m/s"
                       className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 font-medium"
                     />
                   </div>
@@ -1240,189 +1234,189 @@ export default function QuotationForm({
             </div>
           ) : (
             <div className="space-y-4 animate-fade-in">
-            <div className="bg-teal-50/50 p-3 rounded-xl border border-teal-200">
-              <h3 className="text-xs font-black text-teal-900 uppercase tracking-wide mb-1">
-                Civil Specifications (Page 3)
-              </h3>
-              <p className="text-[11px] text-teal-700">
-                Shaft dimensions, pit depth, floor heights and storage space requirements.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Clear Hoist Way / Shaft Size:</label>
-                <input
-                  type="text"
-                  value={data.hoistWayShaftSize}
-                  onChange={(e) => updateField('hoistWayShaftSize', e.target.value)}
-                  placeholder="e.g. 1450mm X 1800mm"
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
-                />
+              <div className="bg-teal-50/50 p-3 rounded-xl border border-teal-200">
+                <h3 className="text-xs font-black text-teal-900 uppercase tracking-wide mb-1">
+                  Civil Specifications (Page 3)
+                </h3>
+                <p className="text-[11px] text-teal-700">
+                  Shaft dimensions, pit depth, floor heights and storage space requirements.
+                </p>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Pit Depth:</label>
-                <select
-                  value={data.pitDepth || '200mm'}
-                  onChange={(e) => updateField('pitDepth', e.target.value)}
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
-                >
-                  <option value="None">None</option>
-                  <option value="200mm">200mm</option>
-                  {data.pitDepth && !['None', '200mm'].includes(data.pitDepth) && (
-                    <option value={data.pitDepth}>{data.pitDepth}</option>
-                  )}
-                </select>
-              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Clear Hoist Way / Shaft Size:</label>
+                  <input
+                    type="text"
+                    value={data.hoistWayShaftSize}
+                    onChange={(e) => updateField('hoistWayShaftSize', e.target.value)}
+                    placeholder="e.g. 1450mm X 1800mm"
+                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Min Floor Height:</label>
-                <input
-                  type="text"
-                  value={data.minFloorHeight}
-                  onChange={(e) => updateField('minFloorHeight', e.target.value)}
-                  placeholder="e.g. 3000mm"
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
-                />
-              </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Pit Depth:</label>
+                  <select
+                    value={data.pitDepth || '200mm'}
+                    onChange={(e) => updateField('pitDepth', e.target.value)}
+                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
+                  >
+                    <option value="None">None</option>
+                    <option value="200mm">200mm</option>
+                    {data.pitDepth && !['None', '200mm'].includes(data.pitDepth) && (
+                      <option value={data.pitDepth}>{data.pitDepth}</option>
+                    )}
+                  </select>
+                </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Final Stop (Headroom):</label>
-                <input
-                  type="text"
-                  value={data.finalStop}
-                  onChange={(e) => updateField('finalStop', e.target.value)}
-                  placeholder="e.g. 3300mm"
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
-                />
-              </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Min Floor Height:</label>
+                  <input
+                    type="text"
+                    value={data.minFloorHeight}
+                    onChange={(e) => updateField('minFloorHeight', e.target.value)}
+                    placeholder="e.g. 3000mm"
+                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Shaft:</label>
-                <select
-                  value={
-                    data.shaftScope === 'Customer scope' || data.shaftType === 'Customer scope'
-                      ? 'Customer scope'
-                      : 'Alpha Elevators scope'
-                  }
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    updateField('shaftScope', val);
-                    if (data.shaftType === 'Customer scope') {
-                      updateField('shaftType', 'Glass Shaft');
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Final Stop (Headroom):</label>
+                  <input
+                    type="text"
+                    value={data.finalStop}
+                    onChange={(e) => updateField('finalStop', e.target.value)}
+                    placeholder="e.g. 3300mm"
+                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Shaft:</label>
+                  <select
+                    value={
+                      data.shaftScope === 'Customer scope' || data.shaftType === 'Customer scope'
+                        ? 'Customer scope'
+                        : 'Alpha Elevators scope'
                     }
-                  }}
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
-                >
-                  <option value="Customer scope">Customer scope</option>
-                  <option value="Alpha Elevators scope">Alpha Elevators scope</option>
-                </select>
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      updateField('shaftScope', val);
+                      if (data.shaftType === 'Customer scope') {
+                        updateField('shaftType', 'Glass Shaft');
+                      }
+                    }}
+                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
+                  >
+                    <option value="Customer scope">Customer scope</option>
+                    <option value="Alpha Elevators scope">Alpha Elevators scope</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Shaft Specifications:
+                  </label>
+                  <select
+                    value={
+                      data.shaftType && data.shaftType !== 'Customer scope'
+                        ? data.shaftType.replace(/^(Customer scope|Alpha Elevators [sS]cope)\s*[-–—:]\s*/i, '')
+                        : 'Glass Shaft'
+                    }
+                    onChange={(e) => updateField('shaftType', e.target.value)}
+                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
+                  >
+                    <option value="Glass Shaft">Glass Shaft</option>
+                    <option value="ACP Shaft">ACP Shaft</option>
+                    <option value="Welding Shaft">Welding Shaft</option>
+                    <option value="Civil Shaft">Civil Shaft</option>
+                  </select>
+                </div>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Shaft Specifications:
+                  Lockable Storage Room (Page 3 Dropdown):
                 </label>
                 <select
-                  value={
-                    data.shaftType && data.shaftType !== 'Customer scope'
-                      ? data.shaftType.replace(/^(Customer scope|Alpha Elevators [sS]cope)\s*[-–—:]\s*/i, '')
-                      : 'Glass Shaft'
-                  }
-                  onChange={(e) => updateField('shaftType', e.target.value)}
+                  value={data.lockableStorageRoom}
+                  onChange={(e) => updateField('lockableStorageRoom', e.target.value)}
                   className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
                 >
-                  <option value="Glass Shaft">Glass Shaft</option>
-                  <option value="ACP Shaft">ACP Shaft</option>
-                  <option value="Welding Shaft">Welding Shaft</option>
-                  <option value="Civil Shaft">Civil Shaft</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Lockable Storage Room (Page 3 Dropdown):
-              </label>
-              <select
-                value={data.lockableStorageRoom}
-                onChange={(e) => updateField('lockableStorageRoom', e.target.value)}
-                className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
-              >
-                <option value="To be Located In the Top Floor">
-                  To be Located In the Top Floor- For all models
-                </option>
-                <option value="To be Located In the Ground Floor">
-                  To be Located In the Ground Floor- AE01 Hydraulic Home series
-                </option>
-              </select>
-            </div>
-
-            <div className="bg-sky-50/50 p-3 rounded-xl border border-sky-200 mt-6">
-              <h3 className="text-xs font-black text-sky-900 uppercase tracking-wide mb-1">
-                Cabin Specifications (Page 3)
-              </h3>
-              <p className="text-[11px] text-sky-700">
-                Cabin interior finishes, walls, flooring, ceiling and operating panels.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Cabin Walls (Page 3 Dropdown):
-                </label>
-                <select
-                  value={data.cabinWalls}
-                  onChange={(e) => updateField('cabinWalls', e.target.value)}
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
-                >
-                  <option value="Premium Glass Cabin - SS Finish">Premium Glass Cabin - SS Finish</option>
-                  <option value="Standared Cabin- SS Finish">Standared Cabin- SS Finish</option>
-                  <option value="MS">MS</option>
-                  <option value="MS-Glass">MS-Glass</option>
+                  <option value="To be Located In the Top Floor">
+                    To be Located In the Top Floor- For all models
+                  </option>
+                  <option value="To be Located In the Ground Floor">
+                    To be Located In the Ground Floor- AE01 Hydraulic Home series
+                  </option>
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Cabin Floor:</label>
-                <input
-                  type="text"
-                  value={data.cabinFloor}
-                  onChange={(e) => updateField('cabinFloor', e.target.value)}
-                  placeholder="e.g. Vinyl or Client's own Flooring"
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
-                />
+              <div className="bg-sky-50/50 p-3 rounded-xl border border-sky-200 mt-6">
+                <h3 className="text-xs font-black text-sky-900 uppercase tracking-wide mb-1">
+                  Cabin Specifications (Page 3)
+                </h3>
+                <p className="text-[11px] text-sky-700">
+                  Cabin interior finishes, walls, flooring, ceiling and operating panels.
+                </p>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Ceiling:</label>
-                <input
-                  type="text"
-                  value={data.ceiling}
-                  onChange={(e) => updateField('ceiling', e.target.value)}
-                  placeholder="e.g. As per cabin design"
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
-                />
-              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Cabin Walls (Page 3 Dropdown):
+                  </label>
+                  <select
+                    value={data.cabinWalls}
+                    onChange={(e) => updateField('cabinWalls', e.target.value)}
+                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
+                  >
+                    <option value="Premium Glass Cabin - SS Finish">Premium Glass Cabin - SS Finish</option>
+                    <option value="Standared Cabin- SS Finish">Standared Cabin- SS Finish</option>
+                    <option value="MS">MS</option>
+                    <option value="MS-Glass">MS-Glass</option>
+                  </select>
+                </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  COP & LOP (Operating Panels) (Page 3 Dropdown):
-                </label>
-                <select
-                  value={data.copAndLop}
-                  onChange={(e) => updateField('copAndLop', e.target.value)}
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
-                >
-                  <option value="Touch ( TFT Display)">Touch ( TFT Display)</option>
-                  <option value="Feather Touch">Feather Touch</option>
-                  <option value="Button">Button</option>
-                </select>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Cabin Floor:</label>
+                  <input
+                    type="text"
+                    value={data.cabinFloor}
+                    onChange={(e) => updateField('cabinFloor', e.target.value)}
+                    placeholder="e.g. Vinyl or Client's own Flooring"
+                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Ceiling:</label>
+                  <input
+                    type="text"
+                    value={data.ceiling}
+                    onChange={(e) => updateField('ceiling', e.target.value)}
+                    placeholder="e.g. As per cabin design"
+                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    COP & LOP (Operating Panels) (Page 3 Dropdown):
+                  </label>
+                  <select
+                    value={data.copAndLop}
+                    onChange={(e) => updateField('copAndLop', e.target.value)}
+                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
+                  >
+                    <option value="Touch ( TFT Display)">Touch ( TFT Display)</option>
+                    <option value="Feather Touch">Feather Touch</option>
+                    <option value="Button">Button</option>
+                  </select>
+                </div>
               </div>
             </div>
-          </div>
           )
         )}
 
@@ -1560,384 +1554,383 @@ export default function QuotationForm({
             </div>
           ) : (
             <div className="space-y-4 animate-fade-in">
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-              <h3 className="text-xs font-black text-slate-900 uppercase tracking-wide mb-1">
-                Elevator Technical Specifications (Page 4)
-              </h3>
-              <p className="text-[11px] text-slate-600">
-                Load ratings, stops, openings, drive mechanics, controller and travel metrics.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Rated Load:</label>
-                <input
-                  type="text"
-                  value={data.ratedLoad}
-                  onChange={(e) => updateField('ratedLoad', e.target.value)}
-                  placeholder="e.g. Upto 5 Passengers /408 kgs"
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  No of Stops (Page 4 Dropdown):
-                </label>
-                <select
-                  value={data.noOfStops}
-                  onChange={(e) => {
-                    const stopsVal = e.target.value;
-                    const match = stopsVal.match(/G\+(\d+)/);
-                    if (match) {
-                      const k = parseInt(match[1], 10);
-                      const travelHeight = `${k * 3500}mm`;
-                      const openings = `${k + 1} Openings`;
-                      const floorsList = ['G', ...Array.from({ length: k }, (_, i) => String(i + 1))];
-                      const floors = floorsList.join(',');
-
-                      const newDoorAccessFloors: Record<string, string[]> = {};
-                      floorsList.forEach((f) => {
-                        newDoorAccessFloors[f] = data.doorAccessFloors?.[f] || ['A'];
-                      });
-                      const newDoorAccessStr = floorsList
-                        .map((f) => `${f} - ${(newDoorAccessFloors[f] || ['A']).join('')}`)
-                        .join(', ');
-
-                      onChange({
-                        ...data,
-                        noOfStops: stopsVal,
-                        totalTravelHeight: travelHeight,
-                        noOfOpenings: openings,
-                        floorNumbering: floors,
-                        doorAccessFloors: newDoorAccessFloors,
-                        doorAccess: newDoorAccessStr,
-                      });
-                    } else {
-                      updateField('noOfStops', stopsVal);
-                    }
-                  }}
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
-                >
-                  {Array.from({ length: 10 }, (_, i) => `G+${i + 1}`).map((stop) => {
-                    const k = parseInt(stop.slice(2), 10);
-                    return (
-                      <option key={stop} value={stop}>
-                        {stop} (Travel Height: {k * 3500}mm | {k + 1} Openings)
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">No Of Openings:</label>
-                <input
-                  type="text"
-                  value={data.noOfOpenings}
-                  onChange={(e) => updateField('noOfOpenings', e.target.value)}
-                  placeholder="e.g. 3 Openings"
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Floor Numbering:</label>
-                <input
-                  type="text"
-                  value={data.floorNumbering}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    const parts = val.split(',').map((s) => s.trim()).filter(Boolean);
-                    if (parts.length > 0) {
-                      const newMap: Record<string, string[]> = {};
-                      parts.forEach((f) => {
-                        newMap[f] = data.doorAccessFloors?.[f] || ['A'];
-                      });
-                      const newStr = parts.map((f) => `${f} - ${(newMap[f] || ['A']).join('')}`).join(', ');
-                      onChange({
-                        ...data,
-                        floorNumbering: val,
-                        doorAccessFloors: newMap,
-                        doorAccess: newStr,
-                      });
-                    } else {
-                      updateField('floorNumbering', val);
-                    }
-                  }}
-                  placeholder="e.g. G,1,2,3"
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Door Opening (Page 4 Dropdown):
-                </label>
-                <select
-                  value={
-                    data.doorOpening ||
-                    (['inline', 'adjacent', 'Opposite Side', 'inline and adjacent', 'Same Side'].includes(data.doorAccess)
-                      ? data.doorAccess
-                      : 'inline')
-                  }
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    updateField('doorOpening', val);
-                    if (val === 'adjacent' || val === 'inline and adjacent') {
-                      setDoorAccessAlert(
-                        `Door Opening "${val}" selected! Please note: An extra ₹80,000 per extra opening door will be applicable.`
-                      );
-                    }
-                  }}
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
-                >
-                  <option value="inline">inline</option>
-                  <option value="adjacent">adjacent (Notice: ₹80,000 extra per opening)</option>
-                  <option value="Opposite Side">Opposite Side</option>
-                  <option value="inline and adjacent">inline and adjacent (Notice: ₹80,000 extra per opening)</option>
-                </select>
-              </div>
-
-              {/* Floor-wise Door Access (G, 1, 2, 3 with A, B, C, D checkboxes) */}
-              <div className="col-span-full bg-slate-100/90 p-3.5 rounded-2xl border border-slate-200 space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-teal-500"></span>
-                    <label className="text-xs font-black text-slate-800 tracking-wide uppercase">
-                      Door Access (Floor-wise: A, B, C, G)
-                    </label>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={handleSetAllFloorsAbcg}
-                      className="px-2.5 py-1 text-[11px] font-bold bg-teal-600 hover:bg-teal-700 text-white rounded-lg shadow-xs transition-colors cursor-pointer"
-                      title="Set all floors to ABCG"
-                    >
-                      All ABCG
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSetAllFloorsSideA}
-                      className="px-2.5 py-1 text-[11px] font-bold bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg shadow-xs transition-colors cursor-pointer"
-                      title="Reset all floors to Side A"
-                    >
-                      Default (A)
-                    </button>
-                  </div>
-                </div>
-
-                <p className="text-[11px] text-slate-500 leading-tight">
-                  Tick the checkbox before each letter (A, B, C, G) to clearly specify door access per floor (e.g. G - ABCG, 1 - ABCG, 2 - ABCG, 3 - ABCG):
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <h3 className="text-xs font-black text-slate-900 uppercase tracking-wide mb-1">
+                  Elevator Technical Specifications (Page 4)
+                </h3>
+                <p className="text-[11px] text-slate-600">
+                  Load ratings, stops, openings, drive mechanics, controller and travel metrics.
                 </p>
-
-                <div className="space-y-2">
-                  {getFloorsList().map((floor) => {
-                    const letters = getFloorLetters(floor);
-                    return (
-                      <div
-                        key={floor}
-                        className="flex flex-wrap items-center justify-between gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-xs"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <span className="w-9 h-7 flex items-center justify-center font-mono font-black text-xs bg-slate-800 text-white rounded-lg">
-                            {floor}
-                          </span>
-                          <span className="text-xs font-bold text-slate-400">-</span>
-
-                          {/* 4 Checkboxes with tick box before each letter */}
-                          <div className="flex items-center gap-2.5">
-                            {(['A', 'B', 'C', 'G'] as const).map((letter) => {
-                              const checked = letters.includes(letter);
-                              return (
-                                <label
-                                  key={letter}
-                                  className={`flex items-center gap-1.5 text-xs font-black px-2.5 py-1 rounded-lg border cursor-pointer select-none transition-all ${
-                                    checked
-                                      ? 'bg-teal-50 border-teal-500 text-teal-800 shadow-xs'
-                                      : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100 hover:text-slate-600'
-                                  }`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    onChange={() => handleToggleFloorLetter(floor, letter)}
-                                    className="w-4 h-4 text-teal-600 rounded border-slate-300 focus:ring-teal-500 cursor-pointer accent-teal-600"
-                                  />
-                                  <span>{letter}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        {/* Quick floor actions */}
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleSetFloorAbcg(floor)}
-                            className="px-2 py-0.5 text-[10px] font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-md transition-colors cursor-pointer"
-                          >
-                            ABCG
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Formatted live string */}
-                <div className="flex items-center justify-between bg-teal-950 text-white px-3 py-2 rounded-xl text-xs font-mono">
-                  <span className="text-teal-300 font-bold">Door Access Output:</span>
-                  <span className="font-black text-amber-300">{data.doorAccess || getFloorsList().map((f) => `${f} - A`).join(', ')}</span>
-                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Total Travel Height:</label>
-                <input
-                  type="text"
-                  value={data.totalTravelHeight}
-                  onChange={(e) => updateField('totalTravelHeight', e.target.value)}
-                  placeholder="e.g. 7000mm"
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Controller (Page 4 Dropdown):
-                </label>
-                <select
-                  value={data.controller || 'Imported'}
-                  onChange={(e) => updateField('controller', e.target.value)}
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
-                >
-                  <option value="Imported">Imported (Default for all models)</option>
-                  <option value="Italian Integrated Controller">Italian Integrated Controller</option>
-                  <option value="Microprocessor VVVF Controller">Microprocessor VVVF Controller</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Speed:</label>
-                <input
-                  type="text"
-                  value={data.speed || 'upto 1 m/s'}
-                  onChange={(e) => updateField('speed', e.target.value)}
-                  placeholder="e.g. upto 1 m/s"
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Machine / Motor (Page 4 Dropdown):
-                </label>
-                <select
-                  value={data.machine || 'Imported'}
-                  onChange={(e) => updateField('machine', e.target.value)}
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
-                >
-                  <option value="Imported">Imported (Default for all models)</option>
-                  <option value="Imported Motor">Imported Motor</option>
-                  <option value="PMSM Gearless Motor">PMSM Gearless Motor</option>
-                  <option value="Hydraulic Power Unit">Hydraulic Power Unit</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Power Supply (Page 4 Dropdown):
-                </label>
-                <select
-                  value={data.powerSupply || 'Single Phase'}
-                  onChange={(e) => updateField('powerSupply', e.target.value)}
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
-                >
-                  <option value="Single Phase">Single Phase</option>
-                  <option value="Single phase">Single phase (EV series)</option>
-                  <option value="Third Phase">Third Phase</option>
-                </select>
-                {data.model === 'Semi Home Lift' && (
-                  <p className="text-[10px] text-teal-700 font-bold mt-1">
-                    ℹ️ Semi Home Lift: Dropdown provides Single Phase & Third Phase options
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Car Size:</label>
-                <input
-                  type="text"
-                  value={data.carSize}
-                  onChange={(e) => updateField('carSize', e.target.value)}
-                  placeholder="e.g. TBC*"
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
-                />
-              </div>
-
-              {((data.model && /\bEV\b|home\s*EV|battery/i.test(data.model)) || Boolean(data.battery?.trim())) && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-bold text-slate-700">
-                      Battery:
-                    </label>
-                    <span className="text-[10px] bg-emerald-500/10 text-emerald-700 font-bold px-1.5 py-0.5 rounded border border-emerald-500/20">
-                      EV Model
-                    </span>
-                  </div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Rated Load:</label>
                   <input
                     type="text"
-                    value={data.battery || ''}
-                    onChange={(e) => updateField('battery', e.target.value)}
-                    placeholder="e.g. Lithium-ion"
-                    className="w-full text-xs px-3 py-2 border border-emerald-300 bg-emerald-50/30 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium text-slate-800"
+                    value={data.ratedLoad}
+                    onChange={(e) => updateField('ratedLoad', e.target.value)}
+                    placeholder="e.g. Upto 5 Passengers /408 kgs"
+                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
                   />
                 </div>
-              )}
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Clear Opening:</label>
-                <input
-                  type="text"
-                  value={data.clearOpening}
-                  onChange={(e) => updateField('clearOpening', e.target.value)}
-                  placeholder="e.g. TBC*"
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
-                />
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    No of Stops (Page 4 Dropdown):
+                  </label>
+                  <select
+                    value={data.noOfStops}
+                    onChange={(e) => {
+                      const stopsVal = e.target.value;
+                      const match = stopsVal.match(/G\+(\d+)/);
+                      if (match) {
+                        const k = parseInt(match[1], 10);
+                        const travelHeight = `${k * 3500}mm`;
+                        const openings = `${k + 1} Openings`;
+                        const floorsList = ['G', ...Array.from({ length: k }, (_, i) => String(i + 1))];
+                        const floors = floorsList.join(',');
+
+                        const newDoorAccessFloors: Record<string, string[]> = {};
+                        floorsList.forEach((f) => {
+                          newDoorAccessFloors[f] = data.doorAccessFloors?.[f] || ['A'];
+                        });
+                        const newDoorAccessStr = floorsList
+                          .map((f) => `${f} - ${(newDoorAccessFloors[f] || ['A']).join('')}`)
+                          .join(', ');
+
+                        onChange({
+                          ...data,
+                          noOfStops: stopsVal,
+                          totalTravelHeight: travelHeight,
+                          noOfOpenings: openings,
+                          floorNumbering: floors,
+                          doorAccessFloors: newDoorAccessFloors,
+                          doorAccess: newDoorAccessStr,
+                        });
+                      } else {
+                        updateField('noOfStops', stopsVal);
+                      }
+                    }}
+                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
+                  >
+                    {Array.from({ length: 10 }, (_, i) => `G+${i + 1}`).map((stop) => {
+                      const k = parseInt(stop.slice(2), 10);
+                      return (
+                        <option key={stop} value={stop}>
+                          {stop} (Travel Height: {k * 3500}mm | {k + 1} Openings)
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">No Of Openings:</label>
+                  <input
+                    type="text"
+                    value={data.noOfOpenings}
+                    onChange={(e) => updateField('noOfOpenings', e.target.value)}
+                    placeholder="e.g. 3 Openings"
+                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Floor Numbering:</label>
+                  <input
+                    type="text"
+                    value={data.floorNumbering}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const parts = val.split(',').map((s) => s.trim()).filter(Boolean);
+                      if (parts.length > 0) {
+                        const newMap: Record<string, string[]> = {};
+                        parts.forEach((f) => {
+                          newMap[f] = data.doorAccessFloors?.[f] || ['A'];
+                        });
+                        const newStr = parts.map((f) => `${f} - ${(newMap[f] || ['A']).join('')}`).join(', ');
+                        onChange({
+                          ...data,
+                          floorNumbering: val,
+                          doorAccessFloors: newMap,
+                          doorAccess: newStr,
+                        });
+                      } else {
+                        updateField('floorNumbering', val);
+                      }
+                    }}
+                    placeholder="e.g. G,1,2,3"
+                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Door Opening (Page 4 Dropdown):
+                  </label>
+                  <select
+                    value={
+                      data.doorOpening ||
+                      (['inline', 'adjacent', 'Opposite Side', 'inline and adjacent', 'Same Side'].includes(data.doorAccess)
+                        ? data.doorAccess
+                        : 'inline')
+                    }
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      updateField('doorOpening', val);
+                      if (val === 'adjacent' || val === 'inline and adjacent') {
+                        setDoorAccessAlert(
+                          `Door Opening "${val}" selected! Please note: An extra ₹80,000 per extra opening door will be applicable.`
+                        );
+                      }
+                    }}
+                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
+                  >
+                    <option value="inline">inline</option>
+                    <option value="adjacent">adjacent (Notice: ₹80,000 extra per opening)</option>
+                    <option value="Opposite Side">Opposite Side</option>
+                    <option value="inline and adjacent">inline and adjacent (Notice: ₹80,000 extra per opening)</option>
+                  </select>
+                </div>
+
+                {/* Floor-wise Door Access (G, 1, 2, 3 with A, B, C, D checkboxes) */}
+                <div className="col-span-full bg-slate-100/90 p-3.5 rounded-2xl border border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-teal-500"></span>
+                      <label className="text-xs font-black text-slate-800 tracking-wide uppercase">
+                        Door Access (Floor-wise: A, B, C, G)
+                      </label>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handleSetAllFloorsAbcg}
+                        className="px-2.5 py-1 text-[11px] font-bold bg-teal-600 hover:bg-teal-700 text-white rounded-lg shadow-xs transition-colors cursor-pointer"
+                        title="Set all floors to ABCG"
+                      >
+                        All ABCG
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSetAllFloorsSideA}
+                        className="px-2.5 py-1 text-[11px] font-bold bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg shadow-xs transition-colors cursor-pointer"
+                        title="Reset all floors to Side A"
+                      >
+                        Default (A)
+                      </button>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-slate-500 leading-tight">
+                    Tick the checkbox before each letter (A, B, C, G) to clearly specify door access per floor (e.g. G - ABCG, 1 - ABCG, 2 - ABCG, 3 - ABCG):
+                  </p>
+
+                  <div className="space-y-2">
+                    {getFloorsList().map((floor) => {
+                      const letters = getFloorLetters(floor);
+                      return (
+                        <div
+                          key={floor}
+                          className="flex flex-wrap items-center justify-between gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-xs"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <span className="w-9 h-7 flex items-center justify-center font-mono font-black text-xs bg-slate-800 text-white rounded-lg">
+                              {floor}
+                            </span>
+                            <span className="text-xs font-bold text-slate-400">-</span>
+
+                            {/* 4 Checkboxes with tick box before each letter */}
+                            <div className="flex items-center gap-2.5">
+                              {(['A', 'B', 'C', 'G'] as const).map((letter) => {
+                                const checked = letters.includes(letter);
+                                return (
+                                  <label
+                                    key={letter}
+                                    className={`flex items-center gap-1.5 text-xs font-black px-2.5 py-1 rounded-lg border cursor-pointer select-none transition-all ${checked
+                                        ? 'bg-teal-50 border-teal-500 text-teal-800 shadow-xs'
+                                        : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100 hover:text-slate-600'
+                                      }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={() => handleToggleFloorLetter(floor, letter)}
+                                      className="w-4 h-4 text-teal-600 rounded border-slate-300 focus:ring-teal-500 cursor-pointer accent-teal-600"
+                                    />
+                                    <span>{letter}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Quick floor actions */}
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleSetFloorAbcg(floor)}
+                              className="px-2 py-0.5 text-[10px] font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-md transition-colors cursor-pointer"
+                            >
+                              ABCG
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Formatted live string */}
+                  <div className="flex items-center justify-between bg-teal-950 text-white px-3 py-2 rounded-xl text-xs font-mono">
+                    <span className="text-teal-300 font-bold">Door Access Output:</span>
+                    <span className="font-black text-amber-300">{data.doorAccess || getFloorsList().map((f) => `${f} - A`).join(', ')}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Total Travel Height:</label>
+                  <input
+                    type="text"
+                    value={data.totalTravelHeight}
+                    onChange={(e) => updateField('totalTravelHeight', e.target.value)}
+                    placeholder="e.g. 7000mm"
+                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Controller (Page 4 Dropdown):
+                  </label>
+                  <select
+                    value={data.controller || 'Imported'}
+                    onChange={(e) => updateField('controller', e.target.value)}
+                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
+                  >
+                    <option value="Imported">Imported (Default for all models)</option>
+                    <option value="Italian Integrated Controller">Italian Integrated Controller</option>
+                    <option value="Microprocessor VVVF Controller">Microprocessor VVVF Controller</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Speed:</label>
+                  <input
+                    type="text"
+                    value={data.speed || 'Up to 1 m/s'}
+                    onChange={(e) => updateField('speed', e.target.value)}
+                    placeholder="e.g. Up to 1 m/s"
+                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Machine / Motor (Page 4 Dropdown):
+                  </label>
+                  <select
+                    value={data.machine || 'Imported'}
+                    onChange={(e) => updateField('machine', e.target.value)}
+                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
+                  >
+                    <option value="Imported">Imported (Default for all models)</option>
+                    <option value="Imported Motor">Imported Motor</option>
+                    <option value="PMSM Gearless Motor">PMSM Gearless Motor</option>
+                    <option value="Hydraulic Power Unit">Hydraulic Power Unit</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Power Supply (Page 4 Dropdown):
+                  </label>
+                  <select
+                    value={data.powerSupply || 'Single Phase'}
+                    onChange={(e) => updateField('powerSupply', e.target.value)}
+                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
+                  >
+                    <option value="Single Phase">Single Phase</option>
+                    <option value="Single phase">Single phase (EV series)</option>
+                    <option value="Third Phase">Third Phase</option>
+                  </select>
+                  {data.model === 'Semi Home Lift' && (
+                    <p className="text-[10px] text-teal-700 font-bold mt-1">
+                      ℹ️ Semi Home Lift: Dropdown provides Single Phase & Third Phase options
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Car Size:</label>
+                  <input
+                    type="text"
+                    value={data.carSize}
+                    onChange={(e) => updateField('carSize', e.target.value)}
+                    placeholder="e.g. TBC*"
+                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
+                  />
+                </div>
+
+                {((data.model && /\bEV\b|home\s*EV|battery/i.test(data.model)) || Boolean(data.battery?.trim())) && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-bold text-slate-700">
+                        Battery:
+                      </label>
+                      <span className="text-[10px] bg-emerald-500/10 text-emerald-700 font-bold px-1.5 py-0.5 rounded border border-emerald-500/20">
+                        EV Model
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      value={data.battery || ''}
+                      onChange={(e) => updateField('battery', e.target.value)}
+                      placeholder="e.g. Lithium-ion"
+                      className="w-full text-xs px-3 py-2 border border-emerald-300 bg-emerald-50/30 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium text-slate-800"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Clear Opening:</label>
+                  <input
+                    type="text"
+                    value={data.clearOpening}
+                    onChange={(e) => updateField('clearOpening', e.target.value)}
+                    placeholder="e.g. TBC*"
+                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Customer Specific requirements:</label>
+                  <input
+                    type="text"
+                    value={data.customerSpecificRequirements ?? 'Nil'}
+                    onChange={(e) => updateField('customerSpecificRequirements', e.target.value)}
+                    placeholder="e.g. Nil"
+                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Customer Specific requirements:</label>
-                <input
-                  type="text"
-                  value={data.customerSpecificRequirements ?? 'Nil'}
-                  onChange={(e) => updateField('customerSpecificRequirements', e.target.value)}
-                  placeholder="e.g. Nil"
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
-                />
+              <div className="pt-3 border-t border-slate-200">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  DOOR Specifications (Page 4 Dropdown):
+                </label>
+                <select
+                  value={data.doorSpecifications}
+                  onChange={(e) => updateField('doorSpecifications', e.target.value)}
+                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
+                >
+                  <option value="Auto Swing Doors- SS 304 Grade">Auto Swing Doors- SS 304 Grade</option>
+                  <option value="Center Door Opening - SS 304 Grade">Center Door Opening - SS 304 Grade</option>
+                  <option value="Telescopic Doors- SS 304 Grade">Telescopic Doors- SS 304 Grade</option>
+                  <option value="Manual Doors-- SS 304 Grade">Manual Doors-- SS 304 Grade</option>
+                </select>
               </div>
             </div>
-
-            <div className="pt-3 border-t border-slate-200">
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                DOOR Specifications (Page 4 Dropdown):
-              </label>
-              <select
-                value={data.doorSpecifications}
-                onChange={(e) => updateField('doorSpecifications', e.target.value)}
-                className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
-              >
-                <option value="Auto Swing Doors- SS 304 Grade">Auto Swing Doors- SS 304 Grade</option>
-                <option value="Center Door Opening - SS 304 Grade">Center Door Opening - SS 304 Grade</option>
-                <option value="Telescopic Doors- SS 304 Grade">Telescopic Doors- SS 304 Grade</option>
-                <option value="Manual Doors-- SS 304 Grade">Manual Doors-- SS 304 Grade</option>
-              </select>
-            </div>
-          </div>
           )
         )}
 
@@ -2197,418 +2190,417 @@ export default function QuotationForm({
             </div>
           ) : (
             <div className="space-y-4 animate-fade-in">
-            {/* Price Breakdown Banner */}
-            <div className="bg-gradient-to-r from-teal-900 to-slate-900 text-white p-4 rounded-2xl shadow-sm space-y-2">
-              <div className="flex items-center justify-between text-xs text-teal-300 font-mono">
-                <span className="flex items-center gap-1.5 font-bold">
-                  <span>COMMERCIAL SUMMARY</span>
-                  {hasDiscounts && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-slate-900">
-                      Discount Applied
+              {/* Price Breakdown Banner */}
+              <div className="bg-gradient-to-r from-teal-900 to-slate-900 text-white p-4 rounded-2xl shadow-sm space-y-2">
+                <div className="flex items-center justify-between text-xs text-teal-300 font-mono">
+                  <span className="flex items-center gap-1.5 font-bold">
+                    <span>COMMERCIAL SUMMARY</span>
+                    {hasDiscounts && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-slate-900">
+                        Discount Applied
+                      </span>
+                    )}
+                  </span>
+                  <span>GST @ {data.gstRate || 18}%</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 pt-1 border-t border-white/10 text-center">
+                  <div>
+                    <div className="text-[10px] text-slate-400">Elevator Total</div>
+                    {elevatorDiscountPrice > 0 ? (
+                      <div>
+                        <div className="text-[11px] text-slate-400 line-through">₹{elevatorMRPTotalWithGst.toLocaleString('en-IN')}</div>
+                        <div className="text-sm font-bold text-emerald-400">₹{elevatorTotalWithGst.toLocaleString('en-IN')}</div>
+                        <div className="text-[10px] text-slate-300 font-normal">Base: ₹{netElevatorPrice.toLocaleString('en-IN')}</div>
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="text-sm font-bold">₹{elevatorTotalWithGst.toLocaleString('en-IN')}</div>
+                        <div className="text-[10px] text-slate-300 font-normal">Base: ₹{netElevatorPrice.toLocaleString('en-IN')}</div>
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-slate-400">Shaft Package</div>
+                    {shaftDiscountPrice > 0 ? (
+                      <div>
+                        <div className="text-[11px] text-slate-400 line-through">₹{shaftMRPTotalWithGst.toLocaleString('en-IN')}</div>
+                        <div className="text-sm font-bold text-emerald-400">₹{shaftTotalWithGst.toLocaleString('en-IN')}</div>
+                        <div className="text-[10px] text-slate-300 font-normal">Base: ₹{netShaftPrice.toLocaleString('en-IN')}</div>
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="text-sm font-bold">₹{shaftTotalWithGst.toLocaleString('en-IN')}</div>
+                        <div className="text-[10px] text-slate-300 font-normal">Base: ₹{netShaftPrice.toLocaleString('en-IN')}</div>
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-teal-400 font-bold">Total (Inc. GST)</div>
+                    <div className="text-sm font-black text-amber-300">₹{grandTotal.toLocaleString('en-IN')}</div>
+                    {totalSavings > 0 && (
+                      <div className="text-[10px] text-emerald-400 font-bold">Save ₹{Math.round(totalSavings * gstMultiplier).toLocaleString('en-IN')}</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Elevator Pricing Card */}
+                <div className="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                      <IndianRupee className="w-3.5 h-3.5 text-teal-600" />
+                      Elevator Pricing
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-400">Base & Discount</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Elevator Price (₹): <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-slate-400 text-xs">₹</span>
+                      <input
+                        type="number"
+                        value={data.elevatorPrice}
+                        onChange={(e) => updateField('elevatorPrice', Number(e.target.value))}
+                        placeholder="e.g. 1600000"
+                        className="w-full text-xs pl-7 pr-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-bold text-slate-800 bg-white"
+                      />
+                    </div>
+                    <span className="text-[10px] text-slate-400 mt-0.5 block">
+                      Standard MRP / Base Elevator Price
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                      <span>Discount Price (₹):</span>
+                      {elevatorDiscountPrice > 0 && (
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                          -₹{elevatorDiscountPrice.toLocaleString('en-IN')}
+                        </span>
+                      )}
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-slate-400 text-xs">₹</span>
+                      <input
+                        type="number"
+                        value={data.elevatorDiscountPrice ?? ''}
+                        onChange={(e) => updateField('elevatorDiscountPrice', e.target.value === '' ? undefined : Number(e.target.value))}
+                        placeholder="Optional discount amount (e.g. 100000)"
+                        className="w-full text-xs pl-7 pr-3 py-2 border border-emerald-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-900 bg-white placeholder:text-slate-400 placeholder:font-normal"
+                      />
+                    </div>
+                    <span className="text-[10px] text-slate-500 mt-0.5 block">
+                      {elevatorDiscountPrice > 0
+                        ? `=((₹${elevatorPrice.toLocaleString('en-IN')} + ₹${elevatorDiscountPrice.toLocaleString('en-IN')}) - ₹${elevatorDiscountPrice.toLocaleString('en-IN')}) × ${gstMultiplier.toFixed(2)} = ₹${elevatorTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`
+                        : `Total with GST: ₹${elevatorTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Shaft Pricing Card */}
+                <div className="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                      <IndianRupee className="w-3.5 h-3.5 text-teal-600" />
+                      Shaft Pricing
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-400">Base & Discount</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Shaft Price (₹): <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-slate-400 text-xs">₹</span>
+                      <input
+                        type="number"
+                        value={data.shaftPrice}
+                        onChange={(e) => updateField('shaftPrice', Number(e.target.value))}
+                        placeholder="e.g. 400000"
+                        className="w-full text-xs pl-7 pr-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-bold text-slate-800 bg-white"
+                      />
+                    </div>
+                    <span className="text-[10px] text-slate-400 mt-0.5 block">
+                      Standard MRP / Base Shaft Price
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                      <span>Discount Price (₹):</span>
+                      {shaftDiscountPrice > 0 && (
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                          -₹{shaftDiscountPrice.toLocaleString('en-IN')}
+                        </span>
+                      )}
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-slate-400 text-xs">₹</span>
+                      <input
+                        type="number"
+                        value={data.shaftDiscountPrice ?? ''}
+                        onChange={(e) => updateField('shaftDiscountPrice', e.target.value === '' ? undefined : Number(e.target.value))}
+                        placeholder="Optional discount amount (e.g. 50000)"
+                        className="w-full text-xs pl-7 pr-3 py-2 border border-emerald-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-900 bg-white placeholder:text-slate-400 placeholder:font-normal"
+                      />
+                    </div>
+                    <span className="text-[10px] text-slate-500 mt-0.5 block">
+                      {shaftDiscountPrice > 0
+                        ? `=((₹${shaftPrice.toLocaleString('en-IN')} + ₹${shaftDiscountPrice.toLocaleString('en-IN')}) - ₹${shaftDiscountPrice.toLocaleString('en-IN')}) × ${gstMultiplier.toFixed(2)} = ₹${shaftTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`
+                        : `Total with GST: ₹${shaftTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Warranty Term Section */}
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label className="block text-xs font-black text-slate-800 tracking-wide uppercase">
+                    Warranty Term Text:
+                  </label>
+                  {isEvModel ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      <CheckCircle className="w-3 h-3 text-emerald-600" /> EV Model: Battery Warranty Included
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700">
+                      Non-EV Model: No Battery Warranty
                     </span>
                   )}
-                </span>
-                <span>GST @ {data.gstRate || 18}%</span>
-              </div>
-              <div className="grid grid-cols-3 gap-2 pt-1 border-t border-white/10 text-center">
-                <div>
-                  <div className="text-[10px] text-slate-400">Elevator Total</div>
-                  {elevatorDiscountPrice > 0 ? (
-                    <div>
-                      <div className="text-[11px] text-slate-400 line-through">₹{elevatorMRPTotalWithGst.toLocaleString('en-IN')}</div>
-                      <div className="text-sm font-bold text-emerald-400">₹{elevatorTotalWithGst.toLocaleString('en-IN')}</div>
-                      <div className="text-[10px] text-slate-300 font-normal">Base: ₹{netElevatorPrice.toLocaleString('en-IN')}</div>
-                    </div>
-                  ) : (
-                    <div>
-                      <div className="text-sm font-bold">₹{elevatorTotalWithGst.toLocaleString('en-IN')}</div>
-                      <div className="text-[10px] text-slate-300 font-normal">Base: ₹{netElevatorPrice.toLocaleString('en-IN')}</div>
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <div className="text-[10px] text-slate-400">Shaft Package</div>
-                  {shaftDiscountPrice > 0 ? (
-                    <div>
-                      <div className="text-[11px] text-slate-400 line-through">₹{shaftMRPTotalWithGst.toLocaleString('en-IN')}</div>
-                      <div className="text-sm font-bold text-emerald-400">₹{shaftTotalWithGst.toLocaleString('en-IN')}</div>
-                      <div className="text-[10px] text-slate-300 font-normal">Base: ₹{netShaftPrice.toLocaleString('en-IN')}</div>
-                    </div>
-                  ) : (
-                    <div>
-                      <div className="text-sm font-bold">₹{shaftTotalWithGst.toLocaleString('en-IN')}</div>
-                      <div className="text-[10px] text-slate-300 font-normal">Base: ₹{netShaftPrice.toLocaleString('en-IN')}</div>
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <div className="text-[10px] text-teal-400 font-bold">Total (Inc. GST)</div>
-                  <div className="text-sm font-black text-amber-300">₹{grandTotal.toLocaleString('en-IN')}</div>
-                  {totalSavings > 0 && (
-                    <div className="text-[10px] text-emerald-400 font-bold">Save ₹{Math.round(totalSavings * gstMultiplier).toLocaleString('en-IN')}</div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Elevator Pricing Card */}
-              <div className="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-                    <IndianRupee className="w-3.5 h-3.5 text-teal-600" />
-                    Elevator Pricing
-                  </span>
-                  <span className="text-[10px] font-bold text-slate-400">Base & Discount</span>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Elevator Price (₹): <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2 text-slate-400 text-xs">₹</span>
-                    <input
-                      type="number"
-                      value={data.elevatorPrice}
-                      onChange={(e) => updateField('elevatorPrice', Number(e.target.value))}
-                      placeholder="e.g. 1600000"
-                      className="w-full text-xs pl-7 pr-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-bold text-slate-800 bg-white"
-                    />
-                  </div>
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">
-                    Standard MRP / Base Elevator Price
-                  </span>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
-                    <span>Discount Price (₹):</span>
-                    {elevatorDiscountPrice > 0 && (
-                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
-                        -₹{elevatorDiscountPrice.toLocaleString('en-IN')}
-                      </span>
-                    )}
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2 text-slate-400 text-xs">₹</span>
-                    <input
-                      type="number"
-                      value={data.elevatorDiscountPrice ?? ''}
-                      onChange={(e) => updateField('elevatorDiscountPrice', e.target.value === '' ? undefined : Number(e.target.value))}
-                      placeholder="Optional discount amount (e.g. 100000)"
-                      className="w-full text-xs pl-7 pr-3 py-2 border border-emerald-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-900 bg-white placeholder:text-slate-400 placeholder:font-normal"
-                    />
-                  </div>
-                  <span className="text-[10px] text-slate-500 mt-0.5 block">
-                    {elevatorDiscountPrice > 0
-                      ? `=((₹${elevatorPrice.toLocaleString('en-IN')} + ₹${elevatorDiscountPrice.toLocaleString('en-IN')}) - ₹${elevatorDiscountPrice.toLocaleString('en-IN')}) × ${gstMultiplier.toFixed(2)} = ₹${elevatorTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`
-                      : `Total with GST: ₹${elevatorTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`}
-                  </span>
-                </div>
-              </div>
-
-              {/* Shaft Pricing Card */}
-              <div className="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-                    <IndianRupee className="w-3.5 h-3.5 text-teal-600" />
-                    Shaft Pricing
-                  </span>
-                  <span className="text-[10px] font-bold text-slate-400">Base & Discount</span>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Shaft Price (₹): <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2 text-slate-400 text-xs">₹</span>
-                    <input
-                      type="number"
-                      value={data.shaftPrice}
-                      onChange={(e) => updateField('shaftPrice', Number(e.target.value))}
-                      placeholder="e.g. 400000"
-                      className="w-full text-xs pl-7 pr-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-bold text-slate-800 bg-white"
-                    />
-                  </div>
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">
-                    Standard MRP / Base Shaft Price
-                  </span>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
-                    <span>Discount Price (₹):</span>
-                    {shaftDiscountPrice > 0 && (
-                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
-                        -₹{shaftDiscountPrice.toLocaleString('en-IN')}
-                      </span>
-                    )}
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2 text-slate-400 text-xs">₹</span>
-                    <input
-                      type="number"
-                      value={data.shaftDiscountPrice ?? ''}
-                      onChange={(e) => updateField('shaftDiscountPrice', e.target.value === '' ? undefined : Number(e.target.value))}
-                      placeholder="Optional discount amount (e.g. 50000)"
-                      className="w-full text-xs pl-7 pr-3 py-2 border border-emerald-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-900 bg-white placeholder:text-slate-400 placeholder:font-normal"
-                    />
-                  </div>
-                  <span className="text-[10px] text-slate-500 mt-0.5 block">
-                    {shaftDiscountPrice > 0
-                      ? `=((₹${shaftPrice.toLocaleString('en-IN')} + ₹${shaftDiscountPrice.toLocaleString('en-IN')}) - ₹${shaftDiscountPrice.toLocaleString('en-IN')}) × ${gstMultiplier.toFixed(2)} = ₹${shaftTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`
-                      : `Total with GST: ₹${shaftTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Warranty Term Section */}
-            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <label className="block text-xs font-black text-slate-800 tracking-wide uppercase">
-                  Warranty Term Text:
-                </label>
-                {isEvModel ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                    <CheckCircle className="w-3 h-3 text-emerald-600" /> EV Model: Battery Warranty Included
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700">
-                    Non-EV Model: No Battery Warranty
-                  </span>
-                )}
-              </div>
-
-              {/* 3 Dropdown Selectors */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                    Motor Warranty:
-                  </label>
-                  <select
-                    value={currentMotorWarranty}
-                    onChange={(e) => updateWarrantyComponent({ motorWarranty: e.target.value })}
-                    className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-teal-500 font-semibold text-slate-800"
-                  >
-                    <option value="Lifetime">Lifetime (Lifetime- MOTOR WARRANTY)</option>
-                    <option value="1years">1years (1years- MOTOR WARRANTY)</option>
-                    <option value="2years">2years (2years- MOTOR WARRANTY)</option>
-                    <option value="3years">3years (3years- MOTOR WARRANTY)</option>
-                    <option value="4years">4years (4years- MOTOR WARRANTY)</option>
-                    <option value="5years">5years (5years- MOTOR WARRANTY)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                    Manufacturing Warranty:
-                  </label>
-                  <select
-                    value={currentMfgWarranty}
-                    onChange={(e) => updateWarrantyComponent({ manufacturingWarranty: e.target.value })}
-                    className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-teal-500 font-semibold text-slate-800"
-                  >
-                    <option value="1 years">1 years</option>
-                    <option value="2 years">2 years</option>
-                    <option value="3 years">3 years</option>
-                    <option value="4 years">4 years</option>
-                    <option value="5 years">5 years</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                    Free Maintenance:
-                  </label>
-                  <select
-                    value={currentFreeMaint}
-                    onChange={(e) => updateWarrantyComponent({ freeMaintenance: e.target.value })}
-                    className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-teal-500 font-semibold text-slate-800"
-                  >
-                    <option value="1 Years">1 Years</option>
-                    <option value="2 Years">2 Years</option>
-                    <option value="3 Years">3 Years</option>
-                    <option value="4 Years">4 Years</option>
-                    <option value="5 Years">5 Years</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Full Warranty Text Display & Editable Textarea */}
-              <div>
-                <label className="block text-[10px] font-bold text-slate-500 mb-1">
-                  Full Warranty Term Preview (Editable):
-                </label>
-                <textarea
-                  rows={2}
-                  value={data.warranty}
-                  onChange={(e) => updateField('warranty', e.target.value)}
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium bg-white"
-                />
-              </div>
-            </div>
-
-            {/* Time of Material Delivery Section */}
-            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <label className="block text-xs font-black text-slate-800 tracking-wide uppercase">
-                  Time of Material Delivery:
-                </label>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-bold text-slate-500">Quick Select:</span>
-                  {[60, 90, 120].map((days) => (
-                    <button
-                      key={days}
-                      type="button"
-                      onClick={() => updateDeliveryDays(days)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
-                        currentDeliveryDays === days
-                          ? 'bg-teal-600 text-white shadow-sm ring-2 ring-teal-400'
-                          : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-300'
-                      }`}
+                {/* 3 Dropdown Selectors */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Motor Warranty:
+                    </label>
+                    <select
+                      value={currentMotorWarranty}
+                      onChange={(e) => updateWarrantyComponent({ motorWarranty: e.target.value })}
+                      className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-teal-500 font-semibold text-slate-800"
                     >
-                      {days} Days
-                    </button>
-                  ))}
-                </div>
-              </div>
+                      <option value="Lifetime">Lifetime (Lifetime- MOTOR WARRANTY)</option>
+                      <option value="1years">1years (1years- MOTOR WARRANTY)</option>
+                      <option value="2years">2years (2years- MOTOR WARRANTY)</option>
+                      <option value="3years">3years (3years- MOTOR WARRANTY)</option>
+                      <option value="4years">4years (4years- MOTOR WARRANTY)</option>
+                      <option value="5years">5years (5years- MOTOR WARRANTY)</option>
+                    </select>
+                  </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-center">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Manufacturing Warranty:
+                    </label>
+                    <select
+                      value={currentMfgWarranty}
+                      onChange={(e) => updateWarrantyComponent({ manufacturingWarranty: e.target.value })}
+                      className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-teal-500 font-semibold text-slate-800"
+                    >
+                      <option value="1 years">1 years</option>
+                      <option value="2 years">2 years</option>
+                      <option value="3 years">3 years</option>
+                      <option value="4 years">4 years</option>
+                      <option value="5 years">5 years</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Free Maintenance:
+                    </label>
+                    <select
+                      value={currentFreeMaint}
+                      onChange={(e) => updateWarrantyComponent({ freeMaintenance: e.target.value })}
+                      className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-teal-500 font-semibold text-slate-800"
+                    >
+                      <option value="1 Years">1 Years</option>
+                      <option value="2 Years">2 Years</option>
+                      <option value="3 Years">3 Years</option>
+                      <option value="4 Years">4 Years</option>
+                      <option value="5 Years">5 Years</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Full Warranty Text Display & Editable Textarea */}
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                    Days Option:
+                  <label className="block text-[10px] font-bold text-slate-500 mb-1">
+                    Full Warranty Term Preview (Editable):
                   </label>
-                  <select
-                    value={currentDeliveryDays}
-                    onChange={(e) => updateDeliveryDays(Number(e.target.value))}
-                    className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-teal-500 font-bold text-slate-800"
-                  >
-                    <option value={60}>60 Days</option>
-                    <option value={90}>90 Days</option>
-                    <option value={120}>120 Days</option>
-                  </select>
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                    Full Delivery Text:
-                  </label>
-                  <input
-                    type="text"
-                    value={data.deliveryTime}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      const d = parseDeliveryDays(val);
-                      onChange({
-                        ...data,
-                        deliveryTime: val,
-                        deliveryDays: d,
-                      });
-                    }}
+                  <textarea
+                    rows={2}
+                    value={data.warranty}
+                    onChange={(e) => updateField('warranty', e.target.value)}
                     className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium bg-white"
                   />
                 </div>
               </div>
-            </div>
 
-            {/* Payment Terms */}
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-              <h4 className="text-xs font-black text-slate-900 uppercase tracking-wide">Payment Terms Stages:</h4>
-              <div>
-                <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Stage 1 (Booking):</label>
-                <input
-                  type="text"
-                  value={data.paymentTerms?.booking}
-                  onChange={(e) => updateNestedField('paymentTerms', 'booking', e.target.value)}
-                  className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg font-medium"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Stage 2 (Production):</label>
-                <input
-                  type="text"
-                  value={data.paymentTerms?.production}
-                  onChange={(e) => updateNestedField('paymentTerms', 'production', e.target.value)}
-                  className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg font-medium"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Stage 3 (Readiness):</label>
-                <input
-                  type="text"
-                  value={data.paymentTerms?.readiness}
-                  onChange={(e) => updateNestedField('paymentTerms', 'readiness', e.target.value)}
-                  className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg font-medium"
-                />
-              </div>
-            </div>
+              {/* Time of Material Delivery Section */}
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label className="block text-xs font-black text-slate-800 tracking-wide uppercase">
+                    Time of Material Delivery:
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold text-slate-500">Quick Select:</span>
+                    {[60, 90, 120].map((days) => (
+                      <button
+                        key={days}
+                        type="button"
+                        onClick={() => updateDeliveryDays(days)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${currentDeliveryDays === days
+                            ? 'bg-teal-600 text-white shadow-sm ring-2 ring-teal-400'
+                            : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-300'
+                          }`}
+                      >
+                        {days} Days
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-            {/* Bank Details */}
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-              <h4 className="text-xs font-black text-slate-900 uppercase tracking-wide">
-                Bank Account Details (Page 5):
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-center">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Days Option:
+                    </label>
+                    <select
+                      value={currentDeliveryDays}
+                      onChange={(e) => updateDeliveryDays(Number(e.target.value))}
+                      className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-teal-500 font-bold text-slate-800"
+                    >
+                      <option value={60}>60 Days</option>
+                      <option value={90}>90 Days</option>
+                      <option value={120}>120 Days</option>
+                    </select>
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Full Delivery Text:
+                    </label>
+                    <input
+                      type="text"
+                      value={data.deliveryTime}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const d = parseDeliveryDays(val);
+                        onChange({
+                          ...data,
+                          deliveryTime: val,
+                          deliveryDays: d,
+                        });
+                      }}
+                      className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Terms */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <h4 className="text-xs font-black text-slate-900 uppercase tracking-wide">Payment Terms Stages:</h4>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Company Name:</label>
+                  <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Stage 1 (Booking):</label>
                   <input
                     type="text"
-                    value={data.companyName}
-                    onChange={(e) => updateField('companyName', e.target.value)}
-                    className="w-full px-2 py-1 border border-slate-300 rounded-lg"
+                    value={data.paymentTerms?.booking}
+                    onChange={(e) => updateNestedField('paymentTerms', 'booking', e.target.value)}
+                    className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg font-medium"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Bank Name:</label>
+                  <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Stage 2 (Production):</label>
                   <input
                     type="text"
-                    value={data.bankName}
-                    onChange={(e) => updateField('bankName', e.target.value)}
-                    className="w-full px-2 py-1 border border-slate-300 rounded-lg"
+                    value={data.paymentTerms?.production}
+                    onChange={(e) => updateNestedField('paymentTerms', 'production', e.target.value)}
+                    className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg font-medium"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Account Number:</label>
+                  <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Stage 3 (Readiness):</label>
                   <input
                     type="text"
-                    value={data.accountNumber}
-                    onChange={(e) => updateField('accountNumber', e.target.value)}
-                    className="w-full px-2 py-1 border border-slate-300 rounded-lg font-mono font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 mb-0.5">IFSC Code:</label>
-                  <input
-                    type="text"
-                    value={data.ifsc}
-                    onChange={(e) => updateField('ifsc', e.target.value)}
-                    className="w-full px-2 py-1 border border-slate-300 rounded-lg font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Swift Code:</label>
-                  <input
-                    type="text"
-                    value={data.swiftCode}
-                    onChange={(e) => updateField('swiftCode', e.target.value)}
-                    className="w-full px-2 py-1 border border-slate-300 rounded-lg font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Branch:</label>
-                  <input
-                    type="text"
-                    value={data.branch}
-                    onChange={(e) => updateField('branch', e.target.value)}
-                    className="w-full px-2 py-1 border border-slate-300 rounded-lg"
+                    value={data.paymentTerms?.readiness}
+                    onChange={(e) => updateNestedField('paymentTerms', 'readiness', e.target.value)}
+                    className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg font-medium"
                   />
                 </div>
               </div>
+
+              {/* Bank Details */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <h4 className="text-xs font-black text-slate-900 uppercase tracking-wide">
+                  Bank Account Details (Page 5):
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Company Name:</label>
+                    <input
+                      type="text"
+                      value={data.companyName}
+                      onChange={(e) => updateField('companyName', e.target.value)}
+                      className="w-full px-2 py-1 border border-slate-300 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Bank Name:</label>
+                    <input
+                      type="text"
+                      value={data.bankName}
+                      onChange={(e) => updateField('bankName', e.target.value)}
+                      className="w-full px-2 py-1 border border-slate-300 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Account Number:</label>
+                    <input
+                      type="text"
+                      value={data.accountNumber}
+                      onChange={(e) => updateField('accountNumber', e.target.value)}
+                      className="w-full px-2 py-1 border border-slate-300 rounded-lg font-mono font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 mb-0.5">IFSC Code:</label>
+                    <input
+                      type="text"
+                      value={data.ifsc}
+                      onChange={(e) => updateField('ifsc', e.target.value)}
+                      className="w-full px-2 py-1 border border-slate-300 rounded-lg font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Swift Code:</label>
+                    <input
+                      type="text"
+                      value={data.swiftCode}
+                      onChange={(e) => updateField('swiftCode', e.target.value)}
+                      className="w-full px-2 py-1 border border-slate-300 rounded-lg font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Branch:</label>
+                    <input
+                      type="text"
+                      value={data.branch}
+                      onChange={(e) => updateField('branch', e.target.value)}
+                      className="w-full px-2 py-1 border border-slate-300 rounded-lg"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
           )
         )}
 
@@ -2751,67 +2743,67 @@ export default function QuotationForm({
             </div>
           ) : (
             <div className="space-y-4 animate-fade-in">
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-              <h3 className="text-xs font-black text-slate-900 uppercase tracking-wide mb-1">
-                Acceptance & Execution Signatures (Page 9)
-              </h3>
-              <p className="text-[11px] text-slate-600">
-                Signatory names and execution dates that appear on the legal agreement page.
-              </p>
-            </div>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <h3 className="text-xs font-black text-slate-900 uppercase tracking-wide mb-1">
+                  Acceptance & Execution Signatures (Page 9)
+                </h3>
+                <p className="text-[11px] text-slate-600">
+                  Signatory names and execution dates that appear on the legal agreement page.
+                </p>
+              </div>
 
-            <div className="p-4 rounded-xl border border-slate-200 space-y-3">
-              <h4 className="text-xs font-black text-teal-800 uppercase">Client Acceptance</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Signatory Name:</label>
-                  <input
-                    type="text"
-                    value={data.clientSignatoryName}
-                    onChange={(e) => updateField('clientSignatoryName', e.target.value)}
-                    placeholder="Client Authorized Signatory"
-                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
-                  />
+              <div className="p-4 rounded-xl border border-slate-200 space-y-3">
+                <h4 className="text-xs font-black text-teal-800 uppercase">Client Acceptance</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Signatory Name:</label>
+                    <input
+                      type="text"
+                      value={data.clientSignatoryName}
+                      onChange={(e) => updateField('clientSignatoryName', e.target.value)}
+                      placeholder="Client Authorized Signatory"
+                      className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Signing Date:</label>
+                    <input
+                      type="text"
+                      value={data.clientSignDate}
+                      onChange={(e) => updateField('clientSignDate', e.target.value)}
+                      placeholder="DD/MM/YYYY"
+                      className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Signing Date:</label>
-                  <input
-                    type="text"
-                    value={data.clientSignDate}
-                    onChange={(e) => updateField('clientSignDate', e.target.value)}
-                    placeholder="DD/MM/YYYY"
-                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
-                  />
+              </div>
+
+              <div className="p-4 rounded-xl border border-slate-200 space-y-3 bg-slate-50/50">
+                <h4 className="text-xs font-black text-teal-800 uppercase">Alpha Elevators Acceptance</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Alpha Representative Name:</label>
+                    <input
+                      type="text"
+                      value={data.alphaSignatoryName}
+                      onChange={(e) => updateField('alphaSignatoryName', e.target.value)}
+                      placeholder="For Alpha Elevators"
+                      className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Signing Date:</label>
+                    <input
+                      type="text"
+                      value={data.alphaSignDate}
+                      onChange={(e) => updateField('alphaSignDate', e.target.value)}
+                      placeholder="DD/MM/YYYY"
+                      className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
-
-            <div className="p-4 rounded-xl border border-slate-200 space-y-3 bg-slate-50/50">
-              <h4 className="text-xs font-black text-teal-800 uppercase">Alpha Elevators Acceptance</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Alpha Representative Name:</label>
-                  <input
-                    type="text"
-                    value={data.alphaSignatoryName}
-                    onChange={(e) => updateField('alphaSignatoryName', e.target.value)}
-                    placeholder="For Alpha Elevators"
-                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Signing Date:</label>
-                  <input
-                    type="text"
-                    value={data.alphaSignDate}
-                    onChange={(e) => updateField('alphaSignDate', e.target.value)}
-                    placeholder="DD/MM/YYYY"
-                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
           )
         )}
 
@@ -2876,11 +2868,10 @@ export default function QuotationForm({
                   <button
                     type="button"
                     onClick={() => updateField('hasGst', true)}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                      data.hasGst
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${data.hasGst
                         ? 'bg-teal-600 text-white shadow-2xs'
                         : 'text-slate-600 hover:text-slate-900'
-                    }`}
+                      }`}
                   >
                     Yes
                   </button>
@@ -2893,11 +2884,10 @@ export default function QuotationForm({
                         gstNumber: '',
                       });
                     }}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                      !data.hasGst
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${!data.hasGst
                         ? 'bg-slate-700 text-white shadow-2xs'
                         : 'text-slate-600 hover:text-slate-900'
-                    }`}
+                      }`}
                   >
                     No
                   </button>
@@ -2975,11 +2965,10 @@ export default function QuotationForm({
                   disabled={data.sameAsBilling !== false}
                   onChange={(e) => updateField('shippingAddress', e.target.value)}
                   placeholder="Enter complete site shipping / delivery address"
-                  className={`w-full text-xs px-3 py-2 border rounded-xl font-medium transition-colors ${
-                    data.sameAsBilling !== false
+                  className={`w-full text-xs px-3 py-2 border rounded-xl font-medium transition-colors ${data.sameAsBilling !== false
                       ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
                       : 'bg-white border-slate-300 focus:ring-2 focus:ring-teal-500'
-                  }`}
+                    }`}
                 />
                 {data.sameAsBilling !== false ? (
                   <p className="text-[10px] text-teal-600 mt-1">

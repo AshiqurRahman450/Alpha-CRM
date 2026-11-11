@@ -215,7 +215,7 @@ export function parseQuotationDataFromText(
     matchedFields.push('Travel Height');
   }
 
-  // 17. Speed: e.g. "upto 1 m/s"
+  // 17. Speed: e.g. "Up to 1 m/s"
   const speedMatch = rawText.match(/Speed[^\n\r]*?\s*(upto\s*[0-9\.]+\s*m\/s|[0-9\.]+\s*m\/s)/i);
   if (speedMatch && speedMatch[1]) {
     result.speed = clean(speedMatch[1]);
