@@ -458,7 +458,7 @@ export default function QuotationLivePdf({
 </tr>
 <tr style="height:${rowH};border-bottom:1px solid #000000;">
 <td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">Speed</td>
-<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">${data.speed || '.4 m/s'}</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">${data.speed || 'upto 1 m/s'}</td>
 </tr>
 <tr style="height:${rowH};border-bottom:1px solid #000000;">
 <td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">Machine</td>

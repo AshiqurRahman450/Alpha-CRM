@@ -919,7 +919,7 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
         : 'G - ABCG, 1 - ABCG, 2 - ABCG, 3 - ABCG';
     const travelHeightVal = safeData.totalTravelHeight || '7000mm';
     const controllerVal = safeData.controller || 'Indian';
-    const speedVal = safeData.speed || '.4 m/s';
+    const speedVal = safeData.speed || 'upto 1 m/s';
     const machineVal = safeData.machine || 'Imported  Motor';
     const powerSupplyVal = safeData.powerSupply || 'Single phase 220V';
     const carSizeVal = safeData.carSize || 'TBC*';

@@ -245,7 +245,7 @@ export default function QuotationForm({
         ...data,
         ...preset.data,
         accessoriesFeatures: features,
-        speed: '.4 m/s',
+        speed: 'upto 1 m/s',
         warranty,
       });
     }
@@ -1141,9 +1141,9 @@ export default function QuotationForm({
                     <label className="block text-[11px] font-bold text-slate-700 mb-1">Speed:</label>
                     <input
                       type="text"
-                      value={data.speed || 'Upto 0.5 m/s'}
+                      value={data.speed || 'upto 1 m/s'}
                       onChange={(e) => updateField('speed', e.target.value)}
-                      placeholder="e.g. Upto 0.5 m/s"
+                      placeholder="e.g. upto 1 m/s"
                       className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 font-medium"
                     />
                   </div>
@@ -1825,7 +1825,7 @@ export default function QuotationForm({
                 <label className="block text-xs font-bold text-slate-700 mb-1">Speed:</label>
                 <input
                   type="text"
-                  value={data.speed}
+                  value={data.speed || 'upto 1 m/s'}
                   onChange={(e) => updateField('speed', e.target.value)}
                   placeholder="e.g. upto 1 m/s"
                   className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
