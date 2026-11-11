@@ -30,6 +30,8 @@ import {
   Receipt,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 interface QuotationFormProps {
@@ -49,6 +51,7 @@ export default function QuotationForm({
     'client' | 'civil' | 'elevator' | 'shaft' | 'pricing' | 'signatures' | 'billing'
   >('client');
   const isCircle = data.templateType === 'circle';
+  const [isCustomizerOpen, setIsCustomizerOpen] = useState<boolean>(true);
 
   useEffect(() => {
     if (isCircle && (activeTab === 'shaft' || activeTab === 'billing')) {
@@ -354,127 +357,168 @@ export default function QuotationForm({
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col h-full overflow-hidden">
       {/* Top Presets & Quick Select Bar */}
-      <div className="p-4 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white border-b border-slate-800 space-y-3 shrink-0">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <span className="text-[10px] uppercase tracking-wider font-extrabold text-teal-400 font-mono">
-              Quotation Editor
-            </span>
-            <h2 className="text-base font-black tracking-tight text-white flex items-center gap-2">
-              <span>Proposal Customizer</span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-500/20 text-teal-300 border border-teal-500/40">
-                Live 2-Way Sync
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white border-b border-slate-800 shrink-0 shadow-xs transition-all">
+        {/* Header Bar with Toggle Dropdown Button */}
+        <div
+          onClick={() => setIsCustomizerOpen((prev) => !prev)}
+          className="p-3 sm:p-3.5 flex items-center justify-between gap-2 cursor-pointer select-none group"
+          title={isCustomizerOpen ? 'Click to collapse Proposal Customizer options' : 'Click to expand Proposal Customizer options'}
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse shrink-0"></span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h2 className="text-xs sm:text-sm font-black tracking-tight text-white group-hover:text-teal-300 transition-colors flex items-center gap-1.5 truncate">
+                  <span>Proposal Customizer</span>
+                </h2>
+                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-teal-500/20 text-teal-300 border border-teal-500/40 hidden sm:inline">
+                  Live 2-Way Sync
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Summary Badge when collapsed */}
+            {!isCustomizerOpen && (
+              <span className="text-[10px] font-semibold text-teal-300 bg-slate-800/90 px-2 py-0.5 rounded-lg border border-slate-700/80 max-w-[160px] sm:max-w-[240px] truncate">
+                {data.model || 'Standard'} • {data.templateType === 'circle' ? 'Circle (5 Pgs)' : 'Standard (11 Pgs)'}
               </span>
-            </h2>
-          </div>
+            )}
 
-          {/* Preset Buttons */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => onChange(DEFAULT_QUOTATION_DATA)}
-              className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1 transition-colors border border-slate-700"
-              title="Reset all fields to sample proposal defaults"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
-              <span>Reset Defaults</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Template Format Selector */}
-        <div className="bg-slate-900/90 border border-teal-500/30 rounded-xl p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-md">
-          <div>
-            <div className="text-[11px] font-bold text-teal-300 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-teal-400" />
-              <span>Quotation Layout Format</span>
-            </div>
-            <div className="text-[10px] text-slate-400">
-              {data.templateType === 'circle'
-                ? '5-Page Panoramic Presentation (Circle Lift Format)'
-                : '11-Page Full Proposal (Standard Technical Contract)'}
-            </div>
-          </div>
-          <div className="grid grid-cols-2 sm:flex items-center gap-1.5 bg-slate-950/80 p-1 rounded-lg border border-slate-700/80 w-full sm:w-auto">
-            <button
-              type="button"
-              onClick={() => onChange({ ...data, templateType: 'standard' })}
-              className={`px-3 py-1 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                data.templateType !== 'circle'
-                  ? 'bg-teal-600 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>Standard (11 Pgs)</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => onChange({ ...data, templateType: 'circle' })}
-              className={`px-3 py-1 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                data.templateType === 'circle'
-                  ? 'bg-teal-600 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>Circle Lift (5 Pgs)</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Quick presets and customer selector */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-300 mb-1 flex items-center justify-between">
-              <span>Select Preset Model Template:</span>
-              <span className="text-[10px] text-teal-400 font-normal">7 Models Available</span>
-            </label>
-            <select
-              value={(() => {
-                const idx = QUOTATION_PRESETS.findIndex(
-                  (p) => p.name === data.model || p.data.model === data.model
-                );
-                return idx >= 0 ? idx : 0;
-              })()}
-              onChange={(e) => handlePresetSelect(Number(e.target.value))}
-              className="w-full text-xs bg-slate-800/90 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-teal-400 font-medium"
-            >
-              {QUOTATION_PRESETS.map((p, idx) => (
-                <option key={idx} value={idx}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {customers.length > 0 && (
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                Auto-fill from Existing Customer:
-              </label>
-              <select
-                onChange={(e) => {
-                  const cust = customers.find((c) => (c._id || c.id) === e.target.value || c.customerId === e.target.value);
-                  if (cust && onSelectCustomer) {
-                    onSelectCustomer(cust);
-                  }
+            {isCustomizerOpen && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onChange(DEFAULT_QUOTATION_DATA);
                 }}
-                defaultValue=""
-                className="w-full text-xs bg-slate-800/90 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-teal-400 font-medium"
+                className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold flex items-center gap-1 transition-colors border border-slate-700 cursor-pointer"
+                title="Reset all fields to sample proposal defaults"
               >
-                <option value="" disabled>
-                  -- Choose Existing / Old Customer --
-                </option>
-                {customers.map((c) => (
-                  <option key={c._id || c.id || c.customerId} value={c._id || c.id || c.customerId}>
-                    {c.customerId ? `[${c.customerId}] ` : ''}{c.fullName || c.name} {c.city ? `(${c.city})` : ''} - {c.phoneNumber || c.phone || c.whatsappNumber || ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+                <RotateCcw className="w-3 h-3 text-amber-400" />
+                <span className="hidden sm:inline">Reset Defaults</span>
+              </button>
+            )}
+
+            {/* Dropdown toggle button (Just like Quotation Stage Lifecycle) */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsCustomizerOpen((prev) => !prev);
+              }}
+              className="p-1 rounded-lg text-slate-400 hover:text-white bg-slate-900/80 hover:bg-slate-800 border border-slate-700/80 transition-all flex items-center justify-center cursor-pointer shadow-xs"
+              title={isCustomizerOpen ? 'Click to close options' : 'Click to open options'}
+              aria-label={isCustomizerOpen ? 'Close customizer options' : 'Open customizer options'}
+            >
+              {isCustomizerOpen ? (
+                <ChevronUp className="w-4 h-4 text-slate-300" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-teal-400" />
+              )}
+            </button>
+          </div>
         </div>
+
+        {/* Collapsible Content: Format selector, presets, and customer selector */}
+        {isCustomizerOpen && (
+          <div className="px-3 pb-3 sm:px-4 sm:pb-4 space-y-3 pt-1 border-t border-slate-800/80 animate-fade-in">
+            {/* Template Format Selector */}
+            <div className="bg-slate-900/90 border border-teal-500/30 rounded-xl p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-md">
+              <div>
+                <div className="text-[11px] font-bold text-teal-300 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-teal-400" />
+                  <span>Quotation Layout Format</span>
+                </div>
+                <div className="text-[10px] text-slate-400">
+                  {data.templateType === 'circle'
+                    ? '5-Page Panoramic Presentation (Circle Lift Format)'
+                    : '11-Page Full Proposal (Standard Technical Contract)'}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 sm:flex items-center gap-1.5 bg-slate-950/80 p-1 rounded-lg border border-slate-700/80 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => onChange({ ...data, templateType: 'standard' })}
+                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    data.templateType !== 'circle'
+                      ? 'bg-teal-600 text-white shadow-xs'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Standard (11 Pgs)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChange({ ...data, templateType: 'circle' })}
+                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    data.templateType === 'circle'
+                      ? 'bg-teal-600 text-white shadow-xs'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Circle Lift (5 Pgs)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick presets and customer selector */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1 flex items-center justify-between">
+                  <span>Select Preset Model Template:</span>
+                  <span className="text-[10px] text-teal-400 font-normal">7 Models Available</span>
+                </label>
+                <select
+                  value={(() => {
+                    const idx = QUOTATION_PRESETS.findIndex(
+                      (p) => p.name === data.model || p.data.model === data.model
+                    );
+                    return idx >= 0 ? idx : 0;
+                  })()}
+                  onChange={(e) => handlePresetSelect(Number(e.target.value))}
+                  className="w-full text-xs bg-slate-800/90 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-teal-400 font-medium"
+                >
+                  {QUOTATION_PRESETS.map((p, idx) => (
+                    <option key={idx} value={idx}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {customers.length > 0 && (
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    Auto-fill from Existing Customer:
+                  </label>
+                  <select
+                    onChange={(e) => {
+                      const cust = customers.find((c) => (c._id || c.id) === e.target.value || c.customerId === e.target.value);
+                      if (cust && onSelectCustomer) {
+                        onSelectCustomer(cust);
+                      }
+                    }}
+                    defaultValue=""
+                    className="w-full text-xs bg-slate-800/90 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-teal-400 font-medium"
+                  >
+                    <option value="" disabled>
+                      -- Choose Existing / Old Customer --
+                    </option>
+                    {customers.map((c) => (
+                      <option key={c._id || c.id || c.customerId} value={c._id || c.id || c.customerId}>
+                        {c.customerId ? `[${c.customerId}] ` : ''}{c.fullName || c.name} {c.city ? `(${c.city})` : ''} - {c.phoneNumber || c.phone || c.whatsappNumber || ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Mobile Step Navigator Header */}
