@@ -422,9 +422,12 @@ export function sanitizeProposalParagraphs(html: string, pageNum: number, data?:
       }
     }
 
-    // Ensure client signature box is not present on Page 9
-    if (updated.includes('client-signature-box')) {
-      updated = updated.replace(/\s*<div class="client-signature-box"[\s\S]*?<\/span>\s*<\/div>\s*/g, '');
+    // Page 9 client signature in Acceptance block
+    if (data?.clientSignature) {
+      const page9ClientSig = `<div class="page9-client-digital-sign" style="position:absolute;left:105px;top:920px;z-index:9500;pointer-events:none;"><img src="${data.clientSignature}" style="max-height:46px;max-width:150px;object-fit:contain;" alt="Client Signature" /></div>`;
+      if (!updated.includes('page9-client-digital-sign')) {
+        updated = updated.replace(/(<div class="t c32" style="z-index:5260;transform:matrix\(1,0,0,1,42\.66,946\.4\)">Signature:<\/div>)/, `$1\n${page9ClientSig}`);
+      }
     }
   }
 
@@ -799,10 +802,43 @@ export function buildPage5AccessoriesHtml(features?: string[]): string {
   return `<ul role="list" class="page5-accessories-list" style="display:contents">\n${liElements}\n</ul>`;
 }
 
+export function getClientSignatureHtml(clientSignature?: string): string {
+  const sigImg = clientSignature
+    ? `<div style="height:44px;display:flex;align-items:flex-end;justify-content:center;margin-bottom:2px;"><img src="${clientSignature}" style="max-height:42px;max-width:145px;object-fit:contain;pointer-events:none;display:block;margin:0 auto;" alt="Client Signature" /></div>`
+    : '';
+  return `<div class="client-signature-box" style="position:absolute;right:45px;bottom:80px;z-index:9000;text-align:center;pointer-events:auto;">${sigImg}<div style="width:150px;border-bottom:1.5px solid #0e4b31;margin-bottom:4px;"></div><span style="font-family:'f2',sans-serif;font-size:10px;font-weight:bold;color:#0e4b31;letter-spacing:0.5px;text-transform:uppercase;">Client Signature</span></div>`;
+}
+
+export function buildPage5PaymentTermsHtml(terms?: { booking: string; production: string; readiness: string }): string {
+  const b = terms?.booking ? (terms.booking.startsWith('1.') ? terms.booking : `1. ${terms.booking.replace(/^[0-9.]+\s*/, '')}`) : '1. Booking – 30%';
+  const p = terms?.production ? (terms.production.startsWith('2.') ? terms.production : `2. ${terms.production.replace(/^[0-9.]+\s*/, '')}`) : '2. Production Amount - 40%';
+  const r = terms?.readiness ? (terms.readiness.startsWith('3.') ? terms.readiness : `3. ${terms.readiness.replace(/^[0-9.]+\s*/, '')}`) : '3. Readiness notification-30%';
+
+  return `<td role="cell" style="display:contents">
+<p style="display:contents">
+<div class="t c29 payment-term-stage1" style="position:absolute;left:249.21px;top:758.84px;z-index:1154;font-family:'f1',sans-serif;font-size:10px;color:#0e4b31;line-height:13px;white-space:nowrap;">${b}</div>
+</p>
+<p style="display:contents">
+<div class="t c29 payment-term-stage2" style="position:absolute;left:249.21px;top:771.64px;z-index:1170;font-family:'f1',sans-serif;font-size:10px;color:#0e4b31;line-height:13px;white-space:nowrap;">${p}</div>
+<div class="t c29 payment-term-stage3" style="position:absolute;left:249.21px;top:784.44px;z-index:1198;font-family:'f1',sans-serif;font-size:10px;color:#0e4b31;line-height:13px;white-space:nowrap;">${r}</div>
+</p>
+</td>`;
+}
+
 export function renderExactPdfPage(pageIdx: number, data?: QuotationData): string {
   const safeData = data || DEFAULT_QUOTATION_DATA;
   if (pageIdx === 9) {
     let html = buildPage10BillingShippingHtml(safeData);
+    const clientSignBlock = getClientSignatureHtml(safeData.clientSignature);
+    const clientBoxRegex = /<div class="client-signature-box"[\s\S]*?<\/span>\s*<\/div>/;
+    if (clientBoxRegex.test(html)) {
+      html = html.replace(clientBoxRegex, clientSignBlock);
+    } else {
+      const lastCloseDiv = html.lastIndexOf('</div>');
+      if (lastCloseDiv !== -1) {
+        html = html.substring(0, lastCloseDiv) + clientSignBlock + html.substring(lastCloseDiv);
+      }
+    }
     html = html.replace(`id="p9"`, `id="p9" data-page="10" style="width:793.28px;height:1122.72px;position:relative;display:block;overflow:hidden;background:#ffffff;"`);
     html = sanitizeProposalParagraphs(html, 10, safeData);
     return html;
@@ -1029,7 +1065,7 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
 
     if (hasElvDiscount && elvBasePrice) {
       const elvDiscText = 'Rs. ' + formatINR(netElevatorPrice) + ' + ' + gstRate + '% GST';
-      const elvReplacement = `<div class="t c21" style="position:absolute;left:320.51px;top:605px;line-height:13.5px;white-space:normal;z-index:825;"><div style="text-decoration:line-through;color:#718096;font-size:10px;">MRP: ${elvMRPText}</div><div style="color:#0e4b31;font-weight:bold;font-size:12px;">Discount Price: ${elvDiscText}</div></div>`;
+      const elvReplacement = `<div class="t c21" style="position:absolute;left:320.51px;top:605px;line-height:13.5px;white-space:normal;z-index:825;"><div style="position:relative;display:inline-block;color:#718096;font-size:10px;line-height:13px;"><span style="text-decoration:none;">MRP: ${elvMRPText}</span><span class="mrp-strikethrough-line" style="position:absolute;left:0;width:100%;top:50%;height:1.5px;background:#718096;transform:translateY(-50%);pointer-events:none;"></span></div><div style="color:#0e4b31;font-weight:bold;font-size:12px;">Discount Price: ${elvDiscText}</div></div>`;
       const elvRegex = /<div class="t c21" style="z-index:825;transform:matrix\(1,0,0,1,320\.51,611\.2\)">[\s\S]*?<\/div>/;
       if (elvRegex.test(html)) {
         html = html.replace(elvRegex, elvReplacement);
@@ -1050,7 +1086,7 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
 
     if (hasShaftDiscount && shaftBasePrice) {
       const shaftDiscText = 'Rs. ' + formatINR(netShaftPrice) + ' + ' + gstRate + '% GST';
-      const shaftReplacement = `<div class="t c25" style="position:absolute;left:325.09px;top:649px;line-height:13.5px;white-space:normal;z-index:878;"><div style="text-decoration:line-through;color:#718096;font-size:10px;">MRP: ${shaftMRPText}</div><div style="color:#0e4b31;font-weight:bold;font-size:12px;">Discount Price: ${shaftDiscText}</div></div>`;
+      const shaftReplacement = `<div class="t c25" style="position:absolute;left:325.09px;top:649px;line-height:13.5px;white-space:normal;z-index:878;"><div style="position:relative;display:inline-block;color:#718096;font-size:10px;line-height:13px;"><span style="text-decoration:none;">MRP: ${shaftMRPText}</span><span class="mrp-strikethrough-line" style="position:absolute;left:0;width:100%;top:50%;height:1.5px;background:#718096;transform:translateY(-50%);pointer-events:none;"></span></div><div style="color:#0e4b31;font-weight:bold;font-size:12px;">Discount Price: ${shaftDiscText}</div></div>`;
       const shaftRegex = /<div class="t c25" style="z-index:878;transform:matrix\(1,0,0,1,325\.09,655\.24\)">[\s\S]*?<\/div>/;
       if (shaftRegex.test(html)) {
         html = html.replace(shaftRegex, shaftReplacement);
@@ -1074,8 +1110,29 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
     if (safeData.deliveryTime) {
       html = html.replace(/\b\d+\s*days post confirmation on drawings and finishes\./, safeData.deliveryTime);
     }
-    if (safeData.paymentTerms?.booking) {
-      html = html.replace('. Booking – 30%', safeData.paymentTerms.booking.replace(/^[0-9.]+\s*/, ''));
+    if (safeData.paymentTerms) {
+      const page5PaymentHtml = buildPage5PaymentTermsHtml(safeData.paymentTerms);
+      const paymentCellRegex = /<td role="cell" style="display:contents">\s*<p style="display:contents">\s*<div class="t c29[^"]*" style="[^"]*758\.84px[^"]*">[\s\S]*?<\/p>\s*<\/td>/;
+      if (paymentCellRegex.test(html)) {
+        html = html.replace(paymentCellRegex, page5PaymentHtml);
+      } else {
+        if (safeData.paymentTerms.booking) {
+          const bText = safeData.paymentTerms.booking.replace(/^[0-9.]+\s*/, '');
+          html = html.replace(/\b1\.\s*Booking\s*[–-]\s*\d+%/i, `1. ${bText}`)
+                     .replace(/\.\s*Booking\s*[–-]\s*\d+%/i, `. ${bText}`)
+                     .replace(/Booking\s*[–-]\s*\d+%/i, bText);
+        }
+        if (safeData.paymentTerms.production) {
+          const pText = safeData.paymentTerms.production.replace(/^[0-9.]+\s*/, '');
+          html = html.replace(/\b2\.\s*Production\s*Amount\s*[–-]\s*\d+%/i, `2. ${pText}`)
+                     .replace(/Production\s*Amount\s*[–-]\s*\d+%/i, pText);
+        }
+        if (safeData.paymentTerms.readiness) {
+          const rText = safeData.paymentTerms.readiness.replace(/^[0-9.]+\s*/, '');
+          html = html.replace(/\b3\.\s*Readiness\s*notification\s*[–-]\s*\d+%/i, `3. ${rText}`)
+                     .replace(/Readiness\s*notification\s*[–-]\s*\d+%/i, rText);
+        }
+      }
     }
   } else if (pageIdx === 5) {
     // Page 6: Dispatch and Installation, Warranty & Maintenance
@@ -1111,6 +1168,30 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
         }
       }
     }
+
+    // Client Signature on Page 9 in Acceptance block (centered inside the signature box)
+    if (safeData.clientSignature) {
+      const page9ClientSig = `<div class="page9-client-digital-sign" style="position:absolute;left:110px;top:923px;width:255px;height:48px;display:flex;align-items:center;justify-content:center;z-index:9500;pointer-events:none;"><img src="${safeData.clientSignature}" style="max-height:44px;max-width:240px;object-fit:contain;margin:auto;display:block;" alt="Client Signature" /></div>`;
+      if (!html.includes('page9-client-digital-sign')) {
+        html = html.replace(/(<div class="t c32" style="z-index:5260;transform:matrix\(1,0,0,1,42\.66,946\.4\)">Signature:<\/div>)/, `$1\n${page9ClientSig}`);
+      }
+    }
+
+    // Dates on Page 9
+    const clientSignDate = safeData.clientSignDate || safeData.offerDate;
+    if (clientSignDate) {
+      html = html.replace(
+        /(<div class="t c32" style="z-index:5251;transform:matrix\(1,0,0,1,42\.66,992\.09\)">Date)<\/div>/,
+        `$1: ${clientSignDate}</div>`
+      );
+    }
+    const alphaSignDate = safeData.alphaSignDate || safeData.offerDate;
+    if (alphaSignDate) {
+      html = html.replace(
+        /(<div class="t c32" style="z-index:5288;transform:matrix\(1,0,0,1,410\.08,992\.09\)">Date)<\/div>/,
+        `$1: ${alphaSignDate}</div>`
+      );
+    }
   } else if (pageIdx === 10) {
     // Page 11: Back Cover - ensure clean styling and exact coordinates
     html = html.replace(
@@ -1123,14 +1204,22 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
     );
   }
 
-  // Ensure dual id for both pdf2html styles (#p0..#p9) and html2canvas print (#quotation-page-1..#quotation-page-10)
-  // Pages 3 to 8 (pageIdx 2 to 7): Add Client Signature block for sign process (Page 9 has main acceptance block)
-  if (pageIdx >= 2 && pageIdx <= 7 && !html.includes('client-signature-box')) {
-    const clientSignBlock = `<div class="client-signature-box" style="position:absolute;right:45px;bottom:92px;z-index:9000;text-align:center;pointer-events:auto;"><div style="width:150px;border-bottom:1.5px solid #0e4b31;margin-bottom:4px;"></div><span style="font-family:'f2',sans-serif;font-size:10px;font-weight:bold;color:#0e4b31;letter-spacing:0.5px;text-transform:uppercase;">Client Signature</span></div>`;
-    const lastCloseDiv = html.lastIndexOf('</div>');
-    if (lastCloseDiv !== -1) {
-      html = html.substring(0, lastCloseDiv) + clientSignBlock + html.substring(lastCloseDiv);
+  // Corner Client Signature block:
+  // Present ONLY on Pages 3 to 8 (pageIdx 2 to 7).
+  // Excluded from Page 1 (cover), Page 2 (letter), Page 9 (acceptance), and Page 11 (back cover).
+  if (pageIdx >= 2 && pageIdx <= 7) {
+    const clientSignBlock = getClientSignatureHtml(safeData.clientSignature);
+    const clientBoxRegex = /<div class="client-signature-box"[\s\S]*?<\/span>\s*<\/div>/;
+    if (clientBoxRegex.test(html)) {
+      html = html.replace(clientBoxRegex, clientSignBlock);
+    } else {
+      const lastCloseDiv = html.lastIndexOf('</div>');
+      if (lastCloseDiv !== -1) {
+        html = html.substring(0, lastCloseDiv) + clientSignBlock + html.substring(lastCloseDiv);
+      }
     }
+  } else {
+    html = html.replace(/<div class="client-signature-box"[\s\S]*?<\/div>/g, '');
   }
 
   // Sanitize and align all paragraphs for Pages 6 to 9 (and full document)

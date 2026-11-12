@@ -75,7 +75,13 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
     }
 
     if (req.user?.role === 'BDM') {
-      const bdmConditions: any[] = [{ bdmId: req.user._id }];
+      const bdmConditions: any[] = [
+        { bdmId: req.user._id },
+        { isOldCustomer: true },
+        { customerId: { $regex: /^OLD/i } },
+        { bdmId: null },
+        { bdmId: { $exists: false } },
+      ];
       if (req.user.name) {
         bdmConditions.push({ assignedEmployee: new RegExp(`^${req.user.name.trim()}$`, 'i') });
       }

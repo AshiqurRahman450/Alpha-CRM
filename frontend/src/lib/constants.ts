@@ -17,5 +17,5 @@ export const DEFAULT_BDMS: BDMUser[] = [
   { name: 'Aravind', email: 'aravind@alpha.com', role: 'BDM', phone: '+91 98401 10007' },
   { name: 'Naveen', email: 'naveen@alpha.com', role: 'BDM', phone: '+91 98401 10008' },
   { name: 'Eswar', email: 'eswar@alpha.com', role: 'BDM', phone: '+91 98401 10009' },
-  { name: 'Nitesh', email: 'nitesh@alpha.com', role: 'BDM', phone: '+91 98401 10010' },
+  { name: 'Karthik', email: 'karthik@alpha.com', role: 'BDM', phone: '+91 98401 10010' },
 ];

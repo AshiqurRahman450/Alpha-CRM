@@ -1,6 +1,6 @@
 import { Schema, model, Document, Types } from 'mongoose';
 
-export type ReminderType = 'GENERAL' | 'QUOTATION_APPROVAL' | 'PROJECT_NEXT_WORK' | 'SITE_VISIT' | 'WHATSAPP_MESSAGE';
+export type ReminderType = 'GENERAL' | 'QUOTATION_APPROVAL' | 'PROJECT_NEXT_WORK' | 'SITE_VISIT' | 'WHATSAPP_MESSAGE' | 'DELIVERY_APPROVAL';
 
 export interface IReminder extends Document {
   userId: Types.ObjectId;
@@ -14,6 +14,11 @@ export interface IReminder extends Document {
   relatedQuotationOfferNo?: string;
   relatedCustomerId?: Types.ObjectId;
   customerName?: string;
+  requestedDeliveryDays?: number;
+  targetAdminPhone?: string;
+  requestedByUserId?: Types.ObjectId;
+  requestedByUserName?: string;
+  requestedByUserPhone?: string;
   actionRequired?: boolean;
   whatsappSent?: boolean;
   whatsappSentAt?: Date;
@@ -52,7 +57,7 @@ const ReminderSchema = new Schema<IReminder>(
     },
     type: {
       type: String,
-      enum: ['GENERAL', 'QUOTATION_APPROVAL', 'PROJECT_NEXT_WORK', 'SITE_VISIT', 'WHATSAPP_MESSAGE'],
+      enum: ['GENERAL', 'QUOTATION_APPROVAL', 'PROJECT_NEXT_WORK', 'SITE_VISIT', 'WHATSAPP_MESSAGE', 'DELIVERY_APPROVAL'],
       default: 'GENERAL',
     },
     relatedProjectId: {
@@ -72,6 +77,25 @@ const ReminderSchema = new Schema<IReminder>(
       ref: 'Customer',
     },
     customerName: {
+      type: String,
+      trim: true,
+    },
+    requestedDeliveryDays: {
+      type: Number,
+    },
+    targetAdminPhone: {
+      type: String,
+      trim: true,
+    },
+    requestedByUserId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    requestedByUserName: {
+      type: String,
+      trim: true,
+    },
+    requestedByUserPhone: {
       type: String,
       trim: true,
     },

@@ -81,6 +81,11 @@ export interface QuotationData {
   freeMaintenance?: string;
   deliveryTime: string;
   deliveryDays?: number | string;
+  deliveryApprovalStatus?: 'NOT_REQUESTED' | 'PENDING' | 'APPROVED' | 'REJECTED';
+  deliveryApprovalDays?: number;
+  deliveryApprovalBy?: string;
+  deliveryApprovalAt?: string;
+  deliveryApprovalRequestedAt?: string;
   paymentTerms: {
     booking: string;
     production: string;
@@ -98,8 +103,10 @@ export interface QuotationData {
   // Signatures (Page 9)
   clientSignatoryName: string;
   clientSignDate: string;
+  clientSignature?: string; // Digital signature image data URL / PNG
   alphaSignatoryName: string;
   alphaSignDate: string;
+  alphaSignature?: string;
 }
 
 export const DEFAULT_QUOTATION_DATA: QuotationData = {
@@ -107,7 +114,7 @@ export const DEFAULT_QUOTATION_DATA: QuotationData = {
   clientName: 'Mr. Rathish Rajakumar',
   projectCity: 'Chennai',
   model: 'AE 03 Gearless Belt Home series EV',
-  seriesTitle: 'Alpha Home Series: AE 03 Gearless Belt Home Series EV',
+  seriesTitle: 'Alpha Home Series: AE 03 Gearless Belt Home series EV',
   offerNo: 'AE/QTN/ AE-261026-131',
   offerDate: '26/10/2026',
   subject: 'Sub: Supply, Install, test and commission of one Belt Type Home Elevator EV',
@@ -204,17 +211,19 @@ export const DEFAULT_QUOTATION_DATA: QuotationData = {
 
   clientSignatoryName: 'Mr. Rathish Rajakumar',
   clientSignDate: '26/10/2026',
+  clientSignature: '',
   alphaSignatoryName: 'For Alpha Elevators',
   alphaSignDate: '26/10/2026',
+  alphaSignature: '',
 };
 
 export const QUOTATION_PRESETS: { name: string; description: string; data: Partial<QuotationData> }[] = [
   {
     name: 'AE 01 Home Series',
-    description: 'Compact pit-less hydraulic villa lift with ground-floor storage and quiet power pack',
+    description: 'Compact hydraulic / villa home lift with ground-floor storage and whisper-quiet power pack',
     data: {
       model: 'AE 01 Home Series',
-      seriesTitle: 'Alpha Hydraulic Series: AE 01 Ultra Compact Home Lift',
+      seriesTitle: 'Alpha Home Series: AE 01 Home Series',
       hoistWayShaftSize: '1350mm X 1500mm',
       pitDepth: '150mm',
       minFloorHeight: '2800mm',
@@ -269,17 +278,17 @@ export const QUOTATION_PRESETS: { name: string; description: string; data: Parti
   },
   {
     name: 'AE 02 Gearless Rope Home Series',
-    description: 'High-efficiency traction rope home elevator with smooth gearless PMSM machine',
+    description: 'Energy-efficient traction gearless counterweighted residential elevator',
     data: {
       model: 'AE 02 Gearless Rope Home Series',
-      seriesTitle: 'Alpha Gearless Series: AE 02 Gearless Rope Home Series',
-      hoistWayShaftSize: '1400mm X 1600mm',
+      seriesTitle: 'Alpha Home Series: AE 02 Gearless Rope Home Series',
+      hoistWayShaftSize: '1450mm X 1600mm',
       pitDepth: '200mm',
       minFloorHeight: '2900mm',
       finalStop: '3200mm',
       lockableStorageRoom: 'To be Located In the Top Floor',
       shaftScope: 'Alpha Elevators scope',
-      cabinWalls: 'Standared Cabin- SS Finish',
+      cabinWalls: 'Premium Glass Cabin - SS Finish',
       cabinFloor: "Vinyl or Client's own Flooring",
       copAndLop: 'Touch ( TFT Display)',
       ratedLoad: '5 Passengers / 408 kgs',
@@ -298,7 +307,7 @@ export const QUOTATION_PRESETS: { name: string; description: string; data: Parti
       battery: '',
       clearOpening: 'TBC*',
       customerSpecificRequirements: 'Nil',
-      doorSpecifications: 'Center Door Opening - SS 304 Grade',
+      doorSpecifications: 'Telescopic Doors- SS 304 Grade',
       shaftType: 'Glass Shaft',
       accessoriesFeatures: [
         'Imported Controller',
@@ -309,12 +318,13 @@ export const QUOTATION_PRESETS: { name: string; description: string; data: Parti
         'Interlocking Switches',
         'Imported Motor and controller',
         'Reverse Phase Protection',
+        'Digital Display - Up & Down + Floor',
         'Anti-Squeeze Door system',
         'Self Diagnostic Control System',
         'Alarm with SOS + Phone',
       ],
       elevatorPrice: 1500000,
-      shaftPrice: 380000,
+      shaftPrice: 400000,
       warranty: 'Lifetime- MOTOR WARRANTY, 5 years - manufacturing warranty + 1 Years Free Maintenance',
       motorWarranty: 'Lifetime',
       manufacturingWarranty: '5 years',
@@ -325,10 +335,10 @@ export const QUOTATION_PRESETS: { name: string; description: string; data: Parti
   },
   {
     name: 'AE 03 Gearless Belt Home series',
-    description: 'Ultra-smooth flat belt home elevator without EV battery unit',
+    description: 'Ultra-smooth flat belt home elevator with smooth gearless PMSM machine without EV battery unit',
     data: {
       model: 'AE 03 Gearless Belt Home series',
-      seriesTitle: 'Alpha Home Series: AE 03 Gearless Belt Home Series',
+      seriesTitle: 'Alpha Home Series: AE 03 Gearless Belt Home series',
       hoistWayShaftSize: '1450mm X 1800mm',
       pitDepth: '250mm',
       minFloorHeight: '3000mm',
@@ -385,7 +395,7 @@ export const QUOTATION_PRESETS: { name: string; description: string; data: Parti
     description: 'Flagship residential belt-driven home elevator with integrated lithium-ion backup battery',
     data: {
       model: 'AE 03 Gearless Belt Home series EV',
-      seriesTitle: 'Alpha Home Series: AE 03 Gearless Belt Home Series EV',
+      seriesTitle: 'Alpha Home Series: AE 03 Gearless Belt Home series EV',
       hoistWayShaftSize: '1450mm X 1800mm',
       pitDepth: '250mm',
       minFloorHeight: '3000mm',
@@ -514,6 +524,15 @@ export const QUOTATION_PRESETS: { name: string; description: string; data: Parti
       customerSpecificRequirements: 'Nil',
       doorSpecifications: 'Anti-Squeeze Door system',
       shaftType: 'Panoramic Circular Glass Shaft',
+      accessoriesFeatures: [
+        'Imported Motor and controller',
+        'ARD – Automatic Rescue Device',
+        'Single Phase Protection',
+        'Interlocking Switches',
+        'Reverse Phase Protection',
+        'Anti-Squeeze Door system',
+        'BCG Buttons',
+      ],
       elevatorPrice: 1100000,
       shaftPrice: 0,
       warranty: '05 years - manufacturing warranty + 1 Year Free Maintenance',
@@ -562,6 +581,20 @@ export const QUOTATION_PRESETS: { name: string; description: string; data: Parti
       customerSpecificRequirements: 'Nil',
       doorSpecifications: 'Center Door Opening - SS 304 Grade',
       shaftType: 'Glass Shaft',
+      accessoriesFeatures: [
+        'Imported Controller',
+        'Extra Soft Start & Landing',
+        'ARD',
+        'Multi-beam Light Curtains',
+        'Single Phase Protection',
+        'Interlocking Switches',
+        'Imported Motor and controller',
+        'Reverse Phase Protection',
+        'Digital Display - Up & Down + Floor',
+        'Anti-Squeeze Door system',
+        'Self Diagnostic Control System',
+        'Alarm with SOS + Phone',
+      ],
       elevatorPrice: 2600000,
       shaftPrice: 700000,
       warranty: 'Lifetime- MOTOR WARRANTY, 5 years - manufacturing warranty + 1 Years Free Maintenance',
@@ -674,8 +707,8 @@ export function formatEffectiveShaft(shaftScope?: string, shaftType?: string): s
 export function getPresetAccessoriesFeatures(model?: string): string[] {
   const m = (model || '').toLowerCase().trim();
 
-  // 1. AE 03 Gearless Belt Home Series EV (Flagship EV)
-  if (/\bev\b|battery/i.test(m) || (m.includes('ae03') && m.includes('ev')) || (m.includes('ae 03') && m.includes('ev'))) {
+  // 1. Gearless Belt Home Series EV (Flagship EV)
+  if (/\bev\b|battery/i.test(m) || (m.includes('belt') && m.includes('ev')) || (m.includes('ae03') && m.includes('ev')) || (m.includes('ae 03') && m.includes('ev'))) {
     return [
       'Imported Controller',
       'Extra Soft Start & Landing',
@@ -692,25 +725,8 @@ export function getPresetAccessoriesFeatures(model?: string): string[] {
     ];
   }
 
-  // 2. AE 02 Gearless Rope Home Series
-  if (m.includes('ae 02') || m.includes('ae02') || m.includes('rope')) {
-    return [
-      'Imported Controller',
-      'Extra Soft Start & Landing',
-      'ARD',
-      'Multi-beam Light Curtains',
-      'Single Phase Protection',
-      'Interlocking Switches',
-      'Imported Motor and controller',
-      'Reverse Phase Protection',
-      'Anti-Squeeze Door system',
-      'Self Diagnostic Control System',
-      'Alarm with SOS + Phone',
-    ];
-  }
-
-  // 3. AE 01 Home Series (Hydraulic / Home Series with BCG Buttons)
-  if (m.includes('ae 01') || m.includes('ae01') || m.includes('hydraulic')) {
+  // 2. Hydraulic Home Series
+  if (m.includes('hydraulic') || m.includes('ae 01') || m.includes('ae01')) {
     return [
       'Imported Controller',
       'Extra Soft Start & Landing',
@@ -728,8 +744,21 @@ export function getPresetAccessoriesFeatures(model?: string): string[] {
     ];
   }
 
-  // 4. AE 03 Gearless Belt (without EV)
-  if (m.includes('ae 03') || m.includes('ae03') || m.includes('belt')) {
+  // 3. Circle Lift & Circle Max Lift
+  if (m.includes('circle')) {
+    return [
+      'Imported Motor and controller',
+      'ARD – Automatic Rescue Device',
+      'Single Phase Protection',
+      'Interlocking Switches',
+      'Reverse Phase Protection',
+      'Anti-Squeeze Door system',
+      'BCG Buttons',
+    ];
+  }
+
+  // 4. Gearless Belt Home Series (standard without EV) / AE 02 Rope
+  if (m.includes('belt') || m.includes('rope') || m.includes('ae 03') || m.includes('ae03') || m.includes('ae 02')) {
     return [
       'Imported Controller',
       'Extra Soft Start & Landing',
@@ -740,6 +769,23 @@ export function getPresetAccessoriesFeatures(model?: string): string[] {
       'Imported Motor and controller',
       'Reverse Phase Protection',
       'Digital Display - Up & Down + Floor',
+      'Anti-Squeeze Door system',
+      'Self Diagnostic Control System',
+      'Alarm with SOS + Phone',
+    ];
+  }
+
+  // 5. Semi Home Lift
+  if (m.includes('semi')) {
+    return [
+      'Imported Controller',
+      'Extra Soft Start & Landing',
+      'ARD',
+      'Multi-beam Light Curtains',
+      'Single Phase Protection',
+      'Interlocking Switches',
+      'Imported Motor and controller',
+      'Reverse Phase Protection',
       'Anti-Squeeze Door system',
       'Self Diagnostic Control System',
       'Alarm with SOS + Phone',

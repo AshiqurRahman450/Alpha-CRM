@@ -29,11 +29,14 @@ export default function LoginPage() {
 
   const [bdmSelect, setBdmSelect] = useState('');
 
-  const handleQuickFill = (userType: 'admin' | 'abeal' | 'crm' | 'accountant' | 'qc' | 'techlead' | 'techmanager' | 'bdm', bdmEmail?: string) => {
+  const handleQuickFill = (userType: 'admin' | 'nithesh' | 'abeal' | 'crm' | 'accountant' | 'qc' | 'techlead' | 'techmanager' | 'bdm', bdmEmail?: string) => {
     setError(null);
     if (userType === 'admin') {
       setEmail('admin@alphaelevators.com');
       setPassword('admin123');
+    } else if (userType === 'nithesh') {
+      setEmail('nithesh@alphaelevators.com');
+      setPassword('nithesh123');
     } else if (userType === 'abeal') {
       setEmail('abeal@alphaelevators.in');
       setPassword('abeal123');
@@ -145,6 +148,13 @@ export default function LoginPage() {
               className="px-2.5 py-1 bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300 rounded-lg border border-cyan-500/50 transition-colors font-semibold shadow-sm"
             >
               Admin (Abeal)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickFill('nithesh')}
+              className="px-2.5 py-1 bg-amber-950/80 hover:bg-amber-900 text-amber-300 rounded-lg border border-amber-500/50 transition-colors font-semibold shadow-sm"
+            >
+              Admin (Nithesh Babu)
             </button>
             <button
               type="button"

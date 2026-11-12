@@ -557,6 +557,34 @@ export default function QuotationCreatorPage() {
           if (parsed.customerPhone) {
             setWhatsAppPhone(parsed.customerPhone);
           }
+          if (parsed.offerNo && parsed.deliveryApprovalStatus === 'PENDING') {
+            api.checkDeliveryApprovalStatus(parsed.offerNo)
+              .then((statusRes: any) => {
+                if (statusRes?.status === 'APPROVED') {
+                  const days = Number(statusRes.deliveryDays) || 60;
+                  setData((prev) => {
+                    const updated = {
+                      ...prev,
+                      deliveryDays: days,
+                      deliveryTime: statusRes.deliveryTime || `${days} days post confirmation on drawings and finishes.`,
+                      deliveryApprovalStatus: 'APPROVED' as const,
+                      deliveryApprovalDays: days,
+                      deliveryApprovalBy: statusRes.approvedBy || 'Nithesh Babu (Admin)',
+                      deliveryApprovalAt: statusRes.approvedAt || new Date().toISOString(),
+                    };
+                    try {
+                      localStorage.setItem('alpha_quotation_draft', JSON.stringify(updated));
+                    } catch (e) {}
+                    return updated;
+                  });
+                  toast.success(
+                    `🎉 Nithesh Babu (Admin) has APPROVED expedited delivery of ${days} Days! Automatically updated on Form and PDF.`,
+                    { duration: 9000, id: 'init-delivery-approved-toast', icon: '⚡' }
+                  );
+                }
+              })
+              .catch(() => {});
+          }
         } catch (e) {
           // use default
         }
@@ -750,6 +778,17 @@ export default function QuotationCreatorPage() {
         #p9 .c3, #p9 .c10 { color: #000000 !important; }
         #p9 .billing-page-container { color: #000000 !important; }
         #p10 .c35, #p10 .c37 { color: #000000 !important; }
+        #p0 .client-signature-box, #p1 .client-signature-box, #p8 .client-signature-box, #p10 .client-signature-box { display: none !important; }
+        .mrp-strikethrough-line {
+          position: absolute !important;
+          left: 0 !important;
+          width: 100% !important;
+          top: 50% !important;
+          transform: translateY(-50%) !important;
+          height: 1.5px !important;
+          background: #718096 !important;
+          pointer-events: none !important;
+        }
         .page::before {
           content: '';
           position: absolute;

@@ -95,12 +95,13 @@ const PROPERTY_STAGES = [
 const INSTALLATION_AREAS = ['Indoor', 'Outdoor', 'Indoor / Outdoor'];
 
 const PRODUCT_SERIES = [
-  'Hydraulic Home Series',
-  'Gearless Belt Home Series',
-  'Gearless Belt Home Series EV',
+  'AE 01 Home Series',
+  'AE 02 Gearless Rope Home Series',
+  'AE 03 Gearless Belt Home series',
+  'AE 03 Gearless Belt Home series EV',
   'Semi Home Lift',
-  'Circle Lift',
-  'Circle Max Lift',
+  'Alpha Circle Lift',
+  'Alpha Circle Max Lift',
   'Other',
 ];
 
@@ -151,7 +152,7 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
   // Property Details
   const [propertyStage, setPropertyStage] = useState<string>('Under-Construction');
   const [installationArea, setInstallationArea] = useState<string>('Indoor');
-  const [product, setProduct] = useState<string>('Hydraulic Home Series');
+  const [product, setProduct] = useState<string>('AE 01 Home Series');
   const [floorConfig, setFloorConfig] = useState<number>(3); // Stops, default 3 (G+2)
   const [doorClosing, setDoorClosing] = useState<string>('LH (Left Hand)');
   const [clientSignatureType, setClientSignatureType] = useState<string>('Confirmed');

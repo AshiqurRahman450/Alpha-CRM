@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { Reminder, WhatsAppMessageLog, Project, Customer, Quotation } from '../models';
+import { Reminder, WhatsAppMessageLog, Project, Customer, Quotation, User } from '../models';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { whatsAppWebBot } from '../services/whatsapp';
 import {
@@ -148,6 +148,7 @@ reminderRouter.get('/', async (req: AuthRequest, res: Response) => {
     const { status } = req.query;
 
     const isCrmOrAdmin = req.user?.role === 'CRM' || req.user?.role === 'ADMIN';
+    const isAdmin = req.user?.role === 'ADMIN' || req.user?.name?.toLowerCase().includes('nithesh');
 
     // For CRM and Admin, keep active project next-work reminders synchronized
     if (isCrmOrAdmin && req.user?._id) {
@@ -165,6 +166,12 @@ reminderRouter.get('/', async (req: AuthRequest, res: Response) => {
       orConditions.push({
         userId: { $in: [null, undefined] },
         type: { $in: ['QUOTATION_APPROVAL', 'PROJECT_NEXT_WORK'] },
+      });
+    }
+    // Fast-Track Delivery Approval reminders are strictly visible ONLY to Admin role (Nithesh Babu)
+    if (isAdmin) {
+      orConditions.push({
+        type: 'DELIVERY_APPROVAL',
       });
     }
 
@@ -208,6 +215,9 @@ reminderRouter.get('/', async (req: AuthRequest, res: Response) => {
         );
         if (seenProjectNextWork.has(projKey)) return false;
         seenProjectNextWork.add(projKey);
+      } else if (rem.type === 'DELIVERY_APPROVAL') {
+        // Show delivery approval reminder strictly to Admin (Nithesh Babu) ONLY
+        if (!isAdmin) return false;
       }
       return true;
     });
@@ -225,6 +235,7 @@ reminderRouter.get('/', async (req: AuthRequest, res: Response) => {
 reminderRouter.get('/due', async (req: AuthRequest, res: Response) => {
   try {
     const isCrmOrAdmin = req.user?.role === 'CRM' || req.user?.role === 'ADMIN';
+    const isAdmin = req.user?.role === 'ADMIN' || req.user?.name?.toLowerCase().includes('nithesh');
 
     const orConditions: any[] = [
       { userId: req.user?._id },
@@ -237,6 +248,11 @@ reminderRouter.get('/due', async (req: AuthRequest, res: Response) => {
       orConditions.push({
         userId: { $in: [null, undefined] },
         type: { $in: ['QUOTATION_APPROVAL', 'PROJECT_NEXT_WORK'] },
+      });
+    }
+    if (isAdmin) {
+      orConditions.push({
+        type: 'DELIVERY_APPROVAL',
       });
     }
 
@@ -274,6 +290,8 @@ reminderRouter.get('/due', async (req: AuthRequest, res: Response) => {
         );
         if (seenProjectNextWork.has(projKey)) return false;
         seenProjectNextWork.add(projKey);
+      } else if (rem.type === 'DELIVERY_APPROVAL') {
+        if (!isAdmin) return false;
       }
       return true;
     });
@@ -410,19 +428,301 @@ reminderRouter.post('/check', async (req: AuthRequest, res: Response) => {
 });
 
 /**
- * POST /api/reminders/test-dispatch
- * Debug endpoint to test dispatch directly and return raw result
+ * POST /api/reminders/delivery-approval
+ * Create a Fast-Track Delivery Approval Reminder (60 / 90 Days) for Nithesh Babu (Admin)
+ * and dispatches 1-to-1 WhatsApp request to selected phone numbers (7810091290, 9884998125, or both)
  */
-reminderRouter.post('/test-dispatch', async (req: AuthRequest, res: Response) => {
+reminderRouter.post('/delivery-approval', async (req: AuthRequest, res: Response) => {
   try {
-    const { projectId } = req.body || {};
-    const targetId = projectId || '6ad9aec3762c87fa6c60bc36';
-    const result = await dispatchSiteVisitWhatsAppReminders(targetId, 1000, 'TEST_CALL');
-    return res.json({ success: true, result });
+    const {
+      offerNo,
+      customerName,
+      model,
+      city,
+      days,
+      targetPhones,
+      reason,
+      quotationId,
+    } = req.body;
+
+    const requestedDays = Number(days) || 60;
+    const clientName = customerName?.trim() || 'Client';
+    const offerCode = offerNo?.trim() || 'DRAFT-QUOTATION';
+
+    // 1. Find Admin user ID
+    const adminUser = await User.findOne({
+      $or: [
+        { role: 'ADMIN' },
+        { name: /nithesh/i },
+        { phone: /7810091290|9884998125/ }
+      ]
+    }).lean();
+
+    const targetUserId = adminUser?._id || req.user?._id;
+
+    const title = `⚡ Fast-Track Delivery Approval: ${requestedDays} Days for ${clientName}`;
+    const notes = `Customer: ${clientName} | Quotation: ${offerCode} | Model: ${model || 'Alpha Elevator'} | City: ${city || 'Chennai'} | Requested Delivery: ${requestedDays} Days (Standard: 120 Days).${reason ? ` Reason: ${reason}` : ''} Requires Admin (Nithesh Babu) approval.`;
+
+    // 2. Create pending reminder for Admin
+    const reminder = await Reminder.create({
+      userId: targetUserId,
+      title,
+      notes,
+      dueAt: new Date(),
+      status: 'PENDING',
+      type: 'DELIVERY_APPROVAL',
+      customerName: clientName,
+      relatedQuotationOfferNo: offerCode,
+      relatedQuotationId: quotationId,
+      requestedDeliveryDays: requestedDays,
+      actionRequired: true,
+      targetAdminPhone: Array.isArray(targetPhones) ? targetPhones.join(', ') : String(targetPhones || '7810091290'),
+      requestedByUserId: req.user?._id,
+      requestedByUserName: req.user?.name || 'BDM',
+      requestedByUserPhone: req.user?.phone,
+    });
+
+    // 3. Update Quotation record in DB if exists (or create stub)
+    if (offerCode) {
+      await Quotation.updateOne(
+        { $or: [{ offerNo: offerCode }, { _id: quotationId }] },
+        {
+          $set: {
+            'data.deliveryApprovalStatus': 'PENDING',
+            'data.deliveryApprovalDays': requestedDays,
+            'data.deliveryApprovalRequestedAt': new Date().toISOString(),
+            'data.requestedByUserId': req.user?._id,
+            'data.requestedByUserName': req.user?.name || 'BDM',
+            'data.requestedByUserPhone': req.user?.phone,
+          }
+        }
+      ).catch(() => {});
+    }
+
+    // 4. Send direct WhatsApp message via WhatsApp Web Bot if available
+    const waText = `🚨 *FAST-TRACK DELIVERY APPROVAL REQUEST* 🚨\n\nDear Nithesh Babu,\nAn expedited delivery timeline of *${requestedDays} Days* has been requested for quotation approval:\n\n👤 *Customer Name:* ${clientName}\n🏢 *Elevator Model:* ${model || 'Alpha Elevator'}\n📄 *Offer No:* ${offerCode}\n📍 *Site / City:* ${city || 'Chennai'}\n⏱️ *Requested Timeline:* ${requestedDays} Days (Standard: 120 Days)\n${reason ? `📝 *Reason:* ${reason}\n` : ''}\nPlease approve this expedited delivery schedule in Alpha CRM Reminders so this proposal can be issued.`;
+
+    const phonesToSend: string[] = Array.isArray(targetPhones) ? targetPhones : [targetPhones || '7810091290'];
+    const waResults: any[] = [];
+
+    const botStatus = whatsAppWebBot.getStatus();
+    if (botStatus.isConnected) {
+      for (const phone of phonesToSend) {
+        const clean = String(phone).replace(/\D/g, '').slice(-10);
+        if (clean.length === 10) {
+          try {
+            const sendRes = await whatsAppWebBot.sendDirectMessage(`91${clean}`, waText);
+            waResults.push({ phone: clean, success: sendRes.success });
+          } catch (e: any) {
+            waResults.push({ phone: clean, success: false, error: e.message });
+          }
+        }
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: `Fast-track delivery approval (${requestedDays} Days) requested successfully for Nithesh Babu.`,
+      reminder,
+      waResults,
+      waText,
+    });
   } catch (err: any) {
-    return res.status(500).json({ success: false, message: err.message, stack: err.stack });
+    return res.status(500).json({ success: false, message: err.message });
   }
 });
+
+/**
+ * GET /api/reminders/delivery-approval/status
+ * Check if expedited delivery approval has been granted by Nithesh Babu for a quotation offer
+ */
+reminderRouter.get('/delivery-approval/status', async (req: AuthRequest, res: Response) => {
+  try {
+    const offerNo = String(req.query.offerNo || '').trim();
+    if (!offerNo) {
+      return res.json({ success: true, status: 'NOT_REQUESTED' });
+    }
+
+    const baseOfferNo = offerNo.replace(/-[123]$/, '').trim();
+    const quote = await Quotation.findOne({
+      $or: [
+        { offerNo },
+        { offerNo: new RegExp(`^${baseOfferNo}(-[123])?$`, 'i') },
+      ],
+    }).select('offerNo status data').lean();
+
+    if (quote?.data?.deliveryApprovalStatus === 'APPROVED') {
+      const days = Number(quote.data.deliveryDays || quote.data.deliveryApprovalDays || 60);
+      return res.json({
+        success: true,
+        status: 'APPROVED',
+        deliveryDays: days,
+        deliveryTime: quote.data.deliveryTime || `${days} days post confirmation on drawings and finishes.`,
+        approvedBy: quote.data.deliveryApprovalBy || 'Nithesh Babu (Admin)',
+        approvedAt: quote.data.deliveryApprovalAt,
+      });
+    }
+
+    const reminder = await Reminder.findOne({
+      relatedQuotationOfferNo: new RegExp(`^${baseOfferNo}`, 'i'),
+      type: 'DELIVERY_APPROVAL',
+    }).sort({ updatedAt: -1 }).lean();
+
+    if (reminder) {
+      if (reminder.status === 'DISMISSED') {
+        const days = Number(reminder.requestedDeliveryDays || 60);
+        return res.json({
+          success: true,
+          status: 'APPROVED',
+          deliveryDays: days,
+          deliveryTime: `${days} days post confirmation on drawings and finishes.`,
+          approvedBy: 'Nithesh Babu (Admin)',
+          approvedAt: reminder.updatedAt,
+        });
+      } else if (reminder.status === 'PENDING') {
+        return res.json({
+          success: true,
+          status: 'PENDING',
+          requestedDays: reminder.requestedDeliveryDays || 60,
+        });
+      }
+    }
+
+    return res.json({
+      success: true,
+      status: quote?.data?.deliveryApprovalStatus || 'NOT_REQUESTED',
+      deliveryDays: quote?.data?.deliveryDays || 120,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * POST /api/reminders/delivery-approval/:id/approve
+ * Approves the Fast-Track Delivery timeline (Admin / Nithesh Babu only)
+ */
+reminderRouter.post('/delivery-approval/:id/approve', async (req: AuthRequest, res: Response) => {
+  try {
+    const isAdmin = req.user?.role === 'ADMIN' || req.user?.name?.toLowerCase().includes('nithesh');
+    if (!isAdmin) {
+      return res.status(403).json({ success: false, message: 'Only Admin (Nithesh Babu) is authorized to approve fast-track delivery.' });
+    }
+
+    const reminder = await Reminder.findById(req.params.id);
+    if (!reminder) {
+      return res.status(404).json({ success: false, message: 'Approval reminder not found' });
+    }
+
+    reminder.status = 'DISMISSED';
+    await reminder.save();
+
+    const approvedDays = reminder.requestedDeliveryDays || 60;
+    const offerCode = reminder.relatedQuotationOfferNo;
+
+    // Update quotation document if exists
+    if (offerCode || reminder.relatedQuotationId) {
+      await Quotation.updateOne(
+        { $or: [{ offerNo: offerCode }, { _id: reminder.relatedQuotationId }] },
+        {
+          $set: {
+            'data.deliveryDays': approvedDays,
+            'data.deliveryTime': `${approvedDays} days post confirmation on drawings and finishes.`,
+            'data.deliveryApprovalStatus': 'APPROVED',
+            'data.deliveryApprovalDays': approvedDays,
+            'data.deliveryApprovalBy': req.user?.name || 'Nithesh Babu (Admin)',
+            'data.deliveryApprovalAt': new Date().toISOString(),
+          }
+        }
+      ).catch(() => {});
+    }
+
+    // Notify the requesting BDM via CRM reminder
+    if (reminder.requestedByUserId) {
+      await Reminder.create({
+        userId: reminder.requestedByUserId,
+        title: `🎉 Nithesh Babu (Admin) Approved ${approvedDays} Days Fast-Track Delivery!`,
+        notes: `Your expedited delivery request of ${approvedDays} Days for quotation ${offerCode} (${reminder.customerName || 'Client'}) has been APPROVED by Nithesh Babu (Admin). The quotation form and live PDF have been automatically updated.`,
+        dueAt: new Date(),
+        status: 'PENDING',
+        type: 'GENERAL',
+        relatedQuotationOfferNo: offerCode,
+        customerName: reminder.customerName,
+        requestedDeliveryDays: approvedDays,
+        actionRequired: false,
+      }).catch(() => {});
+    }
+
+    // Send direct WhatsApp notification to the requesting BDM
+    try {
+      const bdmUser = reminder.requestedByUserId ? await User.findById(reminder.requestedByUserId).lean() : null;
+      const bdmPhone = reminder.requestedByUserPhone || bdmUser?.phone;
+      if (bdmPhone) {
+        const cleanPhone = bdmPhone.replace(/\D/g, '').slice(-10);
+        if (cleanPhone.length === 10) {
+          const bdmWaText = `🎉 *FAST-TRACK DELIVERY APPROVED BY NITHESH BABU (ADMIN)* 🎉\n\nDear ${reminder.requestedByUserName || bdmUser?.name || 'BDM'},\nYour expedited delivery timeline of *${approvedDays} Days* for quotation *${offerCode}* (${reminder.customerName || 'Client'}) has been APPROVED by *Nithesh Babu (Admin)*.\n\nThe quotation form and live PDF have been automatically updated to *${approvedDays} Days*.`;
+          await whatsAppWebBot.sendDirectMessage(`91${cleanPhone}`, bdmWaText);
+        }
+      }
+    } catch (e: any) {
+      console.warn('[DeliveryApproval] Could not dispatch WhatsApp to BDM:', e.message);
+    }
+
+    return res.json({
+      success: true,
+      message: `Expedited delivery of ${approvedDays} Days approved successfully for ${reminder.customerName || 'customer'}!`,
+      approvedDays,
+      offerCode,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * POST /api/reminders/delivery-approval/:id/reject
+ * Rejects the Fast-Track Delivery timeline (Admin / Nithesh Babu only)
+ */
+reminderRouter.post('/delivery-approval/:id/reject', async (req: AuthRequest, res: Response) => {
+  try {
+    const isAdmin = req.user?.role === 'ADMIN' || req.user?.name?.toLowerCase().includes('nithesh');
+    if (!isAdmin) {
+      return res.status(403).json({ success: false, message: 'Only Admin (Nithesh Babu) is authorized to reject fast-track delivery.' });
+    }
+
+    const reminder = await Reminder.findById(req.params.id);
+    if (!reminder) {
+      return res.status(404).json({ success: false, message: 'Approval reminder not found' });
+    }
+
+    reminder.status = 'DISMISSED';
+    await reminder.save();
+
+    const offerCode = reminder.relatedQuotationOfferNo;
+    if (offerCode || reminder.relatedQuotationId) {
+      await Quotation.updateOne(
+        { $or: [{ offerNo: offerCode }, { _id: reminder.relatedQuotationId }] },
+        {
+          $set: {
+            'data.deliveryDays': 120,
+            'data.deliveryTime': '120 days post confirmation on drawings and finishes.',
+            'data.deliveryApprovalStatus': 'REJECTED',
+            'data.deliveryApprovalBy': req.user?.name || 'Nithesh Babu (Admin)',
+            'data.deliveryApprovalAt': new Date().toISOString(),
+          }
+        }
+      ).catch(() => {});
+    }
+
+    return res.json({
+      success: true,
+      message: `Expedited delivery request rejected. Reverted to standard 120 days.`,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 
 
 

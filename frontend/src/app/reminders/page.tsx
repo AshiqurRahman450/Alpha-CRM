@@ -24,6 +24,8 @@ import {
   Loader2,
   MessageSquare,
   QrCode,
+  Zap,
+  XCircle,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
@@ -116,6 +118,42 @@ export default function RemindersPage() {
       toast.error(err.message || 'Error approving quotation');
     } finally {
       setApprovingQuotationId(null);
+    }
+  };
+
+  const [actingDeliveryId, setActingDeliveryId] = useState<string | null>(null);
+
+  const handleApproveDelivery = async (id: string) => {
+    try {
+      setActingDeliveryId(id);
+      const res = await api.approveDeliveryApproval(id);
+      if (res?.success) {
+        toast.success(res.message || 'Fast-track delivery approved!');
+        fetchReminders();
+      } else {
+        toast.error(res?.message || 'Failed to approve fast-track delivery');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Error approving fast-track delivery');
+    } finally {
+      setActingDeliveryId(null);
+    }
+  };
+
+  const handleRejectDelivery = async (id: string) => {
+    try {
+      setActingDeliveryId(id);
+      const res = await api.rejectDeliveryApproval(id);
+      if (res?.success) {
+        toast.success(res.message || 'Fast-track delivery rejected (reverted to 120 days).');
+        fetchReminders();
+      } else {
+        toast.error(res?.message || 'Failed to reject fast-track delivery');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Error rejecting fast-track delivery');
+    } finally {
+      setActingDeliveryId(null);
     }
   };
 
@@ -550,6 +588,13 @@ export default function RemindersPage() {
                 )}
 
                 <div className="space-y-2">
+                  {reminder.type === 'DELIVERY_APPROVAL' && (
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-black bg-gradient-to-r from-amber-500 to-rose-500 text-white shadow-sm border border-amber-600">
+                      <Zap className="w-3 h-3 text-yellow-200 fill-yellow-200" />
+                      <span>⚡ Expedited Delivery Approval ({reminder.requestedDeliveryDays || 60} Days)</span>
+                    </div>
+                  )}
+
                   {reminder.type === 'QUOTATION_APPROVAL' && (
                     <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-gradient-to-r from-amber-100 to-orange-100 text-amber-900 border border-amber-300">
                       <Award className="w-3 h-3 text-amber-600" />
@@ -601,8 +646,45 @@ export default function RemindersPage() {
                 </div>
 
                 <div className="mt-4 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
-                  {/* Action 1: Quotation Approval */}
-                  {reminder.type === 'QUOTATION_APPROVAL' ? (
+                  {/* Action 1: Delivery Expedited Approval */}
+                  {reminder.type === 'DELIVERY_APPROVAL' ? (
+                    <div className="flex items-center gap-2 w-full justify-between flex-wrap">
+                      <Link
+                        href={`/quotations?offerNo=${encodeURIComponent(reminder.relatedQuotationOfferNo || '')}`}
+                        className="text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-slate-500" />
+                        <span>View Quotation</span>
+                      </Link>
+
+                      {!isDismissed && (
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleRejectDelivery(reminder._id)}
+                            disabled={actingDeliveryId === reminder._id}
+                            className="flex items-center gap-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-3 py-1.5 rounded-xl transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                          >
+                            <XCircle className="w-3.5 h-3.5 text-rose-500" />
+                            <span>Reject (Revert 120 Days)</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleApproveDelivery(reminder._id)}
+                            disabled={actingDeliveryId === reminder._id}
+                            className="flex items-center gap-1.5 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 px-3.5 py-1.5 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
+                          >
+                            {actingDeliveryId === reminder._id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                            ) : (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-200" />
+                            )}
+                            <span>Approve ({reminder.requestedDeliveryDays || 60} Days)</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : reminder.type === 'QUOTATION_APPROVAL' ? (
                     <div className="flex items-center gap-2 w-full justify-between">
                       <Link
                         href={`/quotations?offerNo=${encodeURIComponent(reminder.relatedQuotationOfferNo || reminder.relatedQuotationId?.offerNo || '')}&stage=3`}
@@ -673,7 +755,7 @@ export default function RemindersPage() {
                     <div />
                   )}
 
-                  {!isDismissed && reminder.type !== 'QUOTATION_APPROVAL' && (
+                  {!isDismissed && reminder.type !== 'QUOTATION_APPROVAL' && reminder.type !== 'DELIVERY_APPROVAL' && (
                     <button
                       onClick={() => handleDismiss(reminder._id)}
                       className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-3.5 py-1.5 rounded-xl transition-colors border border-emerald-200 active:scale-95"

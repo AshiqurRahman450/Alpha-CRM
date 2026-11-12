@@ -58,7 +58,7 @@ export default function ProjectsPage() {
     customerId: '',
     projectName: '',
     siteAddress: '',
-    liftModel: 'Hydraulic Home Series',
+    liftModel: 'AE 01 Home Series',
     liftType: 'Home Lift',
     numberOfFloors: 'G+1',
     shaftModel: '',
@@ -176,7 +176,7 @@ export default function ProjectsPage() {
         customerId: '',
         projectName: '',
         siteAddress: '',
-        liftModel: 'Hydraulic Home Series',
+        liftModel: 'AE 01 Home Series',
         liftType: 'Home Lift',
         numberOfFloors: 'G+1',
         shaftModel: '',
@@ -508,12 +508,13 @@ export default function ProjectsPage() {
                         onChange={(e) => setNewProject({ ...newProject, liftModel: e.target.value })}
                         className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none"
                       >
-                        <option value="Hydraulic Home Series">Hydraulic Home Series</option>
-                        <option value="Gearless Belt Home Series">Gearless Belt Home Series</option>
-                        <option value="Gearless Belt Home Series EV">Gearless Belt Home Series EV</option>
+                        <option value="AE 01 Home Series">AE 01 Home Series</option>
+                        <option value="AE 02 Gearless Rope Home Series">AE 02 Gearless Rope Home Series</option>
+                        <option value="AE 03 Gearless Belt Home series">AE 03 Gearless Belt Home series</option>
+                        <option value="AE 03 Gearless Belt Home series EV">AE 03 Gearless Belt Home series EV</option>
                         <option value="Semi Home Lift">Semi Home Lift</option>
-                        <option value="Circle Lift">Circle Lift</option>
-                        <option value="Circle Max Lift">Circle Max Lift</option>
+                        <option value="Alpha Circle Lift">Alpha Circle Lift</option>
+                        <option value="Alpha Circle Max Lift">Alpha Circle Max Lift</option>
                       </select>
                     </div>
                     <div>

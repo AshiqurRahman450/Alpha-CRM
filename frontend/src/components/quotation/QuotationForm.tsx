@@ -32,7 +32,17 @@ import {
   ChevronRight,
   ChevronDown,
   ChevronUp,
+  Clock,
+  AlertTriangle,
+  Zap,
+  X,
+  MessageSquare,
+  Loader2,
+  Send,
 } from 'lucide-react';
+import { DigitalSignaturePad } from './DigitalSignaturePad';
+import { api, getStoredUser } from '../../lib/api';
+import toast from 'react-hot-toast';
 
 interface QuotationFormProps {
   data: QuotationData;
@@ -78,6 +88,160 @@ export default function QuotationForm({
     ];
   const [newFeatureText, setNewFeatureText] = useState('');
   const [doorAccessAlert, setDoorAccessAlert] = useState<string | null>(null);
+
+  // Delivery timeline fast-track approval state (Nithesh Babu - Admin role)
+  const [currentUser, setCurrentUser] = useState<any>(() => getStoredUser());
+  useEffect(() => {
+    if (!currentUser) {
+      api.getCurrentUser().then((res) => {
+        if (res?.user) setCurrentUser(res.user);
+      }).catch(() => {});
+    }
+  }, [currentUser]);
+
+  const isAdmin = currentUser?.role === 'ADMIN' || currentUser?.name?.toLowerCase().includes('nithesh');
+
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [selectedDaysForApproval, setSelectedDaysForApproval] = useState<number>(60);
+  const [targetPhoneOption, setTargetPhoneOption] = useState<'7810091290' | '9884998125' | 'both'>('7810091290');
+  const [approvalReason, setApprovalReason] = useState('');
+  const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
+
+  const isDeliveryApproved = (days: number) => {
+    if (days === 120) return true;
+    if (isAdmin) return true;
+    return data.deliveryApprovalStatus === 'APPROVED' && Number(data.deliveryApprovalDays) === days;
+  };
+
+  const handleSelectDeliveryDays = (days: number) => {
+    if (days === 120) {
+      updateDeliveryDays(120);
+      return;
+    }
+    if (isDeliveryApproved(days)) {
+      updateDeliveryDays(days);
+    } else {
+      setSelectedDaysForApproval(days);
+      setShowApprovalModal(true);
+    }
+  };
+
+  const handleSendDeliveryApprovalRequest = async () => {
+    try {
+      setIsSubmittingApproval(true);
+      const targetPhones = targetPhoneOption === 'both'
+        ? ['7810091290', '9884998125']
+        : [targetPhoneOption];
+
+      const clientName = data.clientName || 'Client';
+      const offerCode = data.offerNo || 'DRAFT';
+      const modelName = data.model || 'Alpha Elevator';
+      const city = data.projectCity || 'Chennai';
+
+      // 1. Send API request to create CRM reminder for Admin & dispatch bot message
+      await api.requestDeliveryApproval({
+        offerNo: offerCode,
+        customerName: clientName,
+        model: modelName,
+        city,
+        days: selectedDaysForApproval,
+        targetPhones,
+        reason: approvalReason,
+      });
+
+      // 2. Open WhatsApp direct chat for Nithesh Babu with prepared details
+      const waText = `🚨 *FAST-TRACK DELIVERY APPROVAL REQUEST* 🚨\n\nDear Nithesh Babu,\nAn expedited delivery timeline of *${selectedDaysForApproval} Days* has been requested for quotation approval:\n\n👤 *Customer Name:* ${clientName}\n🏢 *Elevator Model:* ${modelName}\n📄 *Offer No:* ${offerCode}\n📍 *Site / City:* ${city}\n⏱️ *Requested Timeline:* ${selectedDaysForApproval} Days (Standard: 120 Days)\n${approvalReason ? `📝 *Reason:* ${approvalReason}\n` : ''}\nPlease approve this expedited delivery schedule in Alpha CRM Reminders so this proposal can be issued.`;
+
+      for (const phone of targetPhones) {
+        window.open(`https://wa.me/91${phone}?text=${encodeURIComponent(waText)}`, '_blank');
+      }
+
+      // 3. Update local quotation data state
+      onChange({
+        ...data,
+        deliveryApprovalStatus: 'PENDING',
+        deliveryApprovalDays: selectedDaysForApproval,
+        deliveryApprovalRequestedAt: new Date().toISOString(),
+      });
+
+      toast.success(
+        `Fast-track request sent to Nithesh Babu (${targetPhones.join(' & ')}) via WhatsApp and Reminders!`,
+        { duration: 6000 }
+      );
+      setShowApprovalModal(false);
+      setApprovalReason('');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to dispatch delivery approval request');
+    } finally {
+      setIsSubmittingApproval(false);
+    }
+  };
+
+  // Live auto-polling: when BDM quotation delivery status is PENDING,
+  // listen for Nithesh Babu (Admin) approval, reflect days on form & PDF, and trigger toast
+  useEffect(() => {
+    if (data.deliveryApprovalStatus !== 'PENDING' || !data.offerNo) return;
+
+    let isMounted = true;
+    const interval = setInterval(async () => {
+      try {
+        const res = await api.checkDeliveryApprovalStatus(data.offerNo);
+        if (isMounted && res?.status === 'APPROVED') {
+          const approvedDays = Number(res.deliveryDays) || 60;
+          onChange({
+            ...data,
+            deliveryDays: approvedDays,
+            deliveryTime: res.deliveryTime || `${approvedDays} days post confirmation on drawings and finishes.`,
+            deliveryApprovalStatus: 'APPROVED',
+            deliveryApprovalDays: approvedDays,
+            deliveryApprovalBy: res.approvedBy || 'Nithesh Babu (Admin)',
+            deliveryApprovalAt: res.approvedAt || new Date().toISOString(),
+          });
+          toast.success(
+            `🎉 Nithesh Babu (Admin) has APPROVED expedited delivery of ${approvedDays} Days! Automatically applied to Form and PDF.`,
+            { duration: 9000, id: `approved-delivery-${data.offerNo}`, icon: '⚡' }
+          );
+        }
+      } catch (err) {
+        // silent fail during background poll
+      }
+    }, 3500);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [data.deliveryApprovalStatus, data.offerNo, data, onChange]);
+
+  const handleCheckApprovalStatusManual = async () => {
+    if (!data.offerNo) return;
+    try {
+      const res = await api.checkDeliveryApprovalStatus(data.offerNo);
+      if (res?.status === 'APPROVED') {
+        const approvedDays = Number(res.deliveryDays) || 60;
+        onChange({
+          ...data,
+          deliveryDays: approvedDays,
+          deliveryTime: res.deliveryTime || `${approvedDays} days post confirmation on drawings and finishes.`,
+          deliveryApprovalStatus: 'APPROVED',
+          deliveryApprovalDays: approvedDays,
+          deliveryApprovalBy: res.approvedBy || 'Nithesh Babu (Admin)',
+          deliveryApprovalAt: res.approvedAt || new Date().toISOString(),
+        });
+        toast.success(
+          `🎉 Nithesh Babu (Admin) has APPROVED expedited delivery of ${approvedDays} Days! Automatically applied to Form and PDF.`,
+          { duration: 9000, id: `approved-delivery-${data.offerNo}`, icon: '⚡' }
+        );
+      } else {
+        toast('Approval is still pending with Nithesh Babu (Admin). You will be notified immediately once approved.', {
+          icon: '⏳',
+          duration: 4000,
+        });
+      }
+    } catch (e: any) {
+      toast.error('Unable to fetch approval status.');
+    }
+  };
 
   const currentTabIndex = formTabs.findIndex((t) => t.id === activeTab);
   const prevTab = currentTabIndex > 0 ? formTabs[currentTabIndex - 1] : null;
@@ -472,9 +636,19 @@ export default function QuotationForm({
                 </label>
                 <select
                   value={(() => {
-                    const idx = QUOTATION_PRESETS.findIndex(
-                      (p) => p.name === data.model || p.data.model === data.model
-                    );
+                    const idx = QUOTATION_PRESETS.findIndex((p) => {
+                      if (p.name.toLowerCase() === (data.model || '').toLowerCase() || p.data.model?.toLowerCase() === (data.model || '').toLowerCase()) return true;
+                      const m = (data.model || '').toLowerCase();
+                      const pn = p.name.toLowerCase();
+                      if (pn.includes('ae 01') && (m.includes('ae 01') || m.includes('ae01') || m.includes('hydraulic'))) return true;
+                      if (pn.includes('ae 02') && (m.includes('ae 02') || m.includes('ae02') || (m.includes('rope') && !m.includes('belt')))) return true;
+                      if (pn.includes('ae 03') && pn.includes('ev') && (m.includes('ev') || (m.includes('belt') && m.includes('ev')))) return true;
+                      if (pn.includes('ae 03') && !pn.includes('ev') && !m.includes('ev') && m.includes('belt')) return true;
+                      if (pn.includes('semi') && m.includes('semi')) return true;
+                      if (pn.includes('circle max') && (m.includes('circle max') || m.includes('circle-max'))) return true;
+                      if (pn.includes('circle') && !pn.includes('max') && m.includes('circle') && !m.includes('max')) return true;
+                      return false;
+                    });
                     return idx >= 0 ? idx : 0;
                   })()}
                   onChange={(e) => handlePresetSelect(Number(e.target.value))}
@@ -508,7 +682,7 @@ export default function QuotationForm({
                     </option>
                     {customers.map((c) => (
                       <option key={c._id || c.id || c.customerId} value={c._id || c.id || c.customerId}>
-                        {c.customerId ? `[${c.customerId}] ` : ''}{c.fullName || c.name} {c.city ? `(${c.city})` : ''} - {c.phoneNumber || c.phone || c.whatsappNumber || ''}
+                        {c.customerId ? `[${c.customerId}] ` : ''}{c.isOldCustomer ? '⭐ [Old Customer] ' : ''}{c.fullName || c.name} {c.city ? `(${c.city})` : ''} - {c.phoneNumber || c.phone || c.whatsappNumber || ''}
                       </option>
                     ))}
                   </select>
@@ -955,9 +1129,19 @@ export default function QuotationForm({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <select
                   value={(() => {
-                    const idx = QUOTATION_PRESETS.findIndex(
-                      (p) => p.name === data.model || p.data.model === data.model
-                    );
+                    const idx = QUOTATION_PRESETS.findIndex((p) => {
+                      if (p.name.toLowerCase() === (data.model || '').toLowerCase() || p.data.model?.toLowerCase() === (data.model || '').toLowerCase()) return true;
+                      const m = (data.model || '').toLowerCase();
+                      const pn = p.name.toLowerCase();
+                      if (pn.includes('ae 01') && (m.includes('ae 01') || m.includes('ae01') || m.includes('hydraulic'))) return true;
+                      if (pn.includes('ae 02') && (m.includes('ae 02') || m.includes('ae02') || (m.includes('rope') && !m.includes('belt')))) return true;
+                      if (pn.includes('ae 03') && pn.includes('ev') && (m.includes('ev') || (m.includes('belt') && m.includes('ev')))) return true;
+                      if (pn.includes('ae 03') && !pn.includes('ev') && !m.includes('ev') && m.includes('belt')) return true;
+                      if (pn.includes('semi') && m.includes('semi')) return true;
+                      if (pn.includes('circle max') && (m.includes('circle max') || m.includes('circle-max'))) return true;
+                      if (pn.includes('circle') && !pn.includes('max') && m.includes('circle') && !m.includes('max')) return true;
+                      return false;
+                    });
                     return idx >= 0 ? idx : -1;
                   })()}
                   onChange={(e) => {
@@ -977,7 +1161,7 @@ export default function QuotationForm({
                   type="text"
                   value={data.model}
                   onChange={(e) => updateField('model', e.target.value)}
-                  placeholder="e.g. AE 03 Gearless Belt Home series EV"
+                  placeholder="e.g. Gearless Belt Home Series EV"
                   className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold"
                 />
               </div>
@@ -2447,24 +2631,43 @@ export default function QuotationForm({
               {/* Time of Material Delivery Section */}
               <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <label className="block text-xs font-black text-slate-800 tracking-wide uppercase">
-                    Time of Material Delivery:
-                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <Truck className="w-4 h-4 text-teal-600" />
+                    <label className="block text-xs font-black text-slate-800 tracking-wide uppercase">
+                      Time of Material Delivery:
+                    </label>
+                  </div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] font-bold text-slate-500">Quick Select:</span>
-                    {[60, 90, 120].map((days) => (
-                      <button
-                        key={days}
-                        type="button"
-                        onClick={() => updateDeliveryDays(days)}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${currentDeliveryDays === days
-                            ? 'bg-teal-600 text-white shadow-sm ring-2 ring-teal-400'
-                            : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-300'
+                    {[60, 90, 120].map((days) => {
+                      const isApproved = isDeliveryApproved(days);
+                      const isSelected = currentDeliveryDays === days;
+                      return (
+                        <button
+                          key={days}
+                          type="button"
+                          onClick={() => handleSelectDeliveryDays(days)}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1 ${
+                            isSelected
+                              ? 'bg-teal-600 text-white shadow-sm ring-2 ring-teal-400'
+                              : isApproved
+                              ? 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-300'
+                              : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300'
                           }`}
-                      >
-                        {days} Days
-                      </button>
-                    ))}
+                          title={
+                            days === 120
+                              ? 'Standard 120 Days'
+                              : isApproved
+                              ? `${days} Days Approved`
+                              : `Fast-track ${days} Days requires Admin (Nithesh Babu) approval`
+                          }
+                        >
+                          {days !== 120 && !isApproved && <Zap className="w-3 h-3 text-amber-500 fill-amber-500" />}
+                          {days !== 120 && isApproved && !isAdmin && <CheckCircle className="w-3 h-3 text-emerald-500" />}
+                          <span>{days} Days</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -2475,12 +2678,12 @@ export default function QuotationForm({
                     </label>
                     <select
                       value={currentDeliveryDays}
-                      onChange={(e) => updateDeliveryDays(Number(e.target.value))}
+                      onChange={(e) => handleSelectDeliveryDays(Number(e.target.value))}
                       className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-teal-500 font-bold text-slate-800"
                     >
-                      <option value={60}>60 Days</option>
-                      <option value={90}>90 Days</option>
-                      <option value={120}>120 Days</option>
+                      <option value={60}>60 Days {!isDeliveryApproved(60) ? '⚡ (Requires Admin Approval)' : ''}</option>
+                      <option value={90}>90 Days {!isDeliveryApproved(90) ? '⚡ (Requires Admin Approval)' : ''}</option>
+                      <option value={120}>120 Days (Standard)</option>
                     </select>
                   </div>
 
@@ -2504,6 +2707,80 @@ export default function QuotationForm({
                     />
                   </div>
                 </div>
+
+                {/* Status Indicator */}
+                {data.deliveryApprovalStatus === 'PENDING' && (
+                  <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-amber-600 animate-spin flex-shrink-0" />
+                      <div>
+                        <span className="font-extrabold">⏳ Awaiting Nithesh Babu (Admin) Approval for {data.deliveryApprovalDays || 60} Days</span>
+                        <p className="text-[11px] text-amber-800">
+                          Request sent to Nithesh Babu. Once approved in Reminders, {data.deliveryApprovalDays || 60} days will be applied.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleCheckApprovalStatusManual}
+                        className="px-2.5 py-1 bg-white hover:bg-amber-100 text-amber-900 border border-amber-400 rounded-lg font-bold text-[11px] whitespace-nowrap cursor-pointer shadow-xs transition-colors flex items-center gap-1"
+                        title="Check if Nithesh Babu has approved"
+                      >
+                        <RotateCcw className="w-3 h-3 text-amber-700" />
+                        <span>Check Status</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedDaysForApproval(Number(data.deliveryApprovalDays) || 60);
+                          setShowApprovalModal(true);
+                        }}
+                        className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-[11px] whitespace-nowrap cursor-pointer shadow-xs"
+                      >
+                        Re-send WhatsApp
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {data.deliveryApprovalStatus === 'APPROVED' && (
+                  <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs">
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                      <span>Approved by Nithesh Babu ({data.deliveryApprovalDays} Days Eligible & Active)</span>
+                    </div>
+                    <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-mono font-bold">
+                      Reflected on Pages 5 & 6
+                    </span>
+                  </div>
+                )}
+
+                {data.deliveryApprovalStatus === 'REJECTED' && (
+                  <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-rose-50 border border-rose-300 text-rose-900 text-xs">
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                      <span>Expedited delivery request was rejected by Admin. Standard 120 Days applied.</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedDaysForApproval(60);
+                        setShowApprovalModal(true);
+                      }}
+                      className="text-[11px] font-bold text-rose-700 underline hover:text-rose-800 cursor-pointer flex-shrink-0"
+                    >
+                      Re-request
+                    </button>
+                  </div>
+                )}
+
+                {isAdmin && (
+                  <div className="flex items-center gap-1.5 text-[11px] font-bold text-teal-800 bg-teal-50 px-2.5 py-1 rounded-lg border border-teal-200">
+                    <ShieldCheck className="w-3.5 h-3.5 text-teal-600 flex-shrink-0" />
+                    <span>Admin Mode (Nithesh Babu): Direct permission to select and approve expedited 60/90 days.</span>
+                  </div>
+                )}
               </div>
 
               {/* Payment Terms */}
@@ -2656,6 +2933,15 @@ export default function QuotationForm({
                       className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 font-medium"
                     />
                   </div>
+
+                  {/* Digital Client Signature Field */}
+                  <div className="pt-2.5 border-t border-slate-100">
+                    <DigitalSignaturePad
+                      value={data.clientSignature || ''}
+                      onChange={(sig) => updateField('clientSignature', sig)}
+                      signerName={data.clientSignatoryName || data.clientName}
+                    />
+                  </div>
                 </div>
 
                 {/* Alpha Acceptance */}
@@ -2775,6 +3061,15 @@ export default function QuotationForm({
                       className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium"
                     />
                   </div>
+                </div>
+
+                {/* Digital Client Signature Field */}
+                <div className="pt-2.5 border-t border-slate-100">
+                  <DigitalSignaturePad
+                    value={data.clientSignature || ''}
+                    onChange={(sig) => updateField('clientSignature', sig)}
+                    signerName={data.clientSignatoryName || data.clientName}
+                  />
                 </div>
               </div>
 
@@ -3052,6 +3347,173 @@ export default function QuotationForm({
               >
                 I Understand & Proceed
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fast-Track Delivery Approval Modal */}
+      {showApprovalModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-fade-in backdrop-blur-xs">
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-amber-300 overflow-hidden animate-scale-up">
+            <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 p-4 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
+                  <Zap className="w-4 h-4 text-yellow-200 fill-yellow-200" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm tracking-tight">
+                    Fast-Track Delivery Approval ({selectedDaysForApproval} Days)
+                  </h3>
+                  <p className="text-[10px] text-amber-100">Admin Authorization Required</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowApprovalModal(false)}
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-3.5 text-xs">
+              <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-950 leading-relaxed font-medium">
+                Standard delivery timeline is <strong>120 days</strong>. Applying <strong>{selectedDaysForApproval} days</strong> requires <strong>Nithesh Babu (Admin)</strong> approval via WhatsApp and CRM Reminders before it can be selected.
+              </div>
+
+              {/* Quotation & Customer Details */}
+              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1.5 text-slate-700 font-medium">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 text-[11px]">Customer Name:</span>
+                  <span className="font-bold text-slate-900">{data.clientName || 'Client'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 text-[11px]">Quotation Offer:</span>
+                  <span className="font-mono font-bold text-sky-700">{data.offerNo || 'DRAFT'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 text-[11px]">Elevator Model:</span>
+                  <span className="font-semibold text-slate-800">{data.model || 'Alpha Elevator'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 text-[11px]">Project Location:</span>
+                  <span className="font-semibold text-slate-800">{data.projectCity || 'Chennai'}</span>
+                </div>
+                <div className="flex justify-between items-center border-t border-slate-200 pt-1.5 mt-1">
+                  <span className="text-slate-700 font-bold">Requested Timeline:</span>
+                  <span className="font-extrabold text-amber-600 text-sm">{selectedDaysForApproval} Working Days</span>
+                </div>
+              </div>
+
+              {/* Nithesh Babu Phone Selector */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-800 mb-1.5">
+                  Select Nithesh Babu's Phone Number for WhatsApp Request:
+                </label>
+                <div className="space-y-1.5">
+                  <label className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all cursor-pointer ${
+                    targetPhoneOption === '7810091290'
+                      ? 'border-teal-500 bg-teal-50/50 ring-1 ring-teal-500'
+                      : 'border-slate-200 bg-white hover:bg-slate-50'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="nitheshPhone"
+                      value="7810091290"
+                      checked={targetPhoneOption === '7810091290'}
+                      onChange={() => setTargetPhoneOption('7810091290')}
+                      className="text-teal-600 focus:ring-teal-500"
+                    />
+                    <div className="flex-1 flex items-center justify-between">
+                      <span className="font-bold text-slate-900">7810091290</span>
+                      <span className="text-[10px] text-teal-800 bg-teal-100 px-2 py-0.5 rounded-md font-bold">
+                        Nithesh Babu (Primary)
+                      </span>
+                    </div>
+                  </label>
+
+                  <label className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all cursor-pointer ${
+                    targetPhoneOption === '9884998125'
+                      ? 'border-teal-500 bg-teal-50/50 ring-1 ring-teal-500'
+                      : 'border-slate-200 bg-white hover:bg-slate-50'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="nitheshPhone"
+                      value="9884998125"
+                      checked={targetPhoneOption === '9884998125'}
+                      onChange={() => setTargetPhoneOption('9884998125')}
+                      className="text-teal-600 focus:ring-teal-500"
+                    />
+                    <div className="flex-1 flex items-center justify-between">
+                      <span className="font-bold text-slate-900">98849 98125</span>
+                      <span className="text-[10px] text-indigo-800 bg-indigo-100 px-2 py-0.5 rounded-md font-bold">
+                        Nithesh Babu (Alternate)
+                      </span>
+                    </div>
+                  </label>
+
+                  <label className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all cursor-pointer ${
+                    targetPhoneOption === 'both'
+                      ? 'border-teal-500 bg-teal-50/50 ring-1 ring-teal-500'
+                      : 'border-slate-200 bg-white hover:bg-slate-50'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="nitheshPhone"
+                      value="both"
+                      checked={targetPhoneOption === 'both'}
+                      onChange={() => setTargetPhoneOption('both')}
+                      className="text-teal-600 focus:ring-teal-500"
+                    />
+                    <div className="flex-1 flex items-center justify-between">
+                      <span className="font-bold text-slate-900">Both Numbers</span>
+                      <span className="text-[10px] text-purple-800 bg-purple-100 px-2 py-0.5 rounded-md font-bold">
+                        7810091290 & 98849 98125
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Reason / Notes */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Urgency / Reason (Optional):
+                </label>
+                <input
+                  type="text"
+                  value={approvalReason}
+                  onChange={(e) => setApprovalReason(e.target.value)}
+                  placeholder="e.g. Early site civil readiness, customer inaugurating soon..."
+                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium bg-white"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowApprovalModal(false)}
+                  className="px-4 py-2 text-slate-600 hover:text-slate-800 font-bold text-xs cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSendDeliveryApprovalRequest}
+                  disabled={isSubmittingApproval}
+                  className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl shadow-md transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {isSubmittingApproval ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <MessageSquare className="w-3.5 h-3.5" />
+                  )}
+                  <span>Send WhatsApp Request & Create Reminder</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -1056,6 +1056,7 @@ quotationRouter.post('/crm-approve', async (req: any, res: Response) => {
       const advPct = 30;
       const advanceAmount = Math.round((orderValue * advPct) / 100);
       const projectId = await getNextProjectId();
+      const approvedDeliveryDays = Number(qData.deliveryDays) || 120;
 
       newProject = await Project.create({
         projectId,
@@ -1076,7 +1077,7 @@ quotationRouter.post('/crm-approve', async (req: any, res: Response) => {
         totalPaid: 0,
         paymentStatus: 'PENDING',
         orderDate: new Date(),
-        expectedDeliveryDate: new Date(Date.now() + 120 * 24 * 60 * 60 * 1000),
+        expectedDeliveryDate: new Date(Date.now() + approvedDeliveryDays * 24 * 60 * 60 * 1000),
         projectStatus: 'PAYMENT_RECEIVED',
         assignedEmployee: targetBdmName || undefined,
         bdmId: targetBdmId || undefined,

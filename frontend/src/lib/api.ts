@@ -680,6 +680,22 @@ export const api = {
     fetchWithAuth('/api/reminders', { method: 'POST', body: JSON.stringify(data) }),
   dismissReminder: (id: string) =>
     fetchWithAuth(`/api/reminders/${id}/dismiss`, { method: 'PATCH' }),
+  requestDeliveryApproval: (data: {
+    offerNo?: string;
+    customerName?: string;
+    model?: string;
+    city?: string;
+    days: number;
+    targetPhones: string[];
+    reason?: string;
+    quotationId?: string;
+  }) => fetchWithAuth('/api/reminders/delivery-approval', { method: 'POST', body: JSON.stringify(data) }),
+  approveDeliveryApproval: (id: string) =>
+    fetchWithAuth(`/api/reminders/delivery-approval/${id}/approve`, { method: 'POST' }),
+  rejectDeliveryApproval: (id: string) =>
+    fetchWithAuth(`/api/reminders/delivery-approval/${id}/reject`, { method: 'POST' }),
+  checkDeliveryApprovalStatus: (offerNo: string) =>
+    fetchWithAuth(`/api/reminders/delivery-approval/status?offerNo=${encodeURIComponent(offerNo)}`),
 
   // QC Pre-Production Site Inspection
   generateQCPdf: async (data: any): Promise<Blob> => {

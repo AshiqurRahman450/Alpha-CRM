@@ -221,6 +221,48 @@ export async function startServer() {
         console.warn('[Server] Notice initializing Admin Abeal:', abealInitErr.message);
       }
 
+      // Ensure Admin (Nithesh Babu) exists with full Admin privileges
+      try {
+        const hash = await bcrypt.hash('nithesh123', 10);
+        const nitheshUser = await User.findOne({
+          $or: [
+            { email: 'nithesh@alphaelevators.com' },
+            { email: 'nithesh@alphaelevators.in' },
+            { email: 'nitesh@alpha.com' },
+            { name: /nithesh/i },
+          ],
+        });
+        if (!nitheshUser) {
+          await User.create({
+            name: 'Nithesh Babu (Admin)',
+            email: 'nithesh@alphaelevators.com',
+            passwordHash: hash,
+            role: 'ADMIN',
+            phone: '+91 78100 91290',
+            isActive: true,
+          });
+          console.log('[Server] Created Admin user: Nithesh Babu (Admin) - nithesh@alphaelevators.com / nithesh123');
+        } else {
+          // Always ensure role is ADMIN and allow nithesh123 login
+          await User.updateOne(
+            { _id: nitheshUser._id },
+            {
+              $set: {
+                role: 'ADMIN',
+                name: 'Nithesh Babu (Admin)',
+                email: 'nithesh@alphaelevators.com',
+                passwordHash: hash,
+                phone: '+91 78100 91290',
+                isActive: true,
+              },
+            }
+          );
+          console.log('[Server] Verified Nithesh Babu role as ADMIN (nithesh@alphaelevators.com / nithesh123)');
+        }
+      } catch (nitheshInitErr: any) {
+        console.warn('[Server] Notice initializing Admin Nithesh Babu:', nitheshInitErr.message);
+      }
+
       // Ensure all 10 BDM users from login page exist with login credentials and pilot data
       try {
         await seedBdms(true);

@@ -2,7 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { QuotationData, buildPage6WarrantyParagraph, parseDeliveryDays } from '../../types/quotation';
-import { renderExactPdfPage, sanitizeProposalParagraphs, buildPage2LetterHtml, buildPage5WarrantyHtml } from './exactPdfTemplate';
+import {
+  renderExactPdfPage,
+  sanitizeProposalParagraphs,
+  buildPage2LetterHtml,
+  buildPage5WarrantyHtml,
+  buildPage5PaymentTermsHtml,
+  getClientSignatureHtml,
+} from './exactPdfTemplate';
 import { renderCirclePdfPage, sanitizeCircleParagraphs } from './circlePdfTemplate';
 import { Edit3, Save, RotateCcw, Check, X } from 'lucide-react';
 
@@ -250,8 +257,8 @@ export default function QuotationLivePdf({
       updated = updated.replace(/<div class="t c17" style="z-index:729;transform:matrix\(1,0,0,1,346\.53,364\.86\)[^"]*">/g, '<div class="t c17" style="z-index:729;transform:matrix(1,0,0,1,346.53,364.86);color:#1a3f2e !important;">');
     }
 
-    // Fix Page 5 Warranty & Delivery in savedPages
-    if (updated.includes('Lifetime- MOTOR WARRANTY') || updated.includes('Time of Material Delivery') || updated.includes('years service') || updated.includes('warranty-term-box')) {
+    // Fix Page 5 Warranty, Delivery, & Payment Terms in savedPages
+    if (pageNum === 5 || updated.includes('Lifetime- MOTOR WARRANTY') || updated.includes('Time of Material Delivery') || updated.includes('years service') || updated.includes('warranty-term-box') || updated.includes('payment-term-stage')) {
       const page5WarrantyHtml = buildPage5WarrantyHtml(data.warranty);
       const warrantyBoxRegex = /<div class="t c26[^"]*warranty-term-box[^"]*"[\s\S]*?(?:<!-- END_WARRANTY_BOX -->|<\/div>\s*<\/div>|<\/div>(?=\s*<\/p>|\s*<\/td>|\s*<div class="t c21"[^>]*>Time of Material Delivery))/;
       const warrantyCellRegex = /<div class="t c26" style="z-index:907;transform:matrix\(1,0,0,1,252\.41,682\.01\)[^"]*">[\s\S]*?(?:years service\.<\/div>|<div class="t c26" style="z-index:1048;transform:matrix\(1,0,0,1,249\.21,710\.81\)[^"]*">[\s\S]*?<\/div>)/;
@@ -266,6 +273,30 @@ export default function QuotationLivePdf({
       }
       if (data.deliveryTime) {
         updated = updated.replace(/\b\d+\s*days post confirmation on drawings and finishes\./, data.deliveryTime);
+      }
+      if (data.paymentTerms) {
+        const page5PaymentHtml = buildPage5PaymentTermsHtml(data.paymentTerms);
+        const paymentCellRegex = /<td role="cell" style="display:contents">\s*<p style="display:contents">\s*<div class="t c29[^"]*" style="[^"]*758\.84px[^"]*">[\s\S]*?<\/p>\s*<\/td>/;
+        if (paymentCellRegex.test(updated)) {
+          updated = updated.replace(paymentCellRegex, page5PaymentHtml);
+        } else {
+          if (data.paymentTerms.booking) {
+            const bText = data.paymentTerms.booking.replace(/^[0-9.]+\s*/, '');
+            updated = updated.replace(/\b1\.\s*Booking\s*[–-]\s*\d+%/i, `1. ${bText}`)
+                             .replace(/\.\s*Booking\s*[–-]\s*\d+%/i, `. ${bText}`)
+                             .replace(/Booking\s*[–-]\s*\d+%/i, bText);
+          }
+          if (data.paymentTerms.production) {
+            const pText = data.paymentTerms.production.replace(/^[0-9.]+\s*/, '');
+            updated = updated.replace(/\b2\.\s*Production\s*Amount\s*[–-]\s*\d+%/i, `2. ${pText}`)
+                             .replace(/Production\s*Amount\s*[–-]\s*\d+%/i, pText);
+          }
+          if (data.paymentTerms.readiness) {
+            const rText = data.paymentTerms.readiness.replace(/^[0-9.]+\s*/, '');
+            updated = updated.replace(/\b3\.\s*Readiness\s*notification\s*[–-]\s*\d+%/i, `3. ${rText}`)
+                             .replace(/Readiness\s*notification\s*[–-]\s*\d+%/i, rText);
+          }
+        }
       }
     }
 
@@ -506,16 +537,43 @@ export default function QuotationLivePdf({
       return renderExactPdfPage(9, data);
     }
 
-    // Ensure Client Signature block is present on pages 3 to 8 even for cached/saved custom HTML
-    if (pageNum && pageNum >= 3 && pageNum <= 8 && updated && !updated.includes('client-signature-box')) {
-      const clientSignBlock = '<div class="client-signature-box" style="position:absolute;right:45px;bottom:92px;z-index:9000;text-align:center;pointer-events:auto;"><div style="width:150px;border-bottom:1.5px solid #0e4b31;margin-bottom:4px;"></div><span style="font-family:\'f2\',sans-serif;font-size:10px;font-weight:bold;color:#0e4b31;letter-spacing:0.5px;text-transform:uppercase;">Client Signature</span></div>';
-      const lastCloseDiv = updated.lastIndexOf('</div>');
-      if (lastCloseDiv !== -1) {
-        updated = updated.substring(0, lastCloseDiv) + clientSignBlock + updated.substring(lastCloseDiv);
+    // Ensure Client Signature block reflects the digital signature on Pages 3 to 8 and Page 10
+    // Explicitly remove corner Client Signature block from Pages 1, 2, 9, and 11
+    if (pageNum && ((pageNum >= 3 && pageNum <= 8) || pageNum === 10) && updated) {
+      const clientSignBlock = getClientSignatureHtml(data.clientSignature);
+      const clientBoxRegex = /<div class="client-signature-box"[\s\S]*?<\/span>\s*<\/div>/;
+      if (clientBoxRegex.test(updated)) {
+        updated = updated.replace(clientBoxRegex, clientSignBlock);
+      } else {
+        const lastCloseDiv = updated.lastIndexOf('</div>');
+        if (lastCloseDiv !== -1) {
+          updated = updated.substring(0, lastCloseDiv) + clientSignBlock + updated.substring(lastCloseDiv);
+        }
       }
-    } else if (pageNum === 9 && updated && updated.includes('client-signature-box')) {
-      // Remove any previously saved client signature on Page 9
-      updated = updated.replace(/\s*<div class="client-signature-box"[\s\S]*?<\/span>\s*<\/div>\s*/g, '');
+    } else if (pageNum && (pageNum === 1 || pageNum === 2 || pageNum === 9 || pageNum === 11) && updated) {
+      updated = updated.replace(/<div class="client-signature-box"[\s\S]*?<\/div>/g, '');
+    }
+
+    // Page 5 MRP Price strikethrough exact center alignment
+    if (pageNum === 5 && updated) {
+      updated = updated.replace(
+        /<div style="text-decoration:line-through;color:#718096;font-size:10px;">MRP:\s*([^<]+)<\/div>/g,
+        '<div style="position:relative;display:inline-block;color:#718096;font-size:10px;line-height:13px;"><span style="text-decoration:none;">MRP: $1</span><span class="mrp-strikethrough-line" style="position:absolute;left:0;width:100%;top:50%;height:1.5px;background:#718096;transform:translateY(-50%);pointer-events:none;"></span></div>'
+      );
+    }
+
+    // Page 9 main acceptance digital signature injection / cleanup (centered inside the signature cell)
+    if (pageNum === 9 && updated) {
+      if (data.clientSignature) {
+        const page9ClientSig = `<div class="page9-client-digital-sign" style="position:absolute;left:110px;top:923px;width:255px;height:48px;display:flex;align-items:center;justify-content:center;z-index:9500;pointer-events:none;"><img src="${data.clientSignature}" style="max-height:44px;max-width:240px;object-fit:contain;margin:auto;display:block;" alt="Client Signature" /></div>`;
+        if (!updated.includes('page9-client-digital-sign')) {
+          updated = updated.replace(/(<div class="t c32" style="z-index:5260;transform:matrix\(1,0,0,1,42\.66,946\.4\)">Signature:<\/div>)/, `$1\n${page9ClientSig}`);
+        } else {
+          updated = updated.replace(/<div class="page9-client-digital-sign"[\s\S]*?<\/div>/, page9ClientSig);
+        }
+      } else if (updated.includes('page9-client-digital-sign')) {
+        updated = updated.replace(/<div class="page9-client-digital-sign"[\s\S]*?<\/div>/g, '');
+      }
     } else if (pageNum === 10 && updated) {
       // Remove last empty signature box on Page 10 if present in cached/saved drafts
       if (updated.includes('Client & Authorized Representative Confirmation') || updated.includes('Client &amp; Authorized Representative Confirmation') || updated.includes('Verified & Confirmed by Client:')) {
@@ -838,9 +896,9 @@ export default function QuotationLivePdf({
               baseHtml = renderExactPdfPage(1, data);
             } else if (pageNum === 3 && (!isEditing || !baseHtml || baseHtml.includes('490.24,806.2') || !baseHtml.includes('color:#1a3f2e'))) {
               baseHtml = renderExactPdfPage(2, data);
-            } else if (pageNum === 5 && (!isEditing || !baseHtml || !baseHtml.includes('warranty-term-box') || !baseHtml.includes('height:48px') || !baseHtml.includes('page5-accessories-list') || !baseHtml.includes('Time of Material Delivery'))) {
+            } else if (pageNum === 5 && !isEditing) {
               baseHtml = renderExactPdfPage(4, data);
-            } else if (pageNum === 6 && (!isEditing || !baseHtml || !baseHtml.includes('customer-scope-underline-remover'))) {
+            } else if (pageNum === 6 && !isEditing) {
               baseHtml = renderExactPdfPage(5, data);
             } else if (pageNum === 10 && (!isEditing || !baseHtml || baseHtml.includes('Our Presence in INDIA') || baseHtml.includes('#0e4b31'))) {
               baseHtml = renderExactPdfPage(pageIdx, data);
