@@ -26,17 +26,21 @@ export const STAGES_ORDER = [
   { key: 'DESIGN', label: 'Drawing and Cabin', icon: Sparkles },
   { key: 'CUSTOMER_APPROVAL', label: 'Drawing and Cabin Design Approval', icon: CheckCircle2 },
   { key: 'ENGINEERING', label: 'Production Payment', icon: Wrench },
-  { key: 'MANUFACTURING', label: 'Approval Drawing to factory', icon: Wrench },
-  { key: 'QUALITY_CHECK', label: 'Rediness Payment', icon: PackageCheck },
+  { key: 'MANUFACTURING', label: 'Production in progress', icon: Wrench },
+  { key: 'QUALITY_CHECK', label: 'Readiness Payment', icon: PackageCheck },
+  { key: 'DISPATCH', label: 'Material Dispatched', icon: Truck },
+  { key: 'MATERIAL_IN_TRANSIT', label: 'Material in transit', icon: ArrowRight },
   { key: 'DELIVERY', label: 'Pre Site Visit', icon: ClipboardCheck },
-  { key: 'DISPATCH', label: 'Expected Delivery', icon: Truck },
-  { key: 'INSTALLATION', label: 'Installation Start Date', icon: Wrench },
-  { key: 'TESTING', label: 'Handover', icon: CheckCircle2 },
+  { key: 'MATERIAL_DELIVERY', label: 'Material Delivery', icon: Truck },
+  { key: 'INSTALLATION', label: 'Installation in Progress', icon: Wrench },
+  { key: 'TESTING', label: 'Handover - Payment Pending', icon: Clock },
   { key: 'COMPLETED', label: 'Project Completed', icon: CheckCheck },
 ];
 
 export function formatProjectStatus(status: string): string {
   if (!status) return 'Unknown';
+  if (status === 'PRODUCTION_IN_PROGRESS') return 'Production in progress';
+  if (status === 'MATERIAL_DISPATCHED') return 'Material Dispatched';
   const stage = STAGES_ORDER.find((s) => s.key === status);
   if (stage) return stage.label;
   return status.replace(/_/g, ' ');
@@ -138,7 +142,7 @@ export default function Timeline({
       }
       setShowVrlAlertModal(false);
     } catch (err: any) {
-      setVrlInputError(err?.message || 'Failed to update Expected Delivery stage');
+      setVrlInputError(err?.message || 'Failed to update Material Dispatched stage');
     } finally {
       setIsSubmittingDispatch(false);
     }
@@ -201,23 +205,27 @@ export default function Timeline({
       const d2_design = addDays(siteVisitDate, 4);
       const d3_approval = addDays(new Date(d2_design), 4);
       const d4_production = addDays(new Date(d3_approval), 3);
-      const d5_factory = addDays(new Date(d4_production), 1);
-      const d6_readiness = addMonths(new Date(d5_factory), 1);
-      const d7_preSite = addDays(new Date(d6_readiness), 3); // DELIVERY
-      const d8_expected = addDays(new Date(d7_preSite), 4); // DISPATCH
-      const d9_install = addDays(new Date(d8_expected), 7);
-      const d10_handover = addMonths(new Date(d9_install), 1);
+      const d5_prodProgress = addDays(new Date(d4_production), 1);
+      const d6_readiness = addMonths(new Date(d5_prodProgress), 1);
+      const d7_dispatch = addDays(new Date(d6_readiness), 2);
+      const d8_transit = addDays(new Date(d7_dispatch), 2);
+      const d9_preSite = addDays(new Date(d8_transit), 2);
+      const d10_delivery = addDays(new Date(d9_preSite), 2);
+      const d11_install = addDays(new Date(d10_delivery), 3);
+      const d12_handover = addMonths(new Date(d11_install), 1);
 
       const updates = [
         { key: 'DESIGN', val: d2_design },
         { key: 'CUSTOMER_APPROVAL', val: d3_approval },
         { key: 'ENGINEERING', val: d4_production },
-        { key: 'MANUFACTURING', val: d5_factory },
+        { key: 'MANUFACTURING', val: d5_prodProgress },
         { key: 'QUALITY_CHECK', val: d6_readiness },
-        { key: 'DELIVERY', val: d7_preSite },
-        { key: 'DISPATCH', val: d8_expected },
-        { key: 'INSTALLATION', val: d9_install },
-        { key: 'TESTING', val: d10_handover },
+        { key: 'DISPATCH', val: d7_dispatch },
+        { key: 'MATERIAL_IN_TRANSIT', val: d8_transit },
+        { key: 'DELIVERY', val: d9_preSite },
+        { key: 'MATERIAL_DELIVERY', val: d10_delivery },
+        { key: 'INSTALLATION', val: d11_install },
+        { key: 'TESTING', val: d12_handover },
       ];
 
       const bulkUpdates = updates
@@ -269,8 +277,8 @@ export default function Timeline({
                 key={stage.key}
                 onClick={() => {
                   if (canEditThisStage && onStatusChange) {
-                    if (stage.key === 'DISPATCH') {
-                      // Expected Delivery stage: first get the VRL Tracking No through alert pop-up
+                    if (stage.key === 'DISPATCH' || stage.key === 'MATERIAL_DISPATCHED') {
+                      // Material Dispatched stage: first get the VRL Tracking No through alert pop-up
                       setVrlTrackingInput(vrlLrNumber || trackingNumber || '');
                       setVrlInputError('');
                       setShowVrlAlertModal(true);
@@ -352,7 +360,7 @@ export default function Timeline({
                           ? 'bg-amber-500 text-white border-amber-600 ring-2 ring-amber-200'
                           : 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'
                       }`}
-                      title="Double-tap or click to reveal 11-Stage Installation Programme (Installation Start Date ➔ Handover)"
+                      title="Double-tap or click to reveal 11-Stage Installation Programme (Installation in Progress ➔ Handover - Payment Pending)"
                     >
                       <span>⚡ 11 Stages</span>
                       <span>{showInstallationTable ? '▲' : '▼'}</span>
@@ -437,14 +445,14 @@ export default function Timeline({
         </div>
       </div>
 
-      {/* Intermediate Stages Table between Installation Start Date and Handover */}
+      {/* Intermediate Stages Table between Installation in Progress and Handover - Payment Pending */}
       {showInstallationTable && projectId && (
         <div className="mt-8 pt-6 border-t border-slate-200/90">
           <div className="flex items-center justify-between mb-4 px-1">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
               <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                Intermediate Stages: Installation Start Date ➔ Handover (11 Stages Programme)
+                Intermediate Stages: Installation in Progress ➔ Handover - Payment Pending (11 Stages Programme)
               </h4>
             </div>
             <button
@@ -489,7 +497,7 @@ export default function Timeline({
               <div className="flex items-center justify-between">
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md text-[11px] font-black tracking-wider uppercase">
                   <AlertTriangle className="w-3.5 h-3.5" />
-                  <span>Action Required: Expected Delivery</span>
+                  <span>Action Required: Material Dispatched</span>
                 </div>
                 <button
                   type="button"
@@ -536,7 +544,7 @@ export default function Timeline({
 
               {/* Informational context */}
               <p className="text-xs text-slate-600 leading-relaxed">
-                When advancing to <strong className="text-slate-900">Expected Delivery</strong>, elevator materials are dispatched via <strong className="text-slate-900">VRL Logistics</strong>. Please enter the tracking number below to attach it to this project and dispatch the approved WhatsApp template to the group.
+                When advancing to <strong className="text-slate-900">Material Dispatched</strong>, elevator materials are dispatched via <strong className="text-slate-900">VRL Logistics</strong>. Please enter the tracking number below to attach it to this project and dispatch the approved WhatsApp template to the group.
               </p>
 
               {/* Input Field */}

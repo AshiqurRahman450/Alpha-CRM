@@ -343,7 +343,7 @@ export default function InstallationProgrammeTable({
               Stage Installation Programme
             </h2>
             <p className="text-xs text-sky-100/80">
-              Installation Start Date ➔ Handover sequential execution • Auto-cascades subsequent stages
+              Installation in Progress ➔ Handover - Payment Pending sequential execution • Auto-cascades subsequent stages
             </p>
           </div>
         </div>
@@ -810,7 +810,7 @@ export default function InstallationProgrammeTable({
                 <div>
                   <label className="block text-xs font-bold text-slate-800 mb-1.5 flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                    <span>Installation Start Date (Stage 1):</span>
+                    <span>Installation in Progress (Start Date):</span>
                   </label>
                   <input
                     type="date"

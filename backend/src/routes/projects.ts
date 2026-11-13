@@ -622,12 +622,14 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
       { key: 'DESIGN', label: 'Drawing and Cabin' },
       { key: 'CUSTOMER_APPROVAL', label: 'Drawing and Cabin Design Approval' },
       { key: 'ENGINEERING', label: 'Production Payment' },
-      { key: 'MANUFACTURING', label: 'Approval Drawing to factory' },
-      { key: 'QUALITY_CHECK', label: 'Rediness Payment' },
+      { key: 'MANUFACTURING', label: 'Production in progress' },
+      { key: 'QUALITY_CHECK', label: 'Readiness Payment' },
+      { key: 'DISPATCH', label: 'Material Dispatched' },
+      { key: 'MATERIAL_IN_TRANSIT', label: 'Material in transit' },
       { key: 'DELIVERY', label: 'Pre Site Visit' },
-      { key: 'DISPATCH', label: 'Expected Delivery' },
-      { key: 'INSTALLATION', label: 'Installation Start Date' },
-      { key: 'TESTING', label: 'Handover' },
+      { key: 'MATERIAL_DELIVERY', label: 'Material Delivery' },
+      { key: 'INSTALLATION', label: 'Installation in Progress' },
+      { key: 'TESTING', label: 'Handover - Payment Pending' },
       { key: 'COMPLETED', label: 'Project Completed' },
     ];
 
@@ -890,10 +892,10 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
       type: 'STATUS_CHANGE',
       description: status === 'CUSTOMER_APPROVAL'
         ? `Project status updated to Drawing and Cabin Design Approval. Production timeline set to ${project.productionTimelineDays || 60} days. ${notes ? `Note: ${notes}` : ''}`
-        : status === 'MANUFACTURING'
-          ? `Project status updated to MANUFACTURING (Approval Drawing to factory). Stage 1 Production Update scheduled in ${intervalDays <= 0.003 ? '2 minutes' : intervalDays <= 0.025 ? '30 minutes' : intervalDays < 0.1 ? '1 hour' : intervalDays >= 1.24 && intervalDays <= 1.26 ? '30 hours' : `${intervalDays} days`}.`
-          : status === 'DISPATCH' && project.vrlLrNumber
-            ? `Project status updated to DISPATCH (Expected Delivery). VRL Tracking No: ${project.vrlLrNumber}. ${notes ? `Note: ${notes}` : ''}`
+        : (status === 'MANUFACTURING' || status === 'PRODUCTION_IN_PROGRESS')
+          ? `Project status updated to Production in progress. Stage 1 Production Update scheduled in ${intervalDays <= 0.003 ? '2 minutes' : intervalDays <= 0.025 ? '30 minutes' : intervalDays < 0.1 ? '1 hour' : intervalDays >= 1.24 && intervalDays <= 1.26 ? '30 hours' : `${intervalDays} days`}.`
+          : (status === 'DISPATCH' || status === 'MATERIAL_DISPATCHED') && project.vrlLrNumber
+            ? `Project status updated to Material Dispatched. VRL Tracking No: ${project.vrlLrNumber}. ${notes ? `Note: ${notes}` : ''}`
             : `Project status updated from ${prevStatus} to ${status}. ${notes ? `Note: ${notes}` : ''}`,
       userId: req.user?._id,
       userName: req.user?.name,
@@ -901,12 +903,12 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
     });
 
     // Milestone update messages directly inside WhatsApp group via Web Bot!
-    // Note: MANUFACTURING does not send immediate message because Stage 1 is sent after intervalDays
+    // Note: Production in progress does not send immediate message because Stage 1 is sent after intervalDays
     let groupMessageDispatched = false;
     let groupMessageError: string | null = null;
     const inviteTarget = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
 
-    if (inviteTarget && status !== 'MANUFACTURING') {
+    if (inviteTarget && status !== 'MANUFACTURING' && status !== 'PRODUCTION_IN_PROGRESS') {
       try {
         if (status === 'CUSTOMER_APPROVAL') {
           // Drawing and Cabin Approved special workflow:
@@ -1046,12 +1048,12 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
     if (status === 'CUSTOMER_APPROVAL') {
       const days = project.productionTimelineDays || 60;
       resultMsg = `Drawing & Cabin Approved! 2 WhatsApp messages sent to group (${days} days delivery timeline) and follow-up scheduled for 2 days later.`;
-    } else if (status === 'MANUFACTURING') {
-      resultMsg = `Stage updated to Approval Drawing to factory. Automated Stage 1 Production Update scheduled in ${intervalDays <= 0.003 ? '2 minutes' : intervalDays <= 0.025 ? '30 minutes' : intervalDays < 0.1 ? '1 hour' : intervalDays >= 1.24 && intervalDays <= 1.26 ? '30 hours' : `${intervalDays} days`}.`;
-    } else if (status === 'DISPATCH' && project.vrlLrNumber && groupMessageDispatched) {
-      resultMsg = `Stage updated to Expected Delivery! VRL Tracking No (${project.vrlLrNumber}) attached and template message posted directly inside WhatsApp group!`;
-    } else if (status === 'DISPATCH' && project.vrlLrNumber) {
-      resultMsg = `Stage updated to Expected Delivery with VRL Tracking No: ${project.vrlLrNumber}.`;
+    } else if (status === 'MANUFACTURING' || status === 'PRODUCTION_IN_PROGRESS') {
+      resultMsg = `Stage updated to Production in progress. Automated Stage 1 Production Update scheduled in ${intervalDays <= 0.003 ? '2 minutes' : intervalDays <= 0.025 ? '30 minutes' : intervalDays < 0.1 ? '1 hour' : intervalDays >= 1.24 && intervalDays <= 1.26 ? '30 hours' : `${intervalDays} days`}.`;
+    } else if ((status === 'DISPATCH' || status === 'MATERIAL_DISPATCHED') && project.vrlLrNumber && groupMessageDispatched) {
+      resultMsg = `Stage updated to Material Dispatched! VRL Tracking No (${project.vrlLrNumber}) attached and template message posted directly inside WhatsApp group!`;
+    } else if ((status === 'DISPATCH' || status === 'MATERIAL_DISPATCHED') && project.vrlLrNumber) {
+      resultMsg = `Stage updated to Material Dispatched with VRL Tracking No: ${project.vrlLrNumber}.`;
     } else if (groupMessageDispatched && bdmNotified) {
       resultMsg = `Stage updated to ${status}! Update posted in WhatsApp group & 1-to-1 alert sent to BDM via ${bdmNotificationResult?.provider || 'WhatsApp'}.`;
     } else if (groupMessageDispatched) {

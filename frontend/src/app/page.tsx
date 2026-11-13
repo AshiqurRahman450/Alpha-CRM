@@ -39,15 +39,17 @@ const STAGES_CONFIG = [
   { key: 'PAYMENT_RECEIVED', step: 1, label: 'Advance Payment Received', icon: CheckCircle2, bg: 'bg-emerald-50/70', border: 'border-emerald-200', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-800' },
   { key: 'SITE_MEASUREMENT', step: 2, label: 'Site Visit', icon: ClipboardCheck, bg: 'bg-blue-50/70', border: 'border-blue-200', text: 'text-blue-700', badge: 'bg-blue-100 text-blue-800' },
   { key: 'DESIGN', step: 3, label: 'Drawing and Cabin', icon: Sparkles, bg: 'bg-indigo-50/70', border: 'border-indigo-200', text: 'text-indigo-700', badge: 'bg-indigo-100 text-indigo-800' },
-  { key: 'CUSTOMER_APPROVAL', step: 4, label: 'Drawing & Cabin Approval', icon: CheckCircle2, bg: 'bg-sky-50/70', border: 'border-sky-200', text: 'text-sky-700', badge: 'bg-sky-100 text-sky-800' },
+  { key: 'CUSTOMER_APPROVAL', step: 4, label: 'Drawing and Cabin Design Approval', icon: CheckCircle2, bg: 'bg-sky-50/70', border: 'border-sky-200', text: 'text-sky-700', badge: 'bg-sky-100 text-sky-800' },
   { key: 'ENGINEERING', step: 5, label: 'Production Payment', icon: IndianRupee, bg: 'bg-amber-50/70', border: 'border-amber-200', text: 'text-amber-700', badge: 'bg-amber-100 text-amber-800' },
-  { key: 'MANUFACTURING', step: 6, label: 'Approval Drawing to factory', icon: Wrench, bg: 'bg-orange-50/70', border: 'border-orange-200', text: 'text-orange-700', badge: 'bg-orange-100 text-orange-800' },
+  { key: 'MANUFACTURING', step: 6, label: 'Production in progress', icon: Wrench, bg: 'bg-orange-50/70', border: 'border-orange-200', text: 'text-orange-700', badge: 'bg-orange-100 text-orange-800' },
   { key: 'QUALITY_CHECK', step: 7, label: 'Readiness Payment', icon: PackageCheck, bg: 'bg-purple-50/70', border: 'border-purple-200', text: 'text-purple-700', badge: 'bg-purple-100 text-purple-800' },
-  { key: 'DELIVERY', step: 8, label: 'Pre Site Visit', icon: ClipboardCheck, bg: 'bg-teal-50/70', border: 'border-teal-200', text: 'text-teal-700', badge: 'bg-teal-100 text-teal-800' },
-  { key: 'DISPATCH', step: 9, label: 'Expected Delivery', icon: Truck, bg: 'bg-cyan-50/70', border: 'border-cyan-200', text: 'text-cyan-700', badge: 'bg-cyan-100 text-cyan-800' },
-  { key: 'INSTALLATION', step: 10, label: 'Installation Start Date', icon: Wrench, bg: 'bg-rose-50/70', border: 'border-rose-200', text: 'text-rose-700', badge: 'bg-rose-100 text-rose-800' },
-  { key: 'TESTING', step: 11, label: 'Handover', icon: Handshake, bg: 'bg-amber-50/70', border: 'border-amber-200', text: 'text-amber-700', badge: 'bg-amber-100 text-amber-800' },
-  { key: 'COMPLETED', step: 12, label: 'Project Completed', icon: CheckCheck, bg: 'bg-emerald-50/70', border: 'border-emerald-200', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-800' },
+  { key: 'DISPATCH', step: 8, label: 'Material Dispatched', icon: Truck, bg: 'bg-blue-50/70', border: 'border-blue-200', text: 'text-blue-700', badge: 'bg-blue-100 text-blue-800' },
+  { key: 'MATERIAL_IN_TRANSIT', step: 9, label: 'Material in transit', icon: Truck, bg: 'bg-cyan-50/70', border: 'border-cyan-200', text: 'text-cyan-700', badge: 'bg-cyan-100 text-cyan-800' },
+  { key: 'DELIVERY', step: 10, label: 'Pre Site Visit', icon: ClipboardCheck, bg: 'bg-teal-50/70', border: 'border-teal-200', text: 'text-teal-700', badge: 'bg-teal-100 text-teal-800' },
+  { key: 'MATERIAL_DELIVERY', step: 11, label: 'Material Delivery', icon: Truck, bg: 'bg-lime-50/70', border: 'border-lime-200', text: 'text-lime-700', badge: 'bg-lime-100 text-lime-800' },
+  { key: 'INSTALLATION', step: 12, label: 'Installation in Progress', icon: Wrench, bg: 'bg-rose-50/70', border: 'border-rose-200', text: 'text-rose-700', badge: 'bg-rose-100 text-rose-800' },
+  { key: 'TESTING', step: 13, label: 'Handover - Payment Pending', icon: Handshake, bg: 'bg-amber-50/70', border: 'border-amber-200', text: 'text-amber-700', badge: 'bg-amber-100 text-amber-800' },
+  { key: 'COMPLETED', step: 14, label: 'Project Completed', icon: CheckCheck, bg: 'bg-emerald-50/70', border: 'border-emerald-200', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-800' },
 ];
 
 export default function DashboardPage() {
@@ -768,7 +770,7 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
             {STAGES_CONFIG.map((stage) => {
               const count = data?.statusDistribution?.[stage.key] ?? 0;
               const Icon = stage.icon;

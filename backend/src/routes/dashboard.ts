@@ -49,8 +49,8 @@ dashboardRouter.get('/', async (req: AuthRequest, res: Response) => {
       Project.countDocuments({ ...bdmFilter }),
       Project.countDocuments({ ...bdmFilter, projectStatus: { $nin: ['COMPLETED', 'CANCELLED'] } }),
       Project.countDocuments({ ...bdmFilter, paymentStatus: { $in: ['PENDING', 'PARTIAL_PAID'] } }),
-      Project.countDocuments({ ...bdmFilter, projectStatus: 'MANUFACTURING' }),
-      Project.countDocuments({ ...bdmFilter, projectStatus: { $in: ['QUALITY_CHECK', 'DISPATCH', 'DELIVERY'] } }),
+      Project.countDocuments({ ...bdmFilter, projectStatus: { $in: ['MANUFACTURING', 'PRODUCTION_IN_PROGRESS'] } }),
+      Project.countDocuments({ ...bdmFilter, projectStatus: { $in: ['QUALITY_CHECK', 'DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY'] } }),
       Project.countDocuments({ ...bdmFilter, projectStatus: 'INSTALLATION' }),
       Project.countDocuments({ ...bdmFilter, projectStatus: 'TESTING' }),
       WhatsAppMessage.countDocuments({ status: { $in: ['SENT', 'DELIVERED', 'READ'] } }),
@@ -107,7 +107,7 @@ dashboardRouter.get('/', async (req: AuthRequest, res: Response) => {
       nextUpdateAt: { $gt: endOfTomorrow, $lte: in7Days },
     }).populate('customerId');
 
-    // 4. Status distribution (ensuring all 12 stages are present with count)
+    // 4. Status distribution (ensuring all 14 pipeline stages are present with count)
     const ALL_STAGES = [
       'PAYMENT_RECEIVED',
       'SITE_MEASUREMENT',
@@ -115,9 +115,13 @@ dashboardRouter.get('/', async (req: AuthRequest, res: Response) => {
       'CUSTOMER_APPROVAL',
       'ENGINEERING',
       'MANUFACTURING',
+      'PRODUCTION_IN_PROGRESS',
       'QUALITY_CHECK',
-      'DELIVERY',
       'DISPATCH',
+      'MATERIAL_DISPATCHED',
+      'MATERIAL_IN_TRANSIT',
+      'DELIVERY',
+      'MATERIAL_DELIVERY',
       'INSTALLATION',
       'TESTING',
       'COMPLETED',
@@ -137,6 +141,15 @@ dashboardRouter.get('/', async (req: AuthRequest, res: Response) => {
         statusDistribution[item._id] = item.count;
       }
     }
+
+    // Merge legacy aliases so counts are unified across views
+    const mfgCount = (statusDistribution['MANUFACTURING'] || 0) + (statusDistribution['PRODUCTION_IN_PROGRESS'] || 0);
+    statusDistribution['MANUFACTURING'] = mfgCount;
+    statusDistribution['PRODUCTION_IN_PROGRESS'] = mfgCount;
+
+    const dispatchCount = (statusDistribution['DISPATCH'] || 0) + (statusDistribution['MATERIAL_DISPATCHED'] || 0);
+    statusDistribution['DISPATCH'] = dispatchCount;
+    statusDistribution['MATERIAL_DISPATCHED'] = dispatchCount;
 
     // 5. Recent WhatsApp Communication
     const recentMessages = await WhatsAppMessage.find()
@@ -558,12 +571,16 @@ dashboardRouter.get('/card-items', async (req: AuthRequest, res: Response) => {
           DESIGN: 'Drawing and Cabin',
           CUSTOMER_APPROVAL: 'Drawing and Cabin Design Approval',
           ENGINEERING: 'Production Payment',
-          MANUFACTURING: 'Approval Drawing to factory',
-          QUALITY_CHECK: 'Rediness Payment',
+          MANUFACTURING: 'Production in progress',
+          PRODUCTION_IN_PROGRESS: 'Production in progress',
+          QUALITY_CHECK: 'Readiness Payment',
+          DISPATCH: 'Material Dispatched',
+          MATERIAL_DISPATCHED: 'Material Dispatched',
+          MATERIAL_IN_TRANSIT: 'Material in transit',
           DELIVERY: 'Pre Site Visit',
-          DISPATCH: 'Expected Delivery',
-          INSTALLATION: 'Installation Start Date',
-          TESTING: 'Handover',
+          MATERIAL_DELIVERY: 'Material Delivery',
+          INSTALLATION: 'Installation in Progress',
+          TESTING: 'Handover - Payment Pending',
           COMPLETED: 'Project Completed',
           ON_HOLD: 'On Hold',
           CANCELLED: 'Cancelled',
@@ -572,9 +589,16 @@ dashboardRouter.get('/card-items', async (req: AuthRequest, res: Response) => {
         title = `${stageLabel} Projects`;
         subtitle = `Elevator projects currently situated in ${stageLabel} stage`;
         itemType = 'project';
+        let statusQuery: any = stageStr;
+        if (stageStr === 'MANUFACTURING' || stageStr === 'PRODUCTION_IN_PROGRESS') {
+          statusQuery = { $in: ['MANUFACTURING', 'PRODUCTION_IN_PROGRESS'] };
+        } else if (stageStr === 'DISPATCH' || stageStr === 'MATERIAL_DISPATCHED') {
+          statusQuery = { $in: ['DISPATCH', 'MATERIAL_DISPATCHED'] };
+        }
+
         const projects = await Project.find({
           ...bdmFilter,
-          projectStatus: stageStr,
+          projectStatus: statusQuery,
         })
           .populate('customerId')
           .sort({ createdAt: -1 });

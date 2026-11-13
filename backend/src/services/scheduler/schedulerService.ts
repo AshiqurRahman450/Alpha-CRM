@@ -47,11 +47,15 @@ export const STAGE_TEMPLATE_MAP: Record<string, string> = {
   CUSTOMER_APPROVAL: 'DRAWING_CABIN_APPROVAL_REMINDER',
   ENGINEERING: 'PRODUCTION_PAYMENT_RECEIVED',
   MANUFACTURING: 'PRODUCTION_UPDATE_STAGE_1',
+  PRODUCTION_IN_PROGRESS: 'PRODUCTION_UPDATE_STAGE_1',
   QUALITY_CHECK: 'READINESS_PAYMENT',
-  DELIVERY: 'PRE_INSTALLATION_SITE_VISIT_PM',
   DISPATCH: 'MATERIAL_DISPATCHED_PM',
-  INSTALLATION: 'INSTALLATION_TEAM_ARRIVAL_PM',
-  TESTING: 'HAND_OVER_PM',
+  MATERIAL_DISPATCHED: 'MATERIAL_DISPATCHED_PM',
+  MATERIAL_IN_TRANSIT: 'MATERIAL_IN_TRANSIT',
+  DELIVERY: 'PRE_INSTALLATION_SITE_VISIT_PM',
+  MATERIAL_DELIVERY: 'MATERIAL_UNLOADING',
+  INSTALLATION: 'INSTALLATION_IN_PROGRESS',
+  TESTING: 'HAND_OVER_PAYMENT_PENDING',
   COMPLETED: 'HAND_OVER_PM',
 };
 
@@ -61,12 +65,16 @@ export const STAGE_NEXT_MILESTONE_MAP: Record<string, string> = {
   SITE_MEASUREMENT: 'Drawing and Cabin',
   DESIGN: 'Drawing and Cabin Design Approval',
   CUSTOMER_APPROVAL: 'Production Payment',
-  ENGINEERING: 'Approval Drawing to factory',
-  MANUFACTURING: 'Rediness Payment',
-  QUALITY_CHECK: 'Pre Site Visit',
-  DELIVERY: 'Expected Delivery',
-  DISPATCH: 'Installation Start Date',
-  INSTALLATION: 'Handover',
+  ENGINEERING: 'Production in progress',
+  MANUFACTURING: 'Readiness Payment',
+  PRODUCTION_IN_PROGRESS: 'Readiness Payment',
+  QUALITY_CHECK: 'Material Dispatched',
+  DISPATCH: 'Material in transit',
+  MATERIAL_DISPATCHED: 'Material in transit',
+  MATERIAL_IN_TRANSIT: 'Pre Site Visit',
+  DELIVERY: 'Material Delivery',
+  MATERIAL_DELIVERY: 'Installation in Progress',
+  INSTALLATION: 'Handover - Payment Pending',
   TESTING: 'Project Completed',
   COMPLETED: 'Project Completed',
 };
@@ -266,6 +274,15 @@ Note: Kindly ensure proper space and access for safe unloading and material stor
 Regards,
 Alpha Elevators Team`,
 
+  MATERIAL_IN_TRANSIT: `Dear Sir/Madam,
+
+Your elevator material is currently in transit via VRL Logistics.
+VRL Tracking No.: [Tracking Number]
+The consignment is on schedule. Our site team will contact you shortly to coordinate the site arrival and unloading.
+
+Regards,
+Alpha Elevators Team`,
+
   PRE_INSTALLATION_SITE_VISIT_PM: `Dear Sir/Madam,
 
 Our technical team will visit the site for a pre-installation inspection to verify site readiness and installation requirements.
@@ -288,9 +305,25 @@ Our installation team has arrived at the site and will commence the elevator ins
 Regards,
 Alpha Elevators Team`,
 
+  INSTALLATION_IN_PROGRESS: `Dear Sir/Madam,
+
+Elevator installation is currently in progress at your site. Our engineering crew is executing the erection, rail alignment, and mechanical assembly as per strict quality norms.
+We will keep you informed on each milestone.
+
+Regards,
+Alpha Elevators Team`,
+
   INSTALLATION_FEEDBACK: `Dear Sir/Madam,
 
 As the installation work is in progress, kindly share your feedback or any concerns regarding the work. Our team will be happy to assist and address them promptly.
+
+Regards,
+Alpha Elevators Team`,
+
+  HAND_OVER_PAYMENT_PENDING: `Dear Sir/Madam,
+
+This is to inform you that the elevator installation and testing have been completed. The elevator is now ready for Handover.
+Kindly arrange the final pending payment to complete the handover sign-off and warranty certificate activation.
 
 Regards,
 Alpha Elevators Team`,
@@ -310,9 +343,13 @@ Alpha Elevators Team`,
 // Stages working after the Production Payment stage
 export const POST_PRODUCTION_PAYMENT_STAGES: string[] = [
   'MANUFACTURING',
+  'PRODUCTION_IN_PROGRESS',
   'QUALITY_CHECK',
-  'DELIVERY',
   'DISPATCH',
+  'MATERIAL_DISPATCHED',
+  'MATERIAL_IN_TRANSIT',
+  'DELIVERY',
+  'MATERIAL_DELIVERY',
   'INSTALLATION',
   'TESTING',
 ];
@@ -330,7 +367,7 @@ export function generateProjectUpdateText(
   if (!templateKey) {
     if (status === 'ENGINEERING') {
       templateKey = 'PRODUCTION_PAYMENT_RECEIVED';
-    } else if (status === 'MANUFACTURING') {
+    } else if (status === 'MANUFACTURING' || status === 'PRODUCTION_IN_PROGRESS') {
       const pStage = project?.productionStage || 1;
       if (pStage === 2) {
         templateKey = 'PRODUCTION_UPDATE_STAGE_2';

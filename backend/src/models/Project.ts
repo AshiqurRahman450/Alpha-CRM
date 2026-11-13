@@ -7,9 +7,13 @@ export type ProjectStatus =
   | 'CUSTOMER_APPROVAL'
   | 'ENGINEERING'
   | 'MANUFACTURING'
+  | 'PRODUCTION_IN_PROGRESS'
   | 'QUALITY_CHECK'
   | 'DISPATCH'
+  | 'MATERIAL_DISPATCHED'
+  | 'MATERIAL_IN_TRANSIT'
   | 'DELIVERY'
+  | 'MATERIAL_DELIVERY'
   | 'INSTALLATION'
   | 'TESTING'
   | 'COMPLETED'
@@ -312,9 +316,13 @@ const ProjectSchema = new Schema<IProject>(
         'CUSTOMER_APPROVAL',
         'ENGINEERING',
         'MANUFACTURING',
+        'PRODUCTION_IN_PROGRESS',
         'QUALITY_CHECK',
         'DISPATCH',
+        'MATERIAL_DISPATCHED',
+        'MATERIAL_IN_TRANSIT',
         'DELIVERY',
+        'MATERIAL_DELIVERY',
         'INSTALLATION',
         'TESTING',
         'COMPLETED',
