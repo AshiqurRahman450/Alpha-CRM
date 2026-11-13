@@ -789,6 +789,12 @@ export default function QuotationCreatorPage() {
         }
         #p10 .c35, #p10 .c37 { color: #000000 !important; }
         #p0 .client-signature-box, #p1 .client-signature-box, #p8 .client-signature-box, #p10 .client-signature-box { display: none !important; }
+        ${isCircle ? `
+        .client-signature-box,
+        .circle-client-sign-p5 {
+          display: none !important;
+        }
+        ` : ''}
         .mrp-strikethrough-line {
           position: absolute !important;
           left: 0 !important;
@@ -799,6 +805,12 @@ export default function QuotationCreatorPage() {
           background: #718096 !important;
           pointer-events: none !important;
         }
+        ${isCircle ? `
+        .page::before {
+          display: none !important;
+          content: none !important;
+        }
+        ` : `
         .page::before {
           content: '';
           position: absolute;
@@ -816,6 +828,7 @@ export default function QuotationCreatorPage() {
           pointer-events: none;
           z-index: 5;
         }
+        `}
         .page:not(#p0):not(#p1):not(#p10)::after {
           content: '';
           position: absolute;

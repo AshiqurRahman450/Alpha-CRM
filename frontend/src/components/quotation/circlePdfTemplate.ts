@@ -1,6 +1,5 @@
 // 100% Faithful pdf2htmlEX 5-page Alpha Circle Lift Presentation Template
 import { QuotationData, parseDeliveryDays } from '../../types/quotation';
-import { getClientSignatureHtml } from './exactPdfTemplate';
 
 export const CIRCLE_PDF_PAGES_RAW: string[] = [
   "<div class=\"page\" id=\"p0\">\n<img class=\"im\" src=\"/quotation/circle/img_0.jpg\" style=\"z-index:1;width:734.4px;height:1040px;transform:matrix(1,0,0,1,-7.2,0)\" alt=\"\">\n<p style=\"display:contents\">\n<div class=\"t c0\" style=\"z-index:2;transform:matrix(1,0,0,1,65.6,865.33)\">Name : Mr. Mohan George </div>\n</p>\n<p style=\"display:contents\">\n<div class=\"t c1\" style=\"z-index:26;transform:matrix(1,0,0,1,65.6,894.1)\">Project City : Chennai </div>\n<div class=\"t c0\" style=\"z-index:49;transform:matrix(1,0,0,1,65.6,922.96)\">Model : Alpha Circle Lift</div>\n</p>\n</div>",
@@ -12,7 +11,10 @@ export const CIRCLE_PDF_PAGES_RAW: string[] = [
 
 export function sanitizeCircleParagraphs(html: string, pageNum: number, data?: QuotationData): string {
   if (!html) return html;
-  return html;
+  let updated = html;
+  updated = updated.replace(/<div class="client-signature-box"[\s\S]*?<\/div>/g, '');
+  updated = updated.replace(/<div class="circle-client-sign-p5"[\s\S]*?<\/div>/g, '');
+  return updated;
 }
 
 function replaceExactText(html: string, oldText: string, newText: string): string {
@@ -122,15 +124,6 @@ export function renderCirclePdfPage(pageIdx: number, data: QuotationData): strin
     html = html.replace('<div class="t c24" style="z-index:1340;transform:matrix(1,0,0,1,52.1,922.4)">Date:</div>',
       `<div class="t c24" style="z-index:1340;transform:matrix(1,0,0,1,52.1,922.4)">Date: ${clientDate}</div>`);
 
-    // Client Digital Signature on Page 5
-    if (data.clientSignature) {
-      const circleSig = `<div class="circle-client-sign-p5" style="position:absolute;left:110px;top:865px;z-index:9500;pointer-events:none;"><img src="${data.clientSignature}" style="max-height:42px;max-width:140px;object-fit:contain;" alt="Client Signature" /></div>`;
-      html = html.replace(
-        '<div class="t c24" style="z-index:1319;transform:matrix(1,0,0,1,52.1,880.83)">Signature: </div>',
-        `<div class="t c24" style="z-index:1319;transform:matrix(1,0,0,1,52.1,880.83)">Signature: </div>\n${circleSig}`
-      );
-    }
-
     // Alpha Elevators Acceptance Name and Date
     html = html.replace('<div class="t c24" style="z-index:1314;transform:matrix(1,0,0,1,373.51,839.23)">Name:</div>',
       `<div class="t c24" style="z-index:1314;transform:matrix(1,0,0,1,373.51,839.23)">Name: <strong style="color:#001f5d;">${alphaSignName}</strong></div>`);
@@ -138,22 +131,9 @@ export function renderCirclePdfPage(pageIdx: number, data: QuotationData): strin
       `<div class="t c24" style="z-index:1345;transform:matrix(1,0,0,1,373.51,922.4)">Date: ${alphaDate}</div>`);
   }
 
-  // Ensure Client Signature block is present on Circle pages 2 to 4 (pageIdx 1 to 3)
-  // Page 1 (cover), Page 5 (acceptance), and Page 6 (back cover) have corner signature excluded
-  if (pageIdx >= 1 && pageIdx <= 3) {
-    const clientSignBlock = getClientSignatureHtml(data.clientSignature);
-    const clientBoxRegex = /<div class="client-signature-box"[\s\S]*?<\/span>\s*<\/div>/;
-    if (clientBoxRegex.test(html)) {
-      html = html.replace(clientBoxRegex, clientSignBlock);
-    } else {
-      const lastCloseDiv = html.lastIndexOf('</div>');
-      if (lastCloseDiv !== -1) {
-        html = html.substring(0, lastCloseDiv) + clientSignBlock + html.substring(lastCloseDiv);
-      }
-    }
-  } else {
-    html = html.replace(/<div class="client-signature-box"[\s\S]*?<\/div>/g, '');
-  }
+  // Remove Client Signature block and digital signatures from all Circle pages
+  html = html.replace(/<div class="client-signature-box"[\s\S]*?<\/div>/g, '');
+  html = html.replace(/<div class="circle-client-sign-p5"[\s\S]*?<\/div>/g, '');
 
   return html;
 }

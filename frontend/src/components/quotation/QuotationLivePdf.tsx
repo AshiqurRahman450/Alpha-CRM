@@ -1054,6 +1054,18 @@ export default function QuotationLivePdf({
             #p9 .c3, #p9 .c10 { color: #000000 !important; }
             #p9 .billing-page-container { color: #000000 !important; }
             #p10 .c35, #p10 .c37 { color: #000000 !important; }
+            ${isCircle ? `
+            .exact-pdf-container .page::before,
+            .proposal-page-wrapper .page::before,
+            .page::before {
+              display: none !important;
+              content: none !important;
+            }
+            .client-signature-box,
+            .circle-client-sign-p5 {
+              display: none !important;
+            }
+            ` : `
             .exact-pdf-container .page::before,
             .proposal-page-wrapper .page::before {
               content: '';
@@ -1072,6 +1084,7 @@ export default function QuotationLivePdf({
               pointer-events: none;
               z-index: 5;
             }
+            `}
             .exact-pdf-container .page:not(#p0):not(#p1):not(#p10)::after {
               content: '';
               position: absolute;
