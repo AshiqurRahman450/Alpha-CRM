@@ -758,6 +758,10 @@ export function buildPage2LetterHtml(html: string, data?: QuotationData): string
   if (data?.subject) {
     html = html.replace('Sub: Supply, Install, test and commission of one Belt Type Home Elevator EV ', 'Sub: ' + data.subject + ' ');
   }
+  html = html.replace(
+    '<div class="t c12" style="z-index:1444;transform:matrix(1,0,0,1,40.64,234.04)">',
+    '<div class="t c12" style="z-index:1444;transform:matrix(1,0,0,1,40.64,234.04);font-family:\'f3\',sans-serif;font-size:14px;font-weight:600;color:#000000;">'
+  );
 
   const p1 =
     data?.introParagraph1 ||
@@ -771,67 +775,68 @@ export function buildPage2LetterHtml(html: string, data?: QuotationData): string
   const visionText =
     data?.visionText || 'Elevating possibilities and building lasting bonds — one lift at a time.';
 
-  // Build replacement content
+  // Build replacement content with Page 3 font sizes
   const page2NewContent = `
+    <!-- START_PAGE2_CUSTOM_CONTENT -->
     <!-- Top Intro Block -->
-    <div class="page2-intro-block" style="position:absolute;left:40px;top:265px;width:713px;z-index:20;">
-      <div style="font-family:'f4',sans-serif;font-size:18px;font-weight:bold;color:#000000;letter-spacing:0.3px;margin-bottom:3px;">
+    <div class="page2-intro-block" style="position:absolute;left:40px;top:262px;width:713px;z-index:20;">
+      <div style="font-family:'f4',sans-serif;font-size:20px;font-weight:bold;color:#000000;letter-spacing:0.3px;margin-bottom:4px;">
         Welcome to Alpha Elevators
       </div>
-      <div style="font-family:'f2',sans-serif;font-size:12px;font-weight:600;color:#000000;letter-spacing:0.5px;font-style:italic;margin-bottom:14px;">
+      <div style="font-family:'f2',sans-serif;font-size:14px;font-weight:600;color:#000000;letter-spacing:0.5px;font-style:italic;margin-bottom:12px;">
         Where Vertical Mobility Meets Sophistication
       </div>
-      <div style="font-family:'f3',sans-serif;font-size:11.2px;line-height:17px;color:#000000;text-align:justify;margin-bottom:12px;">
+      <div style="font-family:'f3',sans-serif;font-size:14.2px;line-height:20.5px;color:#000000;text-align:justify;margin-bottom:10px;">
         ${p1}
       </div>
-      <div style="font-family:'f3',sans-serif;font-size:11.2px;line-height:17px;color:#000000;text-align:justify;margin-bottom:12px;">
+      <div style="font-family:'f3',sans-serif;font-size:14.2px;line-height:20.5px;color:#000000;text-align:justify;margin-bottom:10px;">
         ${p2}
       </div>
-      <div style="font-family:'f3',sans-serif;font-size:11.2px;line-height:17px;color:#000000;text-align:justify;margin-bottom:0;">
+      <div style="font-family:'f3',sans-serif;font-size:14.2px;line-height:20.5px;color:#000000;text-align:justify;margin-bottom:0;">
         ${p3}
       </div>
     </div>
 
     <!-- Vision Block -->
-    <div class="page2-vision-block" style="position:absolute;left:40px;top:570px;width:713px;z-index:20;">
-      <div style="font-family:'f4',sans-serif;font-size:15px;font-weight:bold;color:#000000;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;">
+    <div class="page2-vision-block" style="position:absolute;left:40px;top:540px;width:713px;z-index:20;">
+      <div style="font-family:'f4',sans-serif;font-size:17px;font-weight:bold;color:#000000;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:5px;">
         Our Vision
       </div>
-      <div style="font-family:'f3',sans-serif;font-size:11.5px;font-weight:600;color:#000000;font-style:italic;line-height:16px;border-left:3px solid #000000;padding-left:10px;">
+      <div style="font-family:'f3',sans-serif;font-size:14.2px;font-weight:600;color:#000000;font-style:italic;line-height:20.5px;border-left:3.5px solid #000000;padding-left:12px;">
         ${visionText}
       </div>
     </div>
 
     <!-- Promise White Mask to cover background dots -->
-    <div style="position:absolute;left:365px;top:670px;width:390px;height:310px;background:#ffffff;z-index:15;"></div>
+    <div style="position:absolute;left:360px;top:655px;width:400px;height:320px;background:#ffffff;z-index:15;"></div>
 
     <!-- Promise Block -->
-    <div class="page2-promise-block" style="position:absolute;left:370px;top:672px;width:380px;z-index:20;">
-      <div style="font-family:'f4',sans-serif;font-size:16px;font-weight:bold;color:#000000;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px;">
+    <div class="page2-promise-block" style="position:absolute;left:370px;top:660px;width:380px;z-index:20;">
+      <div style="font-family:'f4',sans-serif;font-size:17px;font-weight:bold;color:#000000;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px;">
         Our Promise
       </div>
-      <div style="display:flex;flex-direction:column;gap:12px;">
+      <div style="display:flex;flex-direction:column;gap:10px;">
         <div style="display:flex;align-items:flex-start;gap:8px;">
-          <span style="color:#000000;font-size:13px;line-height:15px;font-weight:bold;">&bull;</span>
-          <div style="font-family:'f3',sans-serif;font-size:10.5px;line-height:15px;color:#000000;text-align:justify;">
+          <span style="color:#000000;font-size:14px;line-height:19.5px;font-weight:bold;">&bull;</span>
+          <div style="font-family:'f3',sans-serif;font-size:13.8px;line-height:19.5px;color:#000000;text-align:justify;">
             <span style="font-family:'f1',sans-serif;font-weight:bold;color:#000000;">Innovation with Precision:</span> Combining advanced technology and thoughtful design to deliver reliable, tailored elevator solutions.
           </div>
         </div>
         <div style="display:flex;align-items:flex-start;gap:8px;">
-          <span style="color:#000000;font-size:13px;line-height:15px;font-weight:bold;">&bull;</span>
-          <div style="font-family:'f3',sans-serif;font-size:10.5px;line-height:15px;color:#000000;text-align:justify;">
+          <span style="color:#000000;font-size:14px;line-height:19.5px;font-weight:bold;">&bull;</span>
+          <div style="font-family:'f3',sans-serif;font-size:13.8px;line-height:19.5px;color:#000000;text-align:justify;">
             <span style="font-family:'f1',sans-serif;font-weight:bold;color:#000000;">Seamless Service:</span> Providing dependable support and professional assistance throughout your elevator journey.
           </div>
         </div>
         <div style="display:flex;align-items:flex-start;gap:8px;">
-          <span style="color:#000000;font-size:13px;line-height:15px;font-weight:bold;">&bull;</span>
-          <div style="font-family:'f3',sans-serif;font-size:10.5px;line-height:15px;color:#000000;text-align:justify;">
+          <span style="color:#000000;font-size:14px;line-height:19.5px;font-weight:bold;">&bull;</span>
+          <div style="font-family:'f3',sans-serif;font-size:13.8px;line-height:19.5px;color:#000000;text-align:justify;">
             <span style="font-family:'f1',sans-serif;font-weight:bold;color:#000000;">Safety First:</span> Maintaining high safety standards to ensure confidence, comfort, and peace of mind.
           </div>
         </div>
         <div style="display:flex;align-items:flex-start;gap:8px;">
-          <span style="color:#000000;font-size:13px;line-height:15px;font-weight:bold;">&bull;</span>
-          <div style="font-family:'f3',sans-serif;font-size:10.5px;line-height:15px;color:#000000;text-align:justify;">
+          <span style="color:#000000;font-size:14px;line-height:19.5px;font-weight:bold;">&bull;</span>
+          <div style="font-family:'f3',sans-serif;font-size:13.8px;line-height:19.5px;color:#000000;text-align:justify;">
             <span style="font-family:'f1',sans-serif;font-weight:bold;color:#000000;">Customer-Centric Approach:</span> Understanding your needs and delivering solutions that exceed expectations.
           </div>
         </div>
@@ -841,20 +846,34 @@ export function buildPage2LetterHtml(html: string, data?: QuotationData): string
     <!-- Tagline Block -->
     <div class="page2-tagline-block" style="position:absolute;left:40px;top:990px;width:713px;text-align:center;z-index:20;">
       <div style="width:160px;height:1px;background:#c2dbcd;margin:0 auto 7px auto;"></div>
-      <div style="font-family:'f2',sans-serif;font-size:11px;font-weight:800;color:#000000;letter-spacing:3.5px;text-transform:uppercase;">
+      <div style="font-family:'f2',sans-serif;font-size:12px;font-weight:800;color:#000000;letter-spacing:3.5px;text-transform:uppercase;">
         ELEVATE &bull; EXPERIENCE &bull; EXCEL
       </div>
     </div>
+    <!-- END_PAGE2_CUSTOM_CONTENT -->
   `;
 
-  // If page already has new content blocks, return it (updating dynamic values if needed)
+  // If page already has new content blocks, update them with the new font sizes
+  if (html.includes('<!-- START_PAGE2_CUSTOM_CONTENT -->')) {
+    const s = html.indexOf('<!-- START_PAGE2_CUSTOM_CONTENT -->');
+    const e = html.indexOf('<!-- END_PAGE2_CUSTOM_CONTENT -->');
+    if (s !== -1 && e !== -1) {
+      html = html.substring(0, s) + page2NewContent + html.substring(e + '<!-- END_PAGE2_CUSTOM_CONTENT -->'.length);
+      return html;
+    }
+  }
+
   if (html.includes('page2-intro-block')) {
-    html = html.replace(/top:490px/g, 'top:570px');
-    html = html.replace(/top:555px/g, 'top:672px');
-    html = html.replace(/top:550px/g, 'top:670px');
-    html = html.replace(/transform:matrix\(1,0,0,1,40\.63,555\)/g, 'transform:matrix(1,0,0,1,40.63,697.85)');
-    html = html.replace(/transform:matrix\(1,0,0,1,38\.78,795\)/g, 'transform:matrix(1,0,0,1,38.78,938.43)');
-    return html;
+    const s = html.indexOf('<!-- Top Intro Block -->');
+    const e = html.indexOf('page2-tagline-block');
+    if (s !== -1 && e !== -1) {
+      const endTagline = html.indexOf('</div>\n    </div>', e);
+      const endIdx = endTagline !== -1 ? endTagline + '</div>\n    </div>'.length : html.indexOf('</div>', e + 50);
+      if (endIdx !== -1) {
+        html = html.substring(0, s) + page2NewContent + html.substring(endIdx);
+        return html;
+      }
+    }
   }
 
   // Remove old vision and promise titles
