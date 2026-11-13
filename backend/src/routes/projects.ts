@@ -442,10 +442,10 @@ projectRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthRe
 
     const effectiveAddress = (siteAddress || googleMapsLink || customer.address || '').trim();
 
-    if (!customerId || !projectName || !effectiveAddress || !orderValue || !expectedDeliveryDate) {
+    if (!customerId || !projectName || !effectiveAddress || !orderValue) {
       return res.status(400).json({
         success: false,
-        message: 'Customer, project name, site address or map link, order value, and expected delivery date are required',
+        message: 'Customer, project name, site address or map link, and order value are required',
       });
     }
 
@@ -500,7 +500,11 @@ projectRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthRe
       balanceAmount: numOrderValue,
       paymentStatus: 'PENDING',
       orderDate: new Date(),
-      expectedDeliveryDate: new Date(expectedDeliveryDate),
+      expectedDeliveryDate: expectedDeliveryDate ? new Date(expectedDeliveryDate) : (() => {
+        const d = new Date();
+        d.setDate(d.getDate() + 120);
+        return d;
+      })(),
       projectStatus: 'PAYMENT_RECEIVED',
       assignedEmployee: assignedEmployee || req.user?.name,
       projectManager,
@@ -759,11 +763,19 @@ projectRouter.get('/:id', async (req: AuthRequest, res: Response) => {
 /**
  * PUT /api/projects/:id
  */
-projectRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT'), async (req: AuthRequest, res: Response) => {
+projectRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT', 'BDM', 'TECHNICAL_LEAD'), async (req: AuthRequest, res: Response) => {
   try {
     const project = await Project.findById(req.params.id);
     if (!project) {
       return res.status(404).json({ success: false, message: 'Project not found' });
+    }
+
+    if (req.body.customerId && String(req.body.customerId) !== String(project.customerId)) {
+      const cust = await Customer.findById(req.body.customerId);
+      if (cust) {
+        project.customerId = cust._id;
+        project.customerCode = cust.customerId;
+      }
     }
 
     Object.assign(project, req.body);

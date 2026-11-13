@@ -1,11 +1,11 @@
 import { Schema, model, Document, Types } from 'mongoose';
 
 export type QuotationStatus = 'DRAFT' | 'SENT_TO_CUSTOMER' | 'FINALIZED' | 'APPROVAL_REQUESTED' | 'CRM_APPROVED' | 'REJECTED';
-export type QuotationStage = 1 | 2 | 3;
+export type QuotationStage = 1 | 2 | 3 | 4;
 
 export interface IQuotation extends Document {
   baseOfferNo: string; // Base code without suffix e.g. "AE/QTN/AE-261026-131"
-  stage: QuotationStage; // 1 | 2 | 3
+  stage: QuotationStage; // 1 | 2 | 3 | 4
   offerNo: string; // Formatted with stage suffix e.g. "AE/QTN/AE-261026-131-1"
   customerName: string;
   customerPhone?: string;
@@ -47,7 +47,7 @@ const QuotationSchema = new Schema<IQuotation>(
     stage: {
       type: Number,
       required: true,
-      enum: [1, 2, 3],
+      enum: [1, 2, 3, 4],
       default: 1,
       index: true,
     },

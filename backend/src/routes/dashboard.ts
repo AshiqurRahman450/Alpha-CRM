@@ -107,13 +107,35 @@ dashboardRouter.get('/', async (req: AuthRequest, res: Response) => {
       nextUpdateAt: { $gt: endOfTomorrow, $lte: in7Days },
     }).populate('customerId');
 
-    // 4. Status distribution
+    // 4. Status distribution (ensuring all 12 stages are present with count)
+    const ALL_STAGES = [
+      'PAYMENT_RECEIVED',
+      'SITE_MEASUREMENT',
+      'DESIGN',
+      'CUSTOMER_APPROVAL',
+      'ENGINEERING',
+      'MANUFACTURING',
+      'QUALITY_CHECK',
+      'DELIVERY',
+      'DISPATCH',
+      'INSTALLATION',
+      'TESTING',
+      'COMPLETED',
+      'ON_HOLD',
+      'CANCELLED',
+    ];
     const statusDistributionRaw = await Project.aggregate([
+      ...(isBDM ? [{ $match: { bdmId: req.user?._id } }] : []),
       { $group: { _id: '$projectStatus', count: { $sum: 1 } } },
     ]);
     const statusDistribution: Record<string, number> = {};
+    for (const st of ALL_STAGES) {
+      statusDistribution[st] = 0;
+    }
     for (const item of statusDistributionRaw) {
-      statusDistribution[item._id] = item.count;
+      if (item._id) {
+        statusDistribution[item._id] = item.count;
+      }
     }
 
     // 5. Recent WhatsApp Communication
@@ -530,8 +552,25 @@ dashboardRouter.get('/card-items', async (req: AuthRequest, res: Response) => {
 
       case 'stage': {
         const stageStr = typeof stage === 'string' ? stage : '';
-        title = `${stageStr.replace(/_/g, ' ')} Projects`;
-        subtitle = `Elevator projects currently situated in ${stageStr.replace(/_/g, ' ')} stage`;
+        const STAGE_LABELS: Record<string, string> = {
+          PAYMENT_RECEIVED: 'Advance Payment Received',
+          SITE_MEASUREMENT: 'Site Visit',
+          DESIGN: 'Drawing and Cabin',
+          CUSTOMER_APPROVAL: 'Drawing and Cabin Design Approval',
+          ENGINEERING: 'Production Payment',
+          MANUFACTURING: 'Approval Drawing to factory',
+          QUALITY_CHECK: 'Rediness Payment',
+          DELIVERY: 'Pre Site Visit',
+          DISPATCH: 'Expected Delivery',
+          INSTALLATION: 'Installation Start Date',
+          TESTING: 'Handover',
+          COMPLETED: 'Project Completed',
+          ON_HOLD: 'On Hold',
+          CANCELLED: 'Cancelled',
+        };
+        const stageLabel = STAGE_LABELS[stageStr] || stageStr.replace(/_/g, ' ');
+        title = `${stageLabel} Projects`;
+        subtitle = `Elevator projects currently situated in ${stageLabel} stage`;
         itemType = 'project';
         const projects = await Project.find({
           ...bdmFilter,

@@ -17,9 +17,11 @@ import {
   X,
   FileSpreadsheet,
   Handshake,
+  Edit2,
 } from 'lucide-react';
 import { api, getStoredUser } from '../../lib/api';
 import { formatProjectStatus, STAGES_ORDER } from '../../components/Timeline';
+import EditProjectModal from '../../components/EditProjectModal';
 
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<any[]>([]);
@@ -51,6 +53,10 @@ export default function ProjectsPage() {
   }, []);
 
   const isCrm = currentUser?.role === 'CRM';
+
+  // Edit Project Modal State
+  const [editingProject, setEditingProject] = useState<any>(null);
+  const [isEditProjectOpen, setIsEditProjectOpen] = useState(false);
 
   // Add Project Modal State
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -157,8 +163,13 @@ export default function ProjectsPage() {
 
       const computedOrderValue = computedLiftAmount + computedShaftAmount;
 
+      const defaultDelivery = new Date();
+      defaultDelivery.setDate(defaultDelivery.getDate() + 120);
+      const formattedDefaultDelivery = defaultDelivery.toISOString().split('T')[0];
+
       await api.createProject({ 
         ...newProject, 
+        expectedDeliveryDate: newProject.expectedDeliveryDate || formattedDefaultDelivery,
         dispatchMaterialsPercent: isCrm ? '0' : newProject.dispatchMaterialsPercent,
         afterInstallationPercent: isCrm ? '0' : newProject.afterInstallationPercent,
         liftAmount: computedLiftAmount,
@@ -403,13 +414,27 @@ export default function ProjectsPage() {
                       </td>
 
                       <td className="py-4 px-4 text-right">
-                        <Link
-                          href={`/projects/${p._id}`}
-                          className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1"
-                        >
-                          <span>Manage</span>
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </Link>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingProject(p);
+                              setIsEditProjectOpen(true);
+                            }}
+                            className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/80 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1 cursor-pointer"
+                            title="Edit project details"
+                          >
+                            <Edit2 className="w-3 h-3 text-amber-600" />
+                            <span>Edit</span>
+                          </button>
+                          <Link
+                            href={`/projects/${p._id}`}
+                            className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1"
+                          >
+                            <span>Manage</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -749,32 +774,17 @@ export default function ProjectsPage() {
                   </div>
                 </div>
 
-                {/* Financial Summary & Delivery */}
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      Total Amount (Inc. GST) (₹):
-                    </label>
-                    <input
-                      type="number"
-                      readOnly
-                      value={calcTotalAmount(newProject.liftNonCashAmount, newProject.shaftNonCashAmount, newProject.shaftModel)}
-                      className="w-full p-2.5 text-xs border border-slate-300 rounded-xl bg-slate-50 text-slate-500 font-bold cursor-not-allowed"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      Expected Delivery Date: *
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={newProject.expectedDeliveryDate}
-                      onChange={(e) => setNewProject({ ...newProject, expectedDeliveryDate: e.target.value })}
-                      className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none"
-                    />
-                  </div>
+                {/* Financial Summary */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Total Amount (Inc. GST) (₹):
+                  </label>
+                  <input
+                    type="number"
+                    readOnly
+                    value={calcTotalAmount(newProject.liftNonCashAmount, newProject.shaftNonCashAmount, newProject.shaftModel)}
+                    className="w-full p-2.5 text-xs border border-slate-300 rounded-xl bg-slate-50 text-slate-500 font-bold cursor-not-allowed"
+                  />
                 </div>
               </div>
 
@@ -799,7 +809,17 @@ export default function ProjectsPage() {
                         const numVal = Number(val) || 0;
                         const totalVal = calcTotalAmount(newProject.liftNonCashAmount, newProject.shaftNonCashAmount, newProject.shaftModel);
                         const pct = totalVal > 0 && val !== '' ? String(Math.round((numVal / totalVal) * 100)) : '';
-                        setNewProject({ ...newProject, advanceAmount: val, advancePercentage: pct });
+                        const advNum = Number(pct || 0);
+                        const prodNum = Number(newProject.productionPaymentPercent || 0);
+                        const readyNum = Number(newProject.readinessNotificationPercent || 0);
+                        const is100 = (advNum + prodNum + readyNum) >= 100;
+                        setNewProject({
+                          ...newProject,
+                          advanceAmount: val,
+                          advancePercentage: pct,
+                          dispatchMaterialsPercent: is100 ? '0' : newProject.dispatchMaterialsPercent,
+                          afterInstallationPercent: is100 ? '0' : newProject.afterInstallationPercent,
+                        });
                       }}
                       className="w-full p-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:outline-none font-bold text-slate-900 bg-white"
                     />
@@ -817,7 +837,17 @@ export default function ProjectsPage() {
                         const numPct = Number(pct) || 0;
                         const totalVal = calcTotalAmount(newProject.liftNonCashAmount, newProject.shaftNonCashAmount, newProject.shaftModel);
                         const amt = totalVal > 0 && pct !== '' ? String(Math.round((totalVal * numPct) / 100)) : '';
-                        setNewProject({ ...newProject, advancePercentage: pct, advanceAmount: amt });
+                        const advNum = Number(pct || 0);
+                        const prodNum = Number(newProject.productionPaymentPercent || 0);
+                        const readyNum = Number(newProject.readinessNotificationPercent || 0);
+                        const is100 = (advNum + prodNum + readyNum) >= 100;
+                        setNewProject({
+                          ...newProject,
+                          advancePercentage: pct,
+                          advanceAmount: amt,
+                          dispatchMaterialsPercent: is100 ? '0' : newProject.dispatchMaterialsPercent,
+                          afterInstallationPercent: is100 ? '0' : newProject.afterInstallationPercent,
+                        });
                       }}
                       className="w-full p-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:outline-none"
                     />
@@ -830,7 +860,19 @@ export default function ProjectsPage() {
                       type="number"
                       required
                       value={newProject.productionPaymentPercent}
-                      onChange={(e) => setNewProject({ ...newProject, productionPaymentPercent: e.target.value })}
+                      onChange={(e) => {
+                        const prod = e.target.value;
+                        const advNum = Number(newProject.advancePercentage || 0);
+                        const prodNum = Number(prod || 0);
+                        const readyNum = Number(newProject.readinessNotificationPercent || 0);
+                        const is100 = (advNum + prodNum + readyNum) >= 100;
+                        setNewProject({
+                          ...newProject,
+                          productionPaymentPercent: prod,
+                          dispatchMaterialsPercent: is100 ? '0' : newProject.dispatchMaterialsPercent,
+                          afterInstallationPercent: is100 ? '0' : newProject.afterInstallationPercent,
+                        });
+                      }}
                       className="w-full p-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:outline-none"
                     />
                   </div>
@@ -842,7 +884,19 @@ export default function ProjectsPage() {
                       type="number"
                       required
                       value={newProject.readinessNotificationPercent}
-                      onChange={(e) => setNewProject({ ...newProject, readinessNotificationPercent: e.target.value })}
+                      onChange={(e) => {
+                        const ready = e.target.value;
+                        const advNum = Number(newProject.advancePercentage || 0);
+                        const prodNum = Number(newProject.productionPaymentPercent || 0);
+                        const readyNum = Number(ready || 0);
+                        const is100 = (advNum + prodNum + readyNum) >= 100;
+                        setNewProject({
+                          ...newProject,
+                          readinessNotificationPercent: ready,
+                          dispatchMaterialsPercent: is100 ? '0' : newProject.dispatchMaterialsPercent,
+                          afterInstallationPercent: is100 ? '0' : newProject.afterInstallationPercent,
+                        });
+                      }}
                       className="w-full p-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:outline-none"
                     />
                   </div>
@@ -931,6 +985,20 @@ export default function ProjectsPage() {
             </form>
           </div>
         </div>
+      )}
+      {/* Edit Project Modal */}
+      {editingProject && (
+        <EditProjectModal
+          isOpen={isEditProjectOpen}
+          onClose={() => {
+            setIsEditProjectOpen(false);
+            setEditingProject(null);
+          }}
+          project={editingProject}
+          customers={customers}
+          onProjectUpdated={() => fetchProjects()}
+          currentUser={currentUser}
+        />
       )}
     </div>
   );

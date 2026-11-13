@@ -43,21 +43,21 @@ quotationRouter.use(optionalAuth);
  * Extracts baseOfferNo and stage from any offer number format
  * e.g. "AE/QTN/AE-261026-131-2" -> base: "AE/QTN/AE-261026-131", stage: 2
  */
-export function extractBaseOfferNo(rawOfferNo: string): { baseOfferNo: string; stage: 1 | 2 | 3 } {
+export function extractBaseOfferNo(rawOfferNo: string): { baseOfferNo: string; stage: 1 | 2 | 3 | 4 } {
   if (!rawOfferNo) return { baseOfferNo: 'AE/QTN/AE-000000-000', stage: 1 };
   const trimmed = rawOfferNo.trim();
-  const match = trimmed.match(/^(.*?)(?:-([123]))?$/);
+  const match = trimmed.match(/^(.*?)(?:-([1234]))?$/);
   if (match) {
     const base = match[1];
     const s = match[2] ? parseInt(match[2], 10) : 1;
-    const stage = (s === 2 ? 2 : s === 3 ? 3 : 1) as 1 | 2 | 3;
+    const stage = (s === 2 ? 2 : s === 3 ? 3 : s === 4 ? 4 : 1) as 1 | 2 | 3 | 4;
     return { baseOfferNo: base, stage };
   }
   return { baseOfferNo: trimmed, stage: 1 };
 }
 
-export function formatStageOfferNo(baseOfferNo: string, stage: 1 | 2 | 3): string {
-  const cleanBase = baseOfferNo.replace(/-[123]$/, '').trim();
+export function formatStageOfferNo(baseOfferNo: string, stage: 1 | 2 | 3 | 4): string {
+  const cleanBase = baseOfferNo.replace(/-[1234]$/, '').trim();
   return `${cleanBase}-${stage}`;
 }
 
@@ -218,11 +218,11 @@ quotationRouter.get('/bdm-stage-wise', async (req: any, res: Response) => {
 
       const elevatorPrice = Number(q.data?.elevatorPrice || 0);
       const elevatorDiscountPrice = q.data?.elevatorDiscountPrice && Number(q.data.elevatorDiscountPrice) > 0 ? Number(q.data.elevatorDiscountPrice) : undefined;
-      const effectiveElevatorPrice = elevatorDiscountPrice !== undefined ? elevatorDiscountPrice : elevatorPrice;
+      const effectiveElevatorPrice = elevatorDiscountPrice !== undefined ? Math.max(0, elevatorPrice - elevatorDiscountPrice) : elevatorPrice;
 
       const shaftPrice = Number(q.data?.shaftPrice || 0);
       const shaftDiscountPrice = q.data?.shaftDiscountPrice && Number(q.data.shaftDiscountPrice) > 0 ? Number(q.data.shaftDiscountPrice) : undefined;
-      const effectiveShaftPrice = shaftDiscountPrice !== undefined ? shaftDiscountPrice : shaftPrice;
+      const effectiveShaftPrice = shaftDiscountPrice !== undefined ? Math.max(0, shaftPrice - shaftDiscountPrice) : shaftPrice;
 
       const basicTotal = effectiveElevatorPrice + effectiveShaftPrice;
       const grandTotal = Math.round(basicTotal * 1.18);
@@ -251,22 +251,25 @@ quotationRouter.get('/bdm-stage-wise', async (req: any, res: Response) => {
     let totalStage1 = 0;
     let totalStage2 = 0;
     let totalStage3 = 0;
+    let totalStage4 = 0;
     let totalCrmApproved = 0;
 
     for (const item of groupedMap.values()) {
       const s1 = item.stages.stage1;
       const s2 = item.stages.stage2;
       const s3 = item.stages.stage3;
+      const s4 = item.stages.stage4;
 
       if (s1) totalStage1++;
       if (s2) totalStage2++;
       if (s3) totalStage3++;
-      if (item.latestStatus === 'CRM_APPROVED' || s3?.status === 'CRM_APPROVED') totalCrmApproved++;
+      if (s4) totalStage4++;
+      if (item.latestStatus === 'CRM_APPROVED' || s4?.status === 'CRM_APPROVED' || s3?.status === 'CRM_APPROVED') totalCrmApproved++;
 
-      const currentAmount = s3?.grandTotal || s2?.grandTotal || s1?.grandTotal || 0;
+      const currentAmount = s4?.grandTotal || s3?.grandTotal || s2?.grandTotal || s1?.grandTotal || 0;
       totalPipelineValue += currentAmount;
 
-      const priceDiff = s3 && s1 ? s3.grandTotal - s1.grandTotal : s2 && s1 ? s2.grandTotal - s1.grandTotal : 0;
+      const priceDiff = s4 && s1 ? s4.grandTotal - s1.grandTotal : s3 && s1 ? s3.grandTotal - s1.grandTotal : s2 && s1 ? s2.grandTotal - s1.grandTotal : 0;
       item.priceVariance = priceDiff;
       item.currentAmount = currentAmount;
 
@@ -284,6 +287,7 @@ quotationRouter.get('/bdm-stage-wise', async (req: any, res: Response) => {
         totalStage1,
         totalStage2,
         totalStage3,
+        totalStage4,
         totalCrmApproved,
         totalPipelineValue,
       },
@@ -562,8 +566,8 @@ quotationRouter.post('/whatsapp-send', async (req: Request, res: Response) => {
 
     const stageLabel = stageNum === 1 ? 'Initial Proposal' : stageNum === 2 ? 'Negotiation Revision' : 'Final Commercial Proposal';
     const clientName = customerName || activeData?.clientName || 'Valued Customer';
-    const effectiveElevator = Number((activeData?.elevatorDiscountPrice && Number(activeData.elevatorDiscountPrice) > 0) ? activeData.elevatorDiscountPrice : (activeData?.elevatorPrice || 0));
-    const effectiveShaft = Number((activeData?.shaftDiscountPrice && Number(activeData.shaftDiscountPrice) > 0) ? activeData.shaftDiscountPrice : (activeData?.shaftPrice || 0));
+    const effectiveElevator = Number((activeData?.elevatorDiscountPrice && Number(activeData.elevatorDiscountPrice) > 0) ? Math.max(0, (activeData.elevatorPrice || 0) - Number(activeData.elevatorDiscountPrice)) : (activeData?.elevatorPrice || 0));
+    const effectiveShaft = Number((activeData?.shaftDiscountPrice && Number(activeData.shaftDiscountPrice) > 0) ? Math.max(0, (activeData.shaftPrice || 0) - Number(activeData.shaftDiscountPrice)) : (activeData?.shaftPrice || 0));
     const totalContractVal = Math.round((effectiveElevator + effectiveShaft) * 1.18);
 
     const caption = `📄 *Alpha Elevators - Official Quotation Proposal (${stageLabel})*
@@ -699,7 +703,10 @@ quotationRouter.post('/request-approval', async (req: any, res: Response) => {
       quotation = await Quotation.findById(quotationId);
     } else if (inputOffer) {
       const { baseOfferNo } = extractBaseOfferNo(inputOffer);
-      quotation = await Quotation.findOne({ baseOfferNo, stage: 3 });
+      quotation = await Quotation.findOne({ baseOfferNo, stage: 4 });
+      if (!quotation) {
+        quotation = await Quotation.findOne({ baseOfferNo, stage: 3 });
+      }
       if (!quotation) {
         quotation = await Quotation.findOne({ baseOfferNo }).sort({ stage: -1 });
       }
@@ -720,9 +727,9 @@ quotationRouter.post('/request-approval', async (req: any, res: Response) => {
 
     const qData = quotation.data || {};
     const elevatorPrice = Number(qData.elevatorPrice || 0);
-    const effectiveElevatorPrice = Number((qData.elevatorDiscountPrice && Number(qData.elevatorDiscountPrice) > 0) ? qData.elevatorDiscountPrice : elevatorPrice);
+    const effectiveElevatorPrice = Number((qData.elevatorDiscountPrice && Number(qData.elevatorDiscountPrice) > 0) ? Math.max(0, elevatorPrice - Number(qData.elevatorDiscountPrice)) : elevatorPrice);
     const shaftPrice = Number(qData.shaftPrice || 0);
-    const effectiveShaftPrice = Number((qData.shaftDiscountPrice && Number(qData.shaftDiscountPrice) > 0) ? qData.shaftDiscountPrice : shaftPrice);
+    const effectiveShaftPrice = Number((qData.shaftDiscountPrice && Number(qData.shaftDiscountPrice) > 0) ? Math.max(0, shaftPrice - Number(qData.shaftDiscountPrice)) : shaftPrice);
     const gstRate = Number(qData.gstRate || 18);
     const subtotal = effectiveElevatorPrice + effectiveShaftPrice;
     const orderValue = subtotal + Math.round((subtotal * gstRate) / 100);
@@ -800,7 +807,10 @@ quotationRouter.post('/crm-approve', async (req: any, res: Response) => {
       quotation = await Quotation.findById(quotationId);
     } else if (inputOffer) {
       const { baseOfferNo } = extractBaseOfferNo(inputOffer);
-      quotation = await Quotation.findOne({ baseOfferNo, stage: 3 });
+      quotation = await Quotation.findOne({ baseOfferNo, stage: 4 });
+      if (!quotation) {
+        quotation = await Quotation.findOne({ baseOfferNo, stage: 3 });
+      }
       if (!quotation) {
         // Fallback to highest existing stage
         quotation = await Quotation.findOne({ baseOfferNo }).sort({ stage: -1 });
@@ -844,9 +854,9 @@ quotationRouter.post('/crm-approve', async (req: any, res: Response) => {
 
     const qData = quotation.data || {};
     const elevatorPrice = Number(qData.elevatorPrice || 0);
-    const effectiveElevatorPrice = Number((qData.elevatorDiscountPrice && Number(qData.elevatorDiscountPrice) > 0) ? qData.elevatorDiscountPrice : elevatorPrice);
+    const effectiveElevatorPrice = Number((qData.elevatorDiscountPrice && Number(qData.elevatorDiscountPrice) > 0) ? Math.max(0, elevatorPrice - Number(qData.elevatorDiscountPrice)) : elevatorPrice);
     const shaftPrice = Number(qData.shaftPrice || 0);
-    const effectiveShaftPrice = Number((qData.shaftDiscountPrice && Number(qData.shaftDiscountPrice) > 0) ? qData.shaftDiscountPrice : shaftPrice);
+    const effectiveShaftPrice = Number((qData.shaftDiscountPrice && Number(qData.shaftDiscountPrice) > 0) ? Math.max(0, shaftPrice - Number(qData.shaftDiscountPrice)) : shaftPrice);
     const gstRate = Number(qData.gstRate || 18);
     const subtotal = effectiveElevatorPrice + effectiveShaftPrice;
     const gstAmount = Math.round((subtotal * gstRate) / 100);
@@ -1193,21 +1203,23 @@ quotationRouter.get('/export-excel/:offerNo', async (req: Request, res: Response
     const s1 = stages.find((s) => s.stage === 1);
     const s2 = stages.find((s) => s.stage === 2);
     const s3 = stages.find((s) => s.stage === 3);
+    const s4 = stages.find((s) => s.stage === 4);
 
     const getStageEffectiveElv = (stg?: any) => {
       if (!stg?.data) return 0;
-      return Number((stg.data.elevatorDiscountPrice && Number(stg.data.elevatorDiscountPrice) > 0) ? stg.data.elevatorDiscountPrice : (stg.data.elevatorPrice || 0));
+      return Number((stg.data.elevatorDiscountPrice && Number(stg.data.elevatorDiscountPrice) > 0) ? Math.max(0, (stg.data.elevatorPrice || 0) - Number(stg.data.elevatorDiscountPrice)) : (stg.data.elevatorPrice || 0));
     };
     const getStageEffectiveShaft = (stg?: any) => {
       if (!stg?.data) return 0;
-      return Number((stg.data.shaftDiscountPrice && Number(stg.data.shaftDiscountPrice) > 0) ? stg.data.shaftDiscountPrice : (stg.data.shaftPrice || 0));
+      return Number((stg.data.shaftDiscountPrice && Number(stg.data.shaftDiscountPrice) > 0) ? Math.max(0, (stg.data.shaftPrice || 0) - Number(stg.data.shaftDiscountPrice)) : (stg.data.shaftPrice || 0));
     };
 
     const s1Total = s1?.data ? Math.round((getStageEffectiveElv(s1) + getStageEffectiveShaft(s1)) * 1.18) : 0;
     const s2Total = s2?.data ? Math.round((getStageEffectiveElv(s2) + getStageEffectiveShaft(s2)) * 1.18) : 0;
     const s3Total = s3?.data ? Math.round((getStageEffectiveElv(s3) + getStageEffectiveShaft(s3)) * 1.18) : 0;
+    const s4Total = s4?.data ? Math.round((getStageEffectiveElv(s4) + getStageEffectiveShaft(s4)) * 1.18) : 0;
 
-    const priceDiff = s3Total ? s3Total - s1Total : s2Total ? s2Total - s1Total : 0;
+    const priceDiff = s4Total ? s4Total - s1Total : s3Total ? s3Total - s1Total : s2Total ? s2Total - s1Total : 0;
     const priceDiffText = priceDiff === 0 ? 'No change' : priceDiff > 0 ? `+₹${priceDiff.toLocaleString('en-IN')}` : `-₹${Math.abs(priceDiff).toLocaleString('en-IN')}`;
 
     const rows = [
@@ -1215,195 +1227,222 @@ quotationRouter.get('/export-excel/:offerNo', async (req: Request, res: Response
         'Parameter / Field': 'Offer Code & Suffix',
         'Stage 1 (Initial: -1)': s1?.offerNo || 'N/A',
         'Stage 2 (Negotiation: -2)': s2?.offerNo || 'N/A',
-        'Stage 3 (Final & CRM: -3)': s3?.offerNo || 'N/A',
-        'Stage Comparison & Variance': s3 ? 'Stage 3 Finalized' : s2 ? 'Stage 2 In Negotiation' : 'Stage 1 Initial',
+        'Stage 3 (Negotiation 2: -3)': s3?.offerNo || 'N/A',
+        'Stage 4 (Final & CRM: -4)': s4?.offerNo || 'N/A',
+        'Stage Comparison & Variance': s4 ? 'Stage 4 Finalized' : s3 ? 'Stage 3 In Negotiation 2' : s2 ? 'Stage 2 In Negotiation' : 'Stage 1 Initial',
       },
       {
         'Parameter / Field': 'Customer Full Name',
         'Stage 1 (Initial: -1)': s1?.data?.clientName || s1?.customerName || '',
         'Stage 2 (Negotiation: -2)': s2?.data?.clientName || s2?.customerName || '',
-        'Stage 3 (Final & CRM: -3)': s3?.data?.clientName || s3?.customerName || '',
+        'Stage 3 (Negotiation 2: -3)': s3?.data?.clientName || s3?.customerName || '',
+        'Stage 4 (Final & CRM: -4)': s4?.data?.clientName || s4?.customerName || '',
         'Stage Comparison & Variance': '',
       },
       {
         'Parameter / Field': 'Project City',
         'Stage 1 (Initial: -1)': s1?.data?.projectCity || '',
         'Stage 2 (Negotiation: -2)': s2?.data?.projectCity || '',
-        'Stage 3 (Final & CRM: -3)': s3?.data?.projectCity || '',
+        'Stage 3 (Negotiation 2: -3)': s3?.data?.projectCity || '',
+        'Stage 4 (Final & CRM: -4)': s4?.data?.projectCity || '',
         'Stage Comparison & Variance': '',
       },
       {
         'Parameter / Field': 'Customer WhatsApp Contact',
         'Stage 1 (Initial: -1)': s1?.customerPhone || '',
         'Stage 2 (Negotiation: -2)': s2?.customerPhone || '',
-        'Stage 3 (Final & CRM: -3)': s3?.customerPhone || '',
+        'Stage 3 (Negotiation 2: -3)': s3?.customerPhone || '',
+        'Stage 4 (Final & CRM: -4)': s4?.customerPhone || '',
         'Stage Comparison & Variance': '',
       },
       {
         'Parameter / Field': 'Elevator Model',
         'Stage 1 (Initial: -1)': s1?.data?.model || '',
         'Stage 2 (Negotiation: -2)': s2?.data?.model || '',
-        'Stage 3 (Final & CRM: -3)': s3?.data?.model || '',
-        'Stage Comparison & Variance': s1?.data?.model !== s3?.data?.model && s3 ? `Changed to ${s3.data.model}` : 'Unchanged',
+        'Stage 3 (Negotiation 2: -3)': s3?.data?.model || '',
+        'Stage 4 (Final & CRM: -4)': s4?.data?.model || '',
+        'Stage Comparison & Variance': s1?.data?.model !== (s4?.data?.model || s3?.data?.model) && (s4 || s3) ? `Changed to ${s4?.data?.model || s3?.data?.model}` : 'Unchanged',
       },
       {
         'Parameter / Field': 'No of Stops',
         'Stage 1 (Initial: -1)': s1?.data?.noOfStops || '',
         'Stage 2 (Negotiation: -2)': s2?.data?.noOfStops || '',
-        'Stage 3 (Final & CRM: -3)': s3?.data?.noOfStops || '',
+        'Stage 3 (Negotiation 2: -3)': s3?.data?.noOfStops || '',
+        'Stage 4 (Final & CRM: -4)': s4?.data?.noOfStops || '',
         'Stage Comparison & Variance': '',
       },
       {
         'Parameter / Field': 'Total Travel Height',
         'Stage 1 (Initial: -1)': s1?.data?.totalTravelHeight || '',
         'Stage 2 (Negotiation: -2)': s2?.data?.totalTravelHeight || '',
-        'Stage 3 (Final & CRM: -3)': s3?.data?.totalTravelHeight || '',
+        'Stage 3 (Negotiation 2: -3)': s3?.data?.totalTravelHeight || '',
+        'Stage 4 (Final & CRM: -4)': s4?.data?.totalTravelHeight || '',
         'Stage Comparison & Variance': '',
       },
       {
         'Parameter / Field': 'No of Openings & Floor Numbering',
         'Stage 1 (Initial: -1)': `${s1?.data?.noOfOpenings || ''} (${s1?.data?.floorNumbering || ''})`,
         'Stage 2 (Negotiation: -2)': `${s2?.data?.noOfOpenings || ''} (${s2?.data?.floorNumbering || ''})`,
-        'Stage 3 (Final & CRM: -3)': `${s3?.data?.noOfOpenings || ''} (${s3?.data?.floorNumbering || ''})`,
+        'Stage 3 (Negotiation 2: -3)': `${s3?.data?.noOfOpenings || ''} (${s3?.data?.floorNumbering || ''})`,
+        'Stage 4 (Final & CRM: -4)': `${s4?.data?.noOfOpenings || ''} (${s4?.data?.floorNumbering || ''})`,
         'Stage Comparison & Variance': '',
       },
       {
         'Parameter / Field': 'Door Access Type',
         'Stage 1 (Initial: -1)': s1?.data?.doorAccess || 'inline',
         'Stage 2 (Negotiation: -2)': s2?.data?.doorAccess || 'inline',
-        'Stage 3 (Final & CRM: -3)': s3?.data?.doorAccess || 'inline',
-        'Stage Comparison & Variance': s1?.data?.doorAccess !== s3?.data?.doorAccess && s3 ? `Changed to ${s3.data.doorAccess}` : 'Unchanged',
+        'Stage 3 (Negotiation 2: -3)': s3?.data?.doorAccess || 'inline',
+        'Stage 4 (Final & CRM: -4)': s4?.data?.doorAccess || 'inline',
+        'Stage Comparison & Variance': s1?.data?.doorAccess !== (s4?.data?.doorAccess || s3?.data?.doorAccess) && (s4 || s3) ? `Changed to ${s4?.data?.doorAccess || s3?.data?.doorAccess}` : 'Unchanged',
       },
       {
         'Parameter / Field': 'Door Technical Specifications',
         'Stage 1 (Initial: -1)': s1?.data?.doorSpecifications || '',
         'Stage 2 (Negotiation: -2)': s2?.data?.doorSpecifications || '',
-        'Stage 3 (Final & CRM: -3)': s3?.data?.doorSpecifications || '',
+        'Stage 3 (Negotiation 2: -3)': s3?.data?.doorSpecifications || '',
+        'Stage 4 (Final & CRM: -4)': s4?.data?.doorSpecifications || '',
         'Stage Comparison & Variance': '',
       },
       {
         'Parameter / Field': 'Cabin Walls & Finishes',
         'Stage 1 (Initial: -1)': s1?.data?.cabinWalls || '',
         'Stage 2 (Negotiation: -2)': s2?.data?.cabinWalls || '',
-        'Stage 3 (Final & CRM: -3)': s3?.data?.cabinWalls || '',
+        'Stage 3 (Negotiation 2: -3)': s3?.data?.cabinWalls || '',
+        'Stage 4 (Final & CRM: -4)': s4?.data?.cabinWalls || '',
         'Stage Comparison & Variance': '',
       },
       {
         'Parameter / Field': 'Operating Panels (COP & LOP)',
         'Stage 1 (Initial: -1)': s1?.data?.copAndLop || '',
         'Stage 2 (Negotiation: -2)': s2?.data?.copAndLop || '',
-        'Stage 3 (Final & CRM: -3)': s3?.data?.copAndLop || '',
+        'Stage 3 (Negotiation 2: -3)': s3?.data?.copAndLop || '',
+        'Stage 4 (Final & CRM: -4)': s4?.data?.copAndLop || '',
         'Stage Comparison & Variance': '',
       },
       {
         'Parameter / Field': 'Power Supply',
         'Stage 1 (Initial: -1)': s1?.data?.powerSupply || '',
         'Stage 2 (Negotiation: -2)': s2?.data?.powerSupply || '',
-        'Stage 3 (Final & CRM: -3)': s3?.data?.powerSupply || '',
+        'Stage 3 (Negotiation 2: -3)': s3?.data?.powerSupply || '',
+        'Stage 4 (Final & CRM: -4)': s4?.data?.powerSupply || '',
         'Stage Comparison & Variance': '',
       },
       {
         'Parameter / Field': 'Shaft Structure Specifications',
         'Stage 1 (Initial: -1)': s1?.data?.shaftType || '',
         'Stage 2 (Negotiation: -2)': s2?.data?.shaftType || '',
-        'Stage 3 (Final & CRM: -3)': s3?.data?.shaftType || '',
+        'Stage 3 (Negotiation 2: -3)': s3?.data?.shaftType || '',
+        'Stage 4 (Final & CRM: -4)': s4?.data?.shaftType || '',
         'Stage Comparison & Variance': '',
       },
       {
         'Parameter / Field': 'Elevator Basic Price (MRP) (₹)',
         'Stage 1 (Initial: -1)': s1?.data?.elevatorPrice || 0,
         'Stage 2 (Negotiation: -2)': s2?.data?.elevatorPrice || 0,
-        'Stage 3 (Final & CRM: -3)': s3?.data?.elevatorPrice || 0,
-        'Stage Comparison & Variance': `Net Diff: ₹${((Number(s3?.data?.elevatorPrice || s2?.data?.elevatorPrice || 0) - Number(s1?.data?.elevatorPrice || 0))).toLocaleString('en-IN')}`,
+        'Stage 3 (Negotiation 2: -3)': s3?.data?.elevatorPrice || 0,
+        'Stage 4 (Final & CRM: -4)': s4?.data?.elevatorPrice || 0,
+        'Stage Comparison & Variance': `Net Diff: ₹${((Number(s4?.data?.elevatorPrice || s3?.data?.elevatorPrice || s2?.data?.elevatorPrice || 0) - Number(s1?.data?.elevatorPrice || 0))).toLocaleString('en-IN')}`,
       },
       {
         'Parameter / Field': 'Elevators Discount Price (₹)',
         'Stage 1 (Initial: -1)': s1?.data?.elevatorDiscountPrice || 'N/A',
         'Stage 2 (Negotiation: -2)': s2?.data?.elevatorDiscountPrice || 'N/A',
-        'Stage 3 (Final & CRM: -3)': s3?.data?.elevatorDiscountPrice || 'N/A',
+        'Stage 3 (Negotiation 2: -3)': s3?.data?.elevatorDiscountPrice || 'N/A',
+        'Stage 4 (Final & CRM: -4)': s4?.data?.elevatorDiscountPrice || 'N/A',
         'Stage Comparison & Variance': '',
       },
       {
         'Parameter / Field': 'Shaft Basic Price (MRP) (₹)',
         'Stage 1 (Initial: -1)': s1?.data?.shaftPrice || 0,
         'Stage 2 (Negotiation: -2)': s2?.data?.shaftPrice || 0,
-        'Stage 3 (Final & CRM: -3)': s3?.data?.shaftPrice || 0,
-        'Stage Comparison & Variance': `Net Diff: ₹${((Number(s3?.data?.shaftPrice || s2?.data?.shaftPrice || 0) - Number(s1?.data?.shaftPrice || 0))).toLocaleString('en-IN')}`,
+        'Stage 3 (Negotiation 2: -3)': s3?.data?.shaftPrice || 0,
+        'Stage 4 (Final & CRM: -4)': s4?.data?.shaftPrice || 0,
+        'Stage Comparison & Variance': `Net Diff: ₹${((Number(s4?.data?.shaftPrice || s3?.data?.shaftPrice || s2?.data?.shaftPrice || 0) - Number(s1?.data?.shaftPrice || 0))).toLocaleString('en-IN')}`,
       },
       {
         'Parameter / Field': 'Shaft Discount Price (₹)',
         'Stage 1 (Initial: -1)': s1?.data?.shaftDiscountPrice || 'N/A',
         'Stage 2 (Negotiation: -2)': s2?.data?.shaftDiscountPrice || 'N/A',
-        'Stage 3 (Final & CRM: -3)': s3?.data?.shaftDiscountPrice || 'N/A',
+        'Stage 3 (Negotiation 2: -3)': s3?.data?.shaftDiscountPrice || 'N/A',
+        'Stage 4 (Final & CRM: -4)': s4?.data?.shaftDiscountPrice || 'N/A',
         'Stage Comparison & Variance': '',
       },
       {
         'Parameter / Field': 'GST Amount (18%) (₹)',
         'Stage 1 (Initial: -1)': Math.round(((getStageEffectiveElv(s1) + getStageEffectiveShaft(s1)) * 18) / 100),
         'Stage 2 (Negotiation: -2)': Math.round(((getStageEffectiveElv(s2) + getStageEffectiveShaft(s2)) * 18) / 100),
-        'Stage 3 (Final & CRM: -3)': Math.round(((getStageEffectiveElv(s3) + getStageEffectiveShaft(s3)) * 18) / 100),
+        'Stage 3 (Negotiation 2: -3)': Math.round(((getStageEffectiveElv(s3) + getStageEffectiveShaft(s3)) * 18) / 100),
+        'Stage 4 (Final & CRM: -4)': Math.round(((getStageEffectiveElv(s4) + getStageEffectiveShaft(s4)) * 18) / 100),
         'Stage Comparison & Variance': '',
       },
       {
         'Parameter / Field': 'Grand Total Contract Value (₹)',
         'Stage 1 (Initial: -1)': s1Total,
         'Stage 2 (Negotiation: -2)': s2Total,
-        'Stage 3 (Final & CRM: -3)': s3Total,
+        'Stage 3 (Negotiation 2: -3)': s3Total,
+        'Stage 4 (Final & CRM: -4)': s4Total,
         'Stage Comparison & Variance': `Total Variance: ${priceDiffText}`,
       },
       {
         'Parameter / Field': 'Motor Warranty Term',
         'Stage 1 (Initial: -1)': s1?.data?.motorWarranty || 'Lifetime',
         'Stage 2 (Negotiation: -2)': s2?.data?.motorWarranty || 'Lifetime',
-        'Stage 3 (Final & CRM: -3)': s3?.data?.motorWarranty || 'Lifetime',
+        'Stage 3 (Negotiation 2: -3)': s3?.data?.motorWarranty || 'Lifetime',
+        'Stage 4 (Final & CRM: -4)': s4?.data?.motorWarranty || 'Lifetime',
         'Stage Comparison & Variance': '',
       },
       {
         'Parameter / Field': 'Manufacturing Defect Warranty',
         'Stage 1 (Initial: -1)': s1?.data?.manufacturingWarranty || '5 years',
         'Stage 2 (Negotiation: -2)': s2?.data?.manufacturingWarranty || '5 years',
-        'Stage 3 (Final & CRM: -3)': s3?.data?.manufacturingWarranty || '5 years',
+        'Stage 3 (Negotiation 2: -3)': s3?.data?.manufacturingWarranty || '5 years',
+        'Stage 4 (Final & CRM: -4)': s4?.data?.manufacturingWarranty || '5 years',
         'Stage Comparison & Variance': '',
       },
       {
         'Parameter / Field': 'Free Maintenance Period',
         'Stage 1 (Initial: -1)': s1?.data?.freeMaintenance || '1 Years',
         'Stage 2 (Negotiation: -2)': s2?.data?.freeMaintenance || '1 Years',
-        'Stage 3 (Final & CRM: -3)': s3?.data?.freeMaintenance || '1 Years',
+        'Stage 3 (Negotiation 2: -3)': s3?.data?.freeMaintenance || '1 Years',
+        'Stage 4 (Final & CRM: -4)': s4?.data?.freeMaintenance || '1 Years',
         'Stage Comparison & Variance': '',
       },
       {
         'Parameter / Field': 'Material Delivery Days',
         'Stage 1 (Initial: -1)': `${s1?.data?.deliveryDays || 120} days`,
         'Stage 2 (Negotiation: -2)': `${s2?.data?.deliveryDays || 120} days`,
-        'Stage 3 (Final & CRM: -3)': `${s3?.data?.deliveryDays || 120} days`,
+        'Stage 3 (Negotiation 2: -3)': `${s3?.data?.deliveryDays || 120} days`,
+        'Stage 4 (Final & CRM: -4)': `${s4?.data?.deliveryDays || 120} days`,
         'Stage Comparison & Variance': '',
       },
       {
         'Parameter / Field': 'Quotation Lifecycle Status',
         'Stage 1 (Initial: -1)': s1?.status || 'N/A',
         'Stage 2 (Negotiation: -2)': s2?.status || 'N/A',
-        'Stage 3 (Final & CRM: -3)': s3?.status || 'N/A',
-        'Stage Comparison & Variance': s3?.status === 'CRM_APPROVED' ? 'Approved & Provisioned on CRM' : s3?.status || '',
+        'Stage 3 (Negotiation 2: -3)': s3?.status || 'N/A',
+        'Stage 4 (Final & CRM: -4)': s4?.status || 'N/A',
+        'Stage Comparison & Variance': (s4?.status === 'CRM_APPROVED' || s3?.status === 'CRM_APPROVED') ? 'Approved & Provisioned on CRM' : s4?.status || s3?.status || '',
       },
       {
         'Parameter / Field': 'Created CRM Customer Code',
         'Stage 1 (Initial: -1)': 'N/A',
         'Stage 2 (Negotiation: -2)': 'N/A',
-        'Stage 3 (Final & CRM: -3)': s3?.createdCustomerCode || 'Pending Approval',
-        'Stage Comparison & Variance': s3?.createdCustomerCode || '',
+        'Stage 3 (Negotiation 2: -3)': 'N/A',
+        'Stage 4 (Final & CRM: -4)': s4?.createdCustomerCode || s3?.createdCustomerCode || 'Pending Approval',
+        'Stage Comparison & Variance': s4?.createdCustomerCode || s3?.createdCustomerCode || '',
       },
       {
         'Parameter / Field': 'Created CRM Project Code',
         'Stage 1 (Initial: -1)': 'N/A',
         'Stage 2 (Negotiation: -2)': 'N/A',
-        'Stage 3 (Final & CRM: -3)': s3?.createdProjectCode || 'Pending Approval',
-        'Stage Comparison & Variance': s3?.createdProjectCode || '',
+        'Stage 3 (Negotiation 2: -3)': 'N/A',
+        'Stage 4 (Final & CRM: -4)': s4?.createdProjectCode || s3?.createdProjectCode || 'Pending Approval',
+        'Stage Comparison & Variance': s4?.createdProjectCode || s3?.createdProjectCode || '',
       },
     ];
 
     const worksheet = XLSX.utils.json_to_sheet(rows);
-    worksheet['!cols'] = [{ wch: 32 }, { wch: 30 }, { wch: 30 }, { wch: 32 }, { wch: 30 }];
+    worksheet['!cols'] = [{ wch: 32 }, { wch: 28 }, { wch: 28 }, { wch: 28 }, { wch: 30 }, { wch: 28 }];
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Stage Comparison');
 

@@ -39,6 +39,7 @@ import EditPaymentModal from '../../../components/EditPaymentModal';
 import EditScheduleModal from '../../../components/EditScheduleModal';
 import WhatsAppGroupCard from '../../../components/WhatsAppGroupCard';
 import RequestPaymentModal from '../../../components/RequestPaymentModal';
+import EditProjectModal from '../../../components/EditProjectModal';
 
 export default function ProjectDetailPage() {
   const params = useParams();
@@ -61,6 +62,8 @@ export default function ProjectDetailPage() {
   const [isEditScheduleModalOpen, setIsEditScheduleModalOpen] = useState(false);
   const [isRequestPaymentModalOpen, setIsRequestPaymentModalOpen] = useState(false);
   const [requestLoading, setRequestLoading] = useState(false);
+  const [isEditProjectModalOpen, setIsEditProjectModalOpen] = useState(false);
+  const [customersList, setCustomersList] = useState<any[]>([]);
 
   const handleCancelPaymentRequest = async () => {
     if (!confirm('Are you sure you want to cancel the active payment collection request?')) return;
@@ -139,6 +142,7 @@ export default function ProjectDetailPage() {
     }).catch(() => {});
     if (projectId) {
       fetchProject();
+      api.getCustomers().then(cRes => setCustomersList(cRes?.data || [])).catch(() => {});
     }
   }, [projectId]);
 
@@ -386,6 +390,17 @@ export default function ProjectDetailPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            {/* Edit Project Button */}
+            <button
+              type="button"
+              onClick={() => setIsEditProjectModalOpen(true)}
+              className="px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-2xl text-xs font-bold transition-all inline-flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+              title="Edit project details & specifications"
+            >
+              <Edit2 className="w-3.5 h-3.5 text-amber-700" />
+              <span>Edit Project</span>
+            </button>
+
             {/* Status Badge */}
             <div className="px-4 py-2 bg-amber-50 text-amber-800 border border-amber-200 rounded-2xl text-xs font-black">
               STATUS: {formatProjectStatus(project.projectStatus)}
@@ -1204,6 +1219,18 @@ export default function ProjectDetailPage() {
         project={project}
         onSuccess={fetchProject}
       />
+
+      {/* Edit Project Modal */}
+      {project && (
+        <EditProjectModal
+          isOpen={isEditProjectModalOpen}
+          onClose={() => setIsEditProjectModalOpen(false)}
+          project={project}
+          customers={customersList.length > 0 ? customersList : (customer ? [customer] : [])}
+          onProjectUpdated={() => fetchProject()}
+          currentUser={user}
+        />
+      )}
     </div>
   );
 }

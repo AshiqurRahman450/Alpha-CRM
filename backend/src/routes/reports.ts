@@ -39,7 +39,7 @@ reportRouter.get('/', async (req: AuthRequest, res: Response) => {
     const now = new Date();
     const upcomingDeliveries = projects
       .filter((p) => p.expectedDeliveryDate && p.projectStatus !== 'COMPLETED' && p.projectStatus !== 'CANCELLED')
-      .sort((a, b) => new Date(a.expectedDeliveryDate).getTime() - new Date(b.expectedDeliveryDate).getTime())
+      .sort((a, b) => new Date(a.expectedDeliveryDate!).getTime() - new Date(b.expectedDeliveryDate!).getTime())
       .slice(0, 10)
       .map((p) => ({
         projectId: p.projectId,
@@ -48,7 +48,7 @@ reportRouter.get('/', async (req: AuthRequest, res: Response) => {
         liftModel: p.liftModel,
         stage: p.projectStatus,
         expectedDeliveryDate: p.expectedDeliveryDate,
-        daysRemaining: Math.ceil((new Date(p.expectedDeliveryDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)),
+        daysRemaining: Math.ceil((new Date(p.expectedDeliveryDate!).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)),
       }));
 
     return res.json({

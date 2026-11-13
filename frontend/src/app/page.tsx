@@ -23,6 +23,10 @@ import {
   Lock,
   FileText,
   Sparkles,
+  ClipboardCheck,
+  PackageCheck,
+  CheckCheck,
+  Layers,
 } from 'lucide-react';
 import { api, getStoredUser } from '../lib/api';
 import { formatProjectStatus } from '../components/Timeline';
@@ -30,6 +34,21 @@ import SendUpdateModal from '../components/SendUpdateModal';
 import PostponeModal from '../components/PostponeModal';
 import RecordPaymentModal from '../components/RecordPaymentModal';
 import QCInspectionForm from '../components/QCInspectionForm';
+
+const STAGES_CONFIG = [
+  { key: 'PAYMENT_RECEIVED', step: 1, label: 'Advance Payment Received', icon: CheckCircle2, bg: 'bg-emerald-50/70', border: 'border-emerald-200', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-800' },
+  { key: 'SITE_MEASUREMENT', step: 2, label: 'Site Visit', icon: ClipboardCheck, bg: 'bg-blue-50/70', border: 'border-blue-200', text: 'text-blue-700', badge: 'bg-blue-100 text-blue-800' },
+  { key: 'DESIGN', step: 3, label: 'Drawing and Cabin', icon: Sparkles, bg: 'bg-indigo-50/70', border: 'border-indigo-200', text: 'text-indigo-700', badge: 'bg-indigo-100 text-indigo-800' },
+  { key: 'CUSTOMER_APPROVAL', step: 4, label: 'Drawing & Cabin Approval', icon: CheckCircle2, bg: 'bg-sky-50/70', border: 'border-sky-200', text: 'text-sky-700', badge: 'bg-sky-100 text-sky-800' },
+  { key: 'ENGINEERING', step: 5, label: 'Production Payment', icon: IndianRupee, bg: 'bg-amber-50/70', border: 'border-amber-200', text: 'text-amber-700', badge: 'bg-amber-100 text-amber-800' },
+  { key: 'MANUFACTURING', step: 6, label: 'Approval Drawing to factory', icon: Wrench, bg: 'bg-orange-50/70', border: 'border-orange-200', text: 'text-orange-700', badge: 'bg-orange-100 text-orange-800' },
+  { key: 'QUALITY_CHECK', step: 7, label: 'Readiness Payment', icon: PackageCheck, bg: 'bg-purple-50/70', border: 'border-purple-200', text: 'text-purple-700', badge: 'bg-purple-100 text-purple-800' },
+  { key: 'DELIVERY', step: 8, label: 'Pre Site Visit', icon: ClipboardCheck, bg: 'bg-teal-50/70', border: 'border-teal-200', text: 'text-teal-700', badge: 'bg-teal-100 text-teal-800' },
+  { key: 'DISPATCH', step: 9, label: 'Expected Delivery', icon: Truck, bg: 'bg-cyan-50/70', border: 'border-cyan-200', text: 'text-cyan-700', badge: 'bg-cyan-100 text-cyan-800' },
+  { key: 'INSTALLATION', step: 10, label: 'Installation Start Date', icon: Wrench, bg: 'bg-rose-50/70', border: 'border-rose-200', text: 'text-rose-700', badge: 'bg-rose-100 text-rose-800' },
+  { key: 'TESTING', step: 11, label: 'Handover', icon: Handshake, bg: 'bg-amber-50/70', border: 'border-amber-200', text: 'text-amber-700', badge: 'bg-amber-100 text-amber-800' },
+  { key: 'COMPLETED', step: 12, label: 'Project Completed', icon: CheckCheck, bg: 'bg-emerald-50/70', border: 'border-emerald-200', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-800' },
+];
 
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null);
@@ -718,6 +737,74 @@ export default function DashboardPage() {
         </React.Fragment>
       )}
 
+      {/* ALL PROJECT STAGES PIPELINE OVERVIEW */}
+      {user?.role !== 'ACCOUNTANT' && (
+        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-2xl bg-[#0F2744] text-white flex items-center justify-center shadow-sm">
+                <Layers className="w-5 h-5 text-sky-400" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-extrabold text-slate-900 tracking-tight">
+                    Project Stages Pipeline
+                  </h3>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-sky-100 text-sky-800 border border-sky-300">
+                    {STAGES_CONFIG.length} Stages
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Live project counts for every stage in the elevator manufacturing, delivery & installation workflow
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/projects"
+              className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1 self-start sm:self-auto shrink-0"
+            >
+              <span>View All Projects</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            {STAGES_CONFIG.map((stage) => {
+              const count = data?.statusDistribution?.[stage.key] ?? 0;
+              const Icon = stage.icon;
+              return (
+                <Link
+                  key={stage.key}
+                  href={`/dashboard/list?type=stage&stage=${stage.key}`}
+                  className={`p-3.5 rounded-2xl border ${stage.border} ${stage.bg} hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer group flex flex-col justify-between`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        Stage {stage.step}
+                      </span>
+                      <div className="p-1.5 rounded-lg bg-white/80 shadow-xs">
+                        <Icon className={`w-3.5 h-3.5 ${stage.text}`} />
+                      </div>
+                    </div>
+                    <div className={`text-2xl font-black mt-2 font-poppins ${count > 0 ? stage.text : 'text-slate-400'}`}>
+                      {count}
+                    </div>
+                    <div className="text-[11px] font-bold text-slate-800 mt-1 line-clamp-2 leading-tight" title={stage.label}>
+                      {stage.label}
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[10px] font-bold text-slate-500 group-hover:text-sky-600 transition-colors">
+                    <span>View List</span>
+                    <ArrowUpRight className="w-3 h-3" />
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* TODAY'S ACTIONS SECTION (CRITICAL REQUIREMENT - Hidden for Accountant & BDM) */}
       {user?.role !== 'ACCOUNTANT' && user?.role !== 'BDM' && (
       <React.Fragment>
@@ -864,29 +951,44 @@ export default function DashboardPage() {
 
         {/* Status Distribution */}
         <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
-          <h3 className="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-2 border-b border-slate-100 pb-3">
-            <Wrench className="w-4 h-4 text-orange-600" />
-            <span>Project Status Pipeline</span>
-          </h3>
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <h3 className="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-2">
+              <Layers className="w-4 h-4 text-sky-600" />
+              <span>Project Status Pipeline</span>
+            </h3>
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+              {STAGES_CONFIG.length} Stages
+            </span>
+          </div>
 
-          <div className="space-y-1.5">
-            {Object.entries(data?.statusDistribution || {}).map(([stage, count]: any) => (
-              <Link
-                key={stage}
-                href={`/dashboard/list?type=stage&stage=${stage}`}
-                className="flex items-center justify-between text-xs p-2 rounded-xl hover:bg-sky-50/60 hover:border-sky-200 border border-transparent transition-all group cursor-pointer"
-              >
-                <div className="flex items-center gap-1.5">
-                  <span className="text-slate-700 font-medium group-hover:text-sky-900 transition-colors">
-                    {stage.replace(/_/g, ' ')}
+          <div className="space-y-1.5 overflow-y-auto max-h-[380px] pr-1">
+            {STAGES_CONFIG.map((stage) => {
+              const count = data?.statusDistribution?.[stage.key] ?? 0;
+              const Icon = stage.icon;
+              return (
+                <Link
+                  key={stage.key}
+                  href={`/dashboard/list?type=stage&stage=${stage.key}`}
+                  className="flex items-center justify-between text-xs p-2 rounded-xl hover:bg-sky-50/60 hover:border-sky-200 border border-transparent transition-all group cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono text-slate-400 w-4 text-right">
+                      {stage.step}.
+                    </span>
+                    <Icon className={`w-3.5 h-3.5 ${stage.text}`} />
+                    <span className="text-slate-700 font-medium group-hover:text-sky-900 transition-colors">
+                      {stage.label}
+                    </span>
+                    <ArrowUpRight className="w-3 h-3 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity text-sky-600" />
+                  </div>
+                  <span className={`font-mono font-bold px-2 py-0.5 rounded-md transition-colors ${
+                    count > 0 ? 'bg-sky-100 text-sky-800' : 'bg-slate-100 text-slate-400'
+                  }`}>
+                    {count}
                   </span>
-                  <ArrowUpRight className="w-3 h-3 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity text-sky-600" />
-                </div>
-                <span className="font-mono font-bold bg-slate-100 group-hover:bg-sky-100 group-hover:text-sky-800 text-slate-800 px-2 py-0.5 rounded-md transition-colors">
-                  {count}
-                </span>
-              </Link>
-            ))}
+                </Link>
+              );
+            })}
           </div>
         </div>
 

@@ -439,7 +439,7 @@ customerRouter.delete('/:id/documents/:docId', authorize('ADMIN', 'CRM', 'MANAGE
 /**
  * PUT /api/customers/:id
  */
-customerRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM'), async (req: AuthRequest, res: Response) => {
+customerRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'ACCOUNTANT'), async (req: AuthRequest, res: Response) => {
   try {
     const updateData = { ...req.body };
     if (updateData.googleMapsLink) {

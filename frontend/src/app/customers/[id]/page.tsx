@@ -21,11 +21,13 @@ import {
   Trash2,
   ExternalLink,
   Bell,
+  Edit2,
 } from 'lucide-react';
 import { api } from '../../../lib/api';
 import { formatProjectStatus } from '../../../components/Timeline';
 import InstallationProgrammeTable from '../../../components/InstallationProgrammeTable';
 import { DEFAULT_BDMS } from '../../../lib/constants';
+import EditCustomerModal from '../../../components/EditCustomerModal';
 
 const PROJECT_STAGE_NEXT_WORK: Record<
   string,
@@ -102,6 +104,7 @@ export default function CustomerDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
 
   const [bdms, setBdms] = useState<any[]>(DEFAULT_BDMS);
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -281,6 +284,15 @@ export default function CustomerDetailPage() {
               }`}
             >
               {customer.whatsappOptIn ? 'Disable' : 'Enable Opt-In'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsEditOpen(true)}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+              title="Edit customer information"
+            >
+              <Edit2 className="w-3.5 h-3.5 text-amber-700" />
+              <span>Edit Customer</span>
             </button>
             <button
               onClick={handleDeleteCustomer}
@@ -588,6 +600,17 @@ export default function CustomerDetailPage() {
           </div>
         )}
       </div>
+      {/* Edit Customer Modal */}
+      {data?.customer && (
+        <EditCustomerModal
+          isOpen={isEditOpen}
+          onClose={() => setIsEditOpen(false)}
+          customer={data.customer}
+          onCustomerUpdated={() => fetchCustomer(true)}
+          bdms={bdms}
+          currentUser={currentUser}
+        />
+      )}
     </div>
   );
 }

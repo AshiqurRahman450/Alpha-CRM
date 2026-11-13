@@ -49,6 +49,7 @@ export default function BdmQuotationsPage() {
     totalStage1: 0,
     totalStage2: 0,
     totalStage3: 0,
+    totalStage4: 0,
     totalCrmApproved: 0,
     totalPipelineValue: 0,
   });
@@ -57,7 +58,7 @@ export default function BdmQuotationsPage() {
   // Filters
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedBdm, setSelectedBdm] = useState<string>('ALL');
-  const [selectedStage, setSelectedStage] = useState<string>('ALL'); // 'ALL' | '1' | '2' | '3' | 'APPROVED'
+  const [selectedStage, setSelectedStage] = useState<string>('ALL'); // 'ALL' | '1' | '2' | '3' | '4' | 'APPROVED'
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [viewMyOnly, setViewMyOnly] = useState<boolean>(false);
 
@@ -121,7 +122,7 @@ export default function BdmQuotationsPage() {
   const filteredQuotations = useMemo(() => {
     if (selectedStage === 'APPROVED') {
       return quotations.filter(
-        (q) => q.latestStatus === 'CRM_APPROVED' || q.stages?.stage3?.status === 'CRM_APPROVED'
+        (q) => q.latestStatus === 'CRM_APPROVED' || q.stages?.stage4?.status === 'CRM_APPROVED' || q.stages?.stage3?.status === 'CRM_APPROVED'
       );
     }
     return quotations;
@@ -222,7 +223,7 @@ export default function BdmQuotationsPage() {
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Manage and track customer quotes across Stage 1 (Initial: -1), Stage 2 (Negotiation: -2), and Stage 3 (Final & CRM: -3).
+                Manage and track customer quotes across Stage 1 (Initial: -1), Stage 2 (Negotiation: -2), Stage 3 (Negotiation 2: -3), and Stage 4 (Final & CRM: -4).
               </p>
             </div>
           </div>
@@ -251,7 +252,7 @@ export default function BdmQuotationsPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 w-full">
         {/* KPI Metrics Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
           {/* Total Quotations */}
           <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 shadow-sm space-y-1">
             <div className="flex items-center justify-between text-slate-400 text-[11px] font-bold">
@@ -279,7 +280,7 @@ export default function BdmQuotationsPage() {
           {/* Stage 2 Count */}
           <div className="bg-slate-900/90 border border-amber-500/30 rounded-2xl p-3.5 shadow-sm space-y-1">
             <div className="flex items-center justify-between text-amber-300 text-[11px] font-bold">
-              <span>Stage 2 (Negotiation)</span>
+              <span>Stage 2 (Neg.)</span>
               <span className="w-2 h-2 rounded-full bg-amber-400"></span>
             </div>
             <div className="text-xl sm:text-2xl font-black text-amber-400">
@@ -289,15 +290,27 @@ export default function BdmQuotationsPage() {
           </div>
 
           {/* Stage 3 Count */}
+          <div className="bg-slate-900/90 border border-indigo-500/30 rounded-2xl p-3.5 shadow-sm space-y-1">
+            <div className="flex items-center justify-between text-indigo-300 text-[11px] font-bold">
+              <span>Stage 3 (Neg. 2)</span>
+              <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
+            </div>
+            <div className="text-xl sm:text-2xl font-black text-indigo-400">
+              {metrics.totalStage3 || 0}
+            </div>
+            <div className="text-[10px] text-slate-500">Negotiation 2 (-3)</div>
+          </div>
+
+          {/* Stage 4 Count */}
           <div className="bg-slate-900/90 border border-teal-500/30 rounded-2xl p-3.5 shadow-sm space-y-1">
             <div className="flex items-center justify-between text-teal-300 text-[11px] font-bold">
-              <span>Stage 3 (Final)</span>
+              <span>Stage 4 (Final)</span>
               <span className="w-2 h-2 rounded-full bg-teal-400"></span>
             </div>
             <div className="text-xl sm:text-2xl font-black text-teal-400">
-              {metrics.totalStage3 || 0}
+              {metrics.totalStage4 || 0}
             </div>
-            <div className="text-[10px] text-slate-500">Commercial Finalized (-3)</div>
+            <div className="text-[10px] text-slate-500">Commercial Finalized (-4)</div>
           </div>
 
           {/* CRM Approved */}
@@ -413,7 +426,8 @@ export default function BdmQuotationsPage() {
               { id: 'ALL', label: 'All Quotations' },
               { id: '1', label: 'Stage 1: Initial Offer (-1)' },
               { id: '2', label: 'Stage 2: Negotiation (-2)' },
-              { id: '3', label: 'Stage 3: Final Commercial (-3)' },
+              { id: '3', label: 'Stage 3: Negotiation 2 (-3)' },
+              { id: '4', label: 'Stage 4: Final Commercial (-4)' },
               { id: 'APPROVED', label: 'CRM Approved Projects' },
             ].map((st) => (
               <button
@@ -463,7 +477,8 @@ export default function BdmQuotationsPage() {
               const s1 = item.stages?.stage1;
               const s2 = item.stages?.stage2;
               const s3 = item.stages?.stage3;
-              const isApproved = item.latestStatus === 'CRM_APPROVED' || s3?.status === 'CRM_APPROVED';
+              const s4 = item.stages?.stage4;
+              const isApproved = item.latestStatus === 'CRM_APPROVED' || s4?.status === 'CRM_APPROVED' || s3?.status === 'CRM_APPROVED';
 
               return (
                 <div
@@ -471,6 +486,10 @@ export default function BdmQuotationsPage() {
                   className={`bg-slate-900/90 border rounded-2xl p-4 sm:p-5 transition-all shadow-sm space-y-4 hover:border-slate-700 ${
                     isApproved
                       ? 'border-emerald-500/40 shadow-emerald-950/20'
+                      : item.highestStage === 4
+                      ? 'border-teal-500/30'
+                      : item.highestStage === 3
+                      ? 'border-indigo-500/30'
                       : item.highestStage === 2
                       ? 'border-amber-500/30'
                       : 'border-slate-800'
@@ -494,8 +513,10 @@ export default function BdmQuotationsPage() {
                           className={`text-[10px] font-bold font-mono px-2.5 py-0.5 rounded-full border ${
                             isApproved
                               ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                              : item.highestStage === 3
+                              : item.highestStage === 4
                               ? 'bg-teal-500/20 text-teal-300 border-teal-500/40'
+                              : item.highestStage === 3
+                              ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
                               : item.highestStage === 2
                               ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                               : 'bg-blue-500/20 text-blue-300 border-blue-500/40'
@@ -503,8 +524,10 @@ export default function BdmQuotationsPage() {
                         >
                           {isApproved
                             ? 'CRM Approved ✅'
+                            : item.highestStage === 4
+                            ? 'Stage 4: Final Commercial'
                             : item.highestStage === 3
-                            ? 'Stage 3: Final Commercial'
+                            ? 'Stage 3: Negotiation 2'
                             : item.highestStage === 2
                             ? 'Stage 2: Negotiation Active'
                             : 'Stage 1: Initial Offer'}
@@ -559,15 +582,15 @@ export default function BdmQuotationsPage() {
                         target="_blank"
                         rel="noopener noreferrer"
                         className="p-2 bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-800/80 rounded-xl transition-colors cursor-pointer"
-                        title="Download Stage 1 vs 2 vs 3 Comparison Excel (.xlsx)"
+                        title="Download Stage 1 vs 2 vs 3 vs 4 Comparison Excel (.xlsx)"
                       >
                         <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
                       </a>
                     </div>
                   </div>
 
-                  {/* 3-STAGE VISUAL PROGRESS PIPELINE */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {/* 4-STAGE VISUAL PROGRESS PIPELINE */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
                     {/* STAGE 1: INITIAL OFFER */}
                     <div
                       className={`p-3.5 rounded-xl border space-y-2.5 transition-all ${
@@ -661,7 +684,7 @@ export default function BdmQuotationsPage() {
                           <span className="w-5 h-5 rounded-full bg-amber-600 text-white text-[10px] font-black flex items-center justify-center">
                             2
                           </span>
-                          <span className="text-xs font-bold text-white">Stage 2: Negotiation</span>
+                          <span className="text-xs font-bold text-white">Stage 2: Neg.</span>
                         </div>
                         {s2 ? (
                           <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
@@ -750,32 +773,24 @@ export default function BdmQuotationsPage() {
                       )}
                     </div>
 
-                    {/* STAGE 3: FINAL & CRM APPROVAL */}
+                    {/* STAGE 3: NEGOTIATION 2 */}
                     <div
                       className={`p-3.5 rounded-xl border space-y-2.5 transition-all ${
                         s3
-                          ? isApproved
-                            ? 'bg-emerald-950/30 border-emerald-500/50 shadow-inner'
-                            : 'bg-teal-950/20 border-teal-500/30'
+                          ? 'bg-indigo-950/20 border-indigo-500/30'
                           : 'bg-slate-950/40 border-slate-800/80'
                       }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
-                          <span className="w-5 h-5 rounded-full bg-teal-600 text-white text-[10px] font-black flex items-center justify-center">
+                          <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-black flex items-center justify-center">
                             3
                           </span>
-                          <span className="text-xs font-bold text-white">Stage 3: Final CRM</span>
+                          <span className="text-xs font-bold text-white">Stage 3: Neg. 2</span>
                         </div>
                         {s3 ? (
-                          <span
-                            className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
-                              isApproved
-                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                                : 'bg-teal-500/20 text-teal-300 border-teal-500/40'
-                            }`}
-                          >
-                            {isApproved ? 'CRM_APPROVED ✅' : s3.status}
+                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                            {s3.status}
                           </span>
                         ) : (
                           <span className="text-[10px] text-slate-500">Pending</span>
@@ -784,75 +799,49 @@ export default function BdmQuotationsPage() {
 
                       {s3 ? (
                         <div className="space-y-1.5 text-xs">
-                          <div className="text-[11px] font-mono font-bold text-teal-200">
+                          <div className="text-[11px] font-mono font-bold text-indigo-200">
                             {s3.offerNo}
                           </div>
-                          <div className="text-sm font-extrabold text-white">
-                            ₹{s3.grandTotal.toLocaleString('en-IN')}{' '}
-                            <span className="text-[10px] text-slate-400 font-normal">
-                              (Contract Value)
-                            </span>
+                          <div className="flex items-center justify-between">
+                            <div className="text-sm font-extrabold text-white">
+                              ₹{s3.grandTotal.toLocaleString('en-IN')}
+                            </div>
+                            {/* Price difference vs Stage 2 */}
+                            {s2 && (
+                              <span
+                                className={`text-[10px] font-bold font-mono px-1.5 py-0.5 rounded ${
+                                  s3.grandTotal < s2.grandTotal
+                                    ? 'bg-emerald-500/20 text-emerald-300'
+                                    : s3.grandTotal > s2.grandTotal
+                                    ? 'bg-amber-500/20 text-amber-300'
+                                    : 'bg-slate-800 text-slate-400'
+                                }`}
+                              >
+                                {s3.grandTotal === s2.grandTotal
+                                  ? 'No variance'
+                                  : s3.grandTotal < s2.grandTotal
+                                  ? `-₹${(s2.grandTotal - s3.grandTotal).toLocaleString('en-IN')}`
+                                  : `+₹${(s3.grandTotal - s2.grandTotal).toLocaleString('en-IN')}`}
+                              </span>
+                            )}
                           </div>
-
-                          {/* Linked Customer & Project IDs if approved */}
-                          {item.createdCustomerCode || item.createdProjectCode ? (
-                            <div className="p-1.5 rounded-lg bg-emerald-950/60 border border-emerald-500/30 text-[10px] font-mono text-emerald-300 flex items-center justify-between">
-                              <span>Customer: {item.createdCustomerCode || 'CUST'}</span>
-                              <span>Project: {item.createdProjectCode || 'ALP'}</span>
-                            </div>
-                          ) : (
-                            <div className="text-[10px] text-slate-400">
-                              Finalized:{' '}
-                              {new Date(s3.updatedAt).toLocaleDateString('en-IN', {
-                                day: '2-digit',
-                                month: 'short',
-                                year: 'numeric',
-                              })}
-                            </div>
-                          )}
+                          <div className="text-[10px] text-slate-400">
+                            Updated:{' '}
+                            {new Date(s3.updatedAt).toLocaleDateString('en-IN', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                            })}
+                          </div>
 
                           <div className="pt-2 flex items-center gap-1.5">
                             <Link
                               href={`/quotations?offerNo=${encodeURIComponent(s3.offerNo)}&stage=3`}
-                              className="flex-1 py-1 px-2.5 bg-teal-600/80 hover:bg-teal-600 text-white rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition-all"
+                              className="flex-1 py-1 px-2.5 bg-indigo-600/80 hover:bg-indigo-600 text-white rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition-all"
                             >
                               <FileText className="w-3 h-3" />
                               <span>Studio</span>
                             </Link>
-
-                            {!isApproved && (
-                              s3.status === 'APPROVAL_REQUESTED' && currentUser?.role === 'BDM' ? (
-                                <span className="py-1 px-2 bg-amber-950/60 text-amber-300 border border-amber-800/80 rounded-lg text-[10px] font-black flex items-center gap-1">
-                                  <span>⏳ Awaiting CRM</span>
-                                </span>
-                              ) : (
-                                <button
-                                  type="button"
-                                  disabled={approvingOfferNo === s3.offerNo}
-                                  onClick={() => handleCrmApprove(s3.offerNo)}
-                                  className={`py-1 px-2.5 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 ${
-                                    currentUser?.role === 'BDM'
-                                      ? 'bg-sky-700 hover:bg-sky-600'
-                                      : 'bg-emerald-700 hover:bg-emerald-600'
-                                  }`}
-                                  title={
-                                    currentUser?.role === 'BDM'
-                                      ? 'Submit request for CRM Approval'
-                                      : 'CRM Role: Approve and Auto-create Customer and Project'
-                                  }
-                                >
-                                  {approvingOfferNo === s3.offerNo ? (
-                                    <Loader2 className="w-3 h-3 animate-spin" />
-                                  ) : currentUser?.role === 'BDM' ? (
-                                    <Send className="w-3 h-3" />
-                                  ) : (
-                                    <Award className="w-3 h-3" />
-                                  )}
-                                  <span>{currentUser?.role === 'BDM' ? 'Request Approval' : 'Approve'}</span>
-                                </button>
-                              )
-                            )}
-
                             <button
                               type="button"
                               onClick={() => {
@@ -874,13 +863,134 @@ export default function BdmQuotationsPage() {
                           {s2 ? (
                             <Link
                               href={`/quotations?offerNo=${encodeURIComponent(s2.offerNo)}&stage=3`}
-                              className="text-xs text-teal-400 hover:text-teal-300 font-bold inline-flex items-center gap-1 bg-teal-950/40 border border-teal-800/80 px-2.5 py-1 rounded-lg"
+                              className="text-xs text-indigo-400 hover:text-indigo-300 font-bold inline-flex items-center gap-1 bg-indigo-950/40 border border-indigo-800/80 px-2.5 py-1 rounded-lg"
                             >
-                              <span>+ Finalize Stage 3 (-3)</span>
+                              <span>+ Start Neg. 2 (-3)</span>
                               <ArrowRight className="w-3 h-3" />
                             </Link>
                           ) : (
                             <span className="text-[11px] text-slate-500">Requires Stage 2</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* STAGE 4: FINAL & CRM APPROVAL (NO DOWNLOAD BUTTON) */}
+                    <div
+                      className={`p-3.5 rounded-xl border space-y-2.5 transition-all ${
+                        s4
+                          ? isApproved
+                            ? 'bg-emerald-950/30 border-emerald-500/50 shadow-inner'
+                            : 'bg-teal-950/20 border-teal-500/30'
+                          : 'bg-slate-950/40 border-slate-800/80'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-5 h-5 rounded-full bg-teal-600 text-white text-[10px] font-black flex items-center justify-center">
+                            4
+                          </span>
+                          <span className="text-xs font-bold text-white">Stage 4: Final CRM</span>
+                        </div>
+                        {s4 ? (
+                          <span
+                            className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+                              isApproved
+                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                : 'bg-teal-500/20 text-teal-300 border-teal-500/40'
+                            }`}
+                          >
+                            {isApproved ? 'CRM_APPROVED ✅' : s4.status}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-500">Pending</span>
+                        )}
+                      </div>
+
+                      {s4 ? (
+                        <div className="space-y-1.5 text-xs">
+                          <div className="text-[11px] font-mono font-bold text-teal-200">
+                            {s4.offerNo}
+                          </div>
+                          <div className="text-sm font-extrabold text-white">
+                            ₹{s4.grandTotal.toLocaleString('en-IN')}{' '}
+                            <span className="text-[10px] text-slate-400 font-normal">
+                              (Contract Value)
+                            </span>
+                          </div>
+
+                          {/* Linked Customer & Project IDs if approved */}
+                          {item.createdCustomerCode || item.createdProjectCode ? (
+                            <div className="p-1.5 rounded-lg bg-emerald-950/60 border border-emerald-500/30 text-[10px] font-mono text-emerald-300 flex items-center justify-between">
+                              <span>Customer: {item.createdCustomerCode || 'CUST'}</span>
+                              <span>Project: {item.createdProjectCode || 'ALP'}</span>
+                            </div>
+                          ) : (
+                            <div className="text-[10px] text-slate-400">
+                              Finalized:{' '}
+                              {new Date(s4.updatedAt).toLocaleDateString('en-IN', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                              })}
+                            </div>
+                          )}
+
+                          <div className="pt-2 flex items-center gap-1.5">
+                            <Link
+                              href={`/quotations?offerNo=${encodeURIComponent(s4.offerNo)}&stage=4`}
+                              className="flex-1 py-1 px-2.5 bg-teal-600/80 hover:bg-teal-600 text-white rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition-all"
+                            >
+                              <FileText className="w-3 h-3" />
+                              <span>Studio</span>
+                            </Link>
+
+                            {!isApproved && (
+                              s4.status === 'APPROVAL_REQUESTED' && currentUser?.role === 'BDM' ? (
+                                <span className="py-1 px-2 bg-amber-950/60 text-amber-300 border border-amber-800/80 rounded-lg text-[10px] font-black flex items-center gap-1">
+                                  <span>⏳ Awaiting CRM</span>
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  disabled={approvingOfferNo === s4.offerNo}
+                                  onClick={() => handleCrmApprove(s4.offerNo)}
+                                  className={`py-1 px-2.5 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 ${
+                                    currentUser?.role === 'BDM'
+                                      ? 'bg-sky-700 hover:bg-sky-600'
+                                      : 'bg-emerald-700 hover:bg-emerald-600'
+                                  }`}
+                                  title={
+                                    currentUser?.role === 'BDM'
+                                      ? 'Submit request for CRM Approval'
+                                      : 'CRM Role: Approve and Auto-create Customer and Project'
+                                  }
+                                >
+                                  {approvingOfferNo === s4.offerNo ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  ) : currentUser?.role === 'BDM' ? (
+                                    <Send className="w-3 h-3" />
+                                  ) : (
+                                    <Award className="w-3 h-3" />
+                                  )}
+                                  <span>{currentUser?.role === 'BDM' ? 'Request Approval' : 'Approve'}</span>
+                                </button>
+                              )
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="py-4 text-center">
+                          {s3 ? (
+                            <Link
+                              href={`/quotations?offerNo=${encodeURIComponent(s3.offerNo)}&stage=4`}
+                              className="text-xs text-teal-400 hover:text-teal-300 font-bold inline-flex items-center gap-1 bg-teal-950/40 border border-teal-800/80 px-2.5 py-1 rounded-lg"
+                            >
+                              <span>+ Finalize Stage 4 (-4)</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </Link>
+                          ) : (
+                            <span className="text-[11px] text-slate-500">Requires Stage 3</span>
                           )}
                         </div>
                       )}

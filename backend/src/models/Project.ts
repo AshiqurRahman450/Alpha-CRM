@@ -46,7 +46,7 @@ export interface IProject extends Document {
   balanceAmount: number;
   paymentStatus: PaymentStatus;
   orderDate: Date;
-  expectedDeliveryDate: Date;
+  expectedDeliveryDate?: Date;
   actualDeliveryDate?: Date;
   installationDate?: Date;
   projectStatus: ProjectStatus;
@@ -290,7 +290,12 @@ const ProjectSchema = new Schema<IProject>(
     },
     expectedDeliveryDate: {
       type: Date,
-      required: true,
+      required: false,
+      default: () => {
+        const d = new Date();
+        d.setDate(d.getDate() + 120);
+        return d;
+      },
     },
     actualDeliveryDate: {
       type: Date,

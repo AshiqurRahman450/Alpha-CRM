@@ -26,10 +26,12 @@ import {
   UserCheck,
   History,
   Trash2,
+  Edit2,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { api } from '../../lib/api';
 import { DEFAULT_BDMS } from '../../lib/constants';
+import EditCustomerModal from '../../components/EditCustomerModal';
 
 interface MissingField {
   key: string;
@@ -48,6 +50,10 @@ export default function OldCustomersPage() {
   // BDM assignment support
   const [bdms, setBdms] = useState<any[]>(DEFAULT_BDMS);
   const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Edit Customer modal
+  const [editingCustomer, setEditingCustomer] = useState<any>(null);
+  const [isEditCustomerOpen, setIsEditCustomerOpen] = useState(false);
 
   // Add Customer modal
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -505,6 +511,18 @@ export default function OldCustomersPage() {
 
                     <td className="py-4 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingCustomer(c);
+                            setIsEditCustomerOpen(true);
+                          }}
+                          className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/80 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1 cursor-pointer"
+                          title="Edit customer details"
+                        >
+                          <Edit2 className="w-3 h-3 text-amber-600" />
+                          <span>Edit</span>
+                        </button>
                         <Link
                           href={`/customers/${c._id}`}
                           className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1"
@@ -766,6 +784,20 @@ export default function OldCustomersPage() {
             </div>
           </div>
         </div>
+      )}
+      {/* Edit Customer Modal */}
+      {editingCustomer && (
+        <EditCustomerModal
+          isOpen={isEditCustomerOpen}
+          onClose={() => {
+            setIsEditCustomerOpen(false);
+            setEditingCustomer(null);
+          }}
+          customer={editingCustomer}
+          onCustomerUpdated={() => fetchCustomers()}
+          bdms={bdms}
+          currentUser={currentUser}
+        />
       )}
     </div>
   );

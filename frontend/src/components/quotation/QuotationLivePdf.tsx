@@ -140,9 +140,14 @@ export default function QuotationLivePdf({
       if (updated.includes('NK Group of Companies') || !updated.includes('Where Vertical Mobility Meets Sophistication')) {
         updated = buildPage2LetterHtml(updated, data);
       }
+      updated = updated.replace(/top:490px/g, 'top:570px');
+      updated = updated.replace(/top:555px/g, 'top:672px');
+      updated = updated.replace(/top:550px/g, 'top:670px');
+      updated = updated.replace(/transform:matrix\(1,0,0,1,40\.63,555\)/g, 'transform:matrix(1,0,0,1,40.63,697.85)');
+      updated = updated.replace(/transform:matrix\(1,0,0,1,38\.78,795\)/g, 'transform:matrix(1,0,0,1,38.78,938.43)');
       updated = updated.replace(
         '<div class="t c9" style="z-index:1263;transform:matrix(1,0,0,1,94.46,200.44)">',
-        '<div class="t c8" style="z-index:1263;transform:matrix(1,0,0,1,94.46,200.44);color:#0e4b31;">'
+        '<div class="t c8" style="z-index:1263;transform:matrix(1,0,0,1,94.46,200.44);color:#000000;">'
       );
     }
 
@@ -153,7 +158,7 @@ export default function QuotationLivePdf({
       const sIdx = updated.indexOf(targetStart);
       const eIdx = updated.indexOf(targetEnd);
       if (sIdx !== -1 && eIdx !== -1) {
-        const cleanParagraph = `<div class="t c23" style="position:absolute;left:28.67px;top:217.35px;width:736px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#0e4b31;text-align:justify;text-justify:inter-word;z-index:4034;">17. The necessary electric and services work would be in your scope of work. 18. Single and three phase, power supply would be required as per the Indian standard 14655(Part2/Sec 1): 2000 Clause 5.2. We would also need the cabling for 3-phase/1-phase for Car, electrical main switches and two separate earthing suitably terminated in the machine room. 19. Incase if power is not available in quantity/quality, you need to provide us with alternative source of power supply through a generator during our commissioning work. 20. Adequate lighting in lift shaft, lobby and storeroom shall be provided as per Alpha Elevators layout 21. Component failure due to poor power supply and weak earthing will not be covered under free replacement 22. No other agency shall tap power from hoistway once the shaft is handed over to Alpha Elevators Storage requirements for lift materials. 23. Availability and possession of a storage room with weather protection &amp; locking arrangement till the complete handover to the building owner. This is required at first floor in the vicinity of the shafts. The store room shall have Adequate lighting arrangement with power plug of 15 Amp. Capacity &amp; ventilation. Storage Area should be Safe, Dry, Lockable and Weatherproof. 24. Storage for heavy materials like Guide rails, Machine, CWT frame, Car package. This area should be accessible by forklift and truck and should be protected from rains and water logging. This area should be within a radius of 50 feet from the lift shafts. 25. Scaffolding to be provided by the client as per relevant IS norms &amp; BOCW Rules 1998 (and amendments thereof if any). 26. For 12/15/16 passenger elevators where shaft walls are in Brick, necessary arrangements for ‘Fixing Brick Fixation Plate’, including scaffolding, fixing and finishing of plates on opposite walls needs to be provided by customer. 27. Service pipes, ventilation duct, electrical conduits etc. for other purpose are not allowed to run in lift well. 28. The hoist way should be without any projections and needs to be plumb.</div>`;
+        const cleanParagraph = `<div class="t c23" style="position:absolute;left:28.67px;top:217.35px;width:736px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#000000;text-align:justify;text-justify:inter-word;z-index:4034;">17. The necessary electric and services work would be in your scope of work. 18. Single and three phase, power supply would be required as per the Indian standard 14655(Part2/Sec 1): 2000 Clause 5.2. We would also need the cabling for 3-phase/1-phase for Car, electrical main switches and two separate earthing suitably terminated in the machine room. 19. Incase if power is not available in quantity/quality, you need to provide us with alternative source of power supply through a generator during our commissioning work. 20. Adequate lighting in lift shaft, lobby and storeroom shall be provided as per Alpha Elevators layout 21. Component failure due to poor power supply and weak earthing will not be covered under free replacement 22. No other agency shall tap power from hoistway once the shaft is handed over to Alpha Elevators Storage requirements for lift materials. 23. Availability and possession of a storage room with weather protection &amp; locking arrangement till the complete handover to the building owner. This is required at first floor in the vicinity of the shafts. The store room shall have Adequate lighting arrangement with power plug of 15 Amp. Capacity &amp; ventilation. Storage Area should be Safe, Dry, Lockable and Weatherproof. 24. Storage for heavy materials like Guide rails, Machine, CWT frame, Car package. This area should be accessible by forklift and truck and should be protected from rains and water logging. This area should be within a radius of 50 feet from the lift shafts. 25. Scaffolding to be provided by the client as per relevant IS norms &amp; BOCW Rules 1998 (and amendments thereof if any). 26. For 12/15/16 passenger elevators where shaft walls are in Brick, necessary arrangements for ‘Fixing Brick Fixation Plate’, including scaffolding, fixing and finishing of plates on opposite walls needs to be provided by customer. 27. Service pipes, ventilation duct, electrical conduits etc. for other purpose are not allowed to run in lift well. 28. The hoist way should be without any projections and needs to be plumb.</div>`;
         updated = updated.substring(0, sIdx) + cleanParagraph + updated.substring(eIdx + targetEnd.length);
       }
     }
@@ -165,7 +170,7 @@ export default function QuotationLivePdf({
       const sIdx = updated.indexOf(targetStart);
       const eIdx = updated.indexOf(targetEnd);
       if (sIdx !== -1 && eIdx !== -1) {
-        const cleanParagraph = `<div class="t c23" style="position:absolute;left:28.64px;top:478.63px;width:736px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#0e4b31;text-align:justify;text-justify:inter-word;z-index:35;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">1. Ownership of material </span>Till the final payment is made, the Customer cannot claim right of ownership or lien over any materials. Alpha Elevators shall have the right to take back / reclaim the possession of the same or any part thereof at the Customer’s cost. In case the payment is not made as per the terms of the Contract, Alpha Elevators have the right to dismantle its Equipment’s and take the materials supplied back in its possession. This will be without prejudice to its legal right to recover the unpaid amounts, interest, legal expenses and the cost incurred in dismantling the equipment’s, logistics cost of moving the same, labor cost arising with such dismantling moving and all the applicable taxes/ duties/ cess. Alpha Elevators is not bound to furnish any documentary proof in support of such recoveries. The depreciation in the value of the material / resale value shall also be taken into account. In the event this clause is applied, it is agreed between the parties to this Contract that all the dispatched material and installed parts hereunder shall be removed without any material damage to the property to which it is attached and Alpha Elevators shall retain the title of thereto until the final payment is made by the Customer under the Contract. Any unutilized material, packing material etc. remaining after completion of the job shall remain the property of Alpha Elevators, who shall have the right to take back such material.</div>`;
+        const cleanParagraph = `<div class="t c23" style="position:absolute;left:28.64px;top:478.63px;width:736px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#000000;text-align:justify;text-justify:inter-word;z-index:35;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">1. Ownership of material </span>Till the final payment is made, the Customer cannot claim right of ownership or lien over any materials. Alpha Elevators shall have the right to take back / reclaim the possession of the same or any part thereof at the Customer’s cost. In case the payment is not made as per the terms of the Contract, Alpha Elevators have the right to dismantle its Equipment’s and take the materials supplied back in its possession. This will be without prejudice to its legal right to recover the unpaid amounts, interest, legal expenses and the cost incurred in dismantling the equipment’s, logistics cost of moving the same, labor cost arising with such dismantling moving and all the applicable taxes/ duties/ cess. Alpha Elevators is not bound to furnish any documentary proof in support of such recoveries. The depreciation in the value of the material / resale value shall also be taken into account. In the event this clause is applied, it is agreed between the parties to this Contract that all the dispatched material and installed parts hereunder shall be removed without any material damage to the property to which it is attached and Alpha Elevators shall retain the title of thereto until the final payment is made by the Customer under the Contract. Any unutilized material, packing material etc. remaining after completion of the job shall remain the property of Alpha Elevators, who shall have the right to take back such material.</div>`;
         updated = updated.substring(0, sIdx) + cleanParagraph + updated.substring(eIdx + targetEnd.length);
       }
     }
@@ -177,7 +182,7 @@ export default function QuotationLivePdf({
       const sIdx = updated.indexOf(targetStart);
       const eIdx = updated.indexOf(targetEnd);
       if (sIdx !== -1 && eIdx !== -1) {
-        const cleanParagraph = `<div class="t c23" style="position:absolute;left:28.64px;top:624.64px;width:736px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#0e4b31;text-align:justify;text-justify:inter-word;z-index:1493;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">2. Intellectual Property Rights </span>All intellectual property rights in the equipment’s including the control software which enables routine operation, maintenance and repair of the equipment (&quot;Control Software&quot;) remain the property of Alpha Elevators Group. The Customer is entitled to a non-exclusive right to use the Control Software and to operate the Equipment for its own purposes, but the Customer shall have no other right or interest in the Control Software, especially as regards to the right to reproduce, reverse engineer or deal in the Control Software.</div>`;
+        const cleanParagraph = `<div class="t c23" style="position:absolute;left:28.64px;top:624.64px;width:736px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#000000;text-align:justify;text-justify:inter-word;z-index:1493;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">2. Intellectual Property Rights </span>All intellectual property rights in the equipment’s including the control software which enables routine operation, maintenance and repair of the equipment (&quot;Control Software&quot;) remain the property of Alpha Elevators Group. The Customer is entitled to a non-exclusive right to use the Control Software and to operate the Equipment for its own purposes, but the Customer shall have no other right or interest in the Control Software, especially as regards to the right to reproduce, reverse engineer or deal in the Control Software.</div>`;
         updated = updated.substring(0, sIdx) + cleanParagraph + updated.substring(eIdx + targetEnd.length);
       }
     }
@@ -189,7 +194,7 @@ export default function QuotationLivePdf({
       const sIdx = updated.indexOf(targetStart);
       const eIdx = updated.indexOf(targetEnd);
       if (sIdx !== -1 && eIdx !== -1) {
-        const cleanParagraph = `<div class="t c23" style="position:absolute;left:28.64px;top:712.64px;width:736px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#0e4b31;text-align:justify;text-justify:inter-word;z-index:2055;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">3. Remobilization &amp; Reconditioning Charges </span>In case the elevator / escalator installation job is stopped for more than 4 weeks in between due to any reasons not attributable to Alpha Elevators, including unavailability of power supply etc., remobilization charges of 5%.of total Contract Value per elevator / escalator will be charged additional over the Contract Value, whenever Alpha Elevators is asked to restart the job. This would need to be paid upfront before Alpha Elevators restarts any site activity. Alpha Elevators would be entitled for four weeks’ time to remobilize and restart the work. In case, if the material is in a non-workable condition or pilferage, reconditioning or replacement cost shall be to the Customer’s account.</div>`;
+        const cleanParagraph = `<div class="t c23" style="position:absolute;left:28.64px;top:712.64px;width:736px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#000000;text-align:justify;text-justify:inter-word;z-index:2055;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">3. Remobilization &amp; Reconditioning Charges </span>In case the elevator / escalator installation job is stopped for more than 4 weeks in between due to any reasons not attributable to Alpha Elevators, including unavailability of power supply etc., remobilization charges of 5%.of total Contract Value per elevator / escalator will be charged additional over the Contract Value, whenever Alpha Elevators is asked to restart the job. This would need to be paid upfront before Alpha Elevators restarts any site activity. Alpha Elevators would be entitled for four weeks’ time to remobilize and restart the work. In case, if the material is in a non-workable condition or pilferage, reconditioning or replacement cost shall be to the Customer’s account.</div>`;
         updated = updated.substring(0, sIdx) + cleanParagraph + updated.substring(eIdx + targetEnd.length);
       }
     }
@@ -201,7 +206,7 @@ export default function QuotationLivePdf({
       const sIdx = updated.indexOf(targetStart);
       const eIdx = updated.indexOf(targetEnd);
       if (sIdx !== -1 && eIdx !== -1) {
-        const cleanParagraph = `<div class="t c23" style="position:absolute;left:28.64px;top:808.64px;width:736px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#0e4b31;text-align:justify;text-justify:inter-word;z-index:2796;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">4. Termination of Contract </span>In the event of cancellation or termination of the Contract by the Customer, Alpha Elevators, in addition to all applicable taxes, shall be charging from the Customer as follows: Before approval of drawings - 10% of the Contract Value. After approval of drawings - 20% of the Contract Value. After release to production - 50% of the Contract Value. After dispatch of materials - 90% of the Contract Value. After start of installation - 100% of the Contract Value. Upon the cancellation or termination of the Contract by the Customer prior to the installation, the Customer cannot claim right of ownership or lien over any materials irrespective of the percentage of Contract value paid. Alpha Elevators identify as Ranalpha Elevators Private Limited shall be entitled to take back/reclaim possession of the materials or any part thereof.</div>`;
+        const cleanParagraph = `<div class="t c23" style="position:absolute;left:28.64px;top:808.64px;width:736px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#000000;text-align:justify;text-justify:inter-word;z-index:2796;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">4. Termination of Contract </span>In the event of cancellation or termination of the Contract by the Customer, Alpha Elevators, in addition to all applicable taxes, shall be charging from the Customer as follows: Before approval of drawings - 10% of the Contract Value. After approval of drawings - 20% of the Contract Value. After release to production - 50% of the Contract Value. After dispatch of materials - 90% of the Contract Value. After start of installation - 100% of the Contract Value. Upon the cancellation or termination of the Contract by the Customer prior to the installation, the Customer cannot claim right of ownership or lien over any materials irrespective of the percentage of Contract value paid. Alpha Elevators identify as Ranalpha Elevators Private Limited shall be entitled to take back/reclaim possession of the materials or any part thereof.</div>`;
         updated = updated.substring(0, sIdx) + cleanParagraph + updated.substring(eIdx + targetEnd.length);
       }
     }
@@ -213,7 +218,7 @@ export default function QuotationLivePdf({
       const sIdx = updated.indexOf(targetStart);
       const eIdx = updated.indexOf(targetEnd);
       if (sIdx !== -1 && eIdx !== -1) {
-        const cleanParagraph = `<div class="t c23" style="position:absolute;left:28.64px;top:913.42px;width:736px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#0e4b31;text-align:justify;text-justify:inter-word;z-index:3615;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">5. Force Majeure </span>Alpha Elevators shall not be liable for failure, non-performance or delays in supply or services resulting directly or indirectly from causes beyond its reasonable control, such as, Acts of God, war, act of terrorism, nuclear risks, riots, strike, political unrest, acts of government, its agencies or officers, raw material shortage, labor shortage or any other legitimate cause beyond the reasonable.</div>`;
+        const cleanParagraph = `<div class="t c23" style="position:absolute;left:28.64px;top:913.42px;width:736px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#000000;text-align:justify;text-justify:inter-word;z-index:3615;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">5. Force Majeure </span>Alpha Elevators shall not be liable for failure, non-performance or delays in supply or services resulting directly or indirectly from causes beyond its reasonable control, such as, Acts of God, war, act of terrorism, nuclear risks, riots, strike, political unrest, acts of government, its agencies or officers, raw material shortage, labor shortage or any other legitimate cause beyond the reasonable.</div>`;
         updated = updated.substring(0, sIdx) + cleanParagraph + updated.substring(eIdx + targetEnd.length);
       }
     }
@@ -252,17 +257,19 @@ export default function QuotationLivePdf({
 
     // Fix Page 3 Model Name Font Color
     if (pageNum === 3 || updated.includes('id="p2"') || (updated.includes('Gearless Belt') && updated.includes('310.59,191.55'))) {
-      updated = updated.replace(/<div class="t c9" style="z-index:791;transform:matrix\(1,0,0,1,310\.59,191\.55\)[^"]*">/g, '<div class="t c9" style="z-index:791;transform:matrix(1,0,0,1,310.59,191.55);color:#1a3f2e !important;">');
-      updated = updated.replace(/<div class="t c9" style="z-index:816;transform:matrix\(1,0,0,1,62\.53,216\.83\)[^"]*">/g, '<div class="t c9" style="z-index:816;transform:matrix(1,0,0,1,62.53,216.83);color:#1a3f2e !important;">');
-      updated = updated.replace(/<div class="t c17" style="z-index:729;transform:matrix\(1,0,0,1,346\.53,364\.86\)[^"]*">/g, '<div class="t c17" style="z-index:729;transform:matrix(1,0,0,1,346.53,364.86);color:#1a3f2e !important;">');
+      updated = updated.replace(/<div class="t c9" style="z-index:791;transform:matrix\(1,0,0,1,310\.59,191\.55\)[^"]*">/g, '<div class="t c9" style="z-index:791;transform:matrix(1,0,0,1,310.59,191.55);color:#000000 !important;">');
+      updated = updated.replace(/<div class="t c9" style="z-index:816;transform:matrix\(1,0,0,1,62\.53,216\.83\)[^"]*">/g, '<div class="t c9" style="z-index:816;transform:matrix(1,0,0,1,62.53,216.83);color:#000000 !important;">');
+      updated = updated.replace(/<div class="t c17" style="z-index:729;transform:matrix\(1,0,0,1,346\.53,364\.86\)[^"]*">/g, '<div class="t c17" style="z-index:729;transform:matrix(1,0,0,1,346.53,364.86);color:#000000 !important;">');
     }
 
     // Fix Page 5 Warranty, Delivery, & Payment Terms in savedPages
-    if (pageNum === 5 || updated.includes('Lifetime- MOTOR WARRANTY') || updated.includes('Time of Material Delivery') || updated.includes('years service') || updated.includes('warranty-term-box') || updated.includes('payment-term-stage')) {
+    if (pageNum === 5 || updated.includes('Lifetime- MOTOR WARRANTY') || updated.includes('Time of Material Delivery') || updated.includes('years service') || updated.includes('warranty-term-box') || updated.includes('payment-term-stage') || updated.includes('Warranty')) {
       const page5WarrantyHtml = buildPage5WarrantyHtml(data.warranty);
-      const warrantyBoxRegex = /<div class="t c26[^"]*warranty-term-box[^"]*"[\s\S]*?(?:<!-- END_WARRANTY_BOX -->|<\/div>\s*<\/div>|<\/div>(?=\s*<\/p>|\s*<\/td>|\s*<div class="t c21"[^>]*>Time of Material Delivery))/;
-      const warrantyCellRegex = /<div class="t c26" style="z-index:907;transform:matrix\(1,0,0,1,252\.41,682\.01\)[^"]*">[\s\S]*?(?:years service\.<\/div>|<div class="t c26" style="z-index:1048;transform:matrix\(1,0,0,1,249\.21,710\.81\)[^"]*">[\s\S]*?<\/div>)/;
-      const customWarrantyRegex = /<div class="t c26" style="position:absolute;left:25[02]\.?\d*px;top:6[78]\d\.?\d*px;[\s\S]*?<\/div>/;
+      const warrantyBoxRegex = /(?:<!-- START_WARRANTY_BOX -->)?<div class="t c26[^"]*warranty-term-box[^"]*"[\s\S]*?(?:<!-- END_WARRANTY_BOX -->|<\/div>(?=\s*<\/p>|\s*<\/td>|\s*<div class="t c21"[^>]*>Time of Material Delivery))/;
+      const warrantyCellRegex = /<div class="t c26[^"]*" style="z-index:907;transform:matrix\(1,0,0,1,252\.41,682\.01\)[^"]*">[\s\S]*?(?:years service\.<\/div>|<div class="t c26[^"]*" style="z-index:1048;transform:matrix\(1,0,0,1,249\.21,710\.81\)[^"]*">[\s\S]*?<\/div>)/;
+      const customWarrantyRegex = /<div class="t c26[^"]*" style="position:absolute;left:25[02]\.?\d*px;top:6[78]\d\.?\d*px;[\s\S]*?<\/div>/;
+      const emptyWarrantyCellRegex = /(<div class="t c21"[^>]*>Warranty<\/div>\s*<\/p>\s*<\/td>\s*<td role="cell"[^>]*>\s*<p[^>]*>)([\s\S]*?)(<\/p>\s*<\/td>)/;
+      const emptyWarrantyCellNoP = /(<div class="t c21"[^>]*>Warranty<\/div>\s*(?:<\/p>)?\s*<\/td>\s*<td role="cell"[^>]*>)([\s\S]*?)(<\/td>)/;
 
       if (page5WarrantyHtml && warrantyBoxRegex.test(updated)) {
         updated = updated.replace(warrantyBoxRegex, page5WarrantyHtml);
@@ -270,6 +277,10 @@ export default function QuotationLivePdf({
         updated = updated.replace(warrantyCellRegex, page5WarrantyHtml);
       } else if (page5WarrantyHtml && customWarrantyRegex.test(updated)) {
         updated = updated.replace(customWarrantyRegex, page5WarrantyHtml);
+      } else if (page5WarrantyHtml && emptyWarrantyCellRegex.test(updated)) {
+        updated = updated.replace(emptyWarrantyCellRegex, `$1${page5WarrantyHtml}$3`);
+      } else if (page5WarrantyHtml && emptyWarrantyCellNoP.test(updated)) {
+        updated = updated.replace(emptyWarrantyCellNoP, `$1<p style="display:contents">${page5WarrantyHtml}</p>$3`);
       }
       if (data.deliveryTime) {
         updated = updated.replace(/\b\d+\s*days post confirmation on drawings and finishes\./, data.deliveryTime);
@@ -307,7 +318,7 @@ export default function QuotationLivePdf({
       const sIdx = updated.indexOf(targetStart);
       const eIdx = updated.indexOf(targetEnd);
       if (sIdx !== -1 && eIdx !== -1) {
-        const cleanParagraph = `<div class="t c23" style="position:absolute;left:26.05px;top:201.35px;width:740px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#0e4b31;text-align:justify;text-justify:inter-word;z-index:7;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">6. Right to Use </span>Neither the Customer nor any third party shall be entitled to use the elevator / escalator for any purpose whatsoever prior to: The formal written handover letter by Alpha Elevators to the Customer The receipt of the full and final payment by Alpha Elevators. The building construction being completed. Any unauthorized use or attempt of unauthorized use shall render the warranty and free maintenance period null and void and all subsequent aspects thereof shall be solely at the Customer’s own cost and risk.</div>`;
+        const cleanParagraph = `<div class="t c23" style="position:absolute;left:26.05px;top:201.35px;width:740px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#000000;text-align:justify;text-justify:inter-word;z-index:7;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">6. Right to Use </span>Neither the Customer nor any third party shall be entitled to use the elevator / escalator for any purpose whatsoever prior to: The formal written handover letter by Alpha Elevators to the Customer The receipt of the full and final payment by Alpha Elevators. The building construction being completed. Any unauthorized use or attempt of unauthorized use shall render the warranty and free maintenance period null and void and all subsequent aspects thereof shall be solely at the Customer’s own cost and risk.</div>`;
         updated = updated.substring(0, sIdx) + cleanParagraph + updated.substring(eIdx + targetEnd.length);
       }
     }
@@ -319,7 +330,7 @@ export default function QuotationLivePdf({
       const sIdx = updated.indexOf(targetStart);
       const eIdx = updated.indexOf(targetEnd);
       if (sIdx !== -1 && eIdx !== -1) {
-        const cleanParagraph = `<div class="t c23" style="position:absolute;left:26.05px;top:277.35px;width:740px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#0e4b31;text-align:justify;text-justify:inter-word;z-index:533;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">7. Liability </span>All liabilities of Alpha Elevators regardless whether under the Contract, tort, strict liability or any other theory, shall cease at the end of the warranty period. Alpha Elevators shall under no circumstances be liable for any loss of use or production, loss of profit, interest or revenues, loss of data or for any indirect or consequential damages or losses. The maximum liability of Alpha Elevators to the Customer under or in connection with the Contract shall in no event be higher than 50% of the Contract price actually received by Alpha Elevators. The limitations of liability under this clause shall also apply for Alpha Elevators directors, employees, subcontractors, agents, licensors or any of their employees</div>`;
+        const cleanParagraph = `<div class="t c23" style="position:absolute;left:26.05px;top:277.35px;width:740px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#000000;text-align:justify;text-justify:inter-word;z-index:533;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">7. Liability </span>All liabilities of Alpha Elevators regardless whether under the Contract, tort, strict liability or any other theory, shall cease at the end of the warranty period. Alpha Elevators shall under no circumstances be liable for any loss of use or production, loss of profit, interest or revenues, loss of data or for any indirect or consequential damages or losses. The maximum liability of Alpha Elevators to the Customer under or in connection with the Contract shall in no event be higher than 50% of the Contract price actually received by Alpha Elevators. The limitations of liability under this clause shall also apply for Alpha Elevators directors, employees, subcontractors, agents, licensors or any of their employees</div>`;
         updated = updated.substring(0, sIdx) + cleanParagraph + updated.substring(eIdx + targetEnd.length);
       }
     }
@@ -331,7 +342,7 @@ export default function QuotationLivePdf({
       const sIdx = updated.indexOf(targetStart);
       const eIdx = updated.indexOf(targetEnd);
       if (sIdx !== -1 && eIdx !== -1) {
-        const cleanParagraph = `<div class="t c23" style="position:absolute;left:26.05px;top:376.96px;width:740px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#0e4b31;text-align:justify;text-justify:inter-word;z-index:1268;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">8. Contract Clarifications </span>This contract of the elevator is considered to be the absolute sale of the elevator and not a separate sales of elevator material and installation. Any installation part of the elevator will be considered to be the part of supply of elevator and it cannot be bifurcated in separate supply and installation of elevator in any condition. The contract price will be the cost of the complete elevator to be supplied at your site</div>`;
+        const cleanParagraph = `<div class="t c23" style="position:absolute;left:26.05px;top:376.96px;width:740px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#000000;text-align:justify;text-justify:inter-word;z-index:1268;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">8. Contract Clarifications </span>This contract of the elevator is considered to be the absolute sale of the elevator and not a separate sales of elevator material and installation. Any installation part of the elevator will be considered to be the part of supply of elevator and it cannot be bifurcated in separate supply and installation of elevator in any condition. The contract price will be the cost of the complete elevator to be supplied at your site</div>`;
         updated = updated.substring(0, sIdx) + cleanParagraph + updated.substring(eIdx + targetEnd.length);
       }
     }
@@ -343,7 +354,7 @@ export default function QuotationLivePdf({
       const sIdx = updated.indexOf(targetStart);
       const eIdx = updated.indexOf(targetEnd);
       if (sIdx !== -1 && eIdx !== -1) {
-        const cleanParagraph = `<div class="t c23" style="position:absolute;left:26.05px;top:451.66px;width:740px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#0e4b31;text-align:justify;text-justify:inter-word;z-index:1719;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">9. Arbitration </span>If any dispute, controversy or claim between the parties arises out of or in connection with this Contract, including its existence, breach, termination or validity thereof, the parties shall use all reasonable endeavors to negotiate with a view to resolve the dispute amicably. If the dispute has not been settled pursuant to the said negotiations even after 15 days, either of the parties can give the other party a notice stating that a dispute has been arisen. If the parties are unable to resolve the dispute amicably within 15 days of service of the said notice (or such longer period as the parties may mutually agree), then the dispute shall be finally resolved by arbitration as per the provisions of Arbitration and Conciliation Act, 1996 by a sole arbitrator to be appointed by Alpha Elevators from the panel of arbitrators maintained by Alpha Elevators. Such panelists shall be persons who is holding or has held the positions of not less than a District Judge or High Court Advocate or a professional arbitrator. Any such arbitration award passed by the said arbitrator shall be final and binding on both the parties. The seat of the arbitration shall be Bangalore and the language of the arbitration shall be English.</div>`;
+        const cleanParagraph = `<div class="t c23" style="position:absolute;left:26.05px;top:451.66px;width:740px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#000000;text-align:justify;text-justify:inter-word;z-index:1719;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">9. Arbitration </span>If any dispute, controversy or claim between the parties arises out of or in connection with this Contract, including its existence, breach, termination or validity thereof, the parties shall use all reasonable endeavors to negotiate with a view to resolve the dispute amicably. If the dispute has not been settled pursuant to the said negotiations even after 15 days, either of the parties can give the other party a notice stating that a dispute has been arisen. If the parties are unable to resolve the dispute amicably within 15 days of service of the said notice (or such longer period as the parties may mutually agree), then the dispute shall be finally resolved by arbitration as per the provisions of Arbitration and Conciliation Act, 1996 by a sole arbitrator to be appointed by Alpha Elevators from the panel of arbitrators maintained by Alpha Elevators. Such panelists shall be persons who is holding or has held the positions of not less than a District Judge or High Court Advocate or a professional arbitrator. Any such arbitration award passed by the said arbitrator shall be final and binding on both the parties. The seat of the arbitration shall be Bangalore and the language of the arbitration shall be English.</div>`;
         updated = updated.substring(0, sIdx) + cleanParagraph + updated.substring(eIdx + targetEnd.length);
       }
     }
@@ -355,7 +366,7 @@ export default function QuotationLivePdf({
       const sIdx = updated.indexOf(targetStart);
       const eIdx = updated.indexOf(targetEnd);
       if (sIdx !== -1 && eIdx !== -1) {
-        const cleanParagraph = `<div class="t c23" style="position:absolute;left:26.05px;top:588.62px;width:740px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#0e4b31;text-align:justify;text-justify:inter-word;z-index:2964;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">10. Miscellaneous Provisions </span>a. Substantive Law: This Contract shall be governed by and construed in accordance with the laws of India without reference to any other laws. b. Authorized Signatory: Execution of this Contract shall imply that the executants has the capacity and authority to enter into this Contract for and on behalf of the Customer. In case the Contract value is greater than Twenty Five Lacs, Contract shall be deemed to have been executed only when signed by two authorized signatories on Alpha Elevators behalf. c. Precedence: The terms and conditions of this Contract shall have overriding effect and shall take precedence over any other discussions, correspondences, documents, purchase orders or terms, unless agreed by Alpha Elevators in writing about its overriding effect. d. Publicity: Alpha Elevators is identified as Ranalpha Elevators Private Limited shall be entitled to use the project details including but not limited to Customer's name, logos and statement of works as a reference for its publicity / business purposes. e. Confidentiality: Customer acknowledges that all project details including but not limited to technical, commercial and financial data disclosed to Customer by Alpha Elevators and/or its affiliates is the proprietary confidential information of Alpha Elevators and/or its affiliates. Customer shall not disclose any such confidential information to any third party and shall not use any such confidential information for any purpose other than as agreed by the parties herein. f. Successors and Assigns: The provisions of this Contract shall be binding upon and inure to the benefit of the parties hereto and their respective successors and permitted assigns. Neither this Contract nor any provision hereof is intended to confer upon any third person any rights or remedies under this Contract. g. Assignment and Setoff: Customer shall not assign any rights or obligations under the Contract without the prior written consent of Alpha Elevators. Customer shall have no right to withhold or reduce any payments or to set off existing or future claims against any payments due under the Contract or under any other Contract that Customer may have with Alpha Elevators or any of its affiliates. h. Counterparts: This Contract has been signed in two copies, each of which shall be deemed to be an original to be kept by each party</div>`;
+        const cleanParagraph = `<div class="t c23" style="position:absolute;left:26.05px;top:588.62px;width:740px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#000000;text-align:justify;text-justify:inter-word;z-index:2964;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">10. Miscellaneous Provisions </span>a. Substantive Law: This Contract shall be governed by and construed in accordance with the laws of India without reference to any other laws. b. Authorized Signatory: Execution of this Contract shall imply that the executants has the capacity and authority to enter into this Contract for and on behalf of the Customer. In case the Contract value is greater than Twenty Five Lacs, Contract shall be deemed to have been executed only when signed by two authorized signatories on Alpha Elevators behalf. c. Precedence: The terms and conditions of this Contract shall have overriding effect and shall take precedence over any other discussions, correspondences, documents, purchase orders or terms, unless agreed by Alpha Elevators in writing about its overriding effect. d. Publicity: Alpha Elevators is identified as Ranalpha Elevators Private Limited shall be entitled to use the project details including but not limited to Customer's name, logos and statement of works as a reference for its publicity / business purposes. e. Confidentiality: Customer acknowledges that all project details including but not limited to technical, commercial and financial data disclosed to Customer by Alpha Elevators and/or its affiliates is the proprietary confidential information of Alpha Elevators and/or its affiliates. Customer shall not disclose any such confidential information to any third party and shall not use any such confidential information for any purpose other than as agreed by the parties herein. f. Successors and Assigns: The provisions of this Contract shall be binding upon and inure to the benefit of the parties hereto and their respective successors and permitted assigns. Neither this Contract nor any provision hereof is intended to confer upon any third person any rights or remedies under this Contract. g. Assignment and Setoff: Customer shall not assign any rights or obligations under the Contract without the prior written consent of Alpha Elevators. Customer shall have no right to withhold or reduce any payments or to set off existing or future claims against any payments due under the Contract or under any other Contract that Customer may have with Alpha Elevators or any of its affiliates. h. Counterparts: This Contract has been signed in two copies, each of which shall be deemed to be an original to be kept by each party</div>`;
         updated = updated.substring(0, sIdx) + cleanParagraph + updated.substring(eIdx + targetEnd.length);
       }
     }
@@ -374,7 +385,7 @@ export default function QuotationLivePdf({
       const sIdx = updated.indexOf(targetStart);
       const eIdx = updated.indexOf(targetEnd);
       if (sIdx !== -1 && eIdx !== -1) {
-        const cleanParagraph = `<div class="t c23" style="position:absolute;left:26.05px;top:825.42px;width:740px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#0e4b31;text-align:justify;text-justify:inter-word;z-index:5295;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">11. Price Variation </span>The price quoted is based on the raw materials / components and labor costs as on the date of the proposal. Should the market price of principal raw materials of the contractual goods increase during the period between the signing of this contract and the dispatch date, Alpha Elevators shall have the right to adjust the contract price accordingly. The increase in price of principle raw material like mild steel, stainless steel, aluminum, bronze, copper, etc. will be determined by the Wholesale Price Index (WPI) for Metal Products as published by the Reserve Bank of India in its monthly bulletin (available for reference at www.rbi.org.in). The method adopted for calculation of Price variation will on the basis of percentage increase over last six months and average of this increase would be used to calculate price variation.</div>`;
+        const cleanParagraph = `<div class="t c23" style="position:absolute;left:26.05px;top:825.42px;width:740px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#000000;text-align:justify;text-justify:inter-word;z-index:5295;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">11. Price Variation </span>The price quoted is based on the raw materials / components and labor costs as on the date of the proposal. Should the market price of principal raw materials of the contractual goods increase during the period between the signing of this contract and the dispatch date, Alpha Elevators shall have the right to adjust the contract price accordingly. The increase in price of principle raw material like mild steel, stainless steel, aluminum, bronze, copper, etc. will be determined by the Wholesale Price Index (WPI) for Metal Products as published by the Reserve Bank of India in its monthly bulletin (available for reference at www.rbi.org.in). The method adopted for calculation of Price variation will on the basis of percentage increase over last six months and average of this increase would be used to calculate price variation.</div>`;
         updated = updated.substring(0, sIdx) + cleanParagraph + updated.substring(eIdx + targetEnd.length);
       }
     }
@@ -386,7 +397,7 @@ export default function QuotationLivePdf({
       const sIdx = updated.indexOf(targetStart);
       const eIdx = updated.indexOf(targetEnd);
       if (sIdx !== -1 && eIdx !== -1) {
-        const cleanParagraph = `<div class="t c23" style="position:absolute;left:20.67px;top:199.59px;width:746px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#0e4b31;text-align:justify;text-justify:inter-word;z-index:6;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">13. Statutory permissions from various authorities </span>All statutory permissions for starting / executing, completing and handing over the works from various authorities including PWD shall be obtained by the Customer. Fees or any other payment required to be paid, for concerned liaison for getting above work done shall be paid directly by the Customer. While Alpha Elevators will coordinate for inspections required as per statutory requirements as applicable on the date of this Contract, any fees, charges, pertinent license inspectorates and incidental charges for getting work certified and alternative expenses will be to the Customer’s account. Incase of Single-Phase Home Elevators license is not mandatory.</div>`;
+        const cleanParagraph = `<div class="t c23" style="position:absolute;left:20.67px;top:199.59px;width:746px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#000000;text-align:justify;text-justify:inter-word;z-index:6;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">13. Statutory permissions from various authorities </span>All statutory permissions for starting / executing, completing and handing over the works from various authorities including PWD shall be obtained by the Customer. Fees or any other payment required to be paid, for concerned liaison for getting above work done shall be paid directly by the Customer. While Alpha Elevators will coordinate for inspections required as per statutory requirements as applicable on the date of this Contract, any fees, charges, pertinent license inspectorates and incidental charges for getting work certified and alternative expenses will be to the Customer’s account. Incase of Single-Phase Home Elevators license is not mandatory.</div>`;
         updated = updated.substring(0, sIdx) + cleanParagraph + updated.substring(eIdx + targetEnd.length);
       }
     }
@@ -398,7 +409,7 @@ export default function QuotationLivePdf({
       const sIdx = updated.indexOf(targetStart);
       const eIdx = updated.indexOf(targetEnd);
       if (sIdx !== -1 && eIdx !== -1) {
-        const cleanParagraph = `<div class="t c23" style="position:absolute;left:20.67px;top:286.76px;width:746px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#0e4b31;text-align:justify;text-justify:inter-word;z-index:720;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">14. Preparatory Work </span>All civil and electrical preparatory work shall remain in Customer’s scope. Customer shall be responsible to provide: A finished dry and lit Hoist-way and machine room as laid out in the Indian Standards 14665: 2000. I beam in Hoist-way as per layout specification. Single Phase MCB with ELCB fixed as per Alpha Elevators approved layout Three Phase RCBO/MCB with ELCB fixed as per Alpha Elevators approved layout. Proper lighting available in shaft, work area and storeroom Service pipes, ventilation ducts, electrical conduits etc. for other purposes are not allowed to run in the lift well. Provision of scaffolding, hoisting beam and pit ladder. Architrave fixing and finishing to be done after fixing of doors and door frames on all floors. Smoke cutout of 450 X 450 mm with aluminum louver and mesh. Full height fascia where the distance between car sill to front wall shaft inside is more than 135mm. Pit floor should be strong enough to bear the load as per layout. RCC soccles for fixing car and cwt. buffers. Adequate dry, safe, lockable and weather-proof storage space in the proximity of the Hoist-way. Adequate insurance coverage against any damage, pilferage or theft at site, for the materials unloaded at Customer’s site and kept in the designated storage area allocated by Customer, as all such storage and safeguarding risk shall be to the Customer’s account.</div>`;
+        const cleanParagraph = `<div class="t c23" style="position:absolute;left:20.67px;top:286.76px;width:746px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#000000;text-align:justify;text-justify:inter-word;z-index:720;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">14. Preparatory Work </span>All civil and electrical preparatory work shall remain in Customer’s scope. Customer shall be responsible to provide: A finished dry and lit Hoist-way and machine room as laid out in the Indian Standards 14665: 2000. I beam in Hoist-way as per layout specification. Single Phase MCB with ELCB fixed as per Alpha Elevators approved layout Three Phase RCBO/MCB with ELCB fixed as per Alpha Elevators approved layout. Proper lighting available in shaft, work area and storeroom Service pipes, ventilation ducts, electrical conduits etc. for other purposes are not allowed to run in the lift well. Provision of scaffolding, hoisting beam and pit ladder. Architrave fixing and finishing to be done after fixing of doors and door frames on all floors. Smoke cutout of 450 X 450 mm with aluminum louver and mesh. Full height fascia where the distance between car sill to front wall shaft inside is more than 135mm. Pit floor should be strong enough to bear the load as per layout. RCC soccles for fixing car and cwt. buffers. Adequate dry, safe, lockable and weather-proof storage space in the proximity of the Hoist-way. Adequate insurance coverage against any damage, pilferage or theft at site, for the materials unloaded at Customer’s site and kept in the designated storage area allocated by Customer, as all such storage and safeguarding risk shall be to the Customer’s account.</div>`;
         updated = updated.substring(0, sIdx) + cleanParagraph + updated.substring(eIdx + targetEnd.length);
       }
     }
@@ -410,7 +421,7 @@ export default function QuotationLivePdf({
       const sIdx = updated.indexOf(targetStart);
       const eIdx = updated.indexOf(targetEnd);
       if (sIdx !== -1 && eIdx !== -1) {
-        const cleanParagraph = `<div class="t c23" style="position:absolute;left:20.67px;top:448.62px;width:746px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#0e4b31;text-align:justify;text-justify:inter-word;z-index:2118;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">15. Dispatch of Material, Installation and Acceptance </span>A. Dispatch Alpha Elevators shall give release for ordering of materials (pull) only if following conditions at site are met: Approval of Alpha Elevators Layout drawing from the Customer. Availability of &quot;A&quot; Form Documents from Customer for Submission to PWD / Inspection Authorities. Plastering of Lift shaft walls (If enclosure walls are in Brick). Scaffolding Erected in lift shaft as per Alpha Elevators Drawing. Roof Slab ready with Hoisting &quot;I&quot; Beams grouted and finished on the front and Back Wall (Only for MRL jobs). Fulfillment of Payment Terms against release for ordering of materials. In case the above conditions are not met and site is not made ready as per the above requirement, Alpha Elevators reserve the right to defer the date of dispatch of material and subsequent activities. The Customer will be charged demurrage of Rs 750/- per day in case the material in not accepted at site due to reasons not attributable to Alpha Elevators. In such an event, a fresh completion date will be established depending upon the minimum installation period required. B. Installation: Alpha Elevators shall start Installation work only if following conditions are met: Completion of all technical activities at site as per Alpha Elevators’s check list. Fulfillment of Payment Terms as agreed upon by the parties. In case, site is not made ready as per the checklist even after 2 weeks of dispatch of material at site, remobilization as per clause 12 shall be applicable. C. Acceptance: If the job or any portion thereof is ready for delivery or performance and cannot be delivered or performed due to reasons beyond Alpha Elevators’s control, acceptance of Customer shall be deemed to have taken place upon Alpha Elevators’s notification to Customer of readiness for delivery or performance.</div>`;
+        const cleanParagraph = `<div class="t c23" style="position:absolute;left:20.67px;top:448.62px;width:746px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#000000;text-align:justify;text-justify:inter-word;z-index:2118;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">15. Dispatch of Material, Installation and Acceptance </span>A. Dispatch Alpha Elevators shall give release for ordering of materials (pull) only if following conditions at site are met: Approval of Alpha Elevators Layout drawing from the Customer. Availability of &quot;A&quot; Form Documents from Customer for Submission to PWD / Inspection Authorities. Plastering of Lift shaft walls (If enclosure walls are in Brick). Scaffolding Erected in lift shaft as per Alpha Elevators Drawing. Roof Slab ready with Hoisting &quot;I&quot; Beams grouted and finished on the front and Back Wall (Only for MRL jobs). Fulfillment of Payment Terms against release for ordering of materials. In case the above conditions are not met and site is not made ready as per the above requirement, Alpha Elevators reserve the right to defer the date of dispatch of material and subsequent activities. The Customer will be charged demurrage of Rs 750/- per day in case the material in not accepted at site due to reasons not attributable to Alpha Elevators. In such an event, a fresh completion date will be established depending upon the minimum installation period required. B. Installation: Alpha Elevators shall start Installation work only if following conditions are met: Completion of all technical activities at site as per Alpha Elevators’s check list. Fulfillment of Payment Terms as agreed upon by the parties. In case, site is not made ready as per the checklist even after 2 weeks of dispatch of material at site, remobilization as per clause 12 shall be applicable. C. Acceptance: If the job or any portion thereof is ready for delivery or performance and cannot be delivered or performed due to reasons beyond Alpha Elevators’s control, acceptance of Customer shall be deemed to have taken place upon Alpha Elevators’s notification to Customer of readiness for delivery or performance.</div>`;
         updated = updated.substring(0, sIdx) + cleanParagraph + updated.substring(eIdx + targetEnd.length);
       }
     }
@@ -422,7 +433,7 @@ export default function QuotationLivePdf({
       const sIdx = updated.indexOf(targetStart);
       const eIdx = updated.indexOf(targetEnd);
       if (sIdx !== -1 && eIdx !== -1) {
-        const cleanParagraph = `<div class="t c23" style="position:absolute;left:20.67px;top:655.36px;width:746px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#0e4b31;text-align:justify;text-justify:inter-word;z-index:3969;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">16. Delayed payment and demurrage </span>Alpha Elevators shall be entitled to charge interest @ 18% per annum on all overdue invoices / down-payment requests lying unpaid for more than 15 days from its date. Alpha Elevators reserves the right to dispose the Equipment’s or to discontinue work or to withhold the release of completed elevator(s) /escalator(s), at any time until the overdue payments, with interest, shall have been made as per the terms of the Contract and Alpha Elevators has satisfactory assurance that the subsequent payments shall be made on time. If the Customer or any third parties like trade unions / Mathadi unions, etc. causes delays or interruptions in Alpha Elevators performance of contractual obligations hereunder; Alpha Elevators shall not be in breach of the Contract or otherwise be responsible. Any additional cost or expenses incurred or damages suffered including but not limited to trade union expenses / Mathadi expenses shall be to Customer’s account. In case the Customer requests for delaying the delivery after the materials are ready for dispatch, call off charges of Rs 750/- per day shall be applicable towards demurrage and warehouse expenses and a fresh completion date shall be agreed depending upon the minimum installation period required</div>`;
+        const cleanParagraph = `<div class="t c23" style="position:absolute;left:20.67px;top:655.36px;width:746px;white-space:normal;line-height:12px;font-family:'f3',sans-serif;font-size:9.28px;color:#000000;text-align:justify;text-justify:inter-word;z-index:3969;"><span class="c31" style="font-family:'f1',sans-serif;font-weight:bold;">16. Delayed payment and demurrage </span>Alpha Elevators shall be entitled to charge interest @ 18% per annum on all overdue invoices / down-payment requests lying unpaid for more than 15 days from its date. Alpha Elevators reserves the right to dispose the Equipment’s or to discontinue work or to withhold the release of completed elevator(s) /escalator(s), at any time until the overdue payments, with interest, shall have been made as per the terms of the Contract and Alpha Elevators has satisfactory assurance that the subsequent payments shall be made on time. If the Customer or any third parties like trade unions / Mathadi unions, etc. causes delays or interruptions in Alpha Elevators performance of contractual obligations hereunder; Alpha Elevators shall not be in breach of the Contract or otherwise be responsible. Any additional cost or expenses incurred or damages suffered including but not limited to trade union expenses / Mathadi expenses shall be to Customer’s account. In case the Customer requests for delaying the delivery after the materials are ready for dispatch, call off charges of Rs 750/- per day shall be applicable towards demurrage and warehouse expenses and a fresh completion date shall be agreed depending upon the minimum installation period required</div>`;
         updated = updated.substring(0, sIdx) + cleanParagraph + updated.substring(eIdx + targetEnd.length);
       }
     }
@@ -449,67 +460,67 @@ export default function QuotationLivePdf({
 
       const batteryRowHtml = isEv ? `
 <tr style="height:${rowH};border-bottom:1px solid #000000;">
-<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">Battery</td>
-<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">${data.battery || 'Lithium-ion'}</td>
+<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">Battery</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">${data.battery || 'Lithium-ion'}</td>
 </tr>` : '';
 
       const specTable = `<table style="position:absolute;left:58.25px;top:243.5px;width:655.5px;height:558px;border-collapse:collapse;background:#ffffff;z-index:50;border:1px solid #000000;box-sizing:border-box;">
 <tbody>
 <tr style="height:${rowH};border-bottom:1px solid #000000;">
-<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">Rated Load</td>
-<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">${data.ratedLoad || 'Upto 5 Passengers /408 kgs '}</td>
+<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">Rated Load</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">${data.ratedLoad || 'Upto 5 Passengers /408 kgs '}</td>
 </tr>
 <tr style="height:${rowH};border-bottom:1px solid #000000;">
-<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">No of Stops</td>
-<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">${data.noOfStops || 'G+2'}</td>
+<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">No of Stops</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">${data.noOfStops || 'G+2'}</td>
 </tr>
 <tr style="height:${rowH};border-bottom:1px solid #000000;">
-<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">No Of Openings</td>
-<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">${data.noOfOpenings || '3 Openings'}</td>
+<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">No Of Openings</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">${data.noOfOpenings || '3 Openings'}</td>
 </tr>
 <tr style="height:${rowH};border-bottom:1px solid #000000;">
-<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">Floor Numbering</td>
-<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">${data.floorNumbering || 'G,1,2'}</td>
+<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">Floor Numbering</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">${data.floorNumbering || 'G,1,2'}</td>
 </tr>
 <tr style="height:${rowH};border-bottom:1px solid #000000;">
-<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">Door Opening</td>
-<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">${doorOpeningVal}</td>
+<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">Door Opening</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">${doorOpeningVal}</td>
 </tr>
 <tr style="height:${rowH};border-bottom:1px solid #000000;">
-<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">Door Access</td>
-<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">${doorAccessVal}</td>
+<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">Door Access</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">${doorAccessVal}</td>
 </tr>
 <tr style="height:${rowH};border-bottom:1px solid #000000;">
-<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">Total Travel Height</td>
-<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">${data.totalTravelHeight || '7000mm'}</td>
+<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">Total Travel Height</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">${data.totalTravelHeight || '7000mm'}</td>
 </tr>
 <tr style="height:${rowH};border-bottom:1px solid #000000;">
-<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">Controller</td>
-<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">${data.controller || 'Indian'}</td>
+<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">Controller</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">${data.controller || 'Indian'}</td>
 </tr>
 <tr style="height:${rowH};border-bottom:1px solid #000000;">
-<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">Speed</td>
-<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">${data.speed || 'Up to 1 m/s'}</td>
+<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">Speed</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">${data.speed || 'Up to 1 m/s'}</td>
 </tr>
 <tr style="height:${rowH};border-bottom:1px solid #000000;">
-<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">Machine</td>
-<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">${data.machine || 'Imported  Motor'}</td>
+<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">Machine</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">${data.machine || 'Imported  Motor'}</td>
 </tr>
 <tr style="height:${rowH};border-bottom:1px solid #000000;">
-<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">Power Supply</td>
-<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">${data.powerSupply || 'Single phase 220V'}</td>
+<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">Power Supply</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">${data.powerSupply || 'Single phase 220V'}</td>
 </tr>
 <tr style="height:${rowH};border-bottom:1px solid #000000;">
-<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">Car Size</td>
-<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">${data.carSize || 'TBC*'}</td>
+<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">Car Size</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">${data.carSize || 'TBC*'}</td>
 </tr>${batteryRowHtml}
 <tr style="height:${rowH};border-bottom:1px solid #000000;">
-<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">Clear Opening</td>
-<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">${data.clearOpening || 'TBC*'}</td>
+<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">Clear Opening</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">${data.clearOpening || 'TBC*'}</td>
 </tr>
 <tr style="height:${rowH};">
-<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">Customer Specific requirements</td>
-<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#1a3f2e;padding:0;margin:0;">${data.customerSpecificRequirements || 'Nil'}</td>
+<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">Customer Specific requirements</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">${data.customerSpecificRequirements || 'Nil'}</td>
 </tr>
 </tbody>
 </table>`;
@@ -537,10 +548,17 @@ export default function QuotationLivePdf({
       return renderExactPdfPage(9, data);
     }
 
+    // Page 3: Clean original table formatting
+    if (pageNum === 3 && updated) {
+      updated = updated.replace(/<div class="page3-compact-civil-cabin-wrapper"[\s\S]*?<!-- END_PAGE3_TABLES -->/g, "");
+    }
+
     // Ensure Client Signature block reflects the digital signature on Pages 3 to 8 and Page 10
+    // On Page 5, place client signature before the Irrespective clause (top: 905px)
     // Explicitly remove corner Client Signature block from Pages 1, 2, 9, and 11
     if (pageNum && ((pageNum >= 3 && pageNum <= 8) || pageNum === 10) && updated) {
-      const clientSignBlock = getClientSignatureHtml(data.clientSignature);
+      const page5SigStyle = pageNum === 5 ? 'position:absolute;right:50px;top:905px;z-index:9000;text-align:center;pointer-events:auto;' : undefined;
+      const clientSignBlock = getClientSignatureHtml(data.clientSignature, page5SigStyle);
       const clientBoxRegex = /<div class="client-signature-box"[\s\S]*?<\/span>\s*<\/div>/;
       if (clientBoxRegex.test(updated)) {
         updated = updated.replace(clientBoxRegex, clientSignBlock);
@@ -554,15 +572,126 @@ export default function QuotationLivePdf({
       updated = updated.replace(/<div class="client-signature-box"[\s\S]*?<\/div>/g, '');
     }
 
-    // Page 5 MRP Price strikethrough exact center alignment
+    // Page 5 Price Row Sanitization: Remove MRP and apply discount / total format
     if (pageNum === 5 && updated) {
-      updated = updated.replace(
-        /<div style="text-decoration:line-through;color:#718096;font-size:10px;">MRP:\s*([^<]+)<\/div>/g,
-        '<div style="position:relative;display:inline-block;color:#718096;font-size:10px;line-height:13px;"><span style="text-decoration:none;">MRP: $1</span><span class="mrp-strikethrough-line" style="position:absolute;left:0;width:100%;top:50%;height:1.5px;background:#718096;transform:translateY(-50%);pointer-events:none;"></span></div>'
-      );
+      const gstRate = data.gstRate !== undefined ? Number(data.gstRate) : 18;
+      const elvDiscountAmount = Number(data.elevatorDiscountPrice || 0);
+      const hasElvDiscount = Boolean(elvDiscountAmount > 0);
+      const elvBasePrice = Number(data.elevatorPrice || 0);
+      const netElevatorPrice = Math.max(0, elvBasePrice - elvDiscountAmount);
+      const elvTotalWithGst = Math.round(netElevatorPrice * (1 + gstRate / 100));
+
+      const formatINR = (val: number) => Number(val || 0).toLocaleString('en-IN');
+
+      // Update left column PRICE to Elevator Price
+      updated = updated.replace(/<div class="t c21" style="z-index:815;transform:matrix\(1,0,0,1,47\.46,613\.01\)">PRICE<\/div>/g, '<div class="t c21" style="z-index:815;transform:matrix(1,0,0,1,47.46,613.01);font-weight:bold;color:#000000 !important;">Elevator Price</div>');
+      updated = updated.replace(/<div[^>]*47\.46,613\.01[^>]*>PRICE<\/div>/g, '<div class="t c21" style="z-index:815;transform:matrix(1,0,0,1,47.46,613.01);font-weight:bold;color:#000000 !important;">Elevator Price</div>');
+
+      // Remove MRP column labels on Page 5
+      updated = updated.replace(/<div class="t c24" style="z-index:822;transform:matrix\(1,0,0,1,252\.25,613\.01\)">MRP<\/div>/g, '<div class="t c24" style="z-index:822;transform:matrix(1,0,0,1,252.25,613.01)">&nbsp;</div>');
+      updated = updated.replace(/<div class="t c25" style="z-index:862;transform:matrix\(1,0,0,1,252\.57,655\.24\)">MRP\s*<\/div>/g, '<div class="t c25" style="z-index:862;transform:matrix(1,0,0,1,252.57,655.24)">&nbsp;</div>');
+
+      const elvCustomRegex = /(?:<!-- ELV_PRICE_BOX_START -->)?<div class="t c21[^"]*elv-price-box[^"]*"[\s\S]*?<!-- ELV_PRICE_BOX_END -->|<div class="t c21"[^>]*style="position:absolute;left:320\.51px;top:(?:592|605)px;[^"]*"[\s\S]*?(?:<!-- ELV_PRICE_BOX_END -->|<\/div>(?=\s*<\/p>|\s*<\/td>))/;
+
+      if (hasElvDiscount && elvBasePrice) {
+        const elvReplacement = `<!-- ELV_PRICE_BOX_START --><div class="t c21 elv-price-box" style="position:absolute;left:320.51px;top:592px;height:42px;min-height:42px;line-height:14px;white-space:nowrap;z-index:825;color:#000000 !important;font-size:11px;font-family:'f3',sans-serif;">` +
+          `<div style="font-size:11px;line-height:14px;color:#000000;">Elevator Price: Rs. ${formatINR(elvBasePrice)}</div>` +
+          `<div style="font-size:11px;line-height:14px;color:#000000;">Discount Price: - Rs. ${formatINR(elvDiscountAmount)}</div>` +
+          `<div style="font-size:11.5px;line-height:14px;font-weight:bold;color:#000000;">Total: Rs. ${formatINR(netElevatorPrice)} + ${gstRate}% GST (Rs. ${formatINR(elvTotalWithGst)})</div>` +
+        `</div><!-- ELV_PRICE_BOX_END -->`;
+        const elvRegex = /<div class="t c21" style="z-index:825;transform:matrix\(1,0,0,1,320\.51,611\.2\)">[\s\S]*?<\/div>/;
+        if (elvCustomRegex.test(updated)) {
+          updated = updated.replace(elvCustomRegex, elvReplacement);
+        } else if (elvRegex.test(updated)) {
+          updated = updated.replace(elvRegex, elvReplacement);
+        } else {
+          updated = updated.replace(/Rs\.\s*16,00,,000\s*\+\s*18%\s*GST/g, elvReplacement);
+        }
+      } else if (elvBasePrice) {
+        const elvSimple = `<!-- ELV_PRICE_BOX_START --><div class="t c21 elv-price-box" style="position:absolute;left:320.51px;top:605px;height:24px;min-height:24px;line-height:24px;white-space:nowrap;z-index:825;color:#000000 !important;font-size:12px;font-weight:bold;font-family:'f3',sans-serif;">` +
+          `Elevator Price: Rs. ${formatINR(elvBasePrice)} + ${gstRate}% GST (Rs. ${formatINR(elvTotalWithGst)})` +
+        `</div><!-- ELV_PRICE_BOX_END -->`;
+        const elvRegex = /<div class="t c21" style="z-index:825;transform:matrix\(1,0,0,1,320\.51,611\.2\)">[\s\S]*?<\/div>/;
+        if (elvCustomRegex.test(updated)) {
+          updated = updated.replace(elvCustomRegex, elvSimple);
+        } else if (elvRegex.test(updated)) {
+          updated = updated.replace(elvRegex, elvSimple);
+        } else {
+          updated = updated.replace(/Rs\.\s*16,00,,000\s*\+\s*18%\s*GST/g, elvSimple);
+        }
+      }
+
+      // Shaft Price - Matching exact height and styling as Elevator Price box (42px with discount, 24px without)
+      const shaftDiscountAmount = Number(data.shaftDiscountPrice || 0);
+      const hasShaftDiscount = Boolean(shaftDiscountAmount > 0);
+      const shaftBasePrice = Number(data.shaftPrice || 0);
+      const netShaftPrice = Math.max(0, shaftBasePrice - shaftDiscountAmount);
+      const shaftTotalWithGst = Math.round(netShaftPrice * (1 + gstRate / 100));
+
+      const shaftCustomRegex = /(?:<!-- SHAFT_PRICE_BOX_START -->)?<div class="t c25[^"]*shaft-price-box[^"]*"[\s\S]*?<!-- SHAFT_PRICE_BOX_END -->|<div class="t c25"[^>]*style="position:absolute;left:320\.51px;top:(?:636|649)px;[^"]*"[\s\S]*?(?:<!-- SHAFT_PRICE_BOX_END -->|<\/div>(?=\s*<\/p>|\s*<\/td>))/;
+
+      if (hasShaftDiscount && shaftBasePrice) {
+        const shaftReplacement = `<!-- SHAFT_PRICE_BOX_START --><div class="t c25 shaft-price-box" style="position:absolute;left:320.51px;top:636px;height:42px;min-height:42px;line-height:14px;white-space:nowrap;z-index:878;color:#000000 !important;font-size:11px;font-family:'f3',sans-serif;">` +
+          `<div style="font-size:11px;line-height:14px;color:#000000;">Shaft Price: Rs. ${formatINR(shaftBasePrice)}</div>` +
+          `<div style="font-size:11px;line-height:14px;color:#000000;">Discount Price: - Rs. ${formatINR(shaftDiscountAmount)}</div>` +
+          `<div style="font-size:11.5px;line-height:14px;font-weight:bold;color:#000000;">Total: Rs. ${formatINR(netShaftPrice)} + ${gstRate}% GST (Rs. ${formatINR(shaftTotalWithGst)})</div>` +
+        `</div><!-- SHAFT_PRICE_BOX_END -->`;
+        const shaftRegex = /<div class="t c25" style="z-index:878;transform:matrix\(1,0,0,1,325\.09,655\.24\)">[\s\S]*?<\/div>/;
+        if (shaftCustomRegex.test(updated)) {
+          updated = updated.replace(shaftCustomRegex, shaftReplacement);
+        } else if (shaftRegex.test(updated)) {
+          updated = updated.replace(shaftRegex, shaftReplacement);
+        } else {
+          updated = updated.replace(/Rs\.4,00,000\s*\+\s*18%\s*GST/g, shaftReplacement);
+        }
+      } else if (shaftBasePrice) {
+        const shaftSimple = `<!-- SHAFT_PRICE_BOX_START --><div class="t c25 shaft-price-box" style="position:absolute;left:320.51px;top:649px;height:24px;min-height:24px;line-height:24px;white-space:nowrap;z-index:878;color:#000000 !important;font-size:12px;font-weight:bold;font-family:'f3',sans-serif;">` +
+          `Shaft Price: Rs. ${formatINR(shaftBasePrice)} + ${gstRate}% GST (Rs. ${formatINR(shaftTotalWithGst)})` +
+        `</div><!-- SHAFT_PRICE_BOX_END -->`;
+        const shaftRegex = /<div class="t c25" style="z-index:878;transform:matrix\(1,0,0,1,325\.09,655\.24\)">[\s\S]*?<\/div>/;
+        if (shaftCustomRegex.test(updated)) {
+          updated = updated.replace(shaftCustomRegex, shaftSimple);
+        } else if (shaftRegex.test(updated)) {
+          updated = updated.replace(shaftRegex, shaftSimple);
+        } else {
+          updated = updated.replace(/Rs\.4,00,000\s*\+\s*18%\s*GST/g, shaftSimple);
+        }
+      }
+
+      // Revert any previously shifted rows back to their native table coordinates
+      updated = updated.replace(/<div class="t c21" style="z-index:899;transform:matrix\(1,0,0,1,47\.46,716\)[^"]*">Warranty<\/div>/g, '<div class="t c21" style="z-index:899;transform:matrix(1,0,0,1,47.46,696.41);font-size:12px;font-weight:bold;color:#000000 !important;">Warranty</div>');
+      updated = updated.replace(/<div class="t c21" style="z-index:1062;transform:matrix\(1,0,0,1,47\.46,754\)[^"]*">Time of Material Delivery\s*<\/div>/g, '<div class="t c21" style="z-index:1062;transform:matrix(1,0,0,1,47.46,732.16);font-size:12px;font-weight:bold;color:#000000 !important;">Time of Material Delivery </div>');
+      updated = updated.replace(/<div class="t c27" style="z-index:1088;transform:matrix\(1,0,0,1,252\.25,754\)[^"]*">/g, '<div class="t c27" style="z-index:1088;transform:matrix(1,0,0,1,252.25,732.92);color:#000000 !important;">');
+      updated = updated.replace(/<div class="t c21" style="z-index:1140;transform:matrix\(1,0,0,1,47\.46,792\)[^"]*">PAYMENT TERMS<\/div>/g, '<div class="t c21" style="z-index:1140;transform:matrix(1,0,0,1,47.46,777.28);font-size:12px;font-weight:bold;color:#000000 !important;">PAYMENT TERMS</div>');
+
+      // Time of Material Delivery value: strictly at native 732.16 / 732.92
+      if (data.deliveryTime) {
+        updated = updated.replace(/(<div class="t c27" style="z-index:1088;transform:matrix\(1,0,0,1,252\.25,732\.92\)[^"]*">)[\s\S]*?(<\/div>)/g, `$1${data.deliveryTime}$2`);
+        updated = updated.replace(/\b\d+\s*days post confirmation on drawings and finishes\./g, data.deliveryTime);
+      }
+
+      // Ensure Warranty box is present and correctly populated on Page 5
+      const page5WarrantyHtml = buildPage5WarrantyHtml(data.warranty);
+      const warrantyBoxRegex = /(?:<!-- START_WARRANTY_BOX -->)?<div class="t c26[^"]*warranty-term-box[^"]*"[\s\S]*?(?:<!-- END_WARRANTY_BOX -->|<\/div>(?=\s*<\/p>|\s*<\/td>|\s*<div class="t c21"[^>]*>Time of Material Delivery))/;
+      const warrantyCellRegex = /<div class="t c26[^"]*" style="z-index:907;transform:matrix\(1,0,0,1,252\.41,682\.01\)[^"]*">[\s\S]*?(?:years service\.<\/div>|<div class="t c26[^"]*" style="z-index:1048;transform:matrix\(1,0,0,1,249\.21,710\.81\)[^"]*">[\s\S]*?<\/div>)/;
+      const customWarrantyRegex = /<div class="t c26[^"]*" style="position:absolute;left:25[02]\.?\d*px;top:6[78]\d\.?\d*px;[\s\S]*?<\/div>/;
+      const emptyWarrantyCellRegex = /(<div class="t c21"[^>]*>Warranty<\/div>\s*<\/p>\s*<\/td>\s*<td role="cell"[^>]*>\s*<p[^>]*>)([\s\S]*?)(<\/p>\s*<\/td>)/;
+      const emptyWarrantyCellNoP = /(<div class="t c21"[^>]*>Warranty<\/div>\s*(?:<\/p>)?\s*<\/td>\s*<td role="cell"[^>]*>)([\s\S]*?)(<\/td>)/;
+
+      if (page5WarrantyHtml && warrantyBoxRegex.test(updated)) {
+        updated = updated.replace(warrantyBoxRegex, page5WarrantyHtml);
+      } else if (page5WarrantyHtml && warrantyCellRegex.test(updated)) {
+        updated = updated.replace(warrantyCellRegex, page5WarrantyHtml);
+      } else if (page5WarrantyHtml && customWarrantyRegex.test(updated)) {
+        updated = updated.replace(customWarrantyRegex, page5WarrantyHtml);
+      } else if (page5WarrantyHtml && emptyWarrantyCellRegex.test(updated)) {
+        updated = updated.replace(emptyWarrantyCellRegex, `$1${page5WarrantyHtml}$3`);
+      } else if (page5WarrantyHtml && emptyWarrantyCellNoP.test(updated)) {
+        updated = updated.replace(emptyWarrantyCellNoP, `$1<p style="display:contents">${page5WarrantyHtml}</p>$3`);
+      }
     }
 
-    // Page 9 main acceptance digital signature injection / cleanup (centered inside the signature cell)
+        // Page 9 main acceptance digital signature injection / cleanup (centered inside the signature cell)
     if (pageNum === 9 && updated) {
       if (data.clientSignature) {
         const page9ClientSig = `<div class="page9-client-digital-sign" style="position:absolute;left:110px;top:923px;width:255px;height:48px;display:flex;align-items:center;justify-content:center;z-index:9500;pointer-events:none;"><img src="${data.clientSignature}" style="max-height:44px;max-width:240px;object-fit:contain;margin:auto;display:block;" alt="Client Signature" /></div>`;
@@ -578,7 +707,7 @@ export default function QuotationLivePdf({
       // Remove last empty signature box on Page 10 if present in cached/saved drafts
       if (updated.includes('Client & Authorized Representative Confirmation') || updated.includes('Client &amp; Authorized Representative Confirmation') || updated.includes('Verified & Confirmed by Client:')) {
         updated = updated.replace(/\s*<!-- Confirmation & Dual Acceptance Signatures Card inside the box -->[\s\S]*?Authorized Signatory<\/div>\s*<\/td>\s*<\/tr>\s*<\/table>\s*<\/div>/g, '');
-        updated = updated.replace(/\s*<div style="border:1\.5px solid #0e4b31;border-radius:8px;background:#ffffff;padding:12px 16px;">[\s\S]*?Authorized Signatory<\/div>\s*<\/td>\s*<\/tr>\s*<\/table>\s*<\/div>/g, '');
+        updated = updated.replace(/\s*<div style="border:1\.5px solid #000000;border-radius:8px;background:#ffffff;padding:12px 16px;">[\s\S]*?Authorized Signatory<\/div>\s*<\/td>\s*<\/tr>\s*<\/table>\s*<\/div>/g, '');
       }
       // Ensure the 4 empty boxes before contact footer are removed/masked
       if (!updated.includes('top:840px')) {
@@ -590,20 +719,48 @@ export default function QuotationLivePdf({
         }
       }
 
+      // Page 10 Banner: White background, black text, clean bottom border
+      const oldBannerRegex = /<div style="background:#000000;color:#ffffff;padding:8px 14px;display:flex;justify-content:space-between;align-items:center;">[\s\S]*?<\/div>/;
+      const newBannerHtml = `<div style="background:#ffffff;color:#000000;border-bottom:1.5px solid #000000;padding:8px 14px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:12px;font-weight:bold;color:#000000;text-transform:uppercase;letter-spacing:0.5px;">Client &amp; Quotation Reference</span>
+          <span style="font-size:10.5px;color:#000000;font-weight:500;">Offer No: ${data.offerNo || ''} &nbsp;|&nbsp; Date: ${data.offerDate || ''}</span>
+        </div>`;
+      if (oldBannerRegex.test(updated)) {
+        updated = updated.replace(oldBannerRegex, newBannerHtml);
+      }
+
+      // Page 10: Remove bold from 1. Full Billing Address and 2. Shipping / Delivery Address and increase font size
+      updated = updated.replace(
+        /<span style="font-size:10px;font-weight:bold;color:#(?:0e4b31|000000);text-transform:uppercase;letter-spacing:0.5px;">1\.\s*Full Billing Address<\/span>/g,
+        '<span style="font-size:13px;font-weight:normal;color:#000000;text-transform:uppercase;letter-spacing:0.5px;">1. Full Billing Address</span>'
+      );
+      updated = updated.replace(
+        /<span style="font-size:10px;font-weight:bold;color:#(?:0e4b31|000000);text-transform:uppercase;letter-spacing:0.5px;">2\.\s*Shipping \/ Delivery Address<\/span>/g,
+        '<span style="font-size:13px;font-weight:normal;color:#000000;text-transform:uppercase;letter-spacing:0.5px;">2. Shipping / Delivery Address</span>'
+      );
+      updated = updated.replace(
+        /font-size:10px;line-height:16px;color:#(?:1a3f2e|000000);/g,
+        'font-size:12px;line-height:18px;font-weight:normal;color:#000000;'
+      );
+
+      // Remove PAGE 10 - DISPATCH RECORD badge
+      updated = updated.replace(/<span[^>]*>[^<]*PAGE 10 - DISPATCH RECORD[^<]*<\/span>/gi, '');
+      updated = updated.replace(/<div style="text-align:right;">\s*<\/div>/gi, '');
+
       // Convert green elements on Page 10 to black / monochrome
-      updated = updated.replace(/#0e4b31/g, '#000000');
-      updated = updated.replace(/#1a3f2e/g, '#000000');
-      updated = updated.replace(/#556b60/g, '#4b5563');
-      updated = updated.replace(/#3a5345/g, '#1f2937');
-      updated = updated.replace(/#d2ebd9/g, '#e5e7eb');
+      updated = updated.replace(/#000000/g, '#000000');
+      updated = updated.replace(/#000000/g, '#000000');
+      updated = updated.replace(/#556b60/g, '#000000');
+      updated = updated.replace(/#3a5345/g, '#000000');
+      updated = updated.replace(/#d2ebd9/g, '#000000');
       updated = updated.replace(/#eef6f1/g, '#f3f4f6');
       updated = updated.replace(/#f7faf8/g, '#f9fafb');
-      updated = updated.replace(/#f0f7f3/g, '#f3f4f6');
+      updated = updated.replace(/#f0f7f3/g, '#ffffff');
       updated = updated.replace(/#fafdfb/g, '#ffffff');
       updated = updated.replace(/#fbfdfc/g, '#ffffff');
-      updated = updated.replace(/#c2dbcd/g, '#d1d5db');
+      updated = updated.replace(/#c2dbcd/g, '#000000');
       updated = updated.replace(/#d5e5dc/g, '#d1d5db');
-      updated = updated.replace(/#e2ece6/g, '#e5e7eb');
+      updated = updated.replace(/#e2ece6/g, '#d1d5db');
       updated = updated.replace(/rgba\(14,75,49,0\.06\)/g, 'rgba(0,0,0,0.06)');
 
       // Ensure Page 10 footer contact elements maintain their exact coordinates and clean styling
@@ -624,15 +781,47 @@ export default function QuotationLivePdf({
         '<div class="t c10" style="z-index:5393;transform:matrix(1,0,0,1,107.17,1085.88);color:#000000 !important;">99, A-Block, 3rd  Street, Annanagar, Anna Nagar East, Chennai- 600102, Tamil Nadu</div>'
       );
     } else if (pageNum === 11 && updated) {
-      // Ensure Page 11 Contact Details and Presence in INDIA maintain their exact coordinates and clean styling
+      // Ensure Page 11 Contact Details, Presence in INDIA, and footer maintain exact bold styling
+      const p11Font = "font-family:'PoppinsBold', 'Montserrat', Arial, sans-serif !important; font-weight: 700 !important;";
+      updated = updated.replace(/Tamilnadu\s*B\s*Aarnataka/g, 'Tamilnadu | Karnataka');
       updated = updated.replace(
         /<div[^>]*>[^<]*Contact Details:?\s*<\/div>/i,
-        '<div class="t c35" style="z-index:14;transform:matrix(1,0,0,1,29.02,805.73);color:#000000 !important;">Contact Details: </div>'
+        `<div class="t c35" style="z-index:14;transform:matrix(1,0,0,1,29.02,805.73);color:#000000 !important;${p11Font}font-size:23.36px;font-weight:700 !important;">Contact Details: </div>`
+      );
+      updated = updated.replace(
+        /<div class="t c36"[^>]*>[\s\S]*?<\/div>/,
+        `<div class="t c36" style="z-index:31;transform:matrix(1,0,0,1,29.02,837.73);color:#000000 !important;${p11Font}font-size:23.36px;font-weight:700 !important;">+91 8015129224</div>`
       );
       updated = updated.replace(
         /<div[^>]*>[^<]*Our Presence in INDIA[^<]*<\/div>/i,
-        '<div class="t c37" style="z-index:45;transform:matrix(1,0,0,1,28.96,713.41);color:#000000 !important;">Our Presence in INDIA</div>'
+        `<div class="t c37" style="z-index:45;transform:matrix(1,0,0,1,28.96,713.41);color:#000000 !important;${p11Font}font-size:23.36px;font-weight:700 !important;">Our Presence in INDIA</div>`
       );
+      updated = updated.replace(/Bangalore\s*\|\s*Chennai\s*\|\s*Coimbatore\|\s*Hyderabad/g, 'Tamilnadu | Karnataka');
+      updated = updated.replace(/www\.alphaelevators\.com/gi, 'alphaelevators.in');
+      updated = updated.replace(
+        /<div class="t c38"[^>]*>[\s\S]*?<\/div>/,
+        `<div class="t c38" style="z-index:66;transform:matrix(1,0,0,1,28.96,745.73);color:#000000 !important;${p11Font}font-size:20px;font-weight:700 !important;">Tamilnadu | Karnataka</div>`
+      );
+      updated = updated.replace(
+        /<div class="t c39"[^>]*>[\s\S]*?<\/div>/,
+        `<div class="t c39" style="z-index:109;transform:matrix(1,0,0,1,47.46,1051.36);color:#000000 !important;${p11Font}font-size:13.5px;font-weight:700 !important;">alphaelevators.in</div>`
+      );
+      updated = updated.replace(
+        /<div class="t c40"[^>]*>[\s\S]*?<\/div>/,
+        `<div class="t c40" style="z-index:131;transform:matrix(1,0,0,1,247.13,1051.55);color:#000000 !important;${p11Font}font-size:14px;font-weight:700 !important;">info@alphaelevators.in </div>`
+      );
+      updated = updated.replace(
+        /<div class="t c41"[^>]*>[\s\S]*?<\/div>/,
+        `<div class="t c41" style="z-index:154;transform:matrix(1,0,0,1,87.74,1020.33);color:#000000 !important;${p11Font}font-size:13.28px;font-weight:700 !important;">99, A-Block, 3rd  Street, Anna Nagar East, Chennai- 600102, Tamil Nadu</div>`
+      );
+
+      // Replace top image on Page 11 with the newly uploaded luxury elevator photo
+      const newImageBlock = `<div class="page11-top-mask" style="position:absolute;left:0;top:0;width:793.28px;height:705px;background:#ffffff;z-index:1;pointer-events:none;"></div>\n<img class="page11-elevator-photo" src="/quotation/page11_elevator.jpg" style="position:absolute;left:0;top:0;width:793.28px;height:560px;object-fit:cover;object-position:center center;z-index:2;border-bottom-left-radius:8px;border-bottom-right-radius:8px;pointer-events:none;" alt="Alpha Home Elevator" />`;
+      if (!updated.includes('page11-elevator-photo')) {
+        updated = updated.replace(/(<img class="bg"[^>]*>)/i, `$1\n${newImageBlock}`);
+      } else {
+        updated = updated.replace(/<div class="page11-top-mask"[\s\S]*?<img class="page11-elevator-photo"[^>]*>/i, newImageBlock);
+      }
     }
 
     return updated;
@@ -783,7 +972,61 @@ export default function QuotationLivePdf({
           {/* Proposal styles: colors, cleanups, and watermark */}
           <style dangerouslySetInnerHTML={{
             __html: `
-            #p0 .c1 { color: #0f4b31 !important; }
+            .exact-pdf-container,
+            .exact-pdf-container *,
+            .exact-pdf-container .t,
+            .exact-pdf-container .t *,
+            .exact-pdf-container .page *,
+            .proposal-page-wrapper,
+            .proposal-page-wrapper * {
+              color: #000000 !important;
+            }
+            #p9, #p9 *, #p9 .t, #p9 .t * {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+            }
+            #p10, #p10 *, #p10 .t, #p10 .t * {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+              font-weight: bold !important;
+              color: #000000 !important;
+            }
+            #p10 .c35, #p10 .c36, #p10 .c37 {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+              font-size: 23.36px !important;
+              font-weight: bold !important;
+              line-height: 28px !important;
+              color: #000000 !important;
+            }
+            #p10 .c38 {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+              font-size: 20px !important;
+              font-weight: bold !important;
+              line-height: 26px !important;
+              color: #000000 !important;
+            }
+            #p10 .c39 {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+              font-size: 13.5px !important;
+              font-weight: bold !important;
+              color: #000000 !important;
+            }
+            #p10 .c40 {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+              font-size: 14px !important;
+              font-weight: bold !important;
+              color: #000000 !important;
+            }
+            #p10 .c41 {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+              font-size: 13.28px !important;
+              font-weight: bold !important;
+              line-height: 18px !important;
+              color: #000000 !important;
+            }
+            #p9 .c3, #p9 .c10 {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+              font-weight: normal !important;
+            }
+            #p0 .c1, #p0 * { color: #000000 !important; }
             #p0 .im[style*="714.6"] { display: none !important; }
             #p0::after {
               content: '';
@@ -796,8 +1039,8 @@ export default function QuotationLivePdf({
               z-index: 10;
               pointer-events: none;
             }
-            #p1 .c9 { color: #0e4b31 !important; }
-            #p2 .c9, #p2 .c17 { color: #1a3f2e !important; }
+            #p1 .c9, #p1 * { color: #000000 !important; }
+            #p2 .c9, #p2 .c17, #p2 * { color: #000000 !important; }
             #p5 .customer-scope-underline-remover {
               position: absolute;
               left: 32px;
@@ -892,16 +1135,18 @@ export default function QuotationLivePdf({
             // Standard 11-page template
             if (pageNum === 1 && (!isEditing || !baseHtml || !baseHtml.includes('CLIENT NAME') || !baseHtml.includes('MODEL') || baseHtml.includes('-3.33,641.44') || !baseHtml.includes('page1-dot-remover'))) {
               baseHtml = renderExactPdfPage(0, data);
-            } else if (pageNum === 2 && (!isEditing || !baseHtml || baseHtml.includes('NK Group of Companies') || !baseHtml.includes('Where Vertical Mobility Meets Sophistication'))) {
+            } else if (pageNum === 2 && (!isEditing || !baseHtml || baseHtml.includes('NK Group of Companies') || !baseHtml.includes('Where Vertical Mobility Meets Sophistication') || baseHtml.includes('top:490px') || baseHtml.includes('top:555px') || baseHtml.includes('40.63,555'))) {
               baseHtml = renderExactPdfPage(1, data);
-            } else if (pageNum === 3 && (!isEditing || !baseHtml || baseHtml.includes('490.24,806.2') || !baseHtml.includes('color:#1a3f2e'))) {
+            } else if (pageNum === 3 && (!isEditing || !baseHtml || baseHtml.includes('page3-compact-civil-cabin-wrapper') || baseHtml.includes('490.24,806.2') || !baseHtml.includes('color:#000000'))) {
               baseHtml = renderExactPdfPage(2, data);
-            } else if (pageNum === 5 && !isEditing) {
+            } else if (pageNum === 5 && (!isEditing || !baseHtml || !baseHtml.includes('Elevator Price:') || !baseHtml.includes('Shaft Price:') || baseHtml.includes('Rs. 16,00,,000') || !baseHtml.includes('warranty-term-box'))) {
               baseHtml = renderExactPdfPage(4, data);
             } else if (pageNum === 6 && !isEditing) {
               baseHtml = renderExactPdfPage(5, data);
-            } else if (pageNum === 10 && (!isEditing || !baseHtml || baseHtml.includes('Our Presence in INDIA') || baseHtml.includes('#0e4b31'))) {
+            } else if (pageNum === 10 && (!isEditing || !baseHtml || baseHtml.includes('PAGE 10 - DISPATCH RECORD') || baseHtml.includes('Our Presence in INDIA') || !baseHtml.includes('Segoe UI'))) {
               baseHtml = renderExactPdfPage(pageIdx, data);
+            } else if (pageNum === 11 && (!isEditing || !baseHtml || baseHtml.includes('www.alphaelevators.com') || baseHtml.includes('Bangalore') || !baseHtml.includes('alphaelevators.in') || !baseHtml.includes('page11-elevator-photo') || baseHtml.includes("'f1'") || baseHtml.includes('"f1"') || baseHtml.includes("'f2'") || baseHtml.includes('"f2"') || baseHtml.includes('Aarnataka') || baseHtml.includes('Tamilnadu B') || !baseHtml.includes('PoppinsBold'))) {
+              baseHtml = renderExactPdfPage(10, data);
             } else if (!baseHtml) {
               baseHtml = renderExactPdfPage(pageIdx, data);
             }

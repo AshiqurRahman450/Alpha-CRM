@@ -72,8 +72,8 @@ export default function QuotationCreatorPage() {
   const [isPdfEditing, setIsPdfEditing] = useState(false);
   const [savedCustomPages, setSavedCustomPages] = useState<{ [pageNum: number]: string }>({});
 
-  // 3-Stage Quotation Lifecycle State
-  const [currentStage, setCurrentStage] = useState<1 | 2 | 3>(1);
+  // 4-Stage Quotation Lifecycle State (Stage 1: Initial, Stage 2: Negotiation, Stage 3: Negotiation 2, Stage 4: Final)
+  const [currentStage, setCurrentStage] = useState<1 | 2 | 3 | 4>(1);
   const [isStagePanelOpen, setIsStagePanelOpen] = useState<boolean>(true);
   const [lookupOfferNo, setLookupOfferNo] = useState<string>('');
   const [isSearchingOffer, setIsSearchingOffer] = useState<boolean>(false);
@@ -131,22 +131,22 @@ export default function QuotationCreatorPage() {
 
   const getBaseOfferNo = (raw: string): string => {
     if (!raw) return 'AE/QTN/AE-261026-131';
-    return raw.replace(/-[123]$/, '').trim();
+    return raw.replace(/-[1234]$/, '').trim();
   };
 
-  const getSuffixedOfferNo = (raw: string, stage: 1 | 2 | 3): string => {
+  const getSuffixedOfferNo = (raw: string, stage: 1 | 2 | 3 | 4): string => {
     const base = getBaseOfferNo(raw);
     return `${base}-${stage}`;
   };
 
   // Switch Stage
-  const handleStageSwitch = async (newStage: 1 | 2 | 3) => {
+  const handleStageSwitch = async (newStage: 1 | 2 | 3 | 4) => {
     setCurrentStage(newStage);
     const newOfferNo = getSuffixedOfferNo(data.offerNo, newStage);
 
-    // If moving to Stage 2 or 3, attempt to load previous stage data
-    if (newStage === 2 || newStage === 3) {
-      const prevStage = newStage === 2 ? 1 : 2;
+    // If moving to Stage 2, 3, or 4, attempt to load previous stage data
+    if (newStage === 2 || newStage === 3 || newStage === 4) {
+      const prevStage = newStage === 4 ? 3 : newStage === 3 ? 2 : 1;
       try {
         const res = await api.quotations.getByOfferNo(data.offerNo, prevStage);
         if (res?.success && res.data?.data) {
@@ -184,7 +184,7 @@ export default function QuotationCreatorPage() {
       const historyRes = await api.quotations.getStageHistory(target);
       if (historyRes?.success && Array.isArray(historyRes.data) && historyRes.data.length > 0) {
         setStageHistory(historyRes.data);
-        const prevStage = currentStage === 3 ? 2 : currentStage === 2 ? 1 : 1;
+        const prevStage = currentStage === 4 ? 3 : currentStage === 3 ? 2 : currentStage === 2 ? 1 : 1;
         let match =
           historyRes.data.find((s: any) => s.stage === prevStage) ||
           historyRes.data.find((s: any) => s.stage === currentStage) ||
@@ -380,11 +380,12 @@ export default function QuotationCreatorPage() {
     }
   };
 
-  // CRM Approve (Stage 3) / BDM Request Approval
+  // CRM Approve (Stage 4 / Final) / BDM Request Approval
   const handleCrmApprove = async () => {
     setIsCrmApproving(true);
     try {
-      const finalOfferNo = getSuffixedOfferNo(data.offerNo, 3);
+      const targetStage = currentStage === 4 ? 4 : 3;
+      const finalOfferNo = getSuffixedOfferNo(data.offerNo, targetStage);
       const isBdm = currentUser?.role === 'BDM';
 
       if (isBdm) {
@@ -398,7 +399,7 @@ export default function QuotationCreatorPage() {
         if (res?.success) {
           setApprovalRequested(true);
           toast.success(
-            'Stage 3 Approval Request sent to CRM & Admin! The Customer and Project will be auto-created once approved on Reminders.',
+            `Stage ${targetStage} Approval Request sent to CRM & Admin! The Customer and Project will be auto-created once approved on Reminders.`,
             { duration: 6000 }
           );
         } else {
@@ -416,7 +417,7 @@ export default function QuotationCreatorPage() {
           } else {
             setCrmApproveResult(res);
             setShowCrmApproveModal(true);
-            toast.success('Stage 3 Approved! New Customer and Project successfully created in CRM.');
+            toast.success(`Stage ${targetStage} Approved! New Customer and Project successfully created in CRM.`);
           }
         } else {
           toast.error(res?.message || 'Failed to approve quotation on CRM');
@@ -706,6 +707,10 @@ export default function QuotationCreatorPage() {
 
   // Multi-page PDF Download using jsPDF and html2canvas with full text visibility and exact live preview alignment
   const handleDownloadPdf = async () => {
+    if (currentStage === 4) {
+      toast.error('Download option is disabled for Stage 4 Final Quotation.');
+      return;
+    }
     setIsDownloading(true);
     setDownloadProgress('Preparing high-resolution PDF with your updated name & details...');
 
@@ -777,6 +782,11 @@ export default function QuotationCreatorPage() {
         }
         #p9 .c3, #p9 .c10 { color: #000000 !important; }
         #p9 .billing-page-container { color: #000000 !important; }
+        #p10, #p10 *, #p10 .t, #p10 .t * {
+          font-family: 'PoppinsBold', 'Montserrat', Arial, sans-serif !important;
+          font-weight: 700 !important;
+          color: #000000 !important;
+        }
         #p10 .c35, #p10 .c37 { color: #000000 !important; }
         #p0 .client-signature-box, #p1 .client-signature-box, #p8 .client-signature-box, #p10 .client-signature-box { display: none !important; }
         .mrp-strikethrough-line {
@@ -1034,15 +1044,17 @@ export default function QuotationCreatorPage() {
               {isSavingStage ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
               <span>Save</span>
             </button>
-            <button
-              type="button"
-              onClick={handleDownloadPdf}
-              disabled={isDownloading || isRenderingPdf}
-              className="px-2.5 py-1 bg-teal-600 hover:bg-teal-500 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-xs active:scale-95 disabled:opacity-50 cursor-pointer"
-            >
-              {isDownloading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
-              <span>Download PDF</span>
-            </button>
+            {currentStage !== 4 && (
+              <button
+                type="button"
+                onClick={handleDownloadPdf}
+                disabled={isDownloading || isRenderingPdf}
+                className="px-2.5 py-1 bg-teal-600 hover:bg-teal-500 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-xs active:scale-95 disabled:opacity-50 cursor-pointer"
+              >
+                {isDownloading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+                <span>Download PDF</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -1317,25 +1329,27 @@ export default function QuotationCreatorPage() {
             <span className="hidden md:inline">BDM Pipeline</span>
           </Link>
 
-          {/* Download PDF Button */}
-          <button
-            type="button"
-            onClick={handleDownloadPdf}
-            disabled={isDownloading || isRenderingPdf}
-            className="px-4 py-1.5 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-400 hover:to-cyan-500 text-white rounded-xl text-xs font-black flex items-center gap-2 shadow-md shadow-teal-900/40 active:scale-95 transition-all disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
-          >
-            {isDownloading ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                <span>Downloading...</span>
-              </>
-            ) : (
-              <>
-                <Download className="w-3.5 h-3.5" />
-                <span>Download PDF</span>
-              </>
-            )}
-          </button>
+          {/* Download PDF Button - Hidden in Stage 4 (Final Quotation) */}
+          {currentStage !== 4 && (
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={isDownloading || isRenderingPdf}
+              className="px-4 py-1.5 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-400 hover:to-cyan-500 text-white rounded-xl text-xs font-black flex items-center gap-2 shadow-md shadow-teal-900/40 active:scale-95 transition-all disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {isDownloading ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Downloading...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download PDF</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -1655,11 +1669,11 @@ export default function QuotationCreatorPage() {
             {isStagePanelOpen && (
               <div className="space-y-3 pt-3 border-t border-slate-800/80 mt-2.5">
                 {/* Stage Switcher Pills */}
-                <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-950/80 rounded-xl border border-slate-800 text-xs">
+                <div className="grid grid-cols-4 gap-1.5 p-1 bg-slate-950/80 rounded-xl border border-slate-800 text-xs">
                   <button
                     type="button"
                     onClick={() => handleStageSwitch(1)}
-                    className={`py-1.5 px-2 rounded-lg font-bold text-center transition-all flex flex-col items-center gap-0.5 ${
+                    className={`py-1.5 px-1.5 rounded-lg font-bold text-center transition-all flex flex-col items-center gap-0.5 ${
                       currentStage === 1
                         ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400'
                         : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
@@ -1672,7 +1686,7 @@ export default function QuotationCreatorPage() {
                   <button
                     type="button"
                     onClick={() => handleStageSwitch(2)}
-                    className={`py-1.5 px-2 rounded-lg font-bold text-center transition-all flex flex-col items-center gap-0.5 ${
+                    className={`py-1.5 px-1.5 rounded-lg font-bold text-center transition-all flex flex-col items-center gap-0.5 ${
                       currentStage === 2
                         ? 'bg-amber-600 text-white shadow-sm ring-1 ring-amber-400'
                         : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
@@ -1685,14 +1699,27 @@ export default function QuotationCreatorPage() {
                   <button
                     type="button"
                     onClick={() => handleStageSwitch(3)}
-                    className={`py-1.5 px-2 rounded-lg font-bold text-center transition-all flex flex-col items-center gap-0.5 ${
+                    className={`py-1.5 px-1.5 rounded-lg font-bold text-center transition-all flex flex-col items-center gap-0.5 ${
                       currentStage === 3
-                        ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-400'
+                        ? 'bg-orange-600 text-white shadow-sm ring-1 ring-orange-400'
                         : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
                     }`}
                   >
                     <span className="text-[11px]">Stage 3</span>
-                    <span className="text-[9px] font-mono opacity-80">Final CRM (-3)</span>
+                    <span className="text-[9px] font-mono opacity-80">Negotiation 2 (-3)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleStageSwitch(4)}
+                    className={`py-1.5 px-1.5 rounded-lg font-bold text-center transition-all flex flex-col items-center gap-0.5 ${
+                      currentStage === 4
+                        ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-400'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                    }`}
+                  >
+                    <span className="text-[11px]">Stage 4</span>
+                    <span className="text-[9px] font-mono opacity-80">Final CRM (-4)</span>
                   </button>
                 </div>
 
@@ -1703,7 +1730,7 @@ export default function QuotationCreatorPage() {
                       type="text"
                       value={lookupOfferNo}
                       onChange={(e) => setLookupOfferNo(e.target.value)}
-                      placeholder={`Enter offer no to load Stage ${currentStage === 1 ? '1' : currentStage === 2 ? '1' : '2'} data...`}
+                      placeholder={`Enter offer no to load Stage ${currentStage === 1 ? '1' : currentStage === 2 ? '1' : currentStage === 3 ? '2' : '3'} data...`}
                       className="w-full text-xs bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-1.5 text-white font-mono placeholder:text-slate-500 focus:outline-none focus:border-teal-400"
                     />
                   </div>
@@ -1782,30 +1809,45 @@ export default function QuotationCreatorPage() {
                   )}
 
                   {currentStage === 3 && (
-                    <div className="space-y-2">
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setWhatsAppPhone(data.customerPhone || '');
-                            setShowWhatsAppModal(true);
-                          }}
-                          className="px-3 py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
-                          title="Send final negotiation revision to customer"
-                        >
-                          <Send className="w-3.5 h-3.5" />
-                          <span>Send to Customer</span>
-                        </button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setWhatsAppPhone(data.customerPhone || '');
+                          setShowWhatsAppModal(true);
+                        }}
+                        className="px-3 py-2 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
+                        title="Send second negotiation revision to customer via WhatsApp"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Negotiation 2: Send PDF</span>
+                      </button>
 
+                      <button
+                        type="button"
+                        onClick={handleFinalizeCurrentStage}
+                        disabled={isFinalizingStage}
+                        className="px-3 py-2 bg-orange-700 hover:bg-orange-600 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
+                        title="Finalize Stage 3 (appends -3 to offer no) and send to CRM role"
+                      >
+                        {isFinalizingStage ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                        <span>Finalize (-3) to CRM</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {currentStage === 4 && (
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-1 gap-2">
                         <button
                           type="button"
                           onClick={handleFinalizeCurrentStage}
                           disabled={isFinalizingStage}
                           className="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
-                          title="Finalize Stage 3 (appends -3 to offer no) and send to CRM role"
+                          title="Finalize Stage 4 (appends -4 to offer no) and send to CRM role"
                         >
                           {isFinalizingStage ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                          <span>Finalize (-3) to CRM</span>
+                          <span>Finalize (-4) to CRM</span>
                         </button>
                       </div>
 
@@ -1816,7 +1858,7 @@ export default function QuotationCreatorPage() {
                           onClick={handleCrmApprove}
                           disabled={isCrmApproving || approvalRequested}
                           className="w-full py-2.5 px-3 bg-gradient-to-r from-sky-600 via-indigo-600 to-blue-700 hover:from-sky-500 hover:to-indigo-600 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-md shadow-sky-950/50 active:scale-95 transition-all ring-1 ring-sky-400 disabled:opacity-60 cursor-pointer"
-                          title="Submit Stage 3 quotation for CRM Approval and Project Auto-Creation"
+                          title="Submit Stage 4 quotation for CRM Approval and Project Auto-Creation"
                         >
                           {isCrmApproving ? (
                             <Loader2 className="w-4 h-4 animate-spin text-white" />
@@ -1926,15 +1968,17 @@ export default function QuotationCreatorPage() {
               <span>Save</span>
             </button>
 
-            <button
-              type="button"
-              onClick={handleDownloadPdf}
-              disabled={isDownloading || isRenderingPdf}
-              className="flex-1 py-2 px-3 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-400 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-md shadow-teal-950/40 active:scale-95 disabled:opacity-50 cursor-pointer"
-            >
-              {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              <span>Download PDF</span>
-            </button>
+            {currentStage !== 4 && (
+              <button
+                type="button"
+                onClick={handleDownloadPdf}
+                disabled={isDownloading || isRenderingPdf}
+                className="flex-1 py-2 px-3 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-400 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-md shadow-teal-950/40 active:scale-95 disabled:opacity-50 cursor-pointer"
+              >
+                {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                <span>Download PDF</span>
+              </button>
+            )}
           </>
         ) : (
           <>
@@ -1960,15 +2004,17 @@ export default function QuotationCreatorPage() {
               <span>WhatsApp</span>
             </button>
 
-            <button
-              type="button"
-              onClick={handleDownloadPdf}
-              disabled={isDownloading || isRenderingPdf}
-              className="flex-1 py-2 px-3 bg-teal-500 hover:bg-teal-400 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-md active:scale-95 disabled:opacity-50 cursor-pointer"
-            >
-              {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              <span>Download PDF</span>
-            </button>
+            {currentStage !== 4 && (
+              <button
+                type="button"
+                onClick={handleDownloadPdf}
+                disabled={isDownloading || isRenderingPdf}
+                className="flex-1 py-2 px-3 bg-teal-500 hover:bg-teal-400 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-md active:scale-95 disabled:opacity-50 cursor-pointer"
+              >
+                {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                <span>Download PDF</span>
+              </button>
+            )}
           </>
         )}
       </div>
