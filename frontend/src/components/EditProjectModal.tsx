@@ -51,11 +51,11 @@ export default function EditProjectModal({
     shaftNonCashAmount: '0',
     orderValue: 0,
     advanceAmount: '',
-    advancePercentage: '',
+    advancePercentage: '30',
     productionPaymentPercent: '40',
-    readinessNotificationPercent: '20',
-    dispatchMaterialsPercent: '5',
-    afterInstallationPercent: '5',
+    readinessNotificationPercent: '30',
+    dispatchMaterialsPercent: '0',
+    afterInstallationPercent: '0',
     projectStatus: 'PAYMENT_RECEIVED',
     vrlLrNumber: '',
     trackingNumber: '',
@@ -78,15 +78,18 @@ export default function EditProjectModal({
         ? project.customerId._id
         : (project.customerId || '');
 
-      const liftBase = project.liftBaseAmount ? String(project.liftBaseAmount) : (project.liftAmount ? String(Math.round(project.liftAmount / 1.18)) : '0');
-      const liftWithGst = project.liftAmount ? String(project.liftAmount) : (project.liftNonCashAmount ? String(project.liftNonCashAmount) : '0');
       const liftDisc = project.liftDiscountAmount ? String(project.liftDiscountAmount) : '';
+      const liftWithGst = project.liftAmount ? String(project.liftAmount) : (project.liftNonCashAmount ? String(project.liftNonCashAmount) : '');
+      const liftBase = project.liftBaseAmount ? String(project.liftBaseAmount) : (liftWithGst !== '' ? String(Math.round(Number(liftWithGst) / 1.18) + Number(liftDisc || 0)) : '');
 
-      const shaftBase = project.shaftBaseAmount ? String(project.shaftBaseAmount) : (project.shaftAmount ? String(Math.round(project.shaftAmount / 1.18)) : '0');
-      const shaftWithGst = project.shaftAmount ? String(project.shaftAmount) : (project.shaftNonCashAmount ? String(project.shaftNonCashAmount) : '0');
       const shaftDisc = project.shaftDiscountAmount ? String(project.shaftDiscountAmount) : '';
+      const shaftWithGst = project.shaftAmount ? String(project.shaftAmount) : (project.shaftNonCashAmount ? String(project.shaftNonCashAmount) : '');
+      const shaftBase = project.shaftBaseAmount ? String(project.shaftBaseAmount) : (shaftWithGst !== '' ? String(Math.round(Number(shaftWithGst) / 1.18) + Number(shaftDisc || 0)) : '');
 
-      const ordVal = project.orderValue || calcTotalAmount(liftWithGst, shaftWithGst, project.shaftModel || '');
+      const rawShaft = project.shaftModel || '';
+      const resolvedShaft = rawShaft === 'No Shaft' ? 'Civil Shaft' : rawShaft;
+
+      const ordVal = project.orderValue || calcTotalAmount(liftWithGst, shaftWithGst, resolvedShaft);
 
       setFormData({
         customerId: cId,
@@ -96,7 +99,7 @@ export default function EditProjectModal({
         liftModel: project.liftModel || 'AE 01 Home Series',
         liftType: project.liftType || 'Home Lift',
         numberOfFloors: project.numberOfFloors || 'G+1',
-        shaftModel: project.shaftModel || '',
+        shaftModel: resolvedShaft,
         liftBaseAmount: liftBase,
         liftDiscountAmount: liftDisc,
         liftNonCashAmount: liftWithGst,
@@ -105,11 +108,11 @@ export default function EditProjectModal({
         shaftNonCashAmount: shaftWithGst,
         orderValue: ordVal,
         advanceAmount: project.advanceAmount !== undefined ? String(project.advanceAmount) : '',
-        advancePercentage: project.advancePercentage !== undefined ? String(project.advancePercentage) : '',
+        advancePercentage: project.advancePercentage !== undefined ? String(project.advancePercentage) : '30',
         productionPaymentPercent: project.productionPaymentPercent !== undefined ? String(project.productionPaymentPercent) : '40',
-        readinessNotificationPercent: project.readinessNotificationPercent !== undefined ? String(project.readinessNotificationPercent) : '20',
-        dispatchMaterialsPercent: project.dispatchMaterialsPercent !== undefined ? String(project.dispatchMaterialsPercent) : '5',
-        afterInstallationPercent: project.afterInstallationPercent !== undefined ? String(project.afterInstallationPercent) : '5',
+        readinessNotificationPercent: project.readinessNotificationPercent !== undefined ? String(project.readinessNotificationPercent) : '30',
+        dispatchMaterialsPercent: project.dispatchMaterialsPercent !== undefined ? String(project.dispatchMaterialsPercent) : '0',
+        afterInstallationPercent: project.afterInstallationPercent !== undefined ? String(project.afterInstallationPercent) : '0',
         projectStatus: project.projectStatus || 'PAYMENT_RECEIVED',
         vrlLrNumber: project.vrlLrNumber || project.trackingNumber || '',
         trackingNumber: project.trackingNumber || project.vrlLrNumber || '',
@@ -366,7 +369,7 @@ export default function EditProjectModal({
 
               <div>
                 <label className="block text-[10px] font-bold text-slate-700 mb-1">
-                  Lift Non-GST (₹):
+                  Elevator Price (Non GST) (₹):
                 </label>
                 <input
                   type="number"
@@ -374,14 +377,20 @@ export default function EditProjectModal({
                   value={formData.liftBaseAmount || ''}
                   onChange={(e) => {
                     const base = e.target.value;
-                    const effectiveBase = formData.liftDiscountAmount && Number(formData.liftDiscountAmount) > 0
-                      ? formData.liftDiscountAmount
-                      : base;
-                    const withGst = effectiveBase !== '' ? String(Math.round(Number(effectiveBase) * 1.18)) : '';
+                    const elevatorPrice = Number(base || 0);
+                    const discount = Number(formData.liftDiscountAmount || 0);
+                    const netLift = Math.max(0, elevatorPrice - discount);
+                    const withGst = base !== '' ? String(Math.round(netLift * 1.18)) : '';
+                    const totalVal = calcTotalAmount(withGst, formData.shaftNonCashAmount, formData.shaftModel);
+                    let advAmt = formData.advanceAmount;
+                    if (formData.advancePercentage !== '' && totalVal > 0) {
+                      advAmt = String(Math.round((totalVal * Number(formData.advancePercentage)) / 100));
+                    }
                     setFormData((prev) => ({
                       ...prev,
                       liftBaseAmount: base,
                       liftNonCashAmount: withGst,
+                      advanceAmount: advAmt,
                     }));
                   }}
                   className="w-full p-2 text-xs border border-slate-300 rounded-lg font-bold bg-white"
@@ -390,7 +399,12 @@ export default function EditProjectModal({
 
               <div>
                 <label className="block text-[10px] font-bold text-slate-700 mb-1 flex items-center justify-between">
-                  <span>Lift Discount (₹):</span>
+                  <span>Discount Elevator Price (₹):</span>
+                  {formData.liftDiscountAmount && Number(formData.liftDiscountAmount) > 0 && (
+                    <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                      -₹{Number(formData.liftDiscountAmount).toLocaleString('en-IN')}
+                    </span>
+                  )}
                 </label>
                 <input
                   type="number"
@@ -398,21 +412,34 @@ export default function EditProjectModal({
                   value={formData.liftDiscountAmount || ''}
                   onChange={(e) => {
                     const disc = e.target.value;
-                    const effectiveBase = disc !== '' && Number(disc) > 0 ? disc : formData.liftBaseAmount;
-                    const withGst = effectiveBase !== '' ? String(Math.round(Number(effectiveBase) * 1.18)) : '';
+                    const elevatorPrice = Number(formData.liftBaseAmount || 0);
+                    const discount = Number(disc || 0);
+                    const netLift = Math.max(0, elevatorPrice - discount);
+                    const withGst = formData.liftBaseAmount !== '' ? String(Math.round(netLift * 1.18)) : '';
+                    const totalVal = calcTotalAmount(withGst, formData.shaftNonCashAmount, formData.shaftModel);
+                    let advAmt = formData.advanceAmount;
+                    if (formData.advancePercentage !== '' && totalVal > 0) {
+                      advAmt = String(Math.round((totalVal * Number(formData.advancePercentage)) / 100));
+                    }
                     setFormData((prev) => ({
                       ...prev,
                       liftDiscountAmount: disc,
                       liftNonCashAmount: withGst,
+                      advanceAmount: advAmt,
                     }));
                   }}
                   className="w-full p-2 text-xs border border-emerald-300 rounded-lg font-bold text-emerald-900 bg-emerald-50/20"
                 />
+                {formData.liftDiscountAmount && Number(formData.liftDiscountAmount) > 0 && formData.liftBaseAmount && (
+                  <span className="text-[10px] text-slate-500 mt-0.5 block">
+                    Net: ₹{Math.max(0, Number(formData.liftBaseAmount) - Number(formData.liftDiscountAmount)).toLocaleString('en-IN')} • Total + 18% GST: ₹{formData.liftNonCashAmount ? Number(formData.liftNonCashAmount).toLocaleString('en-IN') : 0}
+                  </span>
+                )}
               </div>
 
               <div>
                 <label className="block text-[10px] font-bold text-slate-700 mb-1">
-                  Lift + 18% GST (₹): *
+                  Elevator Total (+18% GST) (₹): *
                 </label>
                 <input
                   type="number"
@@ -420,11 +447,19 @@ export default function EditProjectModal({
                   value={formData.liftNonCashAmount || ''}
                   onChange={(e) => {
                     const withGst = e.target.value;
-                    const base = withGst !== '' ? String(Math.round(Number(withGst) / 1.18)) : '';
+                    const netLift = withGst !== '' ? Math.round(Number(withGst) / 1.18) : 0;
+                    const discount = Number(formData.liftDiscountAmount || 0);
+                    const base = withGst !== '' ? String(netLift + discount) : '';
+                    const totalVal = calcTotalAmount(withGst, formData.shaftNonCashAmount, formData.shaftModel);
+                    let advAmt = formData.advanceAmount;
+                    if (formData.advancePercentage !== '' && totalVal > 0) {
+                      advAmt = String(Math.round((totalVal * Number(formData.advancePercentage)) / 100));
+                    }
                     setFormData((prev) => ({
                       ...prev,
                       liftNonCashAmount: withGst,
-                      liftBaseAmount: prev.liftDiscountAmount ? prev.liftBaseAmount : base,
+                      liftBaseAmount: base,
+                      advanceAmount: advAmt,
                     }));
                   }}
                   className="w-full p-2 text-xs border border-slate-300 rounded-lg font-bold bg-white"
@@ -440,15 +475,28 @@ export default function EditProjectModal({
                 </label>
                 <select
                   required
-                  value={formData.shaftModel}
-                  onChange={(e) => updateField('shaftModel', e.target.value)}
-                  className="w-full p-2 text-xs border border-slate-300 rounded-lg bg-white"
+                  value={formData.shaftModel === 'No Shaft' ? 'Civil Shaft' : formData.shaftModel}
+                  onChange={(e) => {
+                    const model = e.target.value;
+                    const totalVal = calcTotalAmount(formData.liftNonCashAmount, formData.shaftNonCashAmount, model);
+                    let advAmt = formData.advanceAmount;
+                    if (formData.advancePercentage !== '' && totalVal > 0) {
+                      advAmt = String(Math.round((totalVal * Number(formData.advancePercentage)) / 100));
+                    }
+                    setFormData((prev) => ({
+                      ...prev,
+                      shaftModel: model,
+                      advanceAmount: advAmt,
+                    }));
+                  }}
+                  className="w-full p-2 text-xs border border-slate-300 rounded-lg bg-white font-semibold text-slate-800"
                 >
                   <option value="">-- Select Shaft Model --</option>
                   <option value="Customer Scope">Customer Scope</option>
                   <option value="Aluminium Shaft">Aluminium Shaft</option>
                   <option value="Glass Shaft">Glass Shaft</option>
-                  <option value="No Shaft">No Shaft (Civil)</option>
+                  <option value="ACP Shaft">ACP Shaft</option>
+                  <option value="Civil Shaft">Civil Shaft</option>
                 </select>
               </div>
 
@@ -456,7 +504,7 @@ export default function EditProjectModal({
                 <>
                   <div>
                     <label className="block text-[10px] font-bold text-slate-700 mb-1">
-                      Shaft Non-GST (₹):
+                      Shaft Price (Non GST) (₹):
                     </label>
                     <input
                       type="number"
@@ -464,14 +512,20 @@ export default function EditProjectModal({
                       value={formData.shaftBaseAmount || ''}
                       onChange={(e) => {
                         const base = e.target.value;
-                        const effectiveBase = formData.shaftDiscountAmount && Number(formData.shaftDiscountAmount) > 0
-                          ? formData.shaftDiscountAmount
-                          : base;
-                        const withGst = effectiveBase !== '' ? String(Math.round(Number(effectiveBase) * 1.18)) : '';
+                        const shaftPrice = Number(base || 0);
+                        const discount = Number(formData.shaftDiscountAmount || 0);
+                        const netShaft = Math.max(0, shaftPrice - discount);
+                        const withGst = base !== '' ? String(Math.round(netShaft * 1.18)) : '';
+                        const totalVal = calcTotalAmount(formData.liftNonCashAmount, withGst, formData.shaftModel);
+                        let advAmt = formData.advanceAmount;
+                        if (formData.advancePercentage !== '' && totalVal > 0) {
+                          advAmt = String(Math.round((totalVal * Number(formData.advancePercentage)) / 100));
+                        }
                         setFormData((prev) => ({
                           ...prev,
                           shaftBaseAmount: base,
                           shaftNonCashAmount: withGst,
+                          advanceAmount: advAmt,
                         }));
                       }}
                       className="w-full p-2 text-xs border border-slate-300 rounded-lg font-bold bg-white"
@@ -479,8 +533,13 @@ export default function EditProjectModal({
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-700 mb-1">
-                      Shaft Discount (₹):
+                    <label className="block text-[10px] font-bold text-slate-700 mb-1 flex items-center justify-between">
+                      <span>Discount Shaft Price (₹):</span>
+                      {formData.shaftDiscountAmount && Number(formData.shaftDiscountAmount) > 0 && (
+                        <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                          -₹{Number(formData.shaftDiscountAmount).toLocaleString('en-IN')}
+                        </span>
+                      )}
                     </label>
                     <input
                       type="number"
@@ -488,32 +547,53 @@ export default function EditProjectModal({
                       value={formData.shaftDiscountAmount || ''}
                       onChange={(e) => {
                         const disc = e.target.value;
-                        const effectiveBase = disc !== '' && Number(disc) > 0 ? disc : formData.shaftBaseAmount;
-                        const withGst = effectiveBase !== '' ? String(Math.round(Number(effectiveBase) * 1.18)) : '';
+                        const shaftPrice = Number(formData.shaftBaseAmount || 0);
+                        const discount = Number(disc || 0);
+                        const netShaft = Math.max(0, shaftPrice - discount);
+                        const withGst = formData.shaftBaseAmount !== '' ? String(Math.round(netShaft * 1.18)) : '';
+                        const totalVal = calcTotalAmount(formData.liftNonCashAmount, withGst, formData.shaftModel);
+                        let advAmt = formData.advanceAmount;
+                        if (formData.advancePercentage !== '' && totalVal > 0) {
+                          advAmt = String(Math.round((totalVal * Number(formData.advancePercentage)) / 100));
+                        }
                         setFormData((prev) => ({
                           ...prev,
                           shaftDiscountAmount: disc,
                           shaftNonCashAmount: withGst,
+                          advanceAmount: advAmt,
                         }));
                       }}
                       className="w-full p-2 text-xs border border-emerald-300 rounded-lg font-bold text-emerald-900 bg-emerald-50/20"
                     />
+                    {formData.shaftDiscountAmount && Number(formData.shaftDiscountAmount) > 0 && formData.shaftBaseAmount && (
+                      <span className="text-[10px] text-slate-500 mt-0.5 block">
+                        Net: ₹{Math.max(0, Number(formData.shaftBaseAmount) - Number(formData.shaftDiscountAmount)).toLocaleString('en-IN')} • Total + 18% GST: ₹{formData.shaftNonCashAmount ? Number(formData.shaftNonCashAmount).toLocaleString('en-IN') : 0}
+                      </span>
+                    )}
                   </div>
 
                   <div>
                     <label className="block text-[10px] font-bold text-slate-700 mb-1">
-                      Shaft + 18% GST (₹):
+                      Shaft Total (+18% GST) (₹):
                     </label>
                     <input
                       type="number"
                       value={formData.shaftNonCashAmount || ''}
                       onChange={(e) => {
                         const withGst = e.target.value;
-                        const base = withGst !== '' ? String(Math.round(Number(withGst) / 1.18)) : '';
+                        const netShaft = withGst !== '' ? Math.round(Number(withGst) / 1.18) : 0;
+                        const discount = Number(formData.shaftDiscountAmount || 0);
+                        const base = withGst !== '' ? String(netShaft + discount) : '';
+                        const totalVal = calcTotalAmount(formData.liftNonCashAmount, withGst, formData.shaftModel);
+                        let advAmt = formData.advanceAmount;
+                        if (formData.advancePercentage !== '' && totalVal > 0) {
+                          advAmt = String(Math.round((totalVal * Number(formData.advancePercentage)) / 100));
+                        }
                         setFormData((prev) => ({
                           ...prev,
                           shaftNonCashAmount: withGst,
-                          shaftBaseAmount: prev.shaftDiscountAmount ? prev.shaftBaseAmount : base,
+                          shaftBaseAmount: base,
+                          advanceAmount: advAmt,
                         }));
                       }}
                       className="w-full p-2 text-xs border border-slate-300 rounded-lg font-bold bg-white"

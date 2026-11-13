@@ -70,20 +70,20 @@ export default function ProjectsPage() {
     shaftModel: '',
     liftAmount: '0',
     shaftAmount: '0',
-    liftBaseAmount: '0',
+    liftBaseAmount: '',
     liftDiscountAmount: '',
     liftCashAmount: '0',
-    liftNonCashAmount: '0',
-    shaftBaseAmount: '0',
+    liftNonCashAmount: '',
+    shaftBaseAmount: '',
     shaftDiscountAmount: '',
     shaftCashAmount: '0',
-    shaftNonCashAmount: '0',
+    shaftNonCashAmount: '',
     advanceAmount: '',
-    advancePercentage: '',
+    advancePercentage: '30',
     productionPaymentPercent: '40',
-    readinessNotificationPercent: '20',
-    dispatchMaterialsPercent: '5',
-    afterInstallationPercent: '5',
+    readinessNotificationPercent: '30',
+    dispatchMaterialsPercent: '0',
+    afterInstallationPercent: '0',
     expectedDeliveryDate: '',
     updateFrequencyDays: '20',
     whatsappGroupId: '',
@@ -193,20 +193,20 @@ export default function ProjectsPage() {
         shaftModel: '',
         liftAmount: '0',
         shaftAmount: '0',
-        liftBaseAmount: '0',
+        liftBaseAmount: '',
         liftDiscountAmount: '',
         liftCashAmount: '0',
-        liftNonCashAmount: '0',
-        shaftBaseAmount: '0',
+        liftNonCashAmount: '',
+        shaftBaseAmount: '',
         shaftDiscountAmount: '',
         shaftCashAmount: '0',
-        shaftNonCashAmount: '0',
+        shaftNonCashAmount: '',
         advanceAmount: '',
-        advancePercentage: '',
+        advancePercentage: '30',
         productionPaymentPercent: '40',
-        readinessNotificationPercent: '20',
-        dispatchMaterialsPercent: '5',
-        afterInstallationPercent: '5',
+        readinessNotificationPercent: '30',
+        dispatchMaterialsPercent: '0',
+        afterInstallationPercent: '0',
         expectedDeliveryDate: '',
         updateFrequencyDays: '20',
         whatsappGroupId: '',
@@ -561,7 +561,7 @@ export default function ProjectsPage() {
                     </div>
                     <div>
                       <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                        Lift Amount (Non GST) (₹):
+                        Elevator Price (Non GST) (₹):
                       </label>
                       <input
                         type="number"
@@ -569,10 +569,10 @@ export default function ProjectsPage() {
                         value={newProject.liftBaseAmount || ''}
                         onChange={(e) => {
                           const base = e.target.value;
-                          const effectiveBase = (newProject.liftDiscountAmount && Number(newProject.liftDiscountAmount) > 0)
-                            ? newProject.liftDiscountAmount
-                            : base;
-                          const withGst = effectiveBase !== '' ? String(Math.round(Number(effectiveBase) * 1.18)) : '';
+                          const elevatorPrice = Number(base || 0);
+                          const discount = Number(newProject.liftDiscountAmount || 0);
+                          const netLift = Math.max(0, elevatorPrice - discount);
+                          const withGst = base !== '' ? String(Math.round(netLift * 1.18)) : '';
                           const totalVal = calcTotalAmount(withGst, newProject.shaftNonCashAmount, newProject.shaftModel);
                           let advAmt = newProject.advanceAmount;
                           if (newProject.advancePercentage !== '' && totalVal > 0) {
@@ -590,10 +590,10 @@ export default function ProjectsPage() {
                     </div>
                     <div>
                       <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
-                        <span>Discount Lift Amount (₹):</span>
-                        {newProject.liftDiscountAmount && Number(newProject.liftBaseAmount) > Number(newProject.liftDiscountAmount) && (
-                          <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1 rounded">
-                            -₹{(Number(newProject.liftBaseAmount) - Number(newProject.liftDiscountAmount)).toLocaleString('en-IN')}
+                        <span>Discount Elevator Price (₹):</span>
+                        {newProject.liftDiscountAmount && Number(newProject.liftDiscountAmount) > 0 && (
+                          <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                            -₹{Number(newProject.liftDiscountAmount).toLocaleString('en-IN')}
                           </span>
                         )}
                       </label>
@@ -603,8 +603,10 @@ export default function ProjectsPage() {
                         value={newProject.liftDiscountAmount || ''}
                         onChange={(e) => {
                           const disc = e.target.value;
-                          const effectiveBase = disc !== '' && Number(disc) > 0 ? disc : newProject.liftBaseAmount;
-                          const withGst = effectiveBase !== '' ? String(Math.round(Number(effectiveBase) * 1.18)) : '';
+                          const elevatorPrice = Number(newProject.liftBaseAmount || 0);
+                          const discount = Number(disc || 0);
+                          const netLift = Math.max(0, elevatorPrice - discount);
+                          const withGst = newProject.liftBaseAmount !== '' ? String(Math.round(netLift * 1.18)) : '';
                           const totalVal = calcTotalAmount(withGst, newProject.shaftNonCashAmount, newProject.shaftModel);
                           let advAmt = newProject.advanceAmount;
                           if (newProject.advancePercentage !== '' && totalVal > 0) {
@@ -619,10 +621,15 @@ export default function ProjectsPage() {
                         }}
                         className="w-full p-2.5 text-xs border border-emerald-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-bold text-emerald-900 bg-emerald-50/20 placeholder:font-normal placeholder:text-slate-400"
                       />
+                      {newProject.liftDiscountAmount && Number(newProject.liftDiscountAmount) > 0 && newProject.liftBaseAmount && (
+                        <span className="text-[10px] text-slate-500 mt-0.5 block">
+                          Net: ₹{Math.max(0, Number(newProject.liftBaseAmount) - Number(newProject.liftDiscountAmount)).toLocaleString('en-IN')} • Total + 18% GST: ₹{newProject.liftNonCashAmount ? Number(newProject.liftNonCashAmount).toLocaleString('en-IN') : 0}
+                        </span>
+                      )}
                     </div>
                     <div>
                       <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                        +18% GST (₹): *
+                        Elevator Total (+18% GST) (₹): *
                       </label>
                       <input
                         type="number"
@@ -630,7 +637,9 @@ export default function ProjectsPage() {
                         value={newProject.liftNonCashAmount || ''}
                         onChange={(e) => {
                           const withGst = e.target.value;
-                          const base = withGst !== '' ? String(Math.round(Number(withGst) / 1.18)) : '';
+                          const netLift = withGst !== '' ? Math.round(Number(withGst) / 1.18) : 0;
+                          const discount = Number(newProject.liftDiscountAmount || 0);
+                          const base = withGst !== '' ? String(netLift + discount) : '';
                           const totalVal = calcTotalAmount(withGst, newProject.shaftNonCashAmount, newProject.shaftModel);
                           let advAmt = newProject.advanceAmount;
                           if (newProject.advancePercentage !== '' && totalVal > 0) {
@@ -639,8 +648,7 @@ export default function ProjectsPage() {
                           setNewProject({
                             ...newProject,
                             liftNonCashAmount: withGst,
-                            liftBaseAmount: newProject.liftDiscountAmount ? newProject.liftBaseAmount : base,
-                            liftDiscountAmount: newProject.liftDiscountAmount ? base : newProject.liftDiscountAmount,
+                            liftBaseAmount: base,
                             advanceAmount: advAmt,
                           });
                         }}
@@ -656,7 +664,7 @@ export default function ProjectsPage() {
                       </label>
                       <select
                         required
-                        value={newProject.shaftModel}
+                        value={newProject.shaftModel === 'No Shaft' ? 'Civil Shaft' : newProject.shaftModel}
                         onChange={(e) => {
                           const model = e.target.value;
                           const totalVal = calcTotalAmount(newProject.liftNonCashAmount, newProject.shaftNonCashAmount, model);
@@ -670,20 +678,21 @@ export default function ProjectsPage() {
                             advanceAmount: advAmt,
                           });
                         }}
-                        className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                        className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none font-semibold text-slate-800"
                       >
                         <option value="">-- Select Shaft Model --</option>
                         <option value="Customer Scope">Customer Scope</option>
                         <option value="Aluminium Shaft">Aluminium Shaft</option>
                         <option value="Glass Shaft">Glass Shaft</option>
-                        <option value="No Shaft">No Shaft (Civil)</option>
+                        <option value="ACP Shaft">ACP Shaft</option>
+                        <option value="Civil Shaft">Civil Shaft</option>
                       </select>
                     </div>
                     {newProject.shaftModel !== 'Customer Scope' && (
                       <>
                         <div>
                           <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                            Shaft Amount Non GST) (₹):
+                            Shaft Price (Non GST) (₹):
                           </label>
                           <input
                             type="number"
@@ -691,10 +700,10 @@ export default function ProjectsPage() {
                             value={newProject.shaftBaseAmount || ''}
                             onChange={(e) => {
                               const base = e.target.value;
-                              const effectiveBase = (newProject.shaftDiscountAmount && Number(newProject.shaftDiscountAmount) > 0)
-                                ? newProject.shaftDiscountAmount
-                                : base;
-                              const withGst = effectiveBase !== '' ? String(Math.round(Number(effectiveBase) * 1.18)) : '';
+                              const shaftPrice = Number(base || 0);
+                              const discount = Number(newProject.shaftDiscountAmount || 0);
+                              const netShaft = Math.max(0, shaftPrice - discount);
+                              const withGst = base !== '' ? String(Math.round(netShaft * 1.18)) : '';
                               const totalVal = calcTotalAmount(newProject.liftNonCashAmount, withGst, newProject.shaftModel);
                               let advAmt = newProject.advanceAmount;
                               if (newProject.advancePercentage !== '' && totalVal > 0) {
@@ -712,10 +721,10 @@ export default function ProjectsPage() {
                         </div>
                         <div>
                           <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
-                            <span>Discount Shaft Amount (₹):</span>
-                            {newProject.shaftDiscountAmount && Number(newProject.shaftBaseAmount) > Number(newProject.shaftDiscountAmount) && (
-                              <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1 rounded">
-                                -₹{(Number(newProject.shaftBaseAmount) - Number(newProject.shaftDiscountAmount)).toLocaleString('en-IN')}
+                            <span>Discount Shaft Price (₹):</span>
+                            {newProject.shaftDiscountAmount && Number(newProject.shaftDiscountAmount) > 0 && (
+                              <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                                -₹{Number(newProject.shaftDiscountAmount).toLocaleString('en-IN')}
                               </span>
                             )}
                           </label>
@@ -725,8 +734,10 @@ export default function ProjectsPage() {
                             value={newProject.shaftDiscountAmount || ''}
                             onChange={(e) => {
                               const disc = e.target.value;
-                              const effectiveBase = disc !== '' && Number(disc) > 0 ? disc : newProject.shaftBaseAmount;
-                              const withGst = effectiveBase !== '' ? String(Math.round(Number(effectiveBase) * 1.18)) : '';
+                              const shaftPrice = Number(newProject.shaftBaseAmount || 0);
+                              const discount = Number(disc || 0);
+                              const netShaft = Math.max(0, shaftPrice - discount);
+                              const withGst = newProject.shaftBaseAmount !== '' ? String(Math.round(netShaft * 1.18)) : '';
                               const totalVal = calcTotalAmount(newProject.liftNonCashAmount, withGst, newProject.shaftModel);
                               let advAmt = newProject.advanceAmount;
                               if (newProject.advancePercentage !== '' && totalVal > 0) {
@@ -741,10 +752,15 @@ export default function ProjectsPage() {
                             }}
                             className="w-full p-2.5 text-xs border border-emerald-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-bold text-emerald-900 bg-emerald-50/20 placeholder:font-normal placeholder:text-slate-400"
                           />
+                          {newProject.shaftDiscountAmount && Number(newProject.shaftDiscountAmount) > 0 && newProject.shaftBaseAmount && (
+                            <span className="text-[10px] text-slate-500 mt-0.5 block">
+                              Net: ₹{Math.max(0, Number(newProject.shaftBaseAmount) - Number(newProject.shaftDiscountAmount)).toLocaleString('en-IN')} • Total + 18% GST: ₹{newProject.shaftNonCashAmount ? Number(newProject.shaftNonCashAmount).toLocaleString('en-IN') : 0}
+                            </span>
+                          )}
                         </div>
                         <div>
                           <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                            Shaft + GST (₹):
+                            Shaft Total (+18% GST) (₹):
                           </label>
                           <input
                             type="number"
@@ -752,7 +768,9 @@ export default function ProjectsPage() {
                             value={newProject.shaftNonCashAmount || ''}
                             onChange={(e) => {
                               const withGst = e.target.value;
-                              const base = withGst !== '' ? String(Math.round(Number(withGst) / 1.18)) : '';
+                              const netShaft = withGst !== '' ? Math.round(Number(withGst) / 1.18) : 0;
+                              const discount = Number(newProject.shaftDiscountAmount || 0);
+                              const base = withGst !== '' ? String(netShaft + discount) : '';
                               const totalVal = calcTotalAmount(newProject.liftNonCashAmount, withGst, newProject.shaftModel);
                               let advAmt = newProject.advanceAmount;
                               if (newProject.advancePercentage !== '' && totalVal > 0) {
@@ -761,8 +779,7 @@ export default function ProjectsPage() {
                               setNewProject({
                                 ...newProject,
                                 shaftNonCashAmount: withGst,
-                                shaftBaseAmount: newProject.shaftDiscountAmount ? newProject.shaftBaseAmount : base,
-                                shaftDiscountAmount: newProject.shaftDiscountAmount ? base : newProject.shaftDiscountAmount,
+                                shaftBaseAmount: base,
                                 advanceAmount: advAmt,
                               });
                             }}
