@@ -923,6 +923,8 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
         ? `Project status updated to Drawing and Cabin Design Approval. Production timeline set to ${project.productionTimelineDays || 60} days. ${notes ? `Note: ${notes}` : ''}`
         : (status === 'MANUFACTURING' || status === 'PRODUCTION_IN_PROGRESS')
           ? `Project status updated to Production in progress. Stage 1 Production Update scheduled in ${intervalDays <= 0.003 ? '2 minutes' : intervalDays <= 0.025 ? '30 minutes' : intervalDays < 0.1 ? '1 hour' : intervalDays >= 1.24 && intervalDays <= 1.26 ? '30 hours' : `${intervalDays} days`}.`
+          : status === 'MATERIAL_IN_TRANSIT' && project.vrlLrNumber
+            ? `Project status updated to Material in transit. VRL Tracking No: ${project.vrlLrNumber}. ${notes ? `Note: ${notes}` : ''}`
           : (status === 'DISPATCH' || status === 'MATERIAL_DISPATCHED') && project.vrlLrNumber
             ? `Project status updated to Material ready to Dispatch. VRL Tracking No: ${project.vrlLrNumber}. ${notes ? `Note: ${notes}` : ''}`
             : `Project status updated from ${prevStatus} to ${status}. ${notes ? `Note: ${notes}` : ''}`,
@@ -1079,6 +1081,10 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
       resultMsg = `Drawing & Cabin Approved! 2 WhatsApp messages sent to group (${days} days delivery timeline) and follow-up scheduled for 2 days later.`;
     } else if (status === 'MANUFACTURING' || status === 'PRODUCTION_IN_PROGRESS') {
       resultMsg = `Stage updated to Production in progress. Automated Stage 1 Production Update scheduled in ${intervalDays <= 0.003 ? '2 minutes' : intervalDays <= 0.025 ? '30 minutes' : intervalDays < 0.1 ? '1 hour' : intervalDays >= 1.24 && intervalDays <= 1.26 ? '30 hours' : `${intervalDays} days`}.`;
+    } else if (status === 'MATERIAL_IN_TRANSIT' && project.vrlLrNumber && groupMessageDispatched) {
+      resultMsg = `Stage updated to Material in transit! VRL Tracking No (${project.vrlLrNumber}) attached and template message posted directly inside WhatsApp group!`;
+    } else if (status === 'MATERIAL_IN_TRANSIT' && project.vrlLrNumber) {
+      resultMsg = `Stage updated to Material in transit with VRL Tracking No: ${project.vrlLrNumber}.`;
     } else if ((status === 'DISPATCH' || status === 'MATERIAL_DISPATCHED') && project.vrlLrNumber && groupMessageDispatched) {
       resultMsg = `Stage updated to Material ready to Dispatch! VRL Tracking No (${project.vrlLrNumber}) attached and template message posted directly inside WhatsApp group!`;
     } else if ((status === 'DISPATCH' || status === 'MATERIAL_DISPATCHED') && project.vrlLrNumber) {

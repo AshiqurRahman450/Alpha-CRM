@@ -106,6 +106,7 @@ export default function Timeline({
   const [vrlTrackingInput, setVrlTrackingInput] = React.useState<string>('');
   const [vrlInputError, setVrlInputError] = React.useState<string>('');
   const [isSubmittingDispatch, setIsSubmittingDispatch] = React.useState<boolean>(false);
+  const [vrlTargetStage, setVrlTargetStage] = React.useState<string>('MATERIAL_IN_TRANSIT');
 
   // Drawing and Cabin Approved Modal State
   const [showDrawingApprovalModal, setShowDrawingApprovalModal] = React.useState<boolean>(false);
@@ -147,11 +148,11 @@ export default function Timeline({
       setIsSubmittingDispatch(true);
       setVrlInputError('');
       if (onStatusChange) {
-        await onStatusChange('DISPATCH', trimmed);
+        await onStatusChange(vrlTargetStage || 'MATERIAL_IN_TRANSIT', trimmed);
       }
       setShowVrlAlertModal(false);
     } catch (err: any) {
-      setVrlInputError(err?.message || 'Failed to update Material ready to Dispatch stage');
+      setVrlInputError(err?.message || 'Failed to update Material in transit stage');
     } finally {
       setIsSubmittingDispatch(false);
     }
@@ -289,8 +290,9 @@ export default function Timeline({
                 key={stage.key}
                 onClick={() => {
                   if (canEditThisStage && onStatusChange) {
-                    if (stage.key === 'DISPATCH' || stage.key === 'MATERIAL_DISPATCHED') {
-                      // Material ready to Dispatch stage: first get the VRL Tracking No through alert pop-up
+                    if (stage.key === 'MATERIAL_IN_TRANSIT') {
+                      // Material in transit stage: first get the VRL Tracking No through alert pop-up
+                      setVrlTargetStage('MATERIAL_IN_TRANSIT');
                       setVrlTrackingInput(vrlLrNumber || trackingNumber || '');
                       setVrlInputError('');
                       setShowVrlAlertModal(true);
@@ -509,7 +511,7 @@ export default function Timeline({
               <div className="flex items-center justify-between">
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md text-[11px] font-black tracking-wider uppercase">
                   <AlertTriangle className="w-3.5 h-3.5" />
-                  <span>Action Required: Material ready to Dispatch</span>
+                  <span>Action Required: Material in transit</span>
                 </div>
                 <button
                   type="button"
@@ -531,7 +533,7 @@ export default function Timeline({
                     Enter VRL Tracking Number
                   </h3>
                   <p className="text-xs text-amber-100 font-medium">
-                    Material Dispatch & Official WhatsApp Template Message
+                    Material in Transit & Official WhatsApp Template Message
                   </p>
                 </div>
               </div>
@@ -556,7 +558,7 @@ export default function Timeline({
 
               {/* Informational context */}
               <p className="text-xs text-slate-600 leading-relaxed">
-                When advancing to <strong className="text-slate-900">Material ready to Dispatch</strong>, elevator materials are dispatched via <strong className="text-slate-900">VRL Logistics</strong>. Please enter the tracking number below to attach it to this project and dispatch the approved WhatsApp template to the group.
+                When advancing to <strong className="text-slate-900">Material in transit</strong>, elevator materials are en route via <strong className="text-slate-900">VRL Logistics</strong>. Please enter the tracking number below to attach it to this project and dispatch the approved WhatsApp template to the group.
               </p>
 
               {/* Input Field */}
@@ -603,18 +605,17 @@ export default function Timeline({
                     <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
                     WhatsApp Template Preview
                   </span>
-                  <span className="text-[10px] text-slate-400 font-mono">MATERIAL_DISPATCHED_PM</span>
+                  <span className="text-[10px] text-slate-400 font-mono">MATERIAL_IN_TRANSIT</span>
                 </div>
                 <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-2xl p-3.5 text-xs text-slate-800 space-y-2 relative shadow-2xs font-sans">
                   <div className="text-emerald-950 leading-relaxed whitespace-pre-line">
                     Dear Sir/Madam,
-                    {'\n\n'}Your elevator material has been dispatched through VRL Logistics.
+                    {'\n\n'}Your elevator material is currently in transit via VRL Logistics.
                     {'\n'}VRL Tracking No.:{' '}
                     <span className="font-mono font-bold bg-amber-200/80 text-amber-950 px-1.5 py-0.5 rounded border border-amber-300 inline-block">
                       {vrlTrackingInput.trim() || '[Tracking Number]'}
                     </span>
-                    {'\n'}You can use the above tracking number to track the material movement. We will keep you updated on the delivery status.
-                    {'\n'}Note: Kindly ensure proper space and access for safe unloading and material storage.
+                    {'\n'}The consignment is on schedule. Our site team will contact you shortly to coordinate the site arrival and unloading.
                     {'\n\n'}Regards,{'\n'}Alpha Elevators Team
                   </div>
                   <div className="text-[10px] text-emerald-700/80 text-right font-medium">
