@@ -624,10 +624,10 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
       { key: 'ENGINEERING', label: 'Production Payment' },
       { key: 'MANUFACTURING', label: 'Production in progress' },
       { key: 'QUALITY_CHECK', label: 'Readiness Payment' },
-      { key: 'DISPATCH', label: 'Material Dispatched' },
+      { key: 'DISPATCH', label: 'Material ready to Dispatch' },
       { key: 'MATERIAL_IN_TRANSIT', label: 'Material in transit' },
       { key: 'DELIVERY', label: 'Pre Site Visit' },
-      { key: 'MATERIAL_DELIVERY', label: 'Material Delivery' },
+      { key: 'MATERIAL_DELIVERY', label: 'Material Delivered' },
       { key: 'INSTALLATION', label: 'Installation in Progress' },
       { key: 'TESTING', label: 'Handover - Payment Pending' },
       { key: 'COMPLETED', label: 'Project Completed' },
@@ -765,11 +765,30 @@ projectRouter.get('/:id', async (req: AuthRequest, res: Response) => {
 /**
  * PUT /api/projects/:id
  */
-projectRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT', 'BDM', 'TECHNICAL_LEAD'), async (req: AuthRequest, res: Response) => {
+projectRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT', 'BDM', 'TECHNICAL_LEAD', 'LOGISTICS'), async (req: AuthRequest, res: Response) => {
   try {
     const project = await Project.findById(req.params.id);
     if (!project) {
       return res.status(404).json({ success: false, message: 'Project not found' });
+    }
+
+    if (req.user?.role === 'LOGISTICS') {
+      const LOGISTICS_ALLOWED_STAGES = ['DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY'];
+      if (req.body.projectStatus && !LOGISTICS_ALLOWED_STAGES.includes(req.body.projectStatus)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Logistics team can only set status to: Material ready to Dispatch, Material in transit, Pre sitevisit, or Material Delivered',
+        });
+      }
+      if (req.body.projectExecutive !== undefined) project.projectExecutive = req.body.projectExecutive;
+      if (req.body.vrlLrNumber !== undefined) project.vrlLrNumber = req.body.vrlLrNumber;
+      if (req.body.trackingNumber !== undefined) project.trackingNumber = req.body.trackingNumber;
+      if (req.body.notes !== undefined) project.notes = req.body.notes;
+      if (req.body.projectStatus && LOGISTICS_ALLOWED_STAGES.includes(req.body.projectStatus)) {
+        project.projectStatus = req.body.projectStatus;
+      }
+      await project.save();
+      return res.json({ success: true, data: project });
     }
 
     if (req.body.customerId && String(req.body.customerId) !== String(project.customerId)) {
@@ -824,7 +843,7 @@ projectRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT', 'BD
 /**
  * PATCH /api/projects/:id/status
  */
-projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'TECHNICAL_LEAD'), async (req: AuthRequest, res: Response) => {
+projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'TECHNICAL_LEAD', 'LOGISTICS'), async (req: AuthRequest, res: Response) => {
   try {
     const { status, notes, vrlLrNumber, trackingNumber, productionTimelineDays } = req.body;
     const project = await Project.findById(req.params.id);
@@ -839,6 +858,16 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
       }
       if (project.bdmId?.toString() !== req.user._id.toString()) {
         return res.status(403).json({ success: false, message: 'Not authorized to update this project' });
+      }
+    }
+
+    if (req.user?.role === 'LOGISTICS') {
+      const LOGISTICS_ALLOWED_STAGES = ['DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY'];
+      if (!LOGISTICS_ALLOWED_STAGES.includes(status)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Logistics team can only update stages: Material ready to Dispatch, Material in transit, Pre sitevisit, and Material Delivered'
+        });
       }
     }
 
@@ -895,7 +924,7 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
         : (status === 'MANUFACTURING' || status === 'PRODUCTION_IN_PROGRESS')
           ? `Project status updated to Production in progress. Stage 1 Production Update scheduled in ${intervalDays <= 0.003 ? '2 minutes' : intervalDays <= 0.025 ? '30 minutes' : intervalDays < 0.1 ? '1 hour' : intervalDays >= 1.24 && intervalDays <= 1.26 ? '30 hours' : `${intervalDays} days`}.`
           : (status === 'DISPATCH' || status === 'MATERIAL_DISPATCHED') && project.vrlLrNumber
-            ? `Project status updated to Material Dispatched. VRL Tracking No: ${project.vrlLrNumber}. ${notes ? `Note: ${notes}` : ''}`
+            ? `Project status updated to Material ready to Dispatch. VRL Tracking No: ${project.vrlLrNumber}. ${notes ? `Note: ${notes}` : ''}`
             : `Project status updated from ${prevStatus} to ${status}. ${notes ? `Note: ${notes}` : ''}`,
       userId: req.user?._id,
       userName: req.user?.name,
@@ -1051,9 +1080,9 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
     } else if (status === 'MANUFACTURING' || status === 'PRODUCTION_IN_PROGRESS') {
       resultMsg = `Stage updated to Production in progress. Automated Stage 1 Production Update scheduled in ${intervalDays <= 0.003 ? '2 minutes' : intervalDays <= 0.025 ? '30 minutes' : intervalDays < 0.1 ? '1 hour' : intervalDays >= 1.24 && intervalDays <= 1.26 ? '30 hours' : `${intervalDays} days`}.`;
     } else if ((status === 'DISPATCH' || status === 'MATERIAL_DISPATCHED') && project.vrlLrNumber && groupMessageDispatched) {
-      resultMsg = `Stage updated to Material Dispatched! VRL Tracking No (${project.vrlLrNumber}) attached and template message posted directly inside WhatsApp group!`;
+      resultMsg = `Stage updated to Material ready to Dispatch! VRL Tracking No (${project.vrlLrNumber}) attached and template message posted directly inside WhatsApp group!`;
     } else if ((status === 'DISPATCH' || status === 'MATERIAL_DISPATCHED') && project.vrlLrNumber) {
-      resultMsg = `Stage updated to Material Dispatched with VRL Tracking No: ${project.vrlLrNumber}.`;
+      resultMsg = `Stage updated to Material ready to Dispatch with VRL Tracking No: ${project.vrlLrNumber}.`;
     } else if (groupMessageDispatched && bdmNotified) {
       resultMsg = `Stage updated to ${status}! Update posted in WhatsApp group & 1-to-1 alert sent to BDM via ${bdmNotificationResult?.provider || 'WhatsApp'}.`;
     } else if (groupMessageDispatched) {
@@ -1132,7 +1161,7 @@ projectRouter.post('/:id/drawing-approved', authorize('ADMIN', 'CRM', 'MANAGER',
 /**
  * PATCH /api/projects/:id/stage-dates
  */
-projectRouter.patch('/:id/stage-dates', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'TECHNICAL_LEAD', 'TECHNICAL_MANAGER'), async (req: AuthRequest, res: Response) => {
+projectRouter.patch('/:id/stage-dates', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'TECHNICAL_LEAD', 'TECHNICAL_MANAGER', 'LOGISTICS'), async (req: AuthRequest, res: Response) => {
   try {
     const { stageKey, scheduleDate, executedDate } = req.body;
     if (!stageKey) {
@@ -1141,6 +1170,16 @@ projectRouter.patch('/:id/stage-dates', authorize('ADMIN', 'CRM', 'MANAGER', 'BD
 
     if (req.user?.role === 'BDM' && stageKey !== 'CUSTOMER_APPROVAL') {
       return res.status(403).json({ success: false, message: 'BDMs can only update dates for the Drawing and Cabin Design Approval stage' });
+    }
+
+    if (req.user?.role === 'LOGISTICS') {
+      const LOGISTICS_ALLOWED_STAGES = ['DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY'];
+      if (!LOGISTICS_ALLOWED_STAGES.includes(stageKey)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Logistics team can only update dates for Material ready to Dispatch, Material in transit, Pre sitevisit, and Material Delivered stages'
+        });
+      }
     }
 
     const project = await Project.findById(req.params.id);
@@ -1187,7 +1226,7 @@ projectRouter.patch('/:id/stage-dates', authorize('ADMIN', 'CRM', 'MANAGER', 'BD
 /**
  * PATCH /api/projects/:id/stage-dates-bulk
  */
-projectRouter.patch('/:id/stage-dates-bulk', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'TECHNICAL_LEAD', 'TECHNICAL_MANAGER'), async (req: AuthRequest, res: Response) => {
+projectRouter.patch('/:id/stage-dates-bulk', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'TECHNICAL_LEAD', 'TECHNICAL_MANAGER', 'LOGISTICS'), async (req: AuthRequest, res: Response) => {
   try {
     const { updates } = req.body;
     if (!Array.isArray(updates)) {
@@ -1206,10 +1245,16 @@ projectRouter.patch('/:id/stage-dates-bulk', authorize('ADMIN', 'CRM', 'MANAGER'
       project.stageDates = new Map();
     }
 
+    const LOGISTICS_ALLOWED_STAGES = ['DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY'];
+
     for (const update of updates) {
       const { stageKey, scheduleDate, executedDate } = update;
 
       if (req.user?.role === 'BDM' && stageKey !== 'CUSTOMER_APPROVAL') {
+        continue;
+      }
+
+      if (req.user?.role === 'LOGISTICS' && !LOGISTICS_ALLOWED_STAGES.includes(stageKey)) {
         continue;
       }
 

@@ -427,7 +427,7 @@ export default function ProjectDetailPage() {
         </div>
 
         {/* Customer & Lift Specs Strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 text-xs">
           <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
             <span className="text-slate-400 block text-[11px]">Elevator Model</span>
             <strong className="text-slate-900 text-sm">{project.liftModel}</strong>
@@ -449,17 +449,35 @@ export default function ProjectDetailPage() {
           </div>
 
           <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
-            <span className="text-slate-400 block text-[11px]">WhatsApp Opt-In</span>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <span
-                className={`w-2 h-2 rounded-full ${customer.whatsappOptIn ? 'bg-emerald-500' : 'bg-rose-500'}`}
-              ></span>
-              <strong className={customer.whatsappOptIn ? 'text-emerald-700' : 'text-rose-700'}>
-                {customer.whatsappOptIn ? 'Opt-In Enabled' : 'Opt-In Disabled'}
-              </strong>
+            <span className="text-slate-400 block text-[11px]">Project Executive</span>
+            <div className="flex items-center justify-between mt-0.5">
+              <strong className="text-slate-900 text-sm truncate mr-1">{project.projectExecutive || 'Not Assigned'}</strong>
+              <button
+                type="button"
+                onClick={() => setIsEditProjectModalOpen(true)}
+                className="text-[10px] text-sky-600 hover:text-sky-800 font-bold underline shrink-0 cursor-pointer"
+                title="Edit Project Executive"
+              >
+                Edit
+              </button>
             </div>
-            <span className="text-[10px] text-slate-400 block">Via Project Confirmation</span>
+            <span className="text-[10px] text-slate-500 block">Execution Lead</span>
           </div>
+
+          {user?.role !== 'LOGISTICS' && (
+            <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+              <span className="text-slate-400 block text-[11px]">WhatsApp Opt-In</span>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span
+                  className={`w-2 h-2 rounded-full ${customer.whatsappOptIn ? 'bg-emerald-500' : 'bg-rose-500'}`}
+                ></span>
+                <strong className={customer.whatsappOptIn ? 'text-emerald-700' : 'text-rose-700'}>
+                  {customer.whatsappOptIn ? 'Opt-In Enabled' : 'Opt-In Disabled'}
+                </strong>
+              </div>
+              <span className="text-[10px] text-slate-400 block">Via Project Confirmation</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -645,8 +663,8 @@ export default function ProjectDetailPage() {
         </div>
       )}
 
-      {/* SECTION 36 & 8: WHATSAPP COMMUNICATION CARD (Hidden for Accountant & BDM) */}
-      {!isAccountant && user?.role !== 'BDM' && (
+      {/* SECTION 36 & 8: WHATSAPP COMMUNICATION CARD (Hidden for Accountant, BDM & Logistics) */}
+      {!isAccountant && user?.role !== 'BDM' && user?.role !== 'LOGISTICS' && (
         <WhatsAppGroupCard
           project={project}
           customer={customer}

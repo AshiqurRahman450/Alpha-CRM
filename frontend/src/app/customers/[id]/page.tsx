@@ -74,12 +74,12 @@ const PROJECT_STAGE_NEXT_WORK: Record<
     description: 'Quality check completed and readiness payment cleared. Prepare materials for dispatch.',
   },
   DISPATCH: {
-    currentLabel: 'Material Dispatched',
+    currentLabel: 'Material ready to Dispatch',
     nextWork: 'Track Material in Transit',
     description: 'Materials dispatched via logistics. Track consignment in transit to destination.',
   },
   MATERIAL_DISPATCHED: {
-    currentLabel: 'Material Dispatched',
+    currentLabel: 'Material ready to Dispatch',
     nextWork: 'Track Material in Transit',
     description: 'Materials dispatched via logistics. Track consignment in transit to destination.',
   },
@@ -94,7 +94,7 @@ const PROJECT_STAGE_NEXT_WORK: Record<
     description: 'Pre site visit conducted. Unload and inspect elevator components delivered on site.',
   },
   MATERIAL_DELIVERY: {
-    currentLabel: 'Material Delivery',
+    currentLabel: 'Material Delivered',
     nextWork: 'Commence Elevator Installation',
     description: 'Elevator components delivered at site. Deploy engineering crew for installation programme.',
   },

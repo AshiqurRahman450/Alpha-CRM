@@ -1,6 +1,6 @@
 import { Schema, model, Document } from 'mongoose';
 
-export type UserRole = 'ADMIN' | 'CRM' | 'MANAGER' | 'VIEWER' | 'BDM' | 'ACCOUNTANT' | 'QC' | 'TECHNICAL_LEAD' | 'TECHNICAL_MANAGER';
+export type UserRole = 'ADMIN' | 'CRM' | 'MANAGER' | 'VIEWER' | 'BDM' | 'ACCOUNTANT' | 'QC' | 'TECHNICAL_LEAD' | 'TECHNICAL_MANAGER' | 'LOGISTICS';
 
 export interface IUser extends Document {
   name: string;

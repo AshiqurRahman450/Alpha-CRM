@@ -57,6 +57,7 @@ export default function EditProjectModal({
     dispatchMaterialsPercent: '0',
     afterInstallationPercent: '0',
     projectStatus: 'PAYMENT_RECEIVED',
+    projectExecutive: '',
     vrlLrNumber: '',
     trackingNumber: '',
     updateFrequencyDays: '20',
@@ -114,6 +115,7 @@ export default function EditProjectModal({
         dispatchMaterialsPercent: project.dispatchMaterialsPercent !== undefined ? String(project.dispatchMaterialsPercent) : '0',
         afterInstallationPercent: project.afterInstallationPercent !== undefined ? String(project.afterInstallationPercent) : '0',
         projectStatus: project.projectStatus || 'PAYMENT_RECEIVED',
+        projectExecutive: project.projectExecutive || '',
         vrlLrNumber: project.vrlLrNumber || project.trackingNumber || '',
         trackingNumber: project.trackingNumber || project.vrlLrNumber || '',
         updateFrequencyDays: String(project.updateFrequencyDays || 20),
@@ -160,6 +162,28 @@ export default function EditProjectModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (currentUser?.role === 'LOGISTICS') {
+      try {
+        setSubmitting(true);
+        const logisticsPayload = {
+          projectStatus: formData.projectStatus,
+          projectExecutive: formData.projectExecutive ? formData.projectExecutive.trim() : '',
+          vrlLrNumber: formData.vrlLrNumber ? formData.vrlLrNumber.trim() : '',
+          trackingNumber: formData.vrlLrNumber ? formData.vrlLrNumber.trim() : '',
+          notes: formData.notes ? formData.notes.trim() : '',
+        };
+        const res = await api.updateProject(project._id, logisticsPayload);
+        toast.success(`Project ${project.projectId || ''} updated successfully!`);
+        onProjectUpdated(res?.data || { ...project, ...logisticsPayload });
+        onClose();
+      } catch (err: any) {
+        toast.error(err.message || 'Failed to update project');
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
     if (!formData.projectName.trim()) {
       toast.error('Project Name is required');
       return;
@@ -200,6 +224,7 @@ export default function EditProjectModal({
         dispatchMaterialsPercent: Number(formData.dispatchMaterialsPercent || 0),
         afterInstallationPercent: Number(formData.afterInstallationPercent || 0),
         projectStatus: formData.projectStatus,
+        projectExecutive: formData.projectExecutive ? formData.projectExecutive.trim() : undefined,
         vrlLrNumber: formData.vrlLrNumber ? formData.vrlLrNumber.trim() : undefined,
         trackingNumber: formData.vrlLrNumber ? formData.vrlLrNumber.trim() : undefined,
         updateFrequencyDays: Number(formData.updateFrequencyDays || 20),
@@ -250,6 +275,108 @@ export default function EditProjectModal({
         </div>
 
         {/* Form Body */}
+        {currentUser?.role === 'LOGISTICS' ? (
+          <form onSubmit={handleSubmit} className="p-6 space-y-5 text-xs overflow-y-auto flex-1">
+            <div className="bg-sky-50/70 border border-sky-200 p-4 rounded-2xl space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase font-bold text-sky-700 tracking-wider">Logistics Stage & Executive Update</span>
+                <span className="font-mono text-xs font-bold text-sky-800 bg-white px-2 py-0.5 rounded border border-sky-300">
+                  {project.projectId}
+                </span>
+              </div>
+              <h4 className="text-base font-extrabold text-slate-900">{project.projectName}</h4>
+              <p className="text-xs text-slate-600 flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                <span>{project.siteAddress}</span>
+              </p>
+            </div>
+
+            {/* Allowed Stages for Logistics */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-800">
+                Project Pipeline Stage <span className="text-rose-500">*</span>
+              </label>
+              <select
+                value={formData.projectStatus}
+                onChange={(e) => updateField('projectStatus', e.target.value)}
+                className="w-full p-3 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 bg-white font-bold text-slate-900"
+              >
+                <option value="DISPATCH">Material ready to Dispatch</option>
+                <option value="MATERIAL_IN_TRANSIT">Material in transit</option>
+                <option value="DELIVERY">Pre Site Visit</option>
+                <option value="MATERIAL_DELIVERY">Material Delivered</option>
+              </select>
+              <p className="text-[11px] text-slate-400">
+                Logistics role can update stages: Material ready to Dispatch, Material in transit, Pre sitevisit, and Material Delivered.
+              </p>
+            </div>
+
+            {/* Project Executive */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-800">
+                Project Executive
+              </label>
+              <input
+                type="text"
+                value={formData.projectExecutive}
+                onChange={(e) => updateField('projectExecutive', e.target.value)}
+                placeholder="e.g. Ramesh Kumar / Executive Name"
+                className="w-full p-3 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 font-medium"
+              />
+              <p className="text-[11px] text-slate-400">
+                Assign or update the Project Executive responsible for this elevator project.
+              </p>
+            </div>
+
+            {/* VRL Tracking No */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <Truck className="w-4 h-4 text-sky-600" />
+                <span>VRL LR / Logistics Tracking Number</span>
+              </label>
+              <input
+                type="text"
+                value={formData.vrlLrNumber}
+                onChange={(e) => updateField('vrlLrNumber', e.target.value)}
+                placeholder="e.g. VRL-9823412"
+                className="w-full p-3 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 font-mono"
+              />
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-800">
+                Logistics & Dispatch Notes
+              </label>
+              <textarea
+                rows={3}
+                value={formData.notes}
+                onChange={(e) => updateField('notes', e.target.value)}
+                placeholder="Add logistics, delivery, or pre-site visit notes..."
+                className="w-full p-3 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 resize-none font-medium"
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-xl font-bold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                className="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-bold transition-all shadow-md flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                <span>Save Changes</span>
+              </button>
+            </div>
+          </form>
+        ) : (
         <form onSubmit={handleSubmit} className="p-6 space-y-5 text-xs overflow-y-auto flex-1">
           {/* Customer & Project Info */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -714,7 +841,7 @@ export default function EditProjectModal({
           </div>
 
           {/* Current Stage & Tracking Details */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             <div>
               <label className="block text-[11px] font-bold text-slate-700 mb-1">
                 Current Pipeline Stage:
@@ -732,6 +859,19 @@ export default function EditProjectModal({
                 <option value="ON_HOLD">On Hold</option>
                 <option value="CANCELLED">Cancelled</option>
               </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                Project Executive:
+              </label>
+              <input
+                type="text"
+                value={formData.projectExecutive}
+                onChange={(e) => updateField('projectExecutive', e.target.value)}
+                placeholder="e.g. Executive Name"
+                className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 font-medium"
+              />
             </div>
 
             <div>
@@ -806,6 +946,7 @@ export default function EditProjectModal({
             </button>
           </div>
         </form>
+        )}
       </div>
     </div>
   );

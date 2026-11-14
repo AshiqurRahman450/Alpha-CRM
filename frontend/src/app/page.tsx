@@ -43,10 +43,10 @@ const STAGES_CONFIG = [
   { key: 'ENGINEERING', step: 5, label: 'Production Payment', icon: IndianRupee, bg: 'bg-amber-50/70', border: 'border-amber-200', text: 'text-amber-700', badge: 'bg-amber-100 text-amber-800' },
   { key: 'MANUFACTURING', step: 6, label: 'Production in progress', icon: Wrench, bg: 'bg-orange-50/70', border: 'border-orange-200', text: 'text-orange-700', badge: 'bg-orange-100 text-orange-800' },
   { key: 'QUALITY_CHECK', step: 7, label: 'Readiness Payment', icon: PackageCheck, bg: 'bg-purple-50/70', border: 'border-purple-200', text: 'text-purple-700', badge: 'bg-purple-100 text-purple-800' },
-  { key: 'DISPATCH', step: 8, label: 'Material Dispatched', icon: Truck, bg: 'bg-blue-50/70', border: 'border-blue-200', text: 'text-blue-700', badge: 'bg-blue-100 text-blue-800' },
+  { key: 'DISPATCH', step: 8, label: 'Material ready to Dispatch', icon: Truck, bg: 'bg-blue-50/70', border: 'border-blue-200', text: 'text-blue-700', badge: 'bg-blue-100 text-blue-800' },
   { key: 'MATERIAL_IN_TRANSIT', step: 9, label: 'Material in transit', icon: Truck, bg: 'bg-cyan-50/70', border: 'border-cyan-200', text: 'text-cyan-700', badge: 'bg-cyan-100 text-cyan-800' },
   { key: 'DELIVERY', step: 10, label: 'Pre Site Visit', icon: ClipboardCheck, bg: 'bg-teal-50/70', border: 'border-teal-200', text: 'text-teal-700', badge: 'bg-teal-100 text-teal-800' },
-  { key: 'MATERIAL_DELIVERY', step: 11, label: 'Material Delivery', icon: Truck, bg: 'bg-lime-50/70', border: 'border-lime-200', text: 'text-lime-700', badge: 'bg-lime-100 text-lime-800' },
+  { key: 'MATERIAL_DELIVERY', step: 11, label: 'Material Delivered', icon: Truck, bg: 'bg-lime-50/70', border: 'border-lime-200', text: 'text-lime-700', badge: 'bg-lime-100 text-lime-800' },
   { key: 'INSTALLATION', step: 12, label: 'Installation in Progress', icon: Wrench, bg: 'bg-rose-50/70', border: 'border-rose-200', text: 'text-rose-700', badge: 'bg-rose-100 text-rose-800' },
   { key: 'TESTING', step: 13, label: 'Handover - Payment Pending', icon: Handshake, bg: 'bg-amber-50/70', border: 'border-amber-200', text: 'text-amber-700', badge: 'bg-amber-100 text-amber-800' },
   { key: 'COMPLETED', step: 14, label: 'Project Completed', icon: CheckCheck, bg: 'bg-emerald-50/70', border: 'border-emerald-200', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-800' },
@@ -145,38 +145,80 @@ export default function DashboardPage() {
             <img src="/logo.png" alt="Alpha Elevators" className="h-full w-full object-contain" />
           </div>
           <div>
-            <div className="inline-flex items-center space-x-2 px-3 py-1 bg-sky-400/20 text-sky-200 border border-sky-300/30 rounded-full text-xs font-semibold mb-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span>Meta WhatsApp Cloud API Connected</span>
-            </div>
-            <h2 className="text-2xl font-black tracking-tight font-poppins">Alpha Elevators Customer CRM</h2>
-            <p className="text-xs text-slate-300 mt-0.5 max-w-xl font-poppins">
-              Automating customer trust across 4-month elevator manufacturing and installation cycles. Dedicated group messaging, stage-specific templates & scheduler.
-            </p>
+            {user?.role === 'LOGISTICS' ? (
+              <>
+                <div className="inline-flex items-center space-x-2 px-3 py-1 bg-cyan-400/20 text-cyan-200 border border-cyan-300/30 rounded-full text-xs font-semibold mb-1.5">
+                  <Truck className="w-3.5 h-3.5 text-cyan-300" />
+                  <span>Logistics & Dispatch Operations Active</span>
+                </div>
+                <h2 className="text-2xl font-black tracking-tight font-poppins">Alpha Elevators Logistics Portal</h2>
+                <p className="text-xs text-slate-300 mt-0.5 max-w-xl font-poppins">
+                  Track elevator material dispatch, transit statuses, pre-site visits, and material site deliveries with dedicated operational controls.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="inline-flex items-center space-x-2 px-3 py-1 bg-sky-400/20 text-sky-200 border border-sky-300/30 rounded-full text-xs font-semibold mb-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>Meta WhatsApp Cloud API Connected</span>
+                </div>
+                <h2 className="text-2xl font-black tracking-tight font-poppins">Alpha Elevators Customer CRM</h2>
+                <p className="text-xs text-slate-300 mt-0.5 max-w-xl font-poppins">
+                  Automating customer trust across 4-month elevator manufacturing and installation cycles. Dedicated group messaging, stage-specific templates & scheduler.
+                </p>
+              </>
+            )}
           </div>
         </div>
-        <div className="flex items-center space-x-3">
-          <Link
-            href="/quotations"
-            className="px-4 py-2 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-400 hover:to-cyan-500 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-1.5"
-          >
-            <FileText className="w-4 h-4" />
-            <span>Create Quotation</span>
-          </Link>
-          <Link
-            href="/projects"
-            className="px-4 py-2 bg-sky-500 hover:bg-sky-400 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-1.5"
-          >
-            <span>View All Projects</span>
-            <ArrowUpRight className="w-4 h-4" />
-          </Link>
-          <Link
-            href="/pilot"
-            className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl text-xs font-bold transition-all"
-          >
-            Pilot Status ({data?.pilotMode?.currentPilotCount}/10)
-          </Link>
-        </div>
+        {user?.role === 'LOGISTICS' ? (
+          <div className="flex items-center space-x-3">
+            <Link
+              href="/projects"
+              className="px-4 py-2 bg-sky-500 hover:bg-sky-400 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-1.5"
+            >
+              <Building2 className="w-4 h-4" />
+              <span>View All Projects</span>
+              <ArrowUpRight className="w-4 h-4" />
+            </Link>
+            <Link
+              href="/qc"
+              className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-1.5"
+            >
+              <ClipboardCheck className="w-4 h-4" />
+              <span>QC Site Report</span>
+            </Link>
+            <Link
+              href="/customers"
+              className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+            >
+              <Users className="w-4 h-4" />
+              <span>Customers</span>
+            </Link>
+          </div>
+        ) : (
+          <div className="flex items-center space-x-3">
+            <Link
+              href="/quotations"
+              className="px-4 py-2 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-400 hover:to-cyan-500 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-1.5"
+            >
+              <FileText className="w-4 h-4" />
+              <span>Create Quotation</span>
+            </Link>
+            <Link
+              href="/projects"
+              className="px-4 py-2 bg-sky-500 hover:bg-sky-400 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-1.5"
+            >
+              <span>View All Projects</span>
+              <ArrowUpRight className="w-4 h-4" />
+            </Link>
+            <Link
+              href="/pilot"
+              className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl text-xs font-bold transition-all"
+            >
+              Pilot Status ({data?.pilotMode?.currentPilotCount}/10)
+            </Link>
+          </div>
+        )}
       </div>
 
       {user?.role === 'BDM' ? (
@@ -522,6 +564,116 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
+      ) : user?.role === 'LOGISTICS' ? (
+        <div className="space-y-6">
+          {/* Logistics Top Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Card 1: Material ready to Dispatch */}
+            <Link href="/dashboard/list?type=stage&stage=DISPATCH" className="block group">
+              <div className="bg-gradient-to-br from-blue-600 to-indigo-700 text-white p-5 rounded-2xl border border-blue-400/40 shadow-sm hover:shadow-lg hover:border-blue-300 hover:scale-[1.01] transition-all cursor-pointer relative overflow-hidden">
+                <div className="flex items-center justify-between text-blue-100 text-xs font-bold">
+                  <span className="flex items-center gap-1.5">
+                    <Truck className="w-4 h-4 text-blue-200" />
+                    <span>Material ready to Dispatch</span>
+                  </span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-blue-200 group-hover:text-white transition-colors" />
+                </div>
+                <div className="text-3xl font-black text-white mt-2 font-poppins">
+                  {(data?.statusDistribution?.['DISPATCH'] || 0) + (data?.statusDistribution?.['MATERIAL_DISPATCHED'] || 0)}
+                </div>
+                <div className="text-[11px] text-blue-100 mt-1 font-medium flex items-center justify-between">
+                  <span>Awaiting VRL tracking & dispatch</span>
+                  <span className="font-bold underline">View List →</span>
+                </div>
+              </div>
+            </Link>
+
+            {/* Card 2: Material in transit */}
+            <Link href="/dashboard/list?type=stage&stage=MATERIAL_IN_TRANSIT" className="block group">
+              <div className="bg-gradient-to-br from-cyan-600 to-teal-700 text-white p-5 rounded-2xl border border-cyan-400/40 shadow-sm hover:shadow-lg hover:border-cyan-300 hover:scale-[1.01] transition-all cursor-pointer relative overflow-hidden">
+                <div className="flex items-center justify-between text-cyan-100 text-xs font-bold">
+                  <span className="flex items-center gap-1.5">
+                    <Truck className="w-4 h-4 text-cyan-200" />
+                    <span>Material in transit</span>
+                  </span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-cyan-200 group-hover:text-white transition-colors" />
+                </div>
+                <div className="text-3xl font-black text-white mt-2 font-poppins">
+                  {data?.statusDistribution?.['MATERIAL_IN_TRANSIT'] || 0}
+                </div>
+                <div className="text-[11px] text-cyan-100 mt-1 font-medium flex items-center justify-between">
+                  <span>En route with logistics carrier</span>
+                  <span className="font-bold underline">View List →</span>
+                </div>
+              </div>
+            </Link>
+
+            {/* Card 3: Pre Site Visit */}
+            <Link href="/dashboard/list?type=stage&stage=DELIVERY" className="block group">
+              <div className="bg-gradient-to-br from-teal-600 to-emerald-700 text-white p-5 rounded-2xl border border-teal-400/40 shadow-sm hover:shadow-lg hover:border-teal-300 hover:scale-[1.01] transition-all cursor-pointer relative overflow-hidden">
+                <div className="flex items-center justify-between text-teal-100 text-xs font-bold">
+                  <span className="flex items-center gap-1.5">
+                    <ClipboardCheck className="w-4 h-4 text-teal-200" />
+                    <span>Pre Site Visit</span>
+                  </span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-teal-200 group-hover:text-white transition-colors" />
+                </div>
+                <div className="text-3xl font-black text-white mt-2 font-poppins">
+                  {data?.statusDistribution?.['DELIVERY'] || 0}
+                </div>
+                <div className="text-[11px] text-teal-100 mt-1 font-medium flex items-center justify-between">
+                  <span>Site readiness & shaft verification</span>
+                  <span className="font-bold underline">View List →</span>
+                </div>
+              </div>
+            </Link>
+
+            {/* Card 4: Material Delivered */}
+            <Link href="/dashboard/list?type=stage&stage=MATERIAL_DELIVERY" className="block group">
+              <div className="bg-gradient-to-br from-lime-600 to-emerald-700 text-white p-5 rounded-2xl border border-lime-400/40 shadow-sm hover:shadow-lg hover:border-lime-300 hover:scale-[1.01] transition-all cursor-pointer relative overflow-hidden">
+                <div className="flex items-center justify-between text-lime-100 text-xs font-bold">
+                  <span className="flex items-center gap-1.5">
+                    <PackageCheck className="w-4 h-4 text-lime-200" />
+                    <span>Material Delivered</span>
+                  </span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-lime-200 group-hover:text-white transition-colors" />
+                </div>
+                <div className="text-3xl font-black text-white mt-2 font-poppins">
+                  {data?.statusDistribution?.['MATERIAL_DELIVERY'] || 0}
+                </div>
+                <div className="text-[11px] text-lime-100 mt-1 font-medium flex items-center justify-between">
+                  <span>Components delivered on site</span>
+                  <span className="font-bold underline">View List →</span>
+                </div>
+              </div>
+            </Link>
+          </div>
+
+          {/* Quick Summary Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Link href="/projects" className="block group">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-sky-300 hover:shadow-md transition-all">
+                <div className="text-xs text-slate-500 font-medium">Total Active Projects</div>
+                <div className="text-3xl font-black text-slate-900 mt-1">{cards.activeProjects ?? 0}</div>
+                <div className="text-[11px] text-sky-600 font-semibold mt-1">Manage project stages & executive →</div>
+              </div>
+            </Link>
+            <Link href="/customers" className="block group">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-emerald-300 hover:shadow-md transition-all">
+                <div className="text-xs text-slate-500 font-medium">Customer Directory</div>
+                <div className="text-3xl font-black text-emerald-600 mt-1">{cards.totalCustomers ?? 0}</div>
+                <div className="text-[11px] text-emerald-600 font-semibold mt-1">Client contacts & delivery addresses →</div>
+              </div>
+            </Link>
+            <Link href="/qc" className="block group">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-purple-300 hover:shadow-md transition-all">
+                <div className="text-xs text-slate-500 font-medium">QC Site Reports</div>
+                <div className="text-3xl font-black text-purple-600 mt-1">Inspection Ready</div>
+                <div className="text-[11px] text-purple-600 font-semibold mt-1">View & submit site quality reports →</div>
+              </div>
+            </Link>
+          </div>
+        </div>
       ) : (
         <React.Fragment>
           {/* 10 Core Metric Cards */}
@@ -807,8 +959,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* TODAY'S ACTIONS SECTION (CRITICAL REQUIREMENT - Hidden for Accountant & BDM) */}
-      {user?.role !== 'ACCOUNTANT' && user?.role !== 'BDM' && (
+      {/* TODAY'S ACTIONS SECTION (Hidden for Accountant, BDM, and Logistics) */}
+      {user?.role !== 'ACCOUNTANT' && user?.role !== 'BDM' && user?.role !== 'LOGISTICS' && (
       <React.Fragment>
       <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
         <div className="flex items-center justify-between mb-4">

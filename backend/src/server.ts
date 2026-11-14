@@ -270,6 +270,54 @@ export async function startServer() {
         console.warn('[Server] Notice initializing BDM users:', bdmInitErr.message);
       }
 
+      // Ensure Logistics Users exist: Bilal, Srinivasan (TL), Sundaram, Bala
+      try {
+        const logisticsUsers = [
+          { name: 'Bilal (Logistics)', email: 'bilal@alphaelevators.com', pass: 'bilal123', phone: '+91 98401 77881' },
+          { name: 'Srinivasan (TL)', email: 'srinivasan@alphaelevators.com', pass: 'srini123', phone: '+91 98401 77882' },
+          { name: 'Sundaram', email: 'sundaram@alphaelevators.com', pass: 'sundaram123', phone: '+91 98401 77883' },
+          { name: 'Bala', email: 'bala@alphaelevators.com', pass: 'bala123', phone: '+91 98401 77884' },
+        ];
+
+        for (const lu of logisticsUsers) {
+          const userDoc = await User.findOne({
+            $or: [
+              { email: lu.email },
+              { name: new RegExp(`^${lu.name.replace(/[^a-zA-Z0-9]/g, '.*')}$`, 'i') },
+            ],
+          });
+          const hash = await bcrypt.hash(lu.pass, 10);
+          if (!userDoc) {
+            await User.create({
+              name: lu.name,
+              email: lu.email,
+              passwordHash: hash,
+              role: 'LOGISTICS',
+              phone: lu.phone,
+              isActive: true,
+            });
+            console.log(`[Server] Created Logistics user: ${lu.name} (${lu.email})`);
+          } else {
+            await User.updateOne(
+              { _id: userDoc._id },
+              {
+                $set: {
+                  role: 'LOGISTICS',
+                  name: lu.name,
+                  email: lu.email,
+                  passwordHash: hash,
+                  phone: lu.phone,
+                  isActive: true,
+                },
+              }
+            );
+            console.log(`[Server] Verified Logistics user: ${lu.name} (${lu.email})`);
+          }
+        }
+      } catch (logisticsInitErr: any) {
+        console.warn('[Server] Notice initializing Logistics users:', logisticsInitErr.message);
+      }
+
       // Ensure sample Tamil Nadu clients exist for QC autofill
       const custCount = await Customer.countDocuments();
       if (custCount < 3) {

@@ -28,10 +28,10 @@ export const STAGES_ORDER = [
   { key: 'ENGINEERING', label: 'Production Payment', icon: Wrench },
   { key: 'MANUFACTURING', label: 'Production in progress', icon: Wrench },
   { key: 'QUALITY_CHECK', label: 'Readiness Payment', icon: PackageCheck },
-  { key: 'DISPATCH', label: 'Material Dispatched', icon: Truck },
+  { key: 'DISPATCH', label: 'Material ready to Dispatch', icon: Truck },
   { key: 'MATERIAL_IN_TRANSIT', label: 'Material in transit', icon: ArrowRight },
   { key: 'DELIVERY', label: 'Pre Site Visit', icon: ClipboardCheck },
-  { key: 'MATERIAL_DELIVERY', label: 'Material Delivery', icon: Truck },
+  { key: 'MATERIAL_DELIVERY', label: 'Material Delivered', icon: Truck },
   { key: 'INSTALLATION', label: 'Installation in Progress', icon: Wrench },
   { key: 'TESTING', label: 'Handover - Payment Pending', icon: Clock },
   { key: 'COMPLETED', label: 'Project Completed', icon: CheckCheck },
@@ -40,7 +40,8 @@ export const STAGES_ORDER = [
 export function formatProjectStatus(status: string): string {
   if (!status) return 'Unknown';
   if (status === 'PRODUCTION_IN_PROGRESS') return 'Production in progress';
-  if (status === 'MATERIAL_DISPATCHED') return 'Material Dispatched';
+  if (status === 'MATERIAL_DISPATCHED' || status === 'DISPATCH') return 'Material ready to Dispatch';
+  if (status === 'MATERIAL_DELIVERY') return 'Material Delivered';
   const stage = STAGES_ORDER.find((s) => s.key === status);
   if (stage) return stage.label;
   return status.replace(/_/g, ' ');
@@ -89,9 +90,15 @@ export default function Timeline({
   onHandoverDateChanged,
   initiallyOpenInstallation,
 }: TimelineProps) {
+  const isLogistics = currentUserRole === 'LOGISTICS';
+  const visibleStages = isLogistics
+    ? STAGES_ORDER.slice(0, STAGES_ORDER.findIndex((s) => s.key === 'MATERIAL_DELIVERY') + 1)
+    : STAGES_ORDER;
+
   const currentIndex = STAGES_ORDER.findIndex((s) => s.key === currentStatus);
+  const visibleCurrentIndex = visibleStages.findIndex((s) => s.key === currentStatus);
   const [showInstallationTable, setShowInstallationTable] = React.useState<boolean>(
-    Boolean(initiallyOpenInstallation || currentUserRole === 'TECHNICAL_LEAD' || currentUserRole === 'TECHNICAL_MANAGER')
+    Boolean(!isLogistics && (initiallyOpenInstallation || currentUserRole === 'TECHNICAL_LEAD' || currentUserRole === 'TECHNICAL_MANAGER'))
   );
   const [showVrlAlertModal, setShowVrlAlertModal] = React.useState<boolean>(false);
   const [vrlTrackingInput, setVrlTrackingInput] = React.useState<string>('');
@@ -142,7 +149,7 @@ export default function Timeline({
       }
       setShowVrlAlertModal(false);
     } catch (err: any) {
-      setVrlInputError(err?.message || 'Failed to update Material Dispatched stage');
+      setVrlInputError(err?.message || 'Failed to update Material ready to Dispatch stage');
     } finally {
       setIsSubmittingDispatch(false);
     }
@@ -261,15 +268,18 @@ export default function Timeline({
 
       <div className="relative overflow-x-auto pb-28 pt-2 scrollbar-thin scrollbar-thumb-slate-200">
         <div className="flex items-center min-w-[900px] justify-between">
-          {STAGES_ORDER.map((stage, idx) => {
-            const isCompleted = idx < currentIndex;
-            const isCurrent = idx === currentIndex;
-            const isUpcoming = idx > currentIndex;
+          {visibleStages.map((stage, idx) => {
+            const isCompleted = idx < visibleCurrentIndex;
+            const isCurrent = idx === visibleCurrentIndex;
+            const isUpcoming = idx > visibleCurrentIndex;
             const dates = stageDates?.[stage.key];
             
             let canEditThisStage = isEditable;
             if (currentUserRole === 'BDM') {
               canEditThisStage = stage.key === 'CUSTOMER_APPROVAL';
+            } else if (isLogistics) {
+              const LOGISTICS_ALLOWED = ['DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY'];
+              canEditThisStage = LOGISTICS_ALLOWED.includes(stage.key);
             }
 
             return (
@@ -278,7 +288,7 @@ export default function Timeline({
                 onClick={() => {
                   if (canEditThisStage && onStatusChange) {
                     if (stage.key === 'DISPATCH' || stage.key === 'MATERIAL_DISPATCHED') {
-                      // Material Dispatched stage: first get the VRL Tracking No through alert pop-up
+                      // Material ready to Dispatch stage: first get the VRL Tracking No through alert pop-up
                       setVrlTrackingInput(vrlLrNumber || trackingNumber || '');
                       setVrlInputError('');
                       setShowVrlAlertModal(true);
@@ -309,7 +319,7 @@ export default function Timeline({
                 className={`flex flex-col items-center group relative z-10 transition-transform ${
                   canEditThisStage ? 'cursor-pointer hover:scale-105' : 'cursor-not-allowed opacity-80'
                 }`}
-                style={{ width: `${100 / STAGES_ORDER.length}%` }}
+                style={{ width: `${100 / visibleStages.length}%` }}
               >
                 {/* Node Circle */}
                 <div
@@ -393,7 +403,7 @@ export default function Timeline({
                         }`}>
                           {dates?.scheduleDate ? new Date(dates.scheduleDate).toLocaleDateString('en-GB') : 'Not Set'}
                         </div>
-                        {isEditable && (currentUserRole !== 'BDM' || stage.key === 'CUSTOMER_APPROVAL') && onDateChange && (
+                        {isEditable && (currentUserRole !== 'BDM' || stage.key === 'CUSTOMER_APPROVAL') && (!isLogistics || ['DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY'].includes(stage.key)) && onDateChange && (
                           <input 
                             type="date" 
                             className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-20"
@@ -416,7 +426,7 @@ export default function Timeline({
                         }`}>
                           {dates?.executedDate ? new Date(dates.executedDate).toLocaleDateString('en-GB') : 'Not Set'}
                         </div>
-                        {isEditable && (currentUserRole !== 'BDM' || stage.key === 'CUSTOMER_APPROVAL') && onDateChange && (
+                        {isEditable && (currentUserRole !== 'BDM' || stage.key === 'CUSTOMER_APPROVAL') && (!isLogistics || ['DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY'].includes(stage.key)) && onDateChange && (
                           <input 
                             type="date" 
                             className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-20"
@@ -439,7 +449,7 @@ export default function Timeline({
           <div
             className="h-full bg-emerald-500 transition-all duration-500"
             style={{
-              width: `${Math.max(0, (currentIndex / (STAGES_ORDER.length - 1)) * 100)}%`,
+              width: `${Math.max(0, Math.min(100, (visibleCurrentIndex / (visibleStages.length - 1)) * 100))}%`,
             }}
           />
         </div>
@@ -497,7 +507,7 @@ export default function Timeline({
               <div className="flex items-center justify-between">
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md text-[11px] font-black tracking-wider uppercase">
                   <AlertTriangle className="w-3.5 h-3.5" />
-                  <span>Action Required: Material Dispatched</span>
+                  <span>Action Required: Material ready to Dispatch</span>
                 </div>
                 <button
                   type="button"
@@ -544,7 +554,7 @@ export default function Timeline({
 
               {/* Informational context */}
               <p className="text-xs text-slate-600 leading-relaxed">
-                When advancing to <strong className="text-slate-900">Material Dispatched</strong>, elevator materials are dispatched via <strong className="text-slate-900">VRL Logistics</strong>. Please enter the tracking number below to attach it to this project and dispatch the approved WhatsApp template to the group.
+                When advancing to <strong className="text-slate-900">Material ready to Dispatch</strong>, elevator materials are dispatched via <strong className="text-slate-900">VRL Logistics</strong>. Please enter the tracking number below to attach it to this project and dispatch the approved WhatsApp template to the group.
               </p>
 
               {/* Input Field */}

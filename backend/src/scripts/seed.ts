@@ -426,6 +426,48 @@ export async function seed() {
     phone: '+91 93848 20214',
   });
 
+  // Logistics Team Users (Bilal, Srinivasan, Sundaram, Bala)
+  console.log('[Seed] Seeding Logistics team users...');
+  const bilalHash = await bcrypt.hash('bilal123', 10);
+  await User.create({
+    name: 'Bilal (Logistics)',
+    email: 'bilal@alphaelevators.com',
+    passwordHash: bilalHash,
+    role: 'LOGISTICS',
+    phone: '+91 98401 77881',
+    isActive: true,
+  });
+
+  const sriniHash = await bcrypt.hash('srini123', 10);
+  await User.create({
+    name: 'Srinivasan (TL)',
+    email: 'srinivasan@alphaelevators.com',
+    passwordHash: sriniHash,
+    role: 'LOGISTICS',
+    phone: '+91 98401 77882',
+    isActive: true,
+  });
+
+  const sundaramHash = await bcrypt.hash('sundaram123', 10);
+  await User.create({
+    name: 'Sundaram',
+    email: 'sundaram@alphaelevators.com',
+    passwordHash: sundaramHash,
+    role: 'LOGISTICS',
+    phone: '+91 98401 77883',
+    isActive: true,
+  });
+
+  const balaHash = await bcrypt.hash('bala123', 10);
+  await User.create({
+    name: 'Bala',
+    email: 'bala@alphaelevators.com',
+    passwordHash: balaHash,
+    role: 'LOGISTICS',
+    phone: '+91 98401 77884',
+    isActive: true,
+  });
+
   // BDM Users (Matching login page profiles)
   console.log('[Seed] Seeding 10 BDM users with login credentials...');
   const bdmPasswordHash = await bcrypt.hash('password123', 10);

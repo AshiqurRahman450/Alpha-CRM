@@ -241,13 +241,15 @@ export default function ProjectsPage() {
             <span>{exporting ? 'Exporting Excel...' : 'Export Excel'}</span>
           </button>
 
-          <button
-            onClick={() => setIsAddOpen(true)}
-            className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-sky-950/20 active:scale-95 flex items-center gap-1.5"
-          >
-            <Plus className="w-4 h-4" />
-            <span>New Customer Project</span>
-          </button>
+          {currentUser?.role !== 'LOGISTICS' && (
+            <button
+              onClick={() => setIsAddOpen(true)}
+              className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-sky-950/20 active:scale-95 flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" />
+              <span>New Customer Project</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -336,8 +338,17 @@ export default function ProjectsPage() {
                   <th className="py-3 px-4 font-bold">Customer</th>
                   <th className="py-3 px-4 font-bold">Stage</th>
                   <th className="py-3 px-4 font-bold">Payment</th>
-                  <th className="py-3 px-4 font-bold">WhatsApp Group</th>
-                  <th className="py-3 px-4 font-bold">Next Update</th>
+                  {currentUser?.role === 'LOGISTICS' ? (
+                    <>
+                      <th className="py-3 px-4 font-bold">Project Executive</th>
+                      <th className="py-3 px-4 font-bold">VRL Tracking</th>
+                    </>
+                  ) : (
+                    <>
+                      <th className="py-3 px-4 font-bold">WhatsApp Group</th>
+                      <th className="py-3 px-4 font-bold">Next Update</th>
+                    </>
+                  )}
                   <th className="py-3 px-4 font-bold text-right">Actions</th>
                 </tr>
               </thead>
@@ -381,37 +392,57 @@ export default function ProjectsPage() {
                         )}
                       </td>
 
-                      <td className="py-4 px-4">
-                        {p.whatsappGroupId ? (
-                          <div className="flex items-center gap-1.5 text-emerald-700 font-semibold text-[11px]">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                            <span>{p.whatsappGroupId}</span>
-                          </div>
-                        ) : (
-                          <span className="text-rose-600 text-[10px] font-semibold bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
-                            Unlinked
-                          </span>
-                        )}
-                      </td>
+                      {currentUser?.role === 'LOGISTICS' ? (
+                        <>
+                          <td className="py-4 px-4">
+                            <span className="font-semibold text-slate-800 block">{p.projectExecutive || 'Not Assigned'}</span>
+                            <span className="text-[10px] text-slate-400">Execution Lead</span>
+                          </td>
+                          <td className="py-4 px-4">
+                            {p.vrlLrNumber || p.trackingNumber ? (
+                              <span className="font-mono text-xs font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
+                                {p.vrlLrNumber || p.trackingNumber}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-xs">No Tracking</span>
+                            )}
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="py-4 px-4">
+                            {p.whatsappGroupId ? (
+                              <div className="flex items-center gap-1.5 text-emerald-700 font-semibold text-[11px]">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                <span>{p.whatsappGroupId}</span>
+                              </div>
+                            ) : (
+                              <span className="text-rose-600 text-[10px] font-semibold bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                                Unlinked
+                              </span>
+                            )}
+                          </td>
 
-                      <td className="py-4 px-4">
-                        {p.nextUpdateAt ? (
-                          <span className="text-slate-700 font-medium">
-                            {new Date(p.nextUpdateAt).toLocaleDateString('en-GB')}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400">None</span>
-                        )}
-                        <span className="text-[10px] text-slate-400 block font-mono">
-                          {Number(p.updateFrequencyDays) <= 0.025
-                            ? 'Every 30m'
-                            : Number(p.updateFrequencyDays) < 0.1
-                            ? 'Every 1 hr'
-                            : Number(p.updateFrequencyDays) >= 1.24 && Number(p.updateFrequencyDays) <= 1.26
-                            ? 'Every 30 hrs'
-                            : `Every ${p.updateFrequencyDays || 20}d`}
-                        </span>
-                      </td>
+                          <td className="py-4 px-4">
+                            {p.nextUpdateAt ? (
+                              <span className="text-slate-700 font-medium">
+                                {new Date(p.nextUpdateAt).toLocaleDateString('en-GB')}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">None</span>
+                            )}
+                            <span className="text-[10px] text-slate-400 block font-mono">
+                              {Number(p.updateFrequencyDays) <= 0.025
+                                ? 'Every 30m'
+                                : Number(p.updateFrequencyDays) < 0.1
+                                ? 'Every 1 hr'
+                                : Number(p.updateFrequencyDays) >= 1.24 && Number(p.updateFrequencyDays) <= 1.26
+                                ? 'Every 30 hrs'
+                                : `Every ${p.updateFrequencyDays || 20}d`}
+                            </span>
+                          </td>
+                        </>
+                      )}
 
                       <td className="py-4 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">

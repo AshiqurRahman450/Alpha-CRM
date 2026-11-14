@@ -63,13 +63,13 @@ export const PROJECT_STAGE_NEXT_WORK: Record<
     description: 'Collect readiness payment and dispatch elevator materials.',
   },
   DISPATCH: {
-    currentLabel: 'Material Dispatched',
+    currentLabel: 'Material ready to Dispatch',
     nextStageKey: 'MATERIAL_IN_TRANSIT',
     nextWork: 'Track Material in Transit',
     description: 'Consignment moving via logistics with VRL tracking number.',
   },
   MATERIAL_DISPATCHED: {
-    currentLabel: 'Material Dispatched',
+    currentLabel: 'Material ready to Dispatch',
     nextStageKey: 'MATERIAL_IN_TRANSIT',
     nextWork: 'Track Material in Transit',
     description: 'Consignment moving via logistics with VRL tracking number.',
@@ -87,7 +87,7 @@ export const PROJECT_STAGE_NEXT_WORK: Record<
     description: 'Receive materials at site and commence unloading.',
   },
   MATERIAL_DELIVERY: {
-    currentLabel: 'Material Delivery',
+    currentLabel: 'Material Delivered',
     nextStageKey: 'INSTALLATION',
     nextWork: 'Commence Elevator Installation',
     description: 'Deploy installation engineering crew for erection programme.',

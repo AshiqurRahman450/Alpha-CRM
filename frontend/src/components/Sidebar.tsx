@@ -88,18 +88,20 @@ export default function Sidebar() {
       </div>
 
       {/* Pilot Pilot Tracker Callout */}
-      <div className="mx-4 my-3 p-3 bg-gradient-to-r from-emerald-950/40 to-slate-900 border border-emerald-500/30 rounded-xl">
-        <div className="flex items-center justify-between text-xs mb-1">
-          <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            10-Customer Pilot
-          </span>
-          <span className="text-[11px] text-slate-400 font-mono">Phase 1</span>
+      {user?.role !== 'LOGISTICS' && (
+        <div className="mx-4 my-3 p-3 bg-gradient-to-r from-emerald-950/40 to-slate-900 border border-emerald-500/30 rounded-xl">
+          <div className="flex items-center justify-between text-xs mb-1">
+            <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              10-Customer Pilot
+            </span>
+            <span className="text-[11px] text-slate-400 font-mono">Phase 1</span>
+          </div>
+          <p className="text-[11px] text-slate-400 leading-relaxed">
+            Official Meta WhatsApp Cloud API group updates active.
+          </p>
         </div>
-        <p className="text-[11px] text-slate-400 leading-relaxed">
-          Official Meta WhatsApp Cloud API group updates active.
-        </p>
-      </div>
+      )}
 
       {/* Navigation Links */}
       <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto">
@@ -116,6 +118,9 @@ export default function Sidebar() {
             }
             if (user?.role === 'ACCOUNTANT') {
               return ['Dashboard', 'Customers', 'Projects'].includes(item.name);
+            }
+            if (user?.role === 'LOGISTICS') {
+              return ['Dashboard', 'QC Site Report', 'Customers', 'Projects'].includes(item.name);
             }
             return true;
           })
@@ -174,6 +179,8 @@ export default function Sidebar() {
                   ? 'TECHNICAL LEAD'
                   : user?.role === 'TECHNICAL_MANAGER'
                   ? 'TECHNICAL MANAGER'
+                  : user?.role === 'LOGISTICS'
+                  ? 'LOGISTICS'
                   : (user?.role || 'ADMIN')}
               </div>
             </div>

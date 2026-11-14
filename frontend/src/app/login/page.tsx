@@ -29,7 +29,7 @@ export default function LoginPage() {
 
   const [bdmSelect, setBdmSelect] = useState('');
 
-  const handleQuickFill = (userType: 'admin' | 'nithesh' | 'abeal' | 'crm' | 'accountant' | 'qc' | 'techlead' | 'techmanager' | 'bdm', bdmEmail?: string) => {
+  const handleQuickFill = (userType: 'admin' | 'nithesh' | 'abeal' | 'crm' | 'accountant' | 'qc' | 'techlead' | 'techmanager' | 'bdm' | 'bilal' | 'srinivasan' | 'sundaram' | 'bala', bdmEmail?: string) => {
     setError(null);
     if (userType === 'admin') {
       setEmail('admin@alphaelevators.com');
@@ -55,6 +55,18 @@ export default function LoginPage() {
     } else if (userType === 'techmanager') {
       setEmail('kishore@alphaelevators.in');
       setPassword('kishore123');
+    } else if (userType === 'bilal') {
+      setEmail('bilal@alphaelevators.com');
+      setPassword('bilal123');
+    } else if (userType === 'srinivasan') {
+      setEmail('srinivasan@alphaelevators.com');
+      setPassword('srini123');
+    } else if (userType === 'sundaram') {
+      setEmail('sundaram@alphaelevators.com');
+      setPassword('sundaram123');
+    } else if (userType === 'bala') {
+      setEmail('bala@alphaelevators.com');
+      setPassword('bala123');
     } else if (userType === 'bdm') {
       setEmail(bdmEmail || 'gopinath@alpha.com');
       setPassword('password123');
@@ -191,6 +203,48 @@ export default function LoginPage() {
             >
               Tech Manager (Kishore)
             </button>
+          </div>
+
+          {/* Logistics Quick Logins */}
+          <div className="pt-1">
+            <label className="block text-[10px] uppercase tracking-wider text-cyan-400 font-bold mb-1.5 flex items-center justify-between">
+              <span>Logistics Team</span>
+              <span className="text-[9px] text-slate-400 font-normal">Dashboard • Customers • Projects • QC</span>
+            </label>
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                onClick={() => handleQuickFill('bilal')}
+                className="px-2 py-1 bg-cyan-950/70 hover:bg-cyan-900 text-cyan-300 rounded-lg border border-cyan-500/40 transition-colors font-medium text-left truncate flex items-center justify-between"
+              >
+                <span>Bilal (Logistics)</span>
+                <span className="text-[9px] text-cyan-400/70 font-mono">bilal123</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickFill('srinivasan')}
+                className="px-2 py-1 bg-cyan-950/70 hover:bg-cyan-900 text-cyan-300 rounded-lg border border-cyan-500/40 transition-colors font-medium text-left truncate flex items-center justify-between"
+              >
+                <span>Srinivasan (TL)</span>
+                <span className="text-[9px] text-cyan-400/70 font-mono">srini123</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickFill('sundaram')}
+                className="px-2 py-1 bg-cyan-950/70 hover:bg-cyan-900 text-cyan-300 rounded-lg border border-cyan-500/40 transition-colors font-medium text-left truncate flex items-center justify-between"
+              >
+                <span>Sundaram</span>
+                <span className="text-[9px] text-cyan-400/70 font-mono">sundaram123</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickFill('bala')}
+                className="px-2 py-1 bg-cyan-950/70 hover:bg-cyan-900 text-cyan-300 rounded-lg border border-cyan-500/40 transition-colors font-medium text-left truncate flex items-center justify-between"
+              >
+                <span>Bala</span>
+                <span className="text-[9px] text-cyan-400/70 font-mono">bala123</span>
+              </button>
+            </div>
           </div>
 
           {/* BDM Quick Selector */}
