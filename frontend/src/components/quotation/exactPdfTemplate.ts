@@ -783,7 +783,7 @@ export function buildPage2LetterHtml(html: string, data?: QuotationData): string
       <div style="font-family:'f4',sans-serif;font-size:20px;font-weight:bold;color:#000000;letter-spacing:0.3px;margin-bottom:4px;">
         Welcome to Alpha Elevators
       </div>
-      <div style="font-family:'f2',sans-serif;font-size:14px;font-weight:600;color:#000000;letter-spacing:0.5px;font-style:italic;margin-bottom:12px;">
+      <div style="font-family:'f2',sans-serif;font-size:14px;font-weight:600;color:#000000;letter-spacing:0.5px;font-style:normal;margin-bottom:12px;">
         Where Vertical Mobility Meets Sophistication
       </div>
       <div style="font-family:'f3',sans-serif;font-size:14.2px;line-height:20.5px;color:#000000;text-align:justify;margin-bottom:10px;">
@@ -802,7 +802,7 @@ export function buildPage2LetterHtml(html: string, data?: QuotationData): string
       <div style="font-family:'f4',sans-serif;font-size:17px;font-weight:bold;color:#000000;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:5px;">
         Our Vision
       </div>
-      <div style="font-family:'f3',sans-serif;font-size:14.2px;font-weight:600;color:#000000;font-style:italic;line-height:20.5px;border-left:3.5px solid #000000;padding-left:12px;">
+      <div style="font-family:'f3',sans-serif;font-size:14.2px;font-weight:600;color:#000000;font-style:normal;line-height:20.5px;border-left:3.5px solid #000000;padding-left:12px;">
         ${visionText}
       </div>
     </div>
@@ -1460,9 +1460,9 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
   }
 
   // Corner Client Signature block:
-  // Present ONLY on Pages 3 to 8 (pageIdx 2 to 7).
-  // Excluded from Page 1 (cover), Page 2 (letter), Page 9 (acceptance), and Page 11 (back cover).
-  if (pageIdx >= 2 && pageIdx <= 7) {
+  // Present on Pages 2 to 8 and Page 10 (pageIdx 1 to 7 and pageIdx 9).
+  // Excluded from Page 1 (cover), Page 9 (acceptance), and Page 11 (back cover).
+  if ((pageIdx >= 1 && pageIdx <= 7) || pageIdx === 9) {
     const page5SigStyle = 'position:absolute;right:50px;top:905px;z-index:9000;text-align:center;pointer-events:auto;';
     const clientSignBlock = pageIdx === 4
       ? getClientSignatureHtml(safeData.clientSignature, page5SigStyle)

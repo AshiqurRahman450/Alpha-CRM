@@ -788,7 +788,7 @@ export default function QuotationCreatorPage() {
           color: #000000 !important;
         }
         #p10 .c35, #p10 .c37 { color: #000000 !important; }
-        #p0 .client-signature-box, #p1 .client-signature-box, #p8 .client-signature-box, #p10 .client-signature-box { display: none !important; }
+        #p0 .client-signature-box, #p8 .client-signature-box, #p10 .client-signature-box { display: none !important; }
         ${isCircle ? `
         .client-signature-box,
         .circle-client-sign-p5 {

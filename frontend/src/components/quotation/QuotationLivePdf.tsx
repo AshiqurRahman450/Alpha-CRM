@@ -137,9 +137,7 @@ export default function QuotationLivePdf({
 
     // Page 2: Ensure new letter content and customer name font color
     if (pageNum === 2 && updated) {
-      if (updated.includes('NK Group of Companies') || !updated.includes('Where Vertical Mobility Meets Sophistication')) {
-        updated = buildPage2LetterHtml(updated, data);
-      }
+      updated = buildPage2LetterHtml(updated, data);
       updated = updated.replace(/top:490px/g, 'top:570px');
       updated = updated.replace(/top:555px/g, 'top:672px');
       updated = updated.replace(/top:550px/g, 'top:670px');
@@ -553,10 +551,10 @@ export default function QuotationLivePdf({
       updated = updated.replace(/<div class="page3-compact-civil-cabin-wrapper"[\s\S]*?<!-- END_PAGE3_TABLES -->/g, "");
     }
 
-    // Ensure Client Signature block reflects the digital signature on Pages 3 to 8 and Page 10
+    // Ensure Client Signature block reflects the digital signature on Pages 2 to 8 and Page 10
     // On Page 5, place client signature before the Irrespective clause (top: 905px)
-    // Explicitly remove corner Client Signature block from Pages 1, 2, 9, and 11
-    if (pageNum && ((pageNum >= 3 && pageNum <= 8) || pageNum === 10) && updated) {
+    // Explicitly remove corner Client Signature block from Pages 1, 9, and 11
+    if (pageNum && ((pageNum >= 2 && pageNum <= 8) || pageNum === 10) && updated) {
       const page5SigStyle = pageNum === 5 ? 'position:absolute;right:50px;top:905px;z-index:9000;text-align:center;pointer-events:auto;' : undefined;
       const clientSignBlock = getClientSignatureHtml(data.clientSignature, page5SigStyle);
       const clientBoxRegex = /<div class="client-signature-box"[\s\S]*?<\/span>\s*<\/div>/;
@@ -568,7 +566,7 @@ export default function QuotationLivePdf({
           updated = updated.substring(0, lastCloseDiv) + clientSignBlock + updated.substring(lastCloseDiv);
         }
       }
-    } else if (pageNum && (pageNum === 1 || pageNum === 2 || pageNum === 9 || pageNum === 11) && updated) {
+    } else if (pageNum && (pageNum === 1 || pageNum === 9 || pageNum === 11) && updated) {
       updated = updated.replace(/<div class="client-signature-box"[\s\S]*?<\/div>/g, '');
     }
 
@@ -1054,6 +1052,7 @@ export default function QuotationLivePdf({
             #p9 .c3, #p9 .c10 { color: #000000 !important; }
             #p9 .billing-page-container { color: #000000 !important; }
             #p10 .c35, #p10 .c37 { color: #000000 !important; }
+            #p0 .client-signature-box, #p8 .client-signature-box, #p10 .client-signature-box { display: none !important; }
             ${isCircle ? `
             .exact-pdf-container .page::before,
             .proposal-page-wrapper .page::before,
