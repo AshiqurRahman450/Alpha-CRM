@@ -52,6 +52,7 @@ export default function ProjectDetailPage() {
   const [user, setUser] = useState<any>(null);
   const isCrm = user?.role === 'CRM';
   const isAccountant = user?.role === 'ACCOUNTANT';
+  const isLogisticsRole = user?.role === 'LOGISTICS' || user?.role === 'LOGISTICS_TL';
 
   // Modals
   const [isSendModalOpen, setIsSendModalOpen] = useState(false);
@@ -390,16 +391,18 @@ export default function ProjectDetailPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/* Edit Project Button */}
-            <button
-              type="button"
-              onClick={() => setIsEditProjectModalOpen(true)}
-              className="px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-2xl text-xs font-bold transition-all inline-flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
-              title="Edit project details & specifications"
-            >
-              <Edit2 className="w-3.5 h-3.5 text-amber-700" />
-              <span>Edit Project</span>
-            </button>
+            {/* Edit Project Button (Hidden for Logistics & Logistics TL roles) */}
+            {!isLogisticsRole && (
+              <button
+                type="button"
+                onClick={() => setIsEditProjectModalOpen(true)}
+                className="px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-2xl text-xs font-bold transition-all inline-flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                title="Edit project details & specifications"
+              >
+                <Edit2 className="w-3.5 h-3.5 text-amber-700" />
+                <span>Edit Project</span>
+              </button>
+            )}
 
             {/* Status Badge */}
             <div className="px-4 py-2 bg-amber-50 text-amber-800 border border-amber-200 rounded-2xl text-xs font-black">
@@ -448,23 +451,25 @@ export default function ProjectDetailPage() {
             <span className="text-[10px] text-slate-500 block mt-0.5">{customer.phoneNumber}</span>
           </div>
 
-          <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
-            <span className="text-slate-400 block text-[11px]">Project Executive</span>
-            <div className="flex items-center justify-between mt-0.5">
-              <strong className="text-slate-900 text-sm truncate mr-1">{project.projectExecutive || 'Not Assigned'}</strong>
-              <button
-                type="button"
-                onClick={() => setIsEditProjectModalOpen(true)}
-                className="text-[10px] text-sky-600 hover:text-sky-800 font-bold underline shrink-0 cursor-pointer"
-                title="Edit Project Executive"
-              >
-                Edit
-              </button>
+          {!isLogisticsRole && (
+            <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+              <span className="text-slate-400 block text-[11px]">Project Executive</span>
+              <div className="flex items-center justify-between mt-0.5">
+                <strong className="text-slate-900 text-sm truncate mr-1">{project.projectExecutive || 'Not Assigned'}</strong>
+                <button
+                  type="button"
+                  onClick={() => setIsEditProjectModalOpen(true)}
+                  className="text-[10px] text-sky-600 hover:text-sky-800 font-bold underline shrink-0 cursor-pointer"
+                  title="Edit Project Executive"
+                >
+                  Edit
+                </button>
+              </div>
+              <span className="text-[10px] text-slate-500 block">Execution Lead</span>
             </div>
-            <span className="text-[10px] text-slate-500 block">Execution Lead</span>
-          </div>
+          )}
 
-          {user?.role !== 'LOGISTICS' && (
+          {!isLogisticsRole && (
             <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
               <span className="text-slate-400 block text-[11px]">WhatsApp Opt-In</span>
               <div className="flex items-center gap-1.5 mt-0.5">
@@ -503,12 +508,22 @@ export default function ProjectDetailPage() {
           onHandoverDateChanged={async () => {
             await fetchProject(false);
           }}
-          initiallyOpenInstallation={user?.role === 'TECHNICAL_LEAD' || user?.role === 'TECHNICAL_MANAGER'}
+          initiallyOpenInstallation={user?.role === 'TECHNICAL_LEAD' || user?.role === 'TECHNICAL_MANAGER' || user?.role === 'LOGISTICS_TL'}
         />
       )}
 
-      {/* BDM APPROVAL ALERT (Drawing and Cabin Design Approval) */}
-      {!isAccountant && project.projectStatus === 'CUSTOMER_APPROVAL' && (
+      {/* TIMELINE AFTER SECTIONS (Hidden for Bilal & Logistics TL roles):
+          - Drawing and Cabin Design
+          - WhatsApp Group Communication
+          - Payment Schedule & Collection
+          - Generated Receipts
+          - Customer & Site Notes
+          - Project Activity History
+      */}
+      {!isLogisticsRole && (
+        <>
+          {/* BDM APPROVAL ALERT (Drawing and Cabin Design Approval) */}
+          {!isAccountant && project.projectStatus === 'CUSTOMER_APPROVAL' && (
         <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/90 rounded-3xl p-5 md:p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
@@ -1102,6 +1117,8 @@ export default function ProjectDetailPage() {
           </div>
         </div>
       </div>
+      )}
+      </>
       )}
 
       {/* Modals */}

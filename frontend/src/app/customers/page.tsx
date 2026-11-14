@@ -379,13 +379,15 @@ export default function CustomersPage() {
             Managing elevator buyers, contact records, and WhatsApp opt-in consents
           </p>
         </div>
-        <button
-          onClick={() => setIsAddOpen(true)}
-          className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-sky-950/20 active:scale-95 flex items-center gap-1.5 self-start"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Add New Customer</span>
-        </button>
+        {!(currentUser?.role === 'LOGISTICS' || currentUser?.role === 'LOGISTICS_TL') && (
+          <button
+            onClick={() => setIsAddOpen(true)}
+            className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-sky-950/20 active:scale-95 flex items-center gap-1.5 self-start"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add New Customer</span>
+          </button>
+        )}
       </div>
 
       {/* Old Customers Switch Banner */}
@@ -576,18 +578,20 @@ export default function CustomersPage() {
 
                     <td className="py-4 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingCustomer(c);
-                            setIsEditCustomerOpen(true);
-                          }}
-                          className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/80 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1 cursor-pointer"
-                          title="Edit customer details"
-                        >
-                          <Edit2 className="w-3 h-3 text-amber-600" />
-                          <span>Edit</span>
-                        </button>
+                        {!(currentUser?.role === 'LOGISTICS' || currentUser?.role === 'LOGISTICS_TL') && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingCustomer(c);
+                              setIsEditCustomerOpen(true);
+                            }}
+                            className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/80 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1 cursor-pointer"
+                            title="Edit customer details"
+                          >
+                            <Edit2 className="w-3 h-3 text-amber-600" />
+                            <span>Edit</span>
+                          </button>
+                        )}
                         <Link
                           href={`/customers/${c._id}`}
                           className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1"
@@ -596,14 +600,16 @@ export default function CustomersPage() {
                           <span>View</span>
                           <ExternalLink className="w-3 h-3" />
                         </Link>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteCustomer(c)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200 cursor-pointer"
-                          title={`Delete customer ${c.customerId} and automatically adjust sequence (e.g. CUST-003 becomes CUST-002)`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {!(currentUser?.role === 'LOGISTICS' || currentUser?.role === 'LOGISTICS_TL') && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCustomer(c)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200 cursor-pointer"
+                            title={`Delete customer ${c.customerId} and automatically adjust sequence (e.g. CUST-003 becomes CUST-002)`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

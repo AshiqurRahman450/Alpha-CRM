@@ -273,10 +273,10 @@ export async function startServer() {
       // Ensure Logistics Users exist: Bilal, Srinivasan (TL), Sundaram, Bala
       try {
         const logisticsUsers = [
-          { name: 'Bilal (Logistics)', email: 'bilal@alphaelevators.com', pass: 'bilal123', phone: '+91 98401 77881' },
-          { name: 'Srinivasan (TL)', email: 'srinivasan@alphaelevators.com', pass: 'srini123', phone: '+91 98401 77882' },
-          { name: 'Sundaram', email: 'sundaram@alphaelevators.com', pass: 'sundaram123', phone: '+91 98401 77883' },
-          { name: 'Bala', email: 'bala@alphaelevators.com', pass: 'bala123', phone: '+91 98401 77884' },
+          { name: 'Bilal (Logistics)', email: 'bilal@alphaelevators.com', pass: 'bilal123', role: 'LOGISTICS' as const, phone: '+91 98401 77881' },
+          { name: 'Srinivasan (TL)', email: 'srinivasan@alphaelevators.com', pass: 'srini123', role: 'LOGISTICS_TL' as const, phone: '+91 98401 77882' },
+          { name: 'Sundaram', email: 'sundaram@alphaelevators.com', pass: 'sundaram123', role: 'LOGISTICS_TL' as const, phone: '+91 98401 77883' },
+          { name: 'Bala', email: 'bala@alphaelevators.com', pass: 'bala123', role: 'LOGISTICS_TL' as const, phone: '+91 98401 77884' },
         ];
 
         for (const lu of logisticsUsers) {
@@ -292,17 +292,17 @@ export async function startServer() {
               name: lu.name,
               email: lu.email,
               passwordHash: hash,
-              role: 'LOGISTICS',
+              role: lu.role,
               phone: lu.phone,
               isActive: true,
             });
-            console.log(`[Server] Created Logistics user: ${lu.name} (${lu.email})`);
+            console.log(`[Server] Created Logistics user: ${lu.name} (${lu.email}) with role ${lu.role}`);
           } else {
             await User.updateOne(
               { _id: userDoc._id },
               {
                 $set: {
-                  role: 'LOGISTICS',
+                  role: lu.role,
                   name: lu.name,
                   email: lu.email,
                   passwordHash: hash,
@@ -311,7 +311,7 @@ export async function startServer() {
                 },
               }
             );
-            console.log(`[Server] Verified Logistics user: ${lu.name} (${lu.email})`);
+            console.log(`[Server] Verified Logistics user: ${lu.name} (${lu.email}) with role ${lu.role}`);
           }
         }
       } catch (logisticsInitErr: any) {

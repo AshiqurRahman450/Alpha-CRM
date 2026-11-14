@@ -92,7 +92,8 @@ export default function InstallationProgrammeTable({
     currentUserRole === 'TECHNICAL_MANAGER' ||
     currentUserRole === 'ADMIN' ||
     currentUserRole === 'CRM' ||
-    currentUserRole === 'MANAGER';
+    currentUserRole === 'MANAGER' ||
+    currentUserRole === 'LOGISTICS_TL';
 
   // Load project installation stages
   const fetchStages = async () => {

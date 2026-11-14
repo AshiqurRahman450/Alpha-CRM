@@ -241,7 +241,7 @@ export default function ProjectsPage() {
             <span>{exporting ? 'Exporting Excel...' : 'Export Excel'}</span>
           </button>
 
-          {currentUser?.role !== 'LOGISTICS' && (
+          {!(currentUser?.role === 'LOGISTICS' || currentUser?.role === 'LOGISTICS_TL') && (
             <button
               onClick={() => setIsAddOpen(true)}
               className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-sky-950/20 active:scale-95 flex items-center gap-1.5"
@@ -338,11 +338,8 @@ export default function ProjectsPage() {
                   <th className="py-3 px-4 font-bold">Customer</th>
                   <th className="py-3 px-4 font-bold">Stage</th>
                   <th className="py-3 px-4 font-bold">Payment</th>
-                  {currentUser?.role === 'LOGISTICS' ? (
-                    <>
-                      <th className="py-3 px-4 font-bold">Project Executive</th>
-                      <th className="py-3 px-4 font-bold">VRL Tracking</th>
-                    </>
+                  {(currentUser?.role === 'LOGISTICS' || currentUser?.role === 'LOGISTICS_TL') ? (
+                    <th className="py-3 px-4 font-bold">VRL Tracking</th>
                   ) : (
                     <>
                       <th className="py-3 px-4 font-bold">WhatsApp Group</th>
@@ -392,22 +389,16 @@ export default function ProjectsPage() {
                         )}
                       </td>
 
-                      {currentUser?.role === 'LOGISTICS' ? (
-                        <>
-                          <td className="py-4 px-4">
-                            <span className="font-semibold text-slate-800 block">{p.projectExecutive || 'Not Assigned'}</span>
-                            <span className="text-[10px] text-slate-400">Execution Lead</span>
-                          </td>
-                          <td className="py-4 px-4">
-                            {p.vrlLrNumber || p.trackingNumber ? (
-                              <span className="font-mono text-xs font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
-                                {p.vrlLrNumber || p.trackingNumber}
-                              </span>
-                            ) : (
-                              <span className="text-slate-400 text-xs">No Tracking</span>
-                            )}
-                          </td>
-                        </>
+                      {(currentUser?.role === 'LOGISTICS' || currentUser?.role === 'LOGISTICS_TL') ? (
+                        <td className="py-4 px-4">
+                          {p.vrlLrNumber || p.trackingNumber ? (
+                            <span className="font-mono text-xs font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
+                              {p.vrlLrNumber || p.trackingNumber}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 text-xs">No Tracking</span>
+                          )}
+                        </td>
                       ) : (
                         <>
                           <td className="py-4 px-4">
@@ -446,18 +437,20 @@ export default function ProjectsPage() {
 
                       <td className="py-4 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingProject(p);
-                              setIsEditProjectOpen(true);
-                            }}
-                            className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/80 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1 cursor-pointer"
-                            title="Edit project details"
-                          >
-                            <Edit2 className="w-3 h-3 text-amber-600" />
-                            <span>Edit</span>
-                          </button>
+                          {!(currentUser?.role === 'LOGISTICS' || currentUser?.role === 'LOGISTICS_TL') && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingProject(p);
+                                setIsEditProjectOpen(true);
+                              }}
+                              className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/80 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1 cursor-pointer"
+                              title="Edit project details"
+                            >
+                              <Edit2 className="w-3 h-3 text-amber-600" />
+                              <span>Edit</span>
+                            </button>
+                          )}
                           <Link
                             href={`/projects/${p._id}`}
                             className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1"

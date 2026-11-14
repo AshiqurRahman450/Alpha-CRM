@@ -249,6 +249,7 @@ export default function CustomerDetailPage() {
   }
 
   const { customer, projects = [], payments = [], messages = [] } = data;
+  const isLogisticsRole = currentUser?.role === 'LOGISTICS' || currentUser?.role === 'LOGISTICS_TL';
 
   return (
     <div className="space-y-6 animate-fade-in pb-12">
@@ -305,23 +306,27 @@ export default function CustomerDetailPage() {
             >
               {customer.whatsappOptIn ? 'Disable' : 'Enable Opt-In'}
             </button>
-            <button
-              type="button"
-              onClick={() => setIsEditOpen(true)}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
-              title="Edit customer information"
-            >
-              <Edit2 className="w-3.5 h-3.5 text-amber-700" />
-              <span>Edit Customer</span>
-            </button>
-            <button
-              onClick={handleDeleteCustomer}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 flex items-center gap-1 transition-colors cursor-pointer"
-              title={`Delete customer ${customer.customerId} and automatically adjust sequence (e.g. CUST-003 becomes CUST-002)`}
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Delete Customer</span>
-            </button>
+            {!isLogisticsRole && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsEditOpen(true)}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                  title="Edit customer information"
+                >
+                  <Edit2 className="w-3.5 h-3.5 text-amber-700" />
+                  <span>Edit Customer</span>
+                </button>
+                <button
+                  onClick={handleDeleteCustomer}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 flex items-center gap-1 transition-colors cursor-pointer"
+                  title={`Delete customer ${customer.customerId} and automatically adjust sequence (e.g. CUST-003 becomes CUST-002)`}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete Customer</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -548,18 +553,22 @@ export default function CustomerDetailPage() {
                   </div>
 
                   <div className="flex items-center justify-between pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setExpandedProjectId(isExpanded ? null : p._id)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all border ${
-                        isExpanded
-                          ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
-                          : 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100'
-                      }`}
-                    >
-                      <span>⚡ 11-Stage Programme</span>
-                      <span>{isExpanded ? '▲ Hide' : '▼ View Table'}</span>
-                    </button>
+                    {currentUser?.role !== 'LOGISTICS' ? (
+                      <button
+                        type="button"
+                        onClick={() => setExpandedProjectId(isExpanded ? null : p._id)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all border ${
+                          isExpanded
+                            ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
+                            : 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100'
+                        }`}
+                      >
+                        <span>⚡ 11-Stage Programme</span>
+                        <span>{isExpanded ? '▲ Hide' : '▼ View Table'}</span>
+                      </button>
+                    ) : (
+                      <div />
+                    )}
 
                     <Link
                       href={`/projects/${p._id}`}
@@ -570,7 +579,7 @@ export default function CustomerDetailPage() {
                     </Link>
                   </div>
 
-                  {isExpanded && (
+                  {currentUser?.role !== 'LOGISTICS' && isExpanded && (
                     <div className="pt-3 border-t border-slate-200">
                       <InstallationProgrammeTable
                         projectId={p._id}
@@ -590,36 +599,38 @@ export default function CustomerDetailPage() {
         )}
       </div>
 
-      {/* WhatsApp Messages for this customer */}
-      <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
-        <h3 className="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-2">
-          <MessageSquare className="w-4 h-4 text-emerald-600" />
-          <span>Customer WhatsApp History ({messages.length})</span>
-        </h3>
+      {/* WhatsApp Messages for this customer (Hidden for Logistics) */}
+      {!isLogisticsRole && (
+        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+          <h3 className="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-2">
+            <MessageSquare className="w-4 h-4 text-emerald-600" />
+            <span>Customer WhatsApp History ({messages.length})</span>
+          </h3>
 
-        {messages.length === 0 ? (
-          <p className="text-xs text-slate-400">No WhatsApp messages recorded.</p>
-        ) : (
-          <div className="space-y-2.5 max-h-[320px] overflow-y-auto">
-            {messages.map((m: any) => (
-              <div
-                key={m._id}
-                className={`p-3 rounded-xl text-xs space-y-1 border ${
-                  m.direction === 'INCOMING' ? 'bg-sky-50/60 border-sky-200' : 'bg-slate-50 border-slate-200'
-                }`}
-              >
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="font-bold text-slate-800">
-                    {m.direction === 'INCOMING' ? `Customer: ${m.senderName}` : 'Alpha Elevators Update'}
-                  </span>
-                  <span className="text-[10px] text-slate-400">{new Date(m.createdAt).toLocaleString('en-GB')}</span>
+          {messages.length === 0 ? (
+            <p className="text-xs text-slate-400">No WhatsApp messages recorded.</p>
+          ) : (
+            <div className="space-y-2.5 max-h-[320px] overflow-y-auto">
+              {messages.map((m: any) => (
+                <div
+                  key={m._id}
+                  className={`p-3 rounded-xl text-xs space-y-1 border ${
+                    m.direction === 'INCOMING' ? 'bg-sky-50/60 border-sky-200' : 'bg-slate-50 border-slate-200'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-bold text-slate-800">
+                      {m.direction === 'INCOMING' ? `Customer: ${m.senderName}` : 'Alpha Elevators Update'}
+                    </span>
+                    <span className="text-[10px] text-slate-400">{new Date(m.createdAt).toLocaleString('en-GB')}</span>
+                  </div>
+                  <p className="whitespace-pre-line text-slate-700 text-[11px]">{m.messageContent}</p>
                 </div>
-                <p className="whitespace-pre-line text-slate-700 text-[11px]">{m.messageContent}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       {/* Edit Customer Modal */}
       {data?.customer && (
         <EditCustomerModal

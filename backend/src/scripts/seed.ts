@@ -443,7 +443,7 @@ export async function seed() {
     name: 'Srinivasan (TL)',
     email: 'srinivasan@alphaelevators.com',
     passwordHash: sriniHash,
-    role: 'LOGISTICS',
+    role: 'LOGISTICS_TL',
     phone: '+91 98401 77882',
     isActive: true,
   });
@@ -453,7 +453,7 @@ export async function seed() {
     name: 'Sundaram',
     email: 'sundaram@alphaelevators.com',
     passwordHash: sundaramHash,
-    role: 'LOGISTICS',
+    role: 'LOGISTICS_TL',
     phone: '+91 98401 77883',
     isActive: true,
   });
@@ -463,7 +463,7 @@ export async function seed() {
     name: 'Bala',
     email: 'bala@alphaelevators.com',
     passwordHash: balaHash,
-    role: 'LOGISTICS',
+    role: 'LOGISTICS_TL',
     phone: '+91 98401 77884',
     isActive: true,
   });

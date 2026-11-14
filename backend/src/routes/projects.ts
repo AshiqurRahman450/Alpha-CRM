@@ -765,14 +765,14 @@ projectRouter.get('/:id', async (req: AuthRequest, res: Response) => {
 /**
  * PUT /api/projects/:id
  */
-projectRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT', 'BDM', 'TECHNICAL_LEAD', 'LOGISTICS'), async (req: AuthRequest, res: Response) => {
+projectRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT', 'BDM', 'TECHNICAL_LEAD', 'LOGISTICS', 'LOGISTICS_TL'), async (req: AuthRequest, res: Response) => {
   try {
     const project = await Project.findById(req.params.id);
     if (!project) {
       return res.status(404).json({ success: false, message: 'Project not found' });
     }
 
-    if (req.user?.role === 'LOGISTICS') {
+    if (req.user?.role === 'LOGISTICS' || req.user?.role === 'LOGISTICS_TL') {
       const LOGISTICS_ALLOWED_STAGES = ['DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY'];
       if (req.body.projectStatus && !LOGISTICS_ALLOWED_STAGES.includes(req.body.projectStatus)) {
         return res.status(403).json({
@@ -843,7 +843,7 @@ projectRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT', 'BD
 /**
  * PATCH /api/projects/:id/status
  */
-projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'TECHNICAL_LEAD', 'LOGISTICS'), async (req: AuthRequest, res: Response) => {
+projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'TECHNICAL_LEAD', 'LOGISTICS', 'LOGISTICS_TL'), async (req: AuthRequest, res: Response) => {
   try {
     const { status, notes, vrlLrNumber, trackingNumber, productionTimelineDays } = req.body;
     const project = await Project.findById(req.params.id);
@@ -861,7 +861,7 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
       }
     }
 
-    if (req.user?.role === 'LOGISTICS') {
+    if (req.user?.role === 'LOGISTICS' || req.user?.role === 'LOGISTICS_TL') {
       const LOGISTICS_ALLOWED_STAGES = ['DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY'];
       if (!LOGISTICS_ALLOWED_STAGES.includes(status)) {
         return res.status(403).json({
@@ -1161,7 +1161,7 @@ projectRouter.post('/:id/drawing-approved', authorize('ADMIN', 'CRM', 'MANAGER',
 /**
  * PATCH /api/projects/:id/stage-dates
  */
-projectRouter.patch('/:id/stage-dates', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'TECHNICAL_LEAD', 'TECHNICAL_MANAGER', 'LOGISTICS'), async (req: AuthRequest, res: Response) => {
+projectRouter.patch('/:id/stage-dates', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'TECHNICAL_LEAD', 'TECHNICAL_MANAGER', 'LOGISTICS', 'LOGISTICS_TL'), async (req: AuthRequest, res: Response) => {
   try {
     const { stageKey, scheduleDate, executedDate } = req.body;
     if (!stageKey) {
@@ -1172,7 +1172,7 @@ projectRouter.patch('/:id/stage-dates', authorize('ADMIN', 'CRM', 'MANAGER', 'BD
       return res.status(403).json({ success: false, message: 'BDMs can only update dates for the Drawing and Cabin Design Approval stage' });
     }
 
-    if (req.user?.role === 'LOGISTICS') {
+    if (req.user?.role === 'LOGISTICS' || req.user?.role === 'LOGISTICS_TL') {
       const LOGISTICS_ALLOWED_STAGES = ['DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY'];
       if (!LOGISTICS_ALLOWED_STAGES.includes(stageKey)) {
         return res.status(403).json({
@@ -1226,7 +1226,7 @@ projectRouter.patch('/:id/stage-dates', authorize('ADMIN', 'CRM', 'MANAGER', 'BD
 /**
  * PATCH /api/projects/:id/stage-dates-bulk
  */
-projectRouter.patch('/:id/stage-dates-bulk', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'TECHNICAL_LEAD', 'TECHNICAL_MANAGER', 'LOGISTICS'), async (req: AuthRequest, res: Response) => {
+projectRouter.patch('/:id/stage-dates-bulk', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'TECHNICAL_LEAD', 'TECHNICAL_MANAGER', 'LOGISTICS', 'LOGISTICS_TL'), async (req: AuthRequest, res: Response) => {
   try {
     const { updates } = req.body;
     if (!Array.isArray(updates)) {
@@ -1254,7 +1254,7 @@ projectRouter.patch('/:id/stage-dates-bulk', authorize('ADMIN', 'CRM', 'MANAGER'
         continue;
       }
 
-      if (req.user?.role === 'LOGISTICS' && !LOGISTICS_ALLOWED_STAGES.includes(stageKey)) {
+      if ((req.user?.role === 'LOGISTICS' || req.user?.role === 'LOGISTICS_TL') && !LOGISTICS_ALLOWED_STAGES.includes(stageKey)) {
         continue;
       }
 
@@ -1700,7 +1700,7 @@ projectRouter.get('/:id/installation-stages', async (req: AuthRequest, res: Resp
  */
 projectRouter.post(
   '/:id/installation-stages/update-stage',
-  authorize('ADMIN', 'CRM', 'MANAGER', 'TECHNICAL_LEAD'),
+  authorize('ADMIN', 'CRM', 'MANAGER', 'TECHNICAL_LEAD', 'LOGISTICS_TL'),
   async (req: AuthRequest, res: Response) => {
     try {
       const { stageKey, startDate, completeDate, status, reason, notes, sendWhatsApp } = req.body;
@@ -1920,7 +1920,7 @@ Alpha Elevators Team`;
  */
 projectRouter.post(
   '/:id/installation-stages/initialize',
-  authorize('ADMIN', 'CRM', 'MANAGER', 'TECHNICAL_LEAD'),
+  authorize('ADMIN', 'CRM', 'MANAGER', 'TECHNICAL_LEAD', 'LOGISTICS_TL'),
   async (req: AuthRequest, res: Response) => {
     try {
       const { installationStartDate, stage1CompleteDate, customStages } = req.body;

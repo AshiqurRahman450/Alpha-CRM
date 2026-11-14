@@ -162,7 +162,7 @@ export default function EditProjectModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (currentUser?.role === 'LOGISTICS') {
+    if (currentUser?.role === 'LOGISTICS' || currentUser?.role === 'LOGISTICS_TL') {
       try {
         setSubmitting(true);
         const logisticsPayload = {
@@ -275,7 +275,7 @@ export default function EditProjectModal({
         </div>
 
         {/* Form Body */}
-        {currentUser?.role === 'LOGISTICS' ? (
+        {currentUser?.role === 'LOGISTICS' || currentUser?.role === 'LOGISTICS_TL' ? (
           <form onSubmit={handleSubmit} className="p-6 space-y-5 text-xs overflow-y-auto flex-1">
             <div className="bg-sky-50/70 border border-sky-200 p-4 rounded-2xl space-y-2">
               <div className="flex items-center justify-between">

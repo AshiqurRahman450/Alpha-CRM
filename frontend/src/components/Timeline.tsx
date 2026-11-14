@@ -91,6 +91,8 @@ export default function Timeline({
   initiallyOpenInstallation,
 }: TimelineProps) {
   const isLogistics = currentUserRole === 'LOGISTICS';
+  const isLogisticsTL = currentUserRole === 'LOGISTICS_TL';
+  const isAnyLogistics = isLogistics || isLogisticsTL;
   const visibleStages = isLogistics
     ? STAGES_ORDER.slice(0, STAGES_ORDER.findIndex((s) => s.key === 'MATERIAL_DELIVERY') + 1)
     : STAGES_ORDER;
@@ -98,7 +100,7 @@ export default function Timeline({
   const currentIndex = STAGES_ORDER.findIndex((s) => s.key === currentStatus);
   const visibleCurrentIndex = visibleStages.findIndex((s) => s.key === currentStatus);
   const [showInstallationTable, setShowInstallationTable] = React.useState<boolean>(
-    Boolean(!isLogistics && (initiallyOpenInstallation || currentUserRole === 'TECHNICAL_LEAD' || currentUserRole === 'TECHNICAL_MANAGER'))
+    Boolean(!isLogistics && (initiallyOpenInstallation || currentUserRole === 'TECHNICAL_LEAD' || currentUserRole === 'TECHNICAL_MANAGER' || isLogisticsTL))
   );
   const [showVrlAlertModal, setShowVrlAlertModal] = React.useState<boolean>(false);
   const [vrlTrackingInput, setVrlTrackingInput] = React.useState<string>('');
@@ -277,7 +279,7 @@ export default function Timeline({
             let canEditThisStage = isEditable;
             if (currentUserRole === 'BDM') {
               canEditThisStage = stage.key === 'CUSTOMER_APPROVAL';
-            } else if (isLogistics) {
+            } else if (isAnyLogistics) {
               const LOGISTICS_ALLOWED = ['DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY'];
               canEditThisStage = LOGISTICS_ALLOWED.includes(stage.key);
             }
@@ -403,7 +405,7 @@ export default function Timeline({
                         }`}>
                           {dates?.scheduleDate ? new Date(dates.scheduleDate).toLocaleDateString('en-GB') : 'Not Set'}
                         </div>
-                        {isEditable && (currentUserRole !== 'BDM' || stage.key === 'CUSTOMER_APPROVAL') && (!isLogistics || ['DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY'].includes(stage.key)) && onDateChange && (
+                        {isEditable && (currentUserRole !== 'BDM' || stage.key === 'CUSTOMER_APPROVAL') && (!isAnyLogistics || ['DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY'].includes(stage.key)) && onDateChange && (
                           <input 
                             type="date" 
                             className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-20"
@@ -426,7 +428,7 @@ export default function Timeline({
                         }`}>
                           {dates?.executedDate ? new Date(dates.executedDate).toLocaleDateString('en-GB') : 'Not Set'}
                         </div>
-                        {isEditable && (currentUserRole !== 'BDM' || stage.key === 'CUSTOMER_APPROVAL') && (!isLogistics || ['DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY'].includes(stage.key)) && onDateChange && (
+                        {isEditable && (currentUserRole !== 'BDM' || stage.key === 'CUSTOMER_APPROVAL') && (!isAnyLogistics || ['DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY'].includes(stage.key)) && onDateChange && (
                           <input 
                             type="date" 
                             className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-20"

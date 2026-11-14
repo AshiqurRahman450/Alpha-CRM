@@ -145,7 +145,7 @@ export default function DashboardPage() {
             <img src="/logo.png" alt="Alpha Elevators" className="h-full w-full object-contain" />
           </div>
           <div>
-            {user?.role === 'LOGISTICS' ? (
+            {(user?.role === 'LOGISTICS' || user?.role === 'LOGISTICS_TL') ? (
               <>
                 <div className="inline-flex items-center space-x-2 px-3 py-1 bg-cyan-400/20 text-cyan-200 border border-cyan-300/30 rounded-full text-xs font-semibold mb-1.5">
                   <Truck className="w-3.5 h-3.5 text-cyan-300" />
@@ -170,7 +170,7 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
-        {user?.role === 'LOGISTICS' ? (
+        {(user?.role === 'LOGISTICS' || user?.role === 'LOGISTICS_TL') ? (
           <div className="flex items-center space-x-3">
             <Link
               href="/projects"
@@ -564,7 +564,7 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
-      ) : user?.role === 'LOGISTICS' ? (
+      ) : (user?.role === 'LOGISTICS' || user?.role === 'LOGISTICS_TL') ? (
         <div className="space-y-6">
           {/* Logistics Top Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -960,7 +960,7 @@ export default function DashboardPage() {
       )}
 
       {/* TODAY'S ACTIONS SECTION (Hidden for Accountant, BDM, and Logistics) */}
-      {user?.role !== 'ACCOUNTANT' && user?.role !== 'BDM' && user?.role !== 'LOGISTICS' && (
+      {user?.role !== 'ACCOUNTANT' && user?.role !== 'BDM' && user?.role !== 'LOGISTICS' && user?.role !== 'LOGISTICS_TL' && (
       <React.Fragment>
       <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
         <div className="flex items-center justify-between mb-4">
