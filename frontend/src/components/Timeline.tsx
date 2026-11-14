@@ -51,9 +51,9 @@ interface TimelineProps {
   currentStatus: string;
   onStatusChange?: (newStatus: string, trackingNumber?: string, productionTimelineDays?: number) => Promise<void> | void;
   isEditable?: boolean;
-  stageDates?: Record<string, { scheduleDate?: string | null; executedDate?: string | null }>;
-  onDateChange?: (stageKey: string, type: 'scheduleDate' | 'executedDate', date: string) => Promise<void> | void;
-  onBulkDateChange?: (updates: { stageKey: string, scheduleDate?: string | null, executedDate?: string | null }[]) => Promise<void> | void;
+  stageDates?: Record<string, { scheduleDate?: string | null; executedDate?: string | null; scheduleTime?: string | null }>;
+  onDateChange?: (stageKey: string, type: 'scheduleDate' | 'executedDate', date: string, time?: string) => Promise<void> | void;
+  onBulkDateChange?: (updates: { stageKey: string, scheduleDate?: string | null, executedDate?: string | null, time?: string | null }[]) => Promise<void> | void;
   currentUserRole?: string;
   customerCity?: string;
   projectId?: string;
@@ -113,6 +113,13 @@ export default function Timeline({
   const [productionDaysInput, setProductionDaysInput] = React.useState<string>(String(productionTimelineDays || 60));
   const [isSubmittingDrawingApproval, setIsSubmittingDrawingApproval] = React.useState<boolean>(false);
 
+  // Site Visit Schedule Modal State
+  const [showSiteVisitModal, setShowSiteVisitModal] = React.useState<boolean>(false);
+  const [siteVisitDateInput, setSiteVisitDateInput] = React.useState<string>('');
+  const [siteVisitTimeInput, setSiteVisitTimeInput] = React.useState<string>('11:00 AM');
+  const [siteVisitInputError, setSiteVisitInputError] = React.useState<string>('');
+  const [isSubmittingSiteVisit, setIsSubmittingSiteVisit] = React.useState<boolean>(false);
+
   const lastTapRef = React.useRef<number>(0);
 
   React.useEffect(() => {
@@ -130,11 +137,14 @@ export default function Timeline({
         if (showDrawingApprovalModal && !isSubmittingDrawingApproval) {
           setShowDrawingApprovalModal(false);
         }
+        if (showSiteVisitModal && !isSubmittingSiteVisit) {
+          setShowSiteVisitModal(false);
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showVrlAlertModal, isSubmittingDispatch, showDrawingApprovalModal, isSubmittingDrawingApproval]);
+  }, [showVrlAlertModal, isSubmittingDispatch, showDrawingApprovalModal, isSubmittingDrawingApproval, showSiteVisitModal, isSubmittingSiteVisit]);
 
   const handleConfirmVrlDispatch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -175,6 +185,25 @@ export default function Timeline({
     }
   };
 
+  const handleConfirmSiteVisitSchedule = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!siteVisitDateInput) {
+      setSiteVisitInputError('Please select a valid site visit date.');
+      return;
+    }
+
+    try {
+      setIsSubmittingSiteVisit(true);
+      setSiteVisitInputError('');
+      await handleDateChangeLocal('SITE_MEASUREMENT', 'scheduleDate', siteVisitDateInput, siteVisitTimeInput);
+      setShowSiteVisitModal(false);
+    } catch (err: any) {
+      setSiteVisitInputError(err?.message || 'Failed to schedule site visit');
+    } finally {
+      setIsSubmittingSiteVisit(false);
+    }
+  };
+
   const handleTouchEndStage = (stageKey: string, e: React.TouchEvent) => {
     if (stageKey === 'INSTALLATION') {
       const now = Date.now();
@@ -190,10 +219,10 @@ export default function Timeline({
     }
   };
 
-  const handleDateChangeLocal = async (key: string, type: 'scheduleDate' | 'executedDate', val: string) => {
+  const handleDateChangeLocal = async (key: string, type: 'scheduleDate' | 'executedDate', val: string, time?: string) => {
     if (!onDateChange) return;
     
-    await onDateChange(key, type, val);
+    await onDateChange(key, type, val, time);
 
     // If user sets scheduleDate manually at Site Visit (SITE_MEASUREMENT),
     // automatically calculate and fix all balance milestone schedule dates from Site Visit.
@@ -290,6 +319,18 @@ export default function Timeline({
                 key={stage.key}
                 onClick={() => {
                   if (canEditThisStage && onStatusChange) {
+                    if (stage.key === 'SITE_MEASUREMENT') {
+                      // Site Visit stage: open pop-up to schedule date and time & preview WhatsApp group message
+                      const existingDate = dates?.scheduleDate 
+                        ? new Date(dates.scheduleDate).toISOString().split('T')[0] 
+                        : new Date().toISOString().split('T')[0];
+                      setSiteVisitDateInput(existingDate);
+                      setSiteVisitTimeInput(dates?.scheduleTime || '11:00 AM');
+                      setSiteVisitInputError('');
+                      setShowSiteVisitModal(true);
+                      return;
+                    }
+
                     if (stage.key === 'MATERIAL_IN_TRANSIT') {
                       // Material in transit stage: first get the VRL Tracking No through alert pop-up
                       setVrlTargetStage('MATERIAL_IN_TRANSIT');
@@ -397,7 +438,19 @@ export default function Timeline({
                   {/* Data containers */}
                   <div className={`flex ${stage.key === 'PAYMENT_RECEIVED' ? 'w-24 justify-center' : 'w-40 justify-between'} -mt-0.5`}>
                     {stage.key !== 'PAYMENT_RECEIVED' && (
-                    <div className="flex flex-col items-center w-1/2 px-1 relative">
+                    <div 
+                      onClick={(e) => {
+                        if (stage.key === 'SITE_MEASUREMENT' && isEditable && currentUserRole !== 'BDM') {
+                          e.stopPropagation();
+                          const existingDate = dates?.scheduleDate ? new Date(dates.scheduleDate).toISOString().split('T')[0] : '';
+                          setSiteVisitDateInput(existingDate || new Date().toISOString().split('T')[0]);
+                          setSiteVisitTimeInput(dates?.scheduleTime || '11:00 AM');
+                          setSiteVisitInputError('');
+                          setShowSiteVisitModal(true);
+                        }
+                      }}
+                      className={`flex flex-col items-center w-1/2 px-1 relative ${stage.key === 'SITE_MEASUREMENT' ? 'cursor-pointer hover:scale-105 transition-transform' : ''}`}
+                    >
                       <span className="text-[9px] font-bold text-slate-500 uppercase z-10 pointer-events-none">Schedule</span>
                       <div className="relative w-full flex justify-center mt-0.5">
                         <div className={`text-[10px] px-1.5 py-0.5 rounded border shadow-sm whitespace-nowrap w-full text-center ${
@@ -407,7 +460,7 @@ export default function Timeline({
                         }`}>
                           {dates?.scheduleDate ? new Date(dates.scheduleDate).toLocaleDateString('en-GB') : 'Not Set'}
                         </div>
-                        {isEditable && (currentUserRole !== 'BDM' || stage.key === 'CUSTOMER_APPROVAL') && (!isAnyLogistics || ['DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY'].includes(stage.key)) && onDateChange && (
+                        {stage.key !== 'SITE_MEASUREMENT' && isEditable && (currentUserRole !== 'BDM' || stage.key === 'CUSTOMER_APPROVAL') && (!isAnyLogistics || ['DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY'].includes(stage.key)) && onDateChange && (
                           <input 
                             type="date" 
                             className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-20"
@@ -819,6 +872,187 @@ export default function Timeline({
                     <>
                       <Send className="w-3.5 h-3.5" />
                       <span>Confirm & Send WhatsApp Messages</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SITE VISIT SCHEDULE POP-UP MODAL */}
+      {showSiteVisitModal && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isSubmittingSiteVisit) {
+              setShowSiteVisitModal(false);
+            }
+          }}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div 
+            className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden transform transition-all animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="bg-gradient-to-r from-blue-600 via-sky-600 to-cyan-600 p-5 text-white relative">
+              <div className="flex items-center justify-between">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md text-[11px] font-black tracking-wider uppercase">
+                  <ClipboardCheck className="w-3.5 h-3.5" />
+                  <span>Action Required: Site Visit</span>
+                </div>
+                <button
+                  type="button"
+                  disabled={isSubmittingSiteVisit}
+                  onClick={() => setShowSiteVisitModal(false)}
+                  className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors cursor-pointer"
+                  title="Close (Esc)"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3 mt-3">
+                <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 border border-white/30 shadow-inner">
+                  <ClipboardCheck className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white leading-snug">
+                    Schedule Site Visit
+                  </h3>
+                  <p className="text-xs text-sky-100 font-medium">
+                    Set measurement date & dispatch WhatsApp message to group
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleConfirmSiteVisitSchedule} className="p-5 md:p-6 space-y-4">
+              {/* Project & Group metadata */}
+              <div className="bg-slate-50 rounded-2xl p-3 border border-slate-200/80 flex items-center justify-between text-xs">
+                <div>
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Project</span>
+                  <span className="font-bold text-slate-800">{projectCode || projectName || 'Alpha Project'}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Target WhatsApp Group</span>
+                  <span className="font-semibold text-emerald-700 flex items-center gap-1 justify-end">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    {whatsappGroupName || 'Dedicated Project Group'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Informational context */}
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Schedule the site visit for technical measurement and inspection. The approved WhatsApp notification with the scheduled date and time will be automatically dispatched to the client group.
+              </p>
+
+              {/* Date & Time Inputs */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label htmlFor="site-visit-date-input" className="block text-xs font-bold text-slate-800">
+                    Site Visit Date <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    id="site-visit-date-input"
+                    type="date"
+                    required
+                    value={siteVisitDateInput}
+                    onChange={(e) => {
+                      setSiteVisitDateInput(e.target.value);
+                      if (siteVisitInputError) setSiteVisitInputError('');
+                    }}
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500 transition-all shadow-2xs"
+                    disabled={isSubmittingSiteVisit}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="site-visit-time-input" className="block text-xs font-bold text-slate-800">
+                    Site Visit Time <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    id="site-visit-time-input"
+                    type="text"
+                    required
+                    value={siteVisitTimeInput}
+                    onChange={(e) => {
+                      setSiteVisitTimeInput(e.target.value);
+                      if (siteVisitInputError) setSiteVisitInputError('');
+                    }}
+                    placeholder="e.g. 11:00 AM"
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500 transition-all shadow-2xs"
+                    disabled={isSubmittingSiteVisit}
+                  />
+                </div>
+              </div>
+
+              {siteVisitInputError && (
+                <p className="text-xs text-rose-600 font-semibold flex items-center gap-1.5 bg-rose-50 border border-rose-200/80 px-3 py-1.5 rounded-xl">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{siteVisitInputError}</span>
+                </p>
+              )}
+
+              {/* WhatsApp Template Message Live Preview */}
+              <div className="space-y-1.5 pt-1">
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  <span className="flex items-center gap-1.5">
+                    <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                    WhatsApp Template Preview
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">SITE_VISIT_SCHEDULE_PM</span>
+                </div>
+                <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-2xl p-4 text-xs text-slate-800 space-y-2 relative shadow-2xs font-sans">
+                  <div className="text-emerald-950 leading-relaxed whitespace-pre-line">
+                    Dear Sir/Madam,
+                    {'\n\n'}Your site visit has been scheduled for{' '}
+                    <span className="font-bold bg-amber-200/80 text-amber-950 px-1.5 py-0.5 rounded border border-amber-300 inline-block">
+                      {siteVisitDateInput ? new Date(siteVisitDateInput).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '[Date]'}
+                    </span>{' '}
+                    at{' '}
+                    <span className="font-bold bg-amber-200/80 text-amber-950 px-1.5 py-0.5 rounded border border-amber-300 inline-block">
+                      {siteVisitTimeInput.trim() || '[Time]'}
+                    </span>
+                    . Our technical team will visit the site for measurement and inspection.
+                    {'\n'}Kindly ensure site accessibility during the scheduled time.
+                    {'\n\n'}Regards,{'\n'}Alpha Elevators Team
+                  </div>
+                  <div className="text-[10px] text-emerald-700/80 text-right font-medium">
+                    ✓✓ Automated Group Delivery
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={isSubmittingSiteVisit}
+                  onClick={() => setShowSiteVisitModal(false)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingSiteVisit}
+                  className="px-5 py-2.5 rounded-xl text-xs font-black text-white bg-gradient-to-r from-blue-600 via-sky-600 to-blue-600 hover:from-blue-500 hover:to-sky-500 shadow-md shadow-blue-600/20 active:scale-95 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {isSubmittingSiteVisit ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                      <span>Scheduling & Notifying...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Confirm Schedule & Send to Group</span>
                     </>
                   )}
                 </button>

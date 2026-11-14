@@ -173,12 +173,16 @@ export default function ProjectDetailPage() {
     }
   };
 
-  const handleDateChange = async (stageKey: string, type: 'scheduleDate' | 'executedDate', date: string) => {
+  const handleDateChange = async (stageKey: string, type: 'scheduleDate' | 'executedDate', date: string, time?: string) => {
     try {
       const scheduleDate = type === 'scheduleDate' ? date : undefined;
       const executedDate = type === 'executedDate' ? date : undefined;
-      await api.updateProjectStageDates(projectId, stageKey, scheduleDate, executedDate);
+      const res = await api.updateProjectStageDates(projectId, stageKey, scheduleDate, executedDate, time);
       
+      if (stageKey === 'SITE_MEASUREMENT' && scheduleDate) {
+        toast.success(res?.message || 'Site visit scheduled and notification dispatched to WhatsApp group!');
+      }
+
       // Auto-advance to next stage if executed date is provided
       if (type === 'executedDate' && date) {
         const currentIndex = STAGES_ORDER.findIndex(s => s.key === stageKey);

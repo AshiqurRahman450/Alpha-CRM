@@ -520,10 +520,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ productionTimelineDays, notes }),
     }),
-  updateProjectStageDates: (id: string, stageKey: string, scheduleDate?: string | null, executedDate?: string | null) =>
+  updateProjectStageDates: (id: string, stageKey: string, scheduleDate?: string | null, executedDate?: string | null, time?: string | null) =>
     fetchWithAuth(`/api/projects/${id}/stage-dates`, {
       method: 'PATCH',
-      body: JSON.stringify({ stageKey, scheduleDate, executedDate }),
+      body: JSON.stringify({ stageKey, scheduleDate, executedDate, time }),
     }),
   updateProjectStageDatesBulk: (id: string, updates: { stageKey: string, scheduleDate?: string | null, executedDate?: string | null }[]) =>
     fetchWithAuth(`/api/projects/${id}/stage-dates-bulk`, {

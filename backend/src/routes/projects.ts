@@ -209,6 +209,137 @@ async function sendBdmApprovalNotification(project: any, currentUserId?: any, cu
 }
 
 /**
+ * Automatically dispatches the "Site Visit Scheduled" message to customer's WhatsApp group
+ * when site visit schedule date is set.
+ */
+export async function dispatchSiteVisitScheduledMessage(
+  project: any,
+  scheduleDateVal: string | Date,
+  timeVal?: string | null,
+  user?: any
+): Promise<{ success: boolean; sentViaBot: boolean; formattedDate: string; formattedTime: string; error?: string }> {
+  try {
+    const inviteTarget = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
+    if (!inviteTarget) {
+      console.log(`[SiteVisitScheduled] No WhatsApp group linked for project ${project.projectId}`);
+      return { success: false, sentViaBot: false, formattedDate: '', formattedTime: '', error: 'No WhatsApp group linked' };
+    }
+
+    // Format Date: e.g. "16 Nov 2026"
+    const d = new Date(scheduleDateVal);
+    const formattedDate = !isNaN(d.getTime())
+      ? d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+      : String(scheduleDateVal);
+
+    // Format Time: e.g. "11:00 AM"
+    let formattedTime = timeVal?.trim();
+    if (!formattedTime) {
+      if (typeof scheduleDateVal === 'string' && scheduleDateVal.includes('T')) {
+        const timePart = scheduleDateVal.split('T')[1];
+        if (timePart && !timePart.startsWith('00:00')) {
+          const [hh, mm] = timePart.split(':');
+          const hourNum = parseInt(hh, 10);
+          const ampm = hourNum >= 12 ? 'PM' : 'AM';
+          const hour12 = hourNum % 12 || 12;
+          formattedTime = `${String(hour12).padStart(2, '0')}:${mm.slice(0, 2)} ${ampm}`;
+        }
+      }
+    }
+    if (!formattedTime) {
+      formattedTime = '11:00 AM';
+    }
+
+    // Idempotency check: don't dispatch duplicate message within 15 seconds
+    const recentLog = await WhatsAppMessage.findOne({
+      projectId: project._id,
+      templateName: 'SITE_VISIT_SCHEDULE_PM',
+      createdAt: { $gte: new Date(Date.now() - 15000) },
+    });
+    if (recentLog) {
+      return { success: true, sentViaBot: recentLog.status === 'SENT', formattedDate, formattedTime };
+    }
+
+    const defaultTemplate = `Dear Sir/Madam,
+
+Your site visit has been scheduled for [Date] at [Time]. Our technical team will visit the site for measurement and inspection.
+Kindly ensure site accessibility during the scheduled time.
+
+Regards,
+Alpha Elevators Team`;
+
+    const template = await WhatsAppTemplate.findOne({ templateName: 'SITE_VISIT_SCHEDULE_PM', templateStatus: 'APPROVED' });
+    let rawText = template?.bodyText || defaultTemplate;
+    if (!rawText.includes('Your site visit has been scheduled for')) {
+      rawText = defaultTemplate;
+    }
+
+    const messageText = rawText
+      .replace(/\[Date\]/gi, formattedDate)
+      .replace(/\[Time\]/gi, formattedTime);
+
+    const botStatus = whatsAppWebBot.getStatus();
+    let sentViaBot = false;
+    let providerMsgId = `SV_SCHED_${Date.now()}`;
+
+    if (botStatus.isConnected) {
+      const botResult = await whatsAppWebBot.sendMessageToGroup(inviteTarget, messageText);
+      if (botResult.success) {
+        sentViaBot = true;
+        providerMsgId = botResult.messageId || providerMsgId;
+      }
+    }
+
+    // Record WhatsApp message log
+    await WhatsAppMessageLog.create({
+      projectId: project._id,
+      groupId: inviteTarget,
+      messageText,
+      messageType: 'text',
+      scheduledAt: new Date(),
+      attemptedAt: new Date(),
+      sentAt: sentViaBot ? new Date() : undefined,
+      providerMessageId: providerMsgId,
+      status: sentViaBot ? 'SENT' : 'AWAITING_PROVIDER_CAPABILITY',
+      attemptCount: 1,
+      isDryRun: false,
+    });
+
+    // Record WhatsAppMessage for UI
+    const customer = (project.customerId as any)?._id ? project.customerId : await Customer.findById(project.customerId);
+    await WhatsAppMessage.create({
+      projectId: project._id,
+      projectCode: project.projectId,
+      customerId: project.customerId,
+      customerName: customer?.fullName || 'Customer',
+      groupId: inviteTarget,
+      templateName: 'SITE_VISIT_SCHEDULE_PM',
+      messageType: 'template',
+      recipientType: 'group',
+      direction: 'OUTGOING',
+      messageContent: messageText,
+      status: sentViaBot ? 'SENT' : 'AWAITING_PROVIDER_CAPABILITY',
+      isAutomated: true,
+      idempotencyKey: `SV_SCHEDULED_${project.projectId}_${Date.now()}`,
+    });
+
+    await logProjectActivity({
+      projectId: project._id,
+      projectCode: project.projectId,
+      type: 'WHATSAPP_SENT',
+      description: `Site visit scheduled notification dispatched to group (${project.whatsappGroupName || inviteTarget}) for ${formattedDate} at ${formattedTime}`,
+      userId: user?._id,
+      userName: user?.name,
+    });
+    console.log(`[SiteVisitScheduled] WhatsApp message dispatched for project ${project.projectId}: ${formattedDate} at ${formattedTime}`);
+
+    return { success: true, sentViaBot, formattedDate, formattedTime };
+  } catch (err: any) {
+    console.error('[SiteVisitScheduled] Failed to dispatch site visit scheduled message:', err);
+    return { success: false, sentViaBot: false, formattedDate: '', formattedTime: '', error: err.message };
+  }
+}
+
+/**
  * Automatically dispatches the "Site Visit Completed" message to customer's WhatsApp group
  * when site measurement is executed.
  */
@@ -1169,7 +1300,7 @@ projectRouter.post('/:id/drawing-approved', authorize('ADMIN', 'CRM', 'MANAGER',
  */
 projectRouter.patch('/:id/stage-dates', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'TECHNICAL_LEAD', 'TECHNICAL_MANAGER', 'LOGISTICS', 'LOGISTICS_TL'), async (req: AuthRequest, res: Response) => {
   try {
-    const { stageKey, scheduleDate, executedDate } = req.body;
+    const { stageKey, scheduleDate, executedDate, time } = req.body;
     if (!stageKey) {
       return res.status(400).json({ success: false, message: 'stageKey is required' });
     }
@@ -1210,20 +1341,41 @@ projectRouter.patch('/:id/stage-dates', authorize('ADMIN', 'CRM', 'MANAGER', 'BD
       currentDates.executedDate = executedDate ? new Date(executedDate) : null;
     }
 
+    if (time !== undefined) {
+      currentDates.scheduleTime = time ? String(time).trim() : null;
+    }
+
     project.stageDates.set(stageKey, currentDates);
     await project.save();
+
+    let groupMessageDispatched = false;
+    let groupMessageError: string | null = null;
+    let resultMessage = 'Stage dates updated successfully';
 
     if (stageKey === 'PAYMENT_RECEIVED' && executedDate) {
       await triggerAdvancePaymentReminderForCRM(project._id);
     } else if (stageKey === 'SITE_MEASUREMENT' && scheduleDate) {
       await dismissScheduleDateRemindersForProject(project._id);
+      const schedRes = await dispatchSiteVisitScheduledMessage(project, scheduleDate, time || currentDates.scheduleTime, req.user);
+      if (schedRes?.success) {
+        groupMessageDispatched = schedRes.sentViaBot;
+        resultMessage = `Site visit scheduled for ${schedRes.formattedDate} at ${schedRes.formattedTime} and WhatsApp notification sent to group!`;
+      } else if (schedRes?.error) {
+        groupMessageError = schedRes.error;
+      }
     }
 
     if (stageKey === 'SITE_MEASUREMENT' && executedDate) {
       await dispatchSiteVisitCompletedMessage(project, req.user);
     }
 
-    return res.json({ success: true, data: project });
+    return res.json({
+      success: true,
+      data: project,
+      groupMessageDispatched,
+      groupMessageError,
+      message: resultMessage,
+    });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -1288,6 +1440,15 @@ projectRouter.patch('/:id/stage-dates-bulk', authorize('ADMIN', 'CRM', 'MANAGER'
     }
     if (hasSiteVisitScheduled) {
       await dismissScheduleDateRemindersForProject(project._id);
+      const siteMeasurementUpdate = updates.find((u: any) => u.stageKey === 'SITE_MEASUREMENT' && u.scheduleDate);
+      if (siteMeasurementUpdate) {
+        await dispatchSiteVisitScheduledMessage(
+          project,
+          siteMeasurementUpdate.scheduleDate,
+          (siteMeasurementUpdate as any).time,
+          req.user
+        );
+      }
     }
     if (hasSiteVisitExecuted) {
       await dispatchSiteVisitCompletedMessage(project, req.user);

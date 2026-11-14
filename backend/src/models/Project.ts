@@ -105,7 +105,7 @@ export interface IProject extends Document {
     updatedAt?: Date;
   };
 
-  stageDates?: Map<string, { scheduleDate?: Date | null; executedDate?: Date | null }>;
+  stageDates?: Map<string, { scheduleDate?: Date | null; executedDate?: Date | null; scheduleTime?: string | null }>;
 
   installationStages?: IInstallationStage[];
 
@@ -445,6 +445,7 @@ const ProjectSchema = new Schema<IProject>(
         {
           scheduleDate: { type: Date, default: null },
           executedDate: { type: Date, default: null },
+          scheduleTime: { type: String, default: null },
         },
         { _id: false }
       ),
