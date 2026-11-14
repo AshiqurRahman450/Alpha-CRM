@@ -350,7 +350,7 @@ export async function generateQCReportPdf(
         { key: 'A', oldKey: 'G', label: 'A-Side (Front/Door)' },
         { key: 'B', oldKey: 'A', label: 'B-Side (Back)' },
         { key: 'C', oldKey: 'B', label: 'C-Side (Right)' },
-        { key: 'D', oldKey: 'C', label: 'D-Side (Left)' },
+        { key: 'D', oldKey: 'G', label: 'G-Side (Left)' },
       ];
 
       const wallColW = (523 - 110) / stops;
@@ -373,7 +373,7 @@ export async function generateQCReportPdf(
 
         for (let i = 0; i < stops; i++) {
           const x = 36 + 110 + i * wallColW;
-          const val = ws[`wallFloor${i}${key}`] || ws[`wallFloor${i}${oldKey}`] || '9-inch Brick Wall';
+          const val = ws[`wallFloor${i}${key}`] || ws[`wallFloor${i}${oldKey}`] || ws[`wallFloor${i}C`] || '9-inch Brick Wall';
           doc.fillColor(darkSlate).font(fontRegular).fontSize(7).text(val, x + 2, currentY + 4, { width: wallColW - 4, align: 'center' });
         }
         currentY += 16;

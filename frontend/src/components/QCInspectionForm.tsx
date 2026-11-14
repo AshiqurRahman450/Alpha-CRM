@@ -1645,7 +1645,7 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
                 { key: 'A', oldKey: 'G', label: 'A-Side (Front/Door)' },
                 { key: 'B', oldKey: 'A', label: 'B-Side (Back)' },
                 { key: 'C', oldKey: 'B', label: 'C-Side (Right)' },
-                { key: 'D', oldKey: 'C', label: 'D-Side (Left)' },
+                { key: 'D', oldKey: 'G', label: 'G-Side (Left)' },
               ].map(({ key, oldKey, label }) => {
                 return (
                   <tr key={key} className="hover:bg-slate-50/70">
@@ -1656,7 +1656,7 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
                       return (
                         <td key={i} className="p-2">
                           <select
-                            value={wallSpecs[specKey] || wallSpecs[oldSpecKey] || '9-inch Brick Wall'}
+                            value={wallSpecs[specKey] || wallSpecs[oldSpecKey] || wallSpecs[`wallFloor${i}C`] || '9-inch Brick Wall'}
                             onChange={(e) => handleWallSpecChange(specKey, e.target.value)}
                             className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
                           >
