@@ -958,6 +958,13 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
       const customerName = customer.fullName || customer.name || p.projectName || 'N/A';
       const projectCode = p.projectId || 'N/A';
       const projectName = p.projectName || 'Elevator Project';
+      const phoneNumber = customer.phoneNumber || '';
+      const whatsappNumber = customer.whatsappNumber || customer.phoneNumber || '';
+      const email = customer.email || '';
+      const siteAddress = p.siteAddress || customer.address || '';
+      const liftModel = p.liftModel || 'Elevator';
+      const numberOfFloors = p.numberOfFloors || '';
+      const shaftModel = p.shaftModel || '';
       const trackingNumber = p.vrlLrNumber || p.trackingNumber || '';
       const curStageLabel = formatStageLabel(p.projectStatus);
       const assignedExec = p.assignedEmployee || customer.assignedEmployee || p.projectExecutive || '';
@@ -969,6 +976,12 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
           'Customer Name': customerName,
           'Project Code': projectCode,
           'Project Name': projectName,
+          'Phone Number': phoneNumber,
+          'WhatsApp Number': whatsappNumber,
+          'Email': email,
+          'Site Address': siteAddress,
+          'Lift Model': liftModel,
+          'Number of Floors': numberOfFloors,
           'Current Stage': curStageLabel,
           'Stage': st.label,
           'Schedule Date': datesObj?.scheduleDate ? formatDate(datesObj.scheduleDate) : '',
@@ -993,14 +1006,18 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
         'Customer Name': customerName,
         'Project Code': projectCode,
         'Project Name': projectName,
+        'Phone Number': phoneNumber,
+        'WhatsApp Number': whatsappNumber,
+        'Email': email,
+        'Site Address': siteAddress,
+        'Lift Model': liftModel,
+        'Shaft Model': shaftModel,
+        'Number of Floors': numberOfFloors,
         'Current Stage': curStageLabel,
         'Schedule Date': curDates?.scheduleDate ? formatDate(curDates.scheduleDate) : '',
         'Executed Date': curDates?.executedDate ? formatDate(curDates.executedDate) : '',
         'Schedule Time': curDates?.scheduleTime || '',
         'VRL Tracking Number': trackingNumber,
-        'Lift Model': p.liftModel || 'Elevator',
-        'Shaft Model': p.shaftModel || '',
-        'Site Address': p.siteAddress || '',
         'Assigned Executive': assignedExec,
       });
 
@@ -1011,6 +1028,11 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
             'Customer Name': customerName,
             'Project Code': projectCode,
             'Project Name': projectName,
+            'Phone Number': phoneNumber,
+            'WhatsApp Number': whatsappNumber,
+            'Site Address': siteAddress,
+            'Lift Model': liftModel,
+            'Number of Floors': numberOfFloors,
             'Sl No': inst.slNo,
             'Installation Stage': inst.stageName,
             'Start Date': inst.startDate ? formatDate(inst.startDate) : '',
@@ -1029,6 +1051,12 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
         'Customer Name': '',
         'Project Code': '',
         'Project Name': '',
+        'Phone Number': '',
+        'WhatsApp Number': '',
+        'Email': '',
+        'Site Address': '',
+        'Lift Model': '',
+        'Number of Floors': '',
         'Current Stage': '',
         'Stage': '',
         'Schedule Date': '',
@@ -1044,14 +1072,18 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
         'Customer Name': '',
         'Project Code': '',
         'Project Name': '',
+        'Phone Number': '',
+        'WhatsApp Number': '',
+        'Email': '',
+        'Site Address': '',
+        'Lift Model': '',
+        'Shaft Model': '',
+        'Number of Floors': '',
         'Current Stage': '',
         'Schedule Date': '',
         'Executed Date': '',
         'Schedule Time': '',
         'VRL Tracking Number': '',
-        'Lift Model': '',
-        'Shaft Model': '',
-        'Site Address': '',
         'Assigned Executive': '',
       },
     ];
@@ -1063,6 +1095,12 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
       { wch: 28 }, // Customer Name
       { wch: 16 }, // Project Code
       { wch: 26 }, // Project Name
+      { wch: 16 }, // Phone Number
+      { wch: 16 }, // WhatsApp Number
+      { wch: 24 }, // Email
+      { wch: 35 }, // Site Address
+      { wch: 24 }, // Lift Model
+      { wch: 16 }, // Number of Floors
       { wch: 32 }, // Current Stage
       { wch: 35 }, // Stage
       { wch: 18 }, // Schedule Date
@@ -1078,14 +1116,18 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
       { wch: 28 }, // Customer Name
       { wch: 16 }, // Project Code
       { wch: 26 }, // Project Name
+      { wch: 16 }, // Phone Number
+      { wch: 16 }, // WhatsApp Number
+      { wch: 24 }, // Email
+      { wch: 35 }, // Site Address
+      { wch: 24 }, // Lift Model
+      { wch: 18 }, // Shaft Model
+      { wch: 16 }, // Number of Floors
       { wch: 32 }, // Current Stage
       { wch: 18 }, // Schedule Date
       { wch: 18 }, // Executed Date
       { wch: 16 }, // Schedule Time
       { wch: 22 }, // VRL Tracking Number
-      { wch: 24 }, // Lift Model
-      { wch: 18 }, // Shaft Model
-      { wch: 35 }, // Site Address
       { wch: 22 }, // Assigned Executive
     ];
     XLSX.utils.book_append_sheet(workbook, wsSummary, 'Current Stage Summary');
@@ -1096,6 +1138,11 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
         { wch: 28 }, // Customer Name
         { wch: 16 }, // Project Code
         { wch: 26 }, // Project Name
+        { wch: 16 }, // Phone Number
+        { wch: 16 }, // WhatsApp Number
+        { wch: 35 }, // Site Address
+        { wch: 24 }, // Lift Model
+        { wch: 16 }, // Number of Floors
         { wch: 10 }, // Sl No
         { wch: 45 }, // Installation Stage
         { wch: 16 }, // Start Date
