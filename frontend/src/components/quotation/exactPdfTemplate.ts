@@ -80,14 +80,7 @@ export function sanitizeProposalParagraphs(html: string, pageNum: number, data?:
 
   // ===================== PAGE 3 =====================
   if (pageNum === 3 || updated.includes('id="p2"')) {
-    const cabinWallsVal = safeData.cabinWalls || 'SS Cabin';
-    const centeredCabinWalls = `<div class="t c15" style="position:absolute;left:275px;width:440px;top:806.2px;text-align:center;font-family:'f1',sans-serif;font-size:13.5px;color:#000000;z-index:159;">${cabinWallsVal}</div>`;
-    const cabinWallsRegex = /<div class="t c15" style="(?:z-index:159;transform:matrix\(1,0,0,1,490\.24,806\.2\)|position:absolute;left:275px;width:440px;top:806\.2px;[^"]*)">[\s\S]*?<\/div>/;
-    if (cabinWallsRegex.test(updated)) {
-      updated = updated.replace(cabinWallsRegex, centeredCabinWalls);
-    } else {
-      updated = updated.replace('<div class="t c15" style="z-index:159;transform:matrix(1,0,0,1,490.24,806.2)">SS Cabin</div>', centeredCabinWalls);
-    }
+    updated = buildPage3TablesHtml(updated, safeData);
 
     // Ensure model name has same font color as Offer No (#1a3f2e)
     updated = updated.replace(/<div class="t c9" style="z-index:791;transform:matrix\(1,0,0,1,310\.59,191\.55\)[^"]*">/g, '<div class="t c9" style="z-index:791;transform:matrix(1,0,0,1,310.59,191.55);color:#000000 !important;">');
@@ -931,6 +924,124 @@ export function buildPage2LetterHtml(html: string, data?: QuotationData): string
   return html;
 }
 
+export function buildPage3TablesHtml(html: string, data?: QuotationData): string {
+  if (!html) return html;
+
+  const isEv = Boolean(
+    (data?.model && /\bEV\b|home\s*EV|battery/i.test(data.model)) || (data?.battery && data.battery.trim() !== '')
+  );
+  const rowH = isEv ? '37.2px' : '39.85px';
+  const fontSize = isEv ? '12px' : '12.5px';
+
+  const civilTableHtml = `<!-- START_PAGE3_SPEC_TABLES -->
+<div class="page3-table-mask" style="position:absolute;left:50px;top:405px;width:675px;height:595px;background:#ffffff;z-index:40;pointer-events:none;"></div>
+
+<div class="page3-civil-title" style="position:absolute;left:58.25px;top:412px;font-family:'f1',sans-serif;font-size:14.5px;font-weight:bold;color:#000000;z-index:50;">Civil Specifications:</div>
+
+<table class="page3-civil-spec-table" style="position:absolute;left:58.25px;top:438px;width:655.5px;border-collapse:collapse;background:#ffffff;z-index:50;border:1px solid #000000;box-sizing:border-box;">
+<tbody>
+<tr style="height:${rowH};border-bottom:1px solid #000000;">
+<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">Clear Hoist Way/ Shaft Size</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">${data?.hoistWayShaftSize || '1450mm X 1800mm'}</td>
+</tr>
+<tr style="height:${rowH};border-bottom:1px solid #000000;">
+<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">Pit Depth</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">${data?.pitDepth || '250mm'}</td>
+</tr>
+<tr style="height:${rowH};border-bottom:1px solid #000000;">
+<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">Min Floor Height</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">${data?.minFloorHeight || '3000mm'}</td>
+</tr>
+<tr style="height:${rowH};border-bottom:1px solid #000000;">
+<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">Final Stop</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">${data?.finalStop || '3300mm'}</td>
+</tr>
+<tr style="height:${rowH};">
+<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">Lockable Storage Room</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">${data?.lockableStorageRoom || 'To be located in the ground floor'}</td>
+</tr>
+</tbody>
+</table>
+
+<div class="page3-cabin-title" style="position:absolute;left:58.25px;top:675px;font-family:'f1',sans-serif;font-size:14.5px;font-weight:bold;color:#000000;z-index:50;">Cabin Specifications:</div>
+
+<table class="page3-cabin-spec-table" style="position:absolute;left:58.25px;top:703px;width:655.5px;border-collapse:collapse;background:#ffffff;z-index:50;border:1px solid #000000;box-sizing:border-box;">
+<tbody>
+<tr style="height:${rowH};border-bottom:1px solid #000000;">
+<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">Cabin Walls</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">${data?.cabinWalls || 'SS Cabin'}</td>
+</tr>
+<tr style="height:${rowH};border-bottom:1px solid #000000;">
+<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">CABIN Floor</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">${data?.cabinFloor || "Vinyl or Client's own Flooring"}</td>
+</tr>
+<tr style="height:${rowH};border-bottom:1px solid #000000;">
+<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">Ceiling</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">${data?.ceiling || 'As per cabin design'}</td>
+</tr>
+<tr style="height:${rowH};">
+<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">COP &amp; LOP</td>
+<td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">${data?.copAndLop || 'Touch'}</td>
+</tr>
+</tbody>
+</table>
+<!-- END_PAGE3_SPEC_TABLES -->`;
+
+  if (html.includes('<!-- START_PAGE3_SPEC_TABLES -->')) {
+    const s = html.indexOf('<!-- START_PAGE3_SPEC_TABLES -->');
+    const e = html.indexOf('<!-- END_PAGE3_SPEC_TABLES -->');
+    if (s !== -1 && e !== -1) {
+      html = html.substring(0, s) + civilTableHtml + html.substring(e + '<!-- END_PAGE3_SPEC_TABLES -->'.length);
+      return html;
+    }
+  }
+
+  // Remove old scattered table text divs if present
+  html = html.replace(/<div class="t c8"[^>]*>Civil Specifications:<\/div>/g, '');
+  html = html.replace(/<div class="t c8"[^>]*>Cabin Specifications:<\/div>/g, '');
+  html = html.replace(/<div class="t c13"[^>]*>Clear Hoist Way[\s\S]*?<\/div>/g, '');
+  html = html.replace(/<div class="t c16" style="[^"]*443\.39,479\.06[^"]*">[\s\S]*?<\/div>/g, '');
+  html = html.replace(/<div class="t c16"[^>]*>1450mm X 1800mm<\/div>/g, '');
+  html = html.replace(/<div class="t c13"[^>]*>Pit Depth<\/div>/g, '');
+  html = html.replace(/<div class="t c16" style="[^"]*489\.12,528\.02[^"]*">[\s\S]*?<\/div>/g, '');
+  html = html.replace(/<div class="t c16"[^>]*>250mm<\/div>/g, '');
+  html = html.replace(/<div class="t c13"[^>]*>Min Floor Height<\/div>/g, '');
+  html = html.replace(/<div class="t c16" style="[^"]*483\.61,577\.04[^"]*">[\s\S]*?<\/div>/g, '');
+  html = html.replace(/<div class="t c16"[^>]*>3000mm<\/div>/g, '');
+  html = html.replace(/<div class="t c13"[^>]*>Final<\/div>/g, '');
+  html = html.replace(/<div class="t c13"[^>]*>Stop<\/div>/g, '');
+  html = html.replace(/<div class="t c16" style="[^"]*483\.75,626\.07[^"]*">[\s\S]*?<\/div>/g, '');
+  html = html.replace(/<div class="t c16"[^>]*>3300mm<\/div>/g, '');
+  html = html.replace(/<div class="t c13"[^>]*>Lockable<\/div>/g, '');
+  html = html.replace(/<div class="t c13"[^>]*>Storage<\/div>/g, '');
+  html = html.replace(/<div class="t c13"[^>]*>Room<\/div>/g, '');
+  html = html.replace(/<div class="t c16" style="[^"]*419\.84,687\.22[^"]*">[\s\S]*?<\/div>/g, '');
+  html = html.replace(/<div class="t c16"[^>]*>To be located in the (?:top|ground) floor<\/div>/g, '');
+  html = html.replace(/<div class="t c13"[^>]*>Cabin Walls\s*<\/div>/g, '');
+  html = html.replace(/<div class="t c15" style="[^"]*490\.24,806\.2[^"]*">[\s\S]*?<\/div>/g, '');
+  html = html.replace(/<div class="t c15" style="[^"]*left:275px;width:440px;top:806\.2px[^"]*">[\s\S]*?<\/div>/g, '');
+  html = html.replace(/<div class="t c15"[^>]*>SS Cabin<\/div>/g, '');
+  html = html.replace(/<div class="t c13"[^>]*>CABIN Floor\s*<\/div>/g, '');
+  html = html.replace(/<div class="t c15" style="[^"]*411\.33,855\.22[^"]*">[\s\S]*?<\/div>/g, '');
+  html = html.replace(/<div class="t c15"[^>]*>Vinyl or Client’s own Flooring<\/div>/g, '');
+  html = html.replace(/<div class="t c13"[^>]*>Ceiling<\/div>/g, '');
+  html = html.replace(/<div class="t c15" style="[^"]*445\.73,904\.24[^"]*">[\s\S]*?<\/div>/g, '');
+  html = html.replace(/<div class="t c15"[^>]*>As per cabin design<\/div>/g, '');
+  html = html.replace(/<div class="t c13"[^>]*>COP &amp; LOP\s*<\/div>/g, '');
+  html = html.replace(/<div class="t c15" style="[^"]*492\.77,953\.27[^"]*">[\s\S]*?<\/div>/g, '');
+  html = html.replace(/<div class="t c15"[^>]*>Touch<\/div>/g, '');
+  html = html.replace(/<div class="t c14" style="[^"]*(?:626\.07|685\.08)[^"]*">[\s\S]*?<\/div>/g, '');
+
+  const lastCloseDiv = html.lastIndexOf('</div>');
+  if (lastCloseDiv !== -1) {
+    html = html.substring(0, lastCloseDiv) + civilTableHtml + '\n' + html.substring(lastCloseDiv);
+  } else {
+    html += civilTableHtml;
+  }
+
+  return html;
+}
+
 export function buildPage5WarrantyHtml(text?: string): string {
   const cleanText = (text && text.trim()) ? text.trim() : (DEFAULT_QUOTATION_DATA.warranty || 'Lifetime- MOTOR WARRANTY, 5 years - manufacturing warranty + 1 Years Free Maintenance , 5 years Battery warranty ( 3 Years replaceable and 2 years service.');
   const boxStyle = "position:absolute;left:250px;top:677px;width:530px;height:48px;min-height:48px;line-height:15px;font-family:'f3','Segoe UI',Arial,sans-serif !important;font-size:11.5px;font-weight:600;color:#000000 !important;z-index:950;";
@@ -1100,29 +1211,7 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
       html = html.replace(/<div class="t c9" style="z-index:816;transform:matrix\(1,0,0,1,62\.53,216\.83\)[^"]*">/g, '<div class="t c9" style="z-index:816;transform:matrix(1,0,0,1,62.53,216.83);color:#000000 !important;">');
       html = html.replace(/<div class="t c17" style="z-index:729;transform:matrix\(1,0,0,1,346\.53,364\.86\)[^"]*">/g, '<div class="t c17" style="z-index:729;transform:matrix(1,0,0,1,346.53,364.86);color:#000000 !important;">');
     }
-    if (safeData.hoistWayShaftSize) html = html.replace('1450mm X 1800mm', safeData.hoistWayShaftSize);
-    if (safeData.pitDepth) {
-      html = html.replace(/<div class="t c16" style="z-index:142;transform:matrix\(1,0,0,1,489\.12,528\.02\)">[\s\S]*?<\/div>/, `<div class="t c16" style="z-index:142;transform:matrix(1,0,0,1,489.12,528.02)">${safeData.pitDepth}</div>`);
-      html = html.replace('250mm', safeData.pitDepth);
-    }
-    if (safeData.minFloorHeight) html = html.replace('3000mm', safeData.minFloorHeight);
-    if (safeData.finalStop) html = html.replace('3300mm', safeData.finalStop);
-    if (safeData.lockableStorageRoom) {
-      html = html.replace(/<div class="t c16" style="z-index:231;transform:matrix\(1,0,0,1,419\.84,687\.22\)">[\s\S]*?<\/div>/, `<div class="t c16" style="z-index:231;transform:matrix(1,0,0,1,419.84,687.22)">${safeData.lockableStorageRoom}</div>`);
-      html = html.replace(/To be located in the (top|ground) floor/i, safeData.lockableStorageRoom);
-    }
-    const cabinWallsVal = safeData.cabinWalls || 'SS Cabin';
-    const centeredCabinWalls = `<div class="t c15" style="position:absolute;left:275px;width:440px;top:806.2px;text-align:center;font-family:'f1',sans-serif;font-size:13.5px;color:#000000;z-index:159;">${cabinWallsVal}</div>`;
-    html = html.replace(/<div class="t c15" style="(?:z-index:159;transform:matrix\(1,0,0,1,490\.24,806\.2\)|position:absolute;left:275px;width:440px;top:806\.2px;[^"]*)">[\s\S]*?<\/div>/, centeredCabinWalls);
-    html = html.replace('<div class="t c15" style="z-index:159;transform:matrix(1,0,0,1,490.24,806.2)">SS Cabin</div>', centeredCabinWalls);
-    if (safeData.cabinFloor) html = html.replace('Vinyl or Client’s own Flooring', safeData.cabinFloor);
-    if (safeData.ceiling) html = html.replace('As per cabin design', safeData.ceiling);
-    if (safeData.copAndLop) {
-      html = html.replace(/<div class="t c15" style="z-index:137;transform:matrix\(1,0,0,1,492\.77,953\.27\)">[\s\S]*?<\/div>/, `<div class="t c15" style="z-index:137;transform:matrix(1,0,0,1,492.77,953.27)">${safeData.copAndLop}</div>`);
-      html = html.replace('>Touch<', `>${safeData.copAndLop}<`);
-    }
-
-    // Page 3: Clean original table formatting
+    html = buildPage3TablesHtml(html, safeData);
   } else if (pageIdx === 3) {
     // Page 4: Elevator & Door
     html = html.replace('AE/QTN/ AE-261026-131', safeData.offerNo || 'AE/QTN/ AE-261026-131');

@@ -6,6 +6,7 @@ import {
   renderExactPdfPage,
   sanitizeProposalParagraphs,
   buildPage2LetterHtml,
+  buildPage3TablesHtml,
   buildPage5WarrantyHtml,
   buildPage5PaymentTermsHtml,
   getClientSignatureHtml,
@@ -257,8 +258,11 @@ export default function QuotationLivePdf({
       }
     }
 
-    // Fix Page 3 Model Name Font Color
+    // Fix Page 3 Model Name Font Color & tables
     if (pageNum === 3 || updated.includes('id="p2"') || (updated.includes('Gearless Belt') && updated.includes('310.59,191.55'))) {
+      if (!updated.includes('Alpha Circle Elevator')) {
+        updated = buildPage3TablesHtml(updated, data);
+      }
       updated = updated.replace(/<div class="t c9" style="z-index:791;transform:matrix\(1,0,0,1,310\.59,191\.55\)[^"]*">/g, '<div class="t c9" style="z-index:791;transform:matrix(1,0,0,1,310.59,191.55);color:#000000 !important;">');
       updated = updated.replace(/<div class="t c9" style="z-index:816;transform:matrix\(1,0,0,1,62\.53,216\.83\)[^"]*">/g, '<div class="t c9" style="z-index:816;transform:matrix(1,0,0,1,62.53,216.83);color:#000000 !important;">');
       updated = updated.replace(/<div class="t c17" style="z-index:729;transform:matrix\(1,0,0,1,346\.53,364\.86\)[^"]*">/g, '<div class="t c17" style="z-index:729;transform:matrix(1,0,0,1,346.53,364.86);color:#000000 !important;">');
@@ -550,9 +554,9 @@ export default function QuotationLivePdf({
       return renderExactPdfPage(9, data);
     }
 
-    // Page 3: Clean original table formatting
-    if (pageNum === 3 && updated) {
-      updated = updated.replace(/<div class="page3-compact-civil-cabin-wrapper"[\s\S]*?<!-- END_PAGE3_TABLES -->/g, "");
+    // Page 3: Clean original table formatting and ensure tables match Page 4 row height
+    if (pageNum === 3 && updated && !updated.includes('Alpha Circle Elevator')) {
+      updated = buildPage3TablesHtml(updated, data);
     }
 
     // Ensure Client Signature block reflects the digital signature on Pages 2 to 8 and Page 10
@@ -1153,7 +1157,7 @@ export default function QuotationLivePdf({
               baseHtml = renderExactPdfPage(0, data);
             } else if (pageNum === 2 && (!isEditing || !baseHtml || baseHtml.includes('NK Group of Companies') || !baseHtml.includes('Where Vertical Mobility Meets Sophistication') || baseHtml.includes('top:490px') || baseHtml.includes('top:555px') || baseHtml.includes('40.63,555') || baseHtml.includes('40.63,697.85') || baseHtml.includes('Our Bangalore Manufacturing Facility'))) {
               baseHtml = renderExactPdfPage(1, data);
-            } else if (pageNum === 3 && (!isEditing || !baseHtml || baseHtml.includes('page3-compact-civil-cabin-wrapper') || baseHtml.includes('490.24,806.2') || !baseHtml.includes('color:#000000'))) {
+            } else if (pageNum === 3 && (!isEditing || !baseHtml || !baseHtml.includes('page3-civil-spec-table') || baseHtml.includes('page3-compact-civil-cabin-wrapper') || baseHtml.includes('490.24,806.2') || !baseHtml.includes('color:#000000'))) {
               baseHtml = renderExactPdfPage(2, data);
             } else if (pageNum === 5 && (!isEditing || !baseHtml || !baseHtml.includes('Elevator Price:') || !baseHtml.includes('Shaft Price:') || baseHtml.includes('Rs. 16,00,,000') || !baseHtml.includes('warranty-term-box'))) {
               baseHtml = renderExactPdfPage(4, data);
