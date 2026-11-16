@@ -953,42 +953,286 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
     // Sheet 3: Installation Programme Stages
     const installationRows: any[] = [];
 
+    const getAutoColumnWidths = (rows: any[]) => {
+      if (!rows || rows.length === 0) return [];
+      const colNames = Object.keys(rows[0]);
+      return colNames.map((key) => {
+        let maxLen = key.length;
+        const sampleCount = Math.min(rows.length, 100);
+        for (let i = 0; i < sampleCount; i++) {
+          const val = rows[i][key];
+          const strVal = val !== undefined && val !== null ? String(val) : '';
+          if (strVal.length > maxLen) {
+            maxLen = strVal.length;
+          }
+        }
+        return { wch: Math.min(Math.max(maxLen + 3, 14), 60) };
+      });
+    };
+
+    const getEmptyRecord = (withStageCols = false) => {
+      const base: Record<string, any> = {
+        'Customer Code': '',
+        'Customer Name': '',
+        'Project Code': '',
+        'Project Name': '',
+        'Current Stage': '',
+      };
+
+      if (withStageCols) {
+        base['Stage'] = '';
+        base['Schedule Date'] = '';
+        base['Executed Date'] = '';
+        base['Schedule Time'] = '';
+      } else {
+        base['Schedule Date'] = '';
+        base['Executed Date'] = '';
+        base['Schedule Time'] = '';
+      }
+
+      base['VRL Tracking Number'] = '';
+      base['Phone Number'] = '';
+      base['WhatsApp Number'] = '';
+      base['Email'] = '';
+      base['Door No'] = '';
+      base['Street Name'] = '';
+      base['Landmark'] = '';
+      base['City'] = '';
+      base['State'] = '';
+      base['Pincode'] = '';
+      base['Customer Address'] = '';
+      base['Customer Google Maps Link'] = '';
+      base['Site Address'] = '';
+      base['Site Google Maps Link'] = '';
+      base['Lift Model'] = '';
+      base['Lift Type'] = '';
+      base['Number of Floors'] = '';
+      base['Shaft Model'] = '';
+      base['Drawing URL'] = '';
+      base['Order Value'] = 0;
+      base['Lift Amount'] = 0;
+      base['Lift Base Amount'] = 0;
+      base['Lift Discount Amount'] = 0;
+      base['Shaft Amount'] = 0;
+      base['Shaft Base Amount'] = 0;
+      base['Shaft Discount Amount'] = 0;
+      base['Advance Percentage (%)'] = 0;
+      base['Advance Amount'] = 0;
+      base['Total Paid'] = 0;
+      base['Balance Amount'] = 0;
+      base['Payment Status'] = '';
+      base['Production Payment (%)'] = 0;
+      base['Readiness Notification (%)'] = 0;
+      base['Dispatch Materials (%)'] = 0;
+      base['After Installation (%)'] = 0;
+      base['Payment Request Status'] = '';
+      base['Payment Requested Amount'] = 0;
+      base['Payment Request Type'] = '';
+      base['Payment Requested By'] = '';
+      base['Order Date'] = '';
+      base['Expected Delivery Date'] = '';
+      base['Actual Delivery Date'] = '';
+      base['Installation Date'] = '';
+      base['Project Created Date'] = '';
+      base['Customer Created Date'] = '';
+      base['Assigned Executive'] = '';
+      base['Project Manager'] = '';
+      base['Project Executive'] = '';
+      base['Customer Assigned Employee'] = '';
+      base['BDM Phone'] = '';
+      base['WhatsApp Opt-In'] = '';
+      base['WhatsApp Opt-In Date'] = '';
+      base['WhatsApp Opt-In Source'] = '';
+      base['WhatsApp Group ID'] = '';
+      base['WhatsApp Group Name'] = '';
+      base['WhatsApp Automation Enabled'] = '';
+      base['Update Frequency (Days)'] = '';
+      base['Last Update Date'] = '';
+      base['Next Update Date'] = '';
+      base['Production Stage'] = '';
+      base['Production Timeline Days'] = '';
+      base['Escalation Matrix Sent'] = '';
+      base['Escalation Matrix Sent Date'] = '';
+      base['Pause Reason'] = '';
+      base['Postponed Until'] = '';
+      base['Customer Type'] = '';
+      base['Lead Source'] = '';
+      base['Old Customer'] = '';
+      base['Customer Notes'] = '';
+      base['Project Notes'] = '';
+
+      return base;
+    };
+
     for (const p of projects) {
       const customer = (p.customerId as any) || {};
+      const customerCode = customer.customerId || p.customerCode || 'N/A';
       const customerName = customer.fullName || customer.name || p.projectName || 'N/A';
-      const projectCode = p.projectId || 'N/A';
-      const projectName = p.projectName || 'Elevator Project';
       const phoneNumber = customer.phoneNumber || '';
       const whatsappNumber = customer.whatsappNumber || customer.phoneNumber || '';
       const email = customer.email || '';
+      const customerType = customer.customerType || 'Residential';
+      const leadSource = customer.leadSource || '';
+      const doorNo = customer.doorNo || '';
+      const streetName = customer.streetName || '';
+      const landmark = customer.landmark || '';
+      const city = customer.city || '';
+      const state = customer.state || '';
+      const pincode = customer.pincode || '';
+      const customerAddress = customer.address || '';
+      const customerGoogleMapsLink = customer.googleMapsLink || '';
+      const whatsappOptIn = customer.whatsappOptIn !== undefined ? (customer.whatsappOptIn ? 'Yes' : 'No') : '';
+      const whatsappOptInDate = customer.optInDate ? formatDate(customer.optInDate) : '';
+      const whatsappOptInSource = customer.optInSource || '';
+      const isOldCustomer = customer.isOldCustomer ? 'Yes' : 'No';
+      const customerNotes = customer.notes || '';
+      const customerCreatedAt = customer.createdAt ? formatDate(customer.createdAt) : '';
+
+      const projectCode = p.projectId || 'N/A';
+      const projectName = p.projectName || 'Elevator Project';
       const siteAddress = p.siteAddress || customer.address || '';
+      const siteGoogleMapsLink = p.googleMapsLink || '';
       const liftModel = p.liftModel || 'Elevator';
+      const liftType = p.liftType || '';
       const numberOfFloors = p.numberOfFloors || '';
       const shaftModel = p.shaftModel || '';
       const trackingNumber = p.vrlLrNumber || p.trackingNumber || '';
       const curStageLabel = formatStageLabel(p.projectStatus);
+      const drawingUrl = p.drawingUrl
+        ? (p.drawingUrl.startsWith('http') ? p.drawingUrl : `${config.frontendUrl || 'http://localhost:3000'}${p.drawingUrl}`)
+        : '';
+
+      const orderValue = p.orderValue !== undefined && p.orderValue !== null ? p.orderValue : 0;
+      const advancePercentage = p.advancePercentage !== undefined && p.advancePercentage !== null ? p.advancePercentage : 0;
+      const advanceAmount = p.advanceAmount !== undefined && p.advanceAmount !== null ? p.advanceAmount : 0;
+      const totalPaid = p.totalPaid !== undefined && p.totalPaid !== null ? p.totalPaid : 0;
+      const balanceAmount = p.balanceAmount !== undefined && p.balanceAmount !== null ? p.balanceAmount : Math.max(0, orderValue - totalPaid);
+      const paymentStatus = p.paymentStatus || 'PENDING';
+      const liftAmount = p.liftAmount !== undefined && p.liftAmount !== null ? p.liftAmount : 0;
+      const liftBaseAmount = p.liftBaseAmount !== undefined && p.liftBaseAmount !== null ? p.liftBaseAmount : 0;
+      const liftDiscountAmount = p.liftDiscountAmount !== undefined && p.liftDiscountAmount !== null ? p.liftDiscountAmount : 0;
+      const shaftAmount = p.shaftAmount !== undefined && p.shaftAmount !== null ? p.shaftAmount : 0;
+      const shaftBaseAmount = p.shaftBaseAmount !== undefined && p.shaftBaseAmount !== null ? p.shaftBaseAmount : 0;
+      const shaftDiscountAmount = p.shaftDiscountAmount !== undefined && p.shaftDiscountAmount !== null ? p.shaftDiscountAmount : 0;
+      const productionPaymentPercent = p.productionPaymentPercent !== undefined && p.productionPaymentPercent !== null ? p.productionPaymentPercent : 0;
+      const readinessNotificationPercent = p.readinessNotificationPercent !== undefined && p.readinessNotificationPercent !== null ? p.readinessNotificationPercent : 0;
+      const dispatchMaterialsPercent = p.dispatchMaterialsPercent !== undefined && p.dispatchMaterialsPercent !== null ? p.dispatchMaterialsPercent : 0;
+      const afterInstallationPercent = p.afterInstallationPercent !== undefined && p.afterInstallationPercent !== null ? p.afterInstallationPercent : 0;
+
+      const paymentRequestStatus = p.paymentRequest?.status || 'NONE';
+      const paymentRequestedAmount = p.paymentRequest?.requestedAmount !== undefined && p.paymentRequest?.requestedAmount !== null ? p.paymentRequest.requestedAmount : 0;
+      const paymentRequestType = p.paymentRequest?.paymentType || '';
+      const paymentRequestedBy = p.paymentRequest?.requestedBy || '';
+
+      const orderDate = p.orderDate ? formatDate(p.orderDate) : '';
+      const expectedDeliveryDate = p.expectedDeliveryDate ? formatDate(p.expectedDeliveryDate) : '';
+      const actualDeliveryDate = p.actualDeliveryDate ? formatDate(p.actualDeliveryDate) : '';
+      const installationDate = p.installationDate ? formatDate(p.installationDate) : '';
+      const projectCreatedAt = p.createdAt ? formatDate(p.createdAt) : '';
+
       const assignedExec = p.assignedEmployee || customer.assignedEmployee || p.projectExecutive || '';
+      const projectManager = p.projectManager || '';
+      const projectExecutive = p.projectExecutive || '';
+      const customerAssignedEmp = customer.assignedEmployee || '';
+      const bdmPhone = p.bdmPhone || customer.bdmPhone || '';
+
+      const whatsappGroupId = p.whatsappGroupId || p.whatsapp?.groupId || '';
+      const whatsappGroupName = p.whatsappGroupName || p.whatsapp?.groupName || '';
+      const automationEnabled = p.automationEnabled !== undefined ? (p.automationEnabled ? 'Yes' : 'No') : 'No';
+      const updateFrequencyDays = p.updateFrequencyDays || 20;
+      const lastUpdateAt = p.lastUpdateAt ? formatDate(p.lastUpdateAt) : '';
+      const nextUpdateAt = p.nextUpdateAt ? formatDate(p.nextUpdateAt) : '';
+      const productionStage = p.productionStage !== undefined && p.productionStage !== null ? p.productionStage : '';
+      const productionTimelineDays = p.productionTimelineDays !== undefined && p.productionTimelineDays !== null ? p.productionTimelineDays : '';
+      const escalationMatrixSent = p.escalationMatrixSent !== undefined ? (p.escalationMatrixSent ? 'Yes' : 'No') : 'No';
+      const escalationMatrixSentDate = p.escalationMatrixSentAt ? formatDate(p.escalationMatrixSentAt) : '';
+      const pauseReason = p.pauseReason || '';
+      const postponedUntil = p.postponedUntil ? formatDate(p.postponedUntil) : '';
+      const projectNotes = p.notes || '';
 
       // 1. All Stages Raw Data
       for (const st of MILESTONE_STAGES) {
         const datesObj = getStageDates(p, st.key, st.aliases);
         rawRows.push({
+          'Customer Code': customerCode,
           'Customer Name': customerName,
           'Project Code': projectCode,
           'Project Name': projectName,
-          'Phone Number': phoneNumber,
-          'WhatsApp Number': whatsappNumber,
-          'Email': email,
-          'Site Address': siteAddress,
-          'Lift Model': liftModel,
-          'Number of Floors': numberOfFloors,
           'Current Stage': curStageLabel,
           'Stage': st.label,
           'Schedule Date': datesObj?.scheduleDate ? formatDate(datesObj.scheduleDate) : '',
           'Executed Date': datesObj?.executedDate ? formatDate(datesObj.executedDate) : '',
           'Schedule Time': datesObj?.scheduleTime || '',
           'VRL Tracking Number': trackingNumber,
+          'Phone Number': phoneNumber,
+          'WhatsApp Number': whatsappNumber,
+          'Email': email,
+          'Door No': doorNo,
+          'Street Name': streetName,
+          'Landmark': landmark,
+          'City': city,
+          'State': state,
+          'Pincode': pincode,
+          'Customer Address': customerAddress,
+          'Customer Google Maps Link': customerGoogleMapsLink,
+          'Site Address': siteAddress,
+          'Site Google Maps Link': siteGoogleMapsLink,
+          'Lift Model': liftModel,
+          'Lift Type': liftType,
+          'Number of Floors': numberOfFloors,
+          'Shaft Model': shaftModel,
+          'Drawing URL': drawingUrl,
+          'Order Value': orderValue,
+          'Lift Amount': liftAmount,
+          'Lift Base Amount': liftBaseAmount,
+          'Lift Discount Amount': liftDiscountAmount,
+          'Shaft Amount': shaftAmount,
+          'Shaft Base Amount': shaftBaseAmount,
+          'Shaft Discount Amount': shaftDiscountAmount,
+          'Advance Percentage (%)': advancePercentage,
+          'Advance Amount': advanceAmount,
+          'Total Paid': totalPaid,
+          'Balance Amount': balanceAmount,
+          'Payment Status': paymentStatus,
+          'Production Payment (%)': productionPaymentPercent,
+          'Readiness Notification (%)': readinessNotificationPercent,
+          'Dispatch Materials (%)': dispatchMaterialsPercent,
+          'After Installation (%)': afterInstallationPercent,
+          'Payment Request Status': paymentRequestStatus,
+          'Payment Requested Amount': paymentRequestedAmount,
+          'Payment Request Type': paymentRequestType,
+          'Payment Requested By': paymentRequestedBy,
+          'Order Date': orderDate,
+          'Expected Delivery Date': expectedDeliveryDate,
+          'Actual Delivery Date': actualDeliveryDate,
+          'Installation Date': installationDate,
+          'Project Created Date': projectCreatedAt,
+          'Customer Created Date': customerCreatedAt,
           'Assigned Executive': assignedExec,
+          'Project Manager': projectManager,
+          'Project Executive': projectExecutive,
+          'Customer Assigned Employee': customerAssignedEmp,
+          'BDM Phone': bdmPhone,
+          'WhatsApp Opt-In': whatsappOptIn,
+          'WhatsApp Opt-In Date': whatsappOptInDate,
+          'WhatsApp Opt-In Source': whatsappOptInSource,
+          'WhatsApp Group ID': whatsappGroupId,
+          'WhatsApp Group Name': whatsappGroupName,
+          'WhatsApp Automation Enabled': automationEnabled,
+          'Update Frequency (Days)': updateFrequencyDays,
+          'Last Update Date': lastUpdateAt,
+          'Next Update Date': nextUpdateAt,
+          'Production Stage': productionStage,
+          'Production Timeline Days': productionTimelineDays,
+          'Escalation Matrix Sent': escalationMatrixSent,
+          'Escalation Matrix Sent Date': escalationMatrixSentDate,
+          'Pause Reason': pauseReason,
+          'Postponed Until': postponedUntil,
+          'Customer Type': customerType,
+          'Lead Source': leadSource,
+          'Old Customer': isOldCustomer,
+          'Customer Notes': customerNotes,
+          'Project Notes': projectNotes,
         });
       }
 
@@ -1003,36 +1247,103 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
       ]) : null;
 
       summaryRows.push({
+        'Customer Code': customerCode,
         'Customer Name': customerName,
         'Project Code': projectCode,
         'Project Name': projectName,
-        'Phone Number': phoneNumber,
-        'WhatsApp Number': whatsappNumber,
-        'Email': email,
-        'Site Address': siteAddress,
-        'Lift Model': liftModel,
-        'Shaft Model': shaftModel,
-        'Number of Floors': numberOfFloors,
         'Current Stage': curStageLabel,
         'Schedule Date': curDates?.scheduleDate ? formatDate(curDates.scheduleDate) : '',
         'Executed Date': curDates?.executedDate ? formatDate(curDates.executedDate) : '',
         'Schedule Time': curDates?.scheduleTime || '',
         'VRL Tracking Number': trackingNumber,
+        'Phone Number': phoneNumber,
+        'WhatsApp Number': whatsappNumber,
+        'Email': email,
+        'Door No': doorNo,
+        'Street Name': streetName,
+        'Landmark': landmark,
+        'City': city,
+        'State': state,
+        'Pincode': pincode,
+        'Customer Address': customerAddress,
+        'Customer Google Maps Link': customerGoogleMapsLink,
+        'Site Address': siteAddress,
+        'Site Google Maps Link': siteGoogleMapsLink,
+        'Lift Model': liftModel,
+        'Lift Type': liftType,
+        'Number of Floors': numberOfFloors,
+        'Shaft Model': shaftModel,
+        'Drawing URL': drawingUrl,
+        'Order Value': orderValue,
+        'Lift Amount': liftAmount,
+        'Lift Base Amount': liftBaseAmount,
+        'Lift Discount Amount': liftDiscountAmount,
+        'Shaft Amount': shaftAmount,
+        'Shaft Base Amount': shaftBaseAmount,
+        'Shaft Discount Amount': shaftDiscountAmount,
+        'Advance Percentage (%)': advancePercentage,
+        'Advance Amount': advanceAmount,
+        'Total Paid': totalPaid,
+        'Balance Amount': balanceAmount,
+        'Payment Status': paymentStatus,
+        'Production Payment (%)': productionPaymentPercent,
+        'Readiness Notification (%)': readinessNotificationPercent,
+        'Dispatch Materials (%)': dispatchMaterialsPercent,
+        'After Installation (%)': afterInstallationPercent,
+        'Payment Request Status': paymentRequestStatus,
+        'Payment Requested Amount': paymentRequestedAmount,
+        'Payment Request Type': paymentRequestType,
+        'Payment Requested By': paymentRequestedBy,
+        'Order Date': orderDate,
+        'Expected Delivery Date': expectedDeliveryDate,
+        'Actual Delivery Date': actualDeliveryDate,
+        'Installation Date': installationDate,
+        'Project Created Date': projectCreatedAt,
+        'Customer Created Date': customerCreatedAt,
         'Assigned Executive': assignedExec,
+        'Project Manager': projectManager,
+        'Project Executive': projectExecutive,
+        'Customer Assigned Employee': customerAssignedEmp,
+        'BDM Phone': bdmPhone,
+        'WhatsApp Opt-In': whatsappOptIn,
+        'WhatsApp Opt-In Date': whatsappOptInDate,
+        'WhatsApp Opt-In Source': whatsappOptInSource,
+        'WhatsApp Group ID': whatsappGroupId,
+        'WhatsApp Group Name': whatsappGroupName,
+        'WhatsApp Automation Enabled': automationEnabled,
+        'Update Frequency (Days)': updateFrequencyDays,
+        'Last Update Date': lastUpdateAt,
+        'Next Update Date': nextUpdateAt,
+        'Production Stage': productionStage,
+        'Production Timeline Days': productionTimelineDays,
+        'Escalation Matrix Sent': escalationMatrixSent,
+        'Escalation Matrix Sent Date': escalationMatrixSentDate,
+        'Pause Reason': pauseReason,
+        'Postponed Until': postponedUntil,
+        'Customer Type': customerType,
+        'Lead Source': leadSource,
+        'Old Customer': isOldCustomer,
+        'Customer Notes': customerNotes,
+        'Project Notes': projectNotes,
       });
 
       // 3. Installation Programme Stages
       if (p.installationStages && p.installationStages.length > 0) {
         for (const inst of p.installationStages) {
           installationRows.push({
+            'Customer Code': customerCode,
             'Customer Name': customerName,
             'Project Code': projectCode,
             'Project Name': projectName,
             'Phone Number': phoneNumber,
             'WhatsApp Number': whatsappNumber,
+            'Email': email,
             'Site Address': siteAddress,
             'Lift Model': liftModel,
+            'Lift Type': liftType,
             'Number of Floors': numberOfFloors,
+            'Shaft Model': shaftModel,
+            'Current Stage': curStageLabel,
             'Sl No': inst.slNo,
             'Installation Stage': inst.stageName,
             'Start Date': inst.startDate ? formatDate(inst.startDate) : '',
@@ -1041,117 +1352,32 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
             'Duration (Working Days)': inst.durationWorkingDays || '',
             'Delay Reason': inst.delayReason || '',
             'Delay Notes': inst.delayNotes || '',
+            'Assigned Executive': assignedExec,
+            'Project Manager': projectManager,
+            'Project Executive': projectExecutive,
           });
         }
       }
     }
 
-    const defaultRawEmptyRow = [
-      {
-        'Customer Name': '',
-        'Project Code': '',
-        'Project Name': '',
-        'Phone Number': '',
-        'WhatsApp Number': '',
-        'Email': '',
-        'Site Address': '',
-        'Lift Model': '',
-        'Number of Floors': '',
-        'Current Stage': '',
-        'Stage': '',
-        'Schedule Date': '',
-        'Executed Date': '',
-        'Schedule Time': '',
-        'VRL Tracking Number': '',
-        'Assigned Executive': '',
-      },
-    ];
-
-    const defaultSummaryEmptyRow = [
-      {
-        'Customer Name': '',
-        'Project Code': '',
-        'Project Name': '',
-        'Phone Number': '',
-        'WhatsApp Number': '',
-        'Email': '',
-        'Site Address': '',
-        'Lift Model': '',
-        'Shaft Model': '',
-        'Number of Floors': '',
-        'Current Stage': '',
-        'Schedule Date': '',
-        'Executed Date': '',
-        'Schedule Time': '',
-        'VRL Tracking Number': '',
-        'Assigned Executive': '',
-      },
-    ];
+    const defaultRawEmptyRow = [getEmptyRecord(true)];
+    const defaultSummaryEmptyRow = [getEmptyRecord(false)];
 
     const workbook = XLSX.utils.book_new();
 
-    const wsRaw = XLSX.utils.json_to_sheet(rawRows.length > 0 ? rawRows : defaultRawEmptyRow);
-    wsRaw['!cols'] = [
-      { wch: 28 }, // Customer Name
-      { wch: 16 }, // Project Code
-      { wch: 26 }, // Project Name
-      { wch: 16 }, // Phone Number
-      { wch: 16 }, // WhatsApp Number
-      { wch: 24 }, // Email
-      { wch: 35 }, // Site Address
-      { wch: 24 }, // Lift Model
-      { wch: 16 }, // Number of Floors
-      { wch: 32 }, // Current Stage
-      { wch: 35 }, // Stage
-      { wch: 18 }, // Schedule Date
-      { wch: 18 }, // Executed Date
-      { wch: 16 }, // Schedule Time
-      { wch: 22 }, // VRL Tracking Number
-      { wch: 22 }, // Assigned Executive
-    ];
+    const wsRawData = rawRows.length > 0 ? rawRows : defaultRawEmptyRow;
+    const wsRaw = XLSX.utils.json_to_sheet(wsRawData);
+    wsRaw['!cols'] = getAutoColumnWidths(wsRawData);
     XLSX.utils.book_append_sheet(workbook, wsRaw, 'All Stages (Raw Data)');
 
-    const wsSummary = XLSX.utils.json_to_sheet(summaryRows.length > 0 ? summaryRows : defaultSummaryEmptyRow);
-    wsSummary['!cols'] = [
-      { wch: 28 }, // Customer Name
-      { wch: 16 }, // Project Code
-      { wch: 26 }, // Project Name
-      { wch: 16 }, // Phone Number
-      { wch: 16 }, // WhatsApp Number
-      { wch: 24 }, // Email
-      { wch: 35 }, // Site Address
-      { wch: 24 }, // Lift Model
-      { wch: 18 }, // Shaft Model
-      { wch: 16 }, // Number of Floors
-      { wch: 32 }, // Current Stage
-      { wch: 18 }, // Schedule Date
-      { wch: 18 }, // Executed Date
-      { wch: 16 }, // Schedule Time
-      { wch: 22 }, // VRL Tracking Number
-      { wch: 22 }, // Assigned Executive
-    ];
+    const wsSummaryData = summaryRows.length > 0 ? summaryRows : defaultSummaryEmptyRow;
+    const wsSummary = XLSX.utils.json_to_sheet(wsSummaryData);
+    wsSummary['!cols'] = getAutoColumnWidths(wsSummaryData);
     XLSX.utils.book_append_sheet(workbook, wsSummary, 'Current Stage Summary');
 
     if (installationRows.length > 0) {
       const wsInstallation = XLSX.utils.json_to_sheet(installationRows);
-      wsInstallation['!cols'] = [
-        { wch: 28 }, // Customer Name
-        { wch: 16 }, // Project Code
-        { wch: 26 }, // Project Name
-        { wch: 16 }, // Phone Number
-        { wch: 16 }, // WhatsApp Number
-        { wch: 35 }, // Site Address
-        { wch: 24 }, // Lift Model
-        { wch: 16 }, // Number of Floors
-        { wch: 10 }, // Sl No
-        { wch: 45 }, // Installation Stage
-        { wch: 16 }, // Start Date
-        { wch: 16 }, // Complete Date
-        { wch: 16 }, // Status
-        { wch: 24 }, // Working Days
-        { wch: 20 }, // Delay Reason
-        { wch: 30 }, // Delay Notes
-      ];
+      wsInstallation['!cols'] = getAutoColumnWidths(installationRows);
       XLSX.utils.book_append_sheet(workbook, wsInstallation, 'Installation Programme Stages');
     }
 
