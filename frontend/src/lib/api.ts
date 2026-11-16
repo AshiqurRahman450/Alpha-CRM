@@ -59,8 +59,9 @@ export function setStoredUser(user: any): void {
 
 async function fetchWithAuth(endpoint: string, options: RequestInit = {}): Promise<any> {
   const token = getAuthToken();
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
   const headers: HeadersInit = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(options.headers || {}),
   };
 
@@ -476,6 +477,31 @@ export const api = {
       throw new Error(err.message || 'Failed to export Excel file');
     }
 
+    return res.blob();
+  },
+  importExcel: async (file: File): Promise<any> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return fetchWithAuth('/api/projects/import-excel', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+  downloadImportTemplate: async (): Promise<Blob> => {
+    const token = getAuthToken();
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    const baseUrl = getApiBaseUrl();
+    const res = await fetch(`${baseUrl}/api/projects/import-template`, {
+      method: 'GET',
+      headers,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: 'Failed to download import template' }));
+      throw new Error(err.message || 'Failed to download import template');
+    }
     return res.blob();
   },
   getExportProjectsExcelUrl: (params?: { status?: string; paymentStatus?: string; search?: string }) => {

@@ -3,6 +3,7 @@ import { Customer, Project, Payment, WhatsAppMessage, ProjectActivity, User, Quo
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { PROJECT_STAGE_NEXT_WORK } from './reminders';
 import { getNextCustomerId, getNextOldCustomerId, splitSharedCustomerProjects, resequenceCustomerIds } from '../utils/idGenerators';
+import { parseAndImportExcel, generateImportTemplateBuffer } from '../services/import/excelImportService';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -17,6 +18,10 @@ const storage = multer.diskStorage({
   },
 });
 const upload = multer({ storage });
+const excelUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 },
+});
 
 export const customerRouter = Router();
 
@@ -333,6 +338,43 @@ customerRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM'), async (req
     return res.status(201).json({ success: true, data: newCustomer });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * GET /api/customers/import-template
+ * Downloads sample Excel import template with guidance
+ */
+customerRouter.get('/import-template', async (_req: AuthRequest, res: Response) => {
+  try {
+    const buffer = generateImportTemplateBuffer();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="Alpha_CRM_Import_Template.xlsx"');
+    return res.send(buffer);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * POST /api/customers/import-excel
+ * Imports customers and elevator projects from an uploaded Excel (.xlsx, .xls) spreadsheet
+ */
+customerRouter.post('/import-excel', excelUpload.single('file'), async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ success: false, message: 'Please upload an Excel (.xlsx, .xls) file' });
+    }
+
+    const result = await parseAndImportExcel(req.file.buffer, req.user);
+    return res.status(200).json({
+      success: true,
+      message: result.message,
+      data: result,
+    });
+  } catch (err: any) {
+    console.error('[import-excel] Error importing spreadsheet:', err);
+    return res.status(500).json({ success: false, message: err.message || 'Failed to process Excel file' });
   }
 });
 

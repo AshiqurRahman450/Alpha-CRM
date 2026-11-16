@@ -28,11 +28,13 @@ import {
   UserCheck,
   Trash2,
   Edit2,
+  Upload,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { api } from '../../lib/api';
 import { DEFAULT_BDMS } from '../../lib/constants';
 import EditCustomerModal from '../../components/EditCustomerModal';
+import ExcelImportModal from '../../components/ExcelImportModal';
 
 interface MissingField {
   key: string;
@@ -55,6 +57,9 @@ export default function CustomersPage() {
   // Edit Customer modal
   const [editingCustomer, setEditingCustomer] = useState<any>(null);
   const [isEditCustomerOpen, setIsEditCustomerOpen] = useState(false);
+
+  // Import Excel modal
+  const [isImportOpen, setIsImportOpen] = useState(false);
 
   // Add Customer modal
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -380,13 +385,23 @@ export default function CustomersPage() {
           </p>
         </div>
         {!(currentUser?.role === 'LOGISTICS' || currentUser?.role === 'LOGISTICS_TL') && (
-          <button
-            onClick={() => setIsAddOpen(true)}
-            className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-sky-950/20 active:scale-95 flex items-center gap-1.5 self-start"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add New Customer</span>
-          </button>
+          <div className="flex items-center gap-2 self-start flex-wrap">
+            <button
+              onClick={() => setIsImportOpen(true)}
+              className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 flex items-center gap-1.5 cursor-pointer"
+              title="Import Customers and Projects from Excel spreadsheet (.xlsx, .xls)"
+            >
+              <Upload className="w-4 h-4 text-emerald-600" />
+              <span>Import Excel</span>
+            </button>
+            <button
+              onClick={() => setIsAddOpen(true)}
+              className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-sky-950/20 active:scale-95 flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add New Customer</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -1152,6 +1167,14 @@ export default function CustomersPage() {
           currentUser={currentUser}
         />
       )}
+
+      {/* Excel Import Modal */}
+      <ExcelImportModal
+        isOpen={isImportOpen}
+        onClose={() => setIsImportOpen(false)}
+        onSuccess={() => fetchCustomers()}
+        title="Import Customers & Elevator Projects"
+      />
     </div>
   );
 }

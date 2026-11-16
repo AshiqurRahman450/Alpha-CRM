@@ -38,6 +38,7 @@ import {
 import { DEFAULT_INSTALLATION_STAGES } from '../models/Project';
 import { config } from '../config';
 import { getNextProjectId } from '../utils/idGenerators';
+import { parseAndImportExcel, generateImportTemplateBuffer } from '../services/import/excelImportService';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -52,6 +53,10 @@ const storage = multer.diskStorage({
   },
 });
 const upload = multer({ storage });
+const excelUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 },
+});
 
 /**
  * Dispatches a 1-to-1 WhatsApp message to the assigned BDM
@@ -860,6 +865,43 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
   } catch (err: any) {
     console.error('[ExportExcel] Error exporting projects:', err);
     return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * GET /api/projects/import-template
+ * Downloads sample Excel import template with guidance
+ */
+projectRouter.get('/import-template', async (_req: AuthRequest, res: Response) => {
+  try {
+    const buffer = generateImportTemplateBuffer();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="Alpha_CRM_Import_Template.xlsx"');
+    return res.send(buffer);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * POST /api/projects/import-excel
+ * Imports customers and elevator projects from an uploaded Excel (.xlsx, .xls) spreadsheet
+ */
+projectRouter.post('/import-excel', excelUpload.single('file'), async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ success: false, message: 'Please upload an Excel (.xlsx, .xls) file' });
+    }
+
+    const result = await parseAndImportExcel(req.file.buffer, req.user);
+    return res.status(200).json({
+      success: true,
+      message: result.message,
+      data: result,
+    });
+  } catch (err: any) {
+    console.error('[import-excel] Error importing spreadsheet:', err);
+    return res.status(500).json({ success: false, message: err.message || 'Failed to process Excel file' });
   }
 });
 

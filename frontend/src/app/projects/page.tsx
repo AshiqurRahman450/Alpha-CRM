@@ -18,10 +18,12 @@ import {
   FileSpreadsheet,
   Handshake,
   Edit2,
+  Upload,
 } from 'lucide-react';
 import { api, getStoredUser } from '../../lib/api';
 import { formatProjectStatus, STAGES_ORDER } from '../../components/Timeline';
 import EditProjectModal from '../../components/EditProjectModal';
+import ExcelImportModal from '../../components/ExcelImportModal';
 
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<any[]>([]);
@@ -57,6 +59,9 @@ export default function ProjectsPage() {
   // Edit Project Modal State
   const [editingProject, setEditingProject] = useState<any>(null);
   const [isEditProjectOpen, setIsEditProjectOpen] = useState(false);
+
+  // Import Excel Modal State
+  const [isImportOpen, setIsImportOpen] = useState(false);
 
   // Add Project Modal State
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -231,6 +236,15 @@ export default function ProjectsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+          <button
+            onClick={() => setIsImportOpen(true)}
+            className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 flex items-center gap-1.5 cursor-pointer"
+            title="Import Customers and Projects from Excel spreadsheet (.xlsx, .xls)"
+          >
+            <Upload className="w-4 h-4 text-emerald-600" />
+            <span>Import Excel</span>
+          </button>
+
           <button
             onClick={handleExportExcel}
             disabled={exporting || loading}
@@ -1041,6 +1055,16 @@ export default function ProjectsPage() {
           currentUser={currentUser}
         />
       )}
+
+      {/* Excel Import Modal */}
+      <ExcelImportModal
+        isOpen={isImportOpen}
+        onClose={() => setIsImportOpen(false)}
+        onSuccess={() => {
+          fetchProjects();
+        }}
+        title="Import Elevator Projects & Customers"
+      />
     </div>
   );
 }
