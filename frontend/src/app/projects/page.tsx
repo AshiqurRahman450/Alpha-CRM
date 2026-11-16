@@ -23,6 +23,7 @@ import {
 import { api, getStoredUser } from '../../lib/api';
 import { formatProjectStatus, STAGES_ORDER } from '../../components/Timeline';
 import EditProjectModal from '../../components/EditProjectModal';
+import { getTlNameForUser, isProjectAssignedToTlUser, isCustomerAssignedToTlUser } from '../../lib/constants';
 import ExcelImportModal from '../../components/ExcelImportModal';
 
 export default function ProjectsPage() {
@@ -40,7 +41,12 @@ export default function ProjectsPage() {
     const u = getStoredUser();
     setCurrentUser(u);
     api.getCurrentUser().then(res => {
-      if (res?.user) setCurrentUser(res.user);
+      if (res?.user) {
+        setCurrentUser(res.user);
+        if (getTlNameForUser(res.user)) {
+          fetchProjects(res.user);
+        }
+      }
     }).catch(() => {});
 
     if (typeof window !== 'undefined') {
@@ -122,9 +128,10 @@ export default function ProjectsPage() {
     }
   };
 
-  const fetchProjects = async () => {
+  const fetchProjects = async (overrideUser?: any) => {
     try {
       setLoading(true);
+      const activeUser = overrideUser || currentUser;
       const [projRes, custRes] = await Promise.all([
         api.getProjects({
           search: search || undefined,
@@ -134,8 +141,14 @@ export default function ProjectsPage() {
         }),
         api.getCustomers(),
       ]);
-      setProjects(projRes.data || []);
-      setCustomers(custRes.data || []);
+      let projList = projRes.data || [];
+      let custList = custRes.data || [];
+      if (getTlNameForUser(activeUser)) {
+        projList = projList.filter((p: any) => isProjectAssignedToTlUser(p, activeUser));
+        custList = custList.filter((c: any) => isCustomerAssignedToTlUser(c, activeUser));
+      }
+      setProjects(projList);
+      setCustomers(custList);
     } catch (err: any) {
       console.error(err);
     } finally {

@@ -19,3 +19,56 @@ export const DEFAULT_BDMS: BDMUser[] = [
   { name: 'Eswar', email: 'eswar@alpha.com', role: 'BDM', phone: '+91 98401 10009' },
   { name: 'Karthik', email: 'karthik@alpha.com', role: 'BDM', phone: '+91 98401 10010' },
 ];
+
+export function getTlNameForUser(user: any): string | null {
+  if (!user) return null;
+  const role = String(user.role || '').toUpperCase();
+  const name = String(user.name || '');
+  const email = String(user.email || '');
+
+  if (/srinivasan|srini/i.test(role) || /srinivasan|srini/i.test(name) || /srinivasan|srini/i.test(email)) {
+    return 'Srinivasan (TL)';
+  }
+  if (/sundaram|sundar/i.test(role) || /sundaram|sundar/i.test(name) || /sundaram|sundar/i.test(email)) {
+    return 'Sundaram';
+  }
+  if (/bala/i.test(role) || /bala/i.test(name) || /bala/i.test(email)) {
+    return 'Bala';
+  }
+  if ((role === 'LOGISTICS_TL' || role === 'TL' || role === 'TEAM_LEAD') && name) {
+    return name;
+  }
+  return null;
+}
+
+export function isCustomerAssignedToTlUser(customer: any, user: any): boolean {
+  if (!user) return true;
+  const tlName = getTlNameForUser(user);
+  if (!tlName) return true;
+
+  const target = tlName.toLowerCase().replace(/[^a-z]/g, '');
+  const assigned = String(customer.assignedTl || '').toLowerCase().replace(/[^a-z]/g, '');
+
+  if (customer.assignedTlId && user.id && String(customer.assignedTlId) === String(user.id)) return true;
+  if (customer.assignedTlId && user._id && String(customer.assignedTlId) === String(user._id)) return true;
+
+  return !!assigned && (assigned.includes(target) || target.includes(assigned));
+}
+
+export function isProjectAssignedToTlUser(project: any, user: any): boolean {
+  if (!user) return true;
+  const tlName = getTlNameForUser(user);
+  if (!tlName) return true;
+
+  const target = tlName.toLowerCase().replace(/[^a-z]/g, '');
+  const assignedProj = String(project.assignedTl || '').toLowerCase().replace(/[^a-z]/g, '');
+  const assignedCust = String(project.customerId?.assignedTl || '').toLowerCase().replace(/[^a-z]/g, '');
+
+  if (project.assignedTlId && user.id && String(project.assignedTlId) === String(user.id)) return true;
+  if (project.assignedTlId && user._id && String(project.assignedTlId) === String(user._id)) return true;
+
+  return (
+    (!!assignedProj && (assignedProj.includes(target) || target.includes(assignedProj))) ||
+    (!!assignedCust && (assignedCust.includes(target) || target.includes(assignedCust)))
+  );
+}

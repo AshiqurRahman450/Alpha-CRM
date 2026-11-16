@@ -8,12 +8,14 @@ export const TL_NAMES = ['Srinivasan (TL)', 'Sundaram', 'Bala'] as const;
  */
 export function isTlUser(user: any): boolean {
   if (!user) return false;
-  if (user.role === 'LOGISTICS_TL') return true;
-  const name = user.name || '';
-  const email = user.email || '';
-  if (/srinivasan/i.test(name) || /srinivasan/i.test(email)) return true;
-  if (/sundaram/i.test(name) || /sundaram/i.test(email)) return true;
-  if (/bala/i.test(name) || /bala/i.test(email)) return true;
+  const role = String(user.role || '').toUpperCase();
+  const name = String(user.name || '');
+  const email = String(user.email || '');
+
+  if (role === 'LOGISTICS_TL' || role === 'TL' || role === 'TEAM_LEAD') return true;
+  if (/srinivasan|srini/i.test(role) || /srinivasan|srini/i.test(name) || /srinivasan|srini/i.test(email)) return true;
+  if (/sundaram|sundar/i.test(role) || /sundaram|sundar/i.test(name) || /sundaram|sundar/i.test(email)) return true;
+  if (/bala/i.test(role) || /bala/i.test(name) || /bala/i.test(email)) return true;
   return false;
 }
 
@@ -22,26 +24,28 @@ export function isTlUser(user: any): boolean {
  */
 export function getTlRegexForUser(user: any): RegExp | null {
   if (!user) return null;
-  const name = user.name || '';
-  const email = user.email || '';
+  const role = String(user.role || '').toUpperCase();
+  const name = String(user.name || '');
+  const email = String(user.email || '');
 
-  if (/srinivasan/i.test(name) || /srinivasan/i.test(email)) {
-    return /srinivasan/i;
+  if (/srinivasan|srini/i.test(role) || /srinivasan|srini/i.test(name) || /srinivasan|srini/i.test(email)) {
+    return /srinivasan|srini/i;
   }
-  if (/sundaram/i.test(name) || /sundaram/i.test(email)) {
-    return /sundaram/i;
+  if (/sundaram|sundar/i.test(role) || /sundaram|sundar/i.test(name) || /sundaram|sundar/i.test(email)) {
+    return /sundaram|sundar/i;
   }
-  if (/bala/i.test(name) || /bala/i.test(email)) {
+  if (/bala/i.test(role) || /bala/i.test(name) || /bala/i.test(email)) {
     return /bala/i;
   }
-  if (user.role === 'LOGISTICS_TL' && name) {
-    return new RegExp(`^${name.trim()}$`, 'i');
+  if ((role === 'LOGISTICS_TL' || role === 'TL' || role === 'TEAM_LEAD') && name) {
+    const clean = name.replace(/[^a-zA-Z]/g, '');
+    if (clean) return new RegExp(clean, 'i');
   }
   return null;
 }
 
 /**
- * Returns query condition for customers assigned to this TL
+ * Returns query condition for customers assigned to this TL (strictly assignedTl or assignedTlId)
  */
 export function getCustomerTlFilter(user: any): any | null {
   if (!user || !isTlUser(user)) return null;
@@ -50,7 +54,6 @@ export function getCustomerTlFilter(user: any): any | null {
 
   const conditions: any[] = [
     { assignedTl: regex },
-    { assignedEmployee: regex },
   ];
   if (user._id) {
     conditions.push({ assignedTlId: user._id });
@@ -67,7 +70,6 @@ export function isCustomerAccessibleByTl(customer: any, user: any): boolean {
   if (!regex) return true;
 
   if (customer.assignedTl && regex.test(customer.assignedTl)) return true;
-  if (customer.assignedEmployee && regex.test(customer.assignedEmployee)) return true;
   if (customer.assignedTlId && String(customer.assignedTlId) === String(user._id)) return true;
   return false;
 }
@@ -81,12 +83,10 @@ export function isProjectAccessibleByTl(project: any, user: any): boolean {
   if (!regex) return true;
 
   if (project.assignedTl && regex.test(project.assignedTl)) return true;
-  if (project.assignedEmployee && regex.test(project.assignedEmployee)) return true;
   if (project.assignedTlId && String(project.assignedTlId) === String(user._id)) return true;
 
   const cust = (project.customerId as any) || {};
   if (cust.assignedTl && regex.test(cust.assignedTl)) return true;
-  if (cust.assignedEmployee && regex.test(cust.assignedEmployee)) return true;
   if (cust.assignedTlId && String(cust.assignedTlId) === String(user._id)) return true;
 
   return false;

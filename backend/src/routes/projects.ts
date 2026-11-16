@@ -574,7 +574,6 @@ projectRouter.get('/', async (req: AuthRequest, res: Response) => {
       if (tlRegex) {
         const custConditions: any[] = [
           { assignedTl: tlRegex },
-          { assignedEmployee: tlRegex },
         ];
         if (req.user?._id) {
           custConditions.push({ assignedTlId: req.user._id });
@@ -584,7 +583,6 @@ projectRouter.get('/', async (req: AuthRequest, res: Response) => {
 
         const tlConditions: any[] = [
           { assignedTl: tlRegex },
-          { assignedEmployee: tlRegex },
           { customerId: { $in: custIds } },
         ];
         if (req.user?._id) {
@@ -658,7 +656,11 @@ projectRouter.get('/', async (req: AuthRequest, res: Response) => {
       query.$and = andConditions;
     }
 
-    const projects = await Project.find(query).populate('customerId').sort({ createdAt: -1 });
+    let projects = await Project.find(query).populate('customerId').sort({ createdAt: -1 });
+
+    if (isTlUser(req.user)) {
+      projects = projects.filter((p) => isProjectAccessibleByTl(p, req.user));
+    }
     return res.json({ success: true, count: projects.length, data: projects });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
@@ -849,7 +851,6 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
       if (tlRegex) {
         const custConditions: any[] = [
           { assignedTl: tlRegex },
-          { assignedEmployee: tlRegex },
         ];
         if (req.user?._id) {
           custConditions.push({ assignedTlId: req.user._id });
@@ -859,7 +860,6 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
 
         const tlConditions: any[] = [
           { assignedTl: tlRegex },
-          { assignedEmployee: tlRegex },
           { customerId: { $in: custIds } },
         ];
         if (req.user?._id) {
@@ -935,7 +935,11 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
       query.$and = andConditions;
     }
 
-    const projects = await Project.find(query).populate('customerId').sort({ createdAt: -1 });
+    let projects = await Project.find(query).populate('customerId').sort({ createdAt: -1 });
+
+    if (isTlUser(req.user)) {
+      projects = projects.filter((p) => isProjectAccessibleByTl(p, req.user));
+    }
 
     const MILESTONE_STAGES = [
       {

@@ -32,7 +32,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { api } from '../../lib/api';
-import { DEFAULT_BDMS } from '../../lib/constants';
+import { DEFAULT_BDMS, getTlNameForUser, isCustomerAssignedToTlUser } from '../../lib/constants';
 import EditCustomerModal from '../../components/EditCustomerModal';
 import ExcelImportModal from '../../components/ExcelImportModal';
 
@@ -211,16 +211,23 @@ export default function CustomersPage() {
     }, 150);
   };
 
-  const fetchCustomers = async () => {
+  const fetchCustomers = async (overrideUser?: any) => {
     try {
       setLoading(true);
+      const activeUser = overrideUser || currentUser;
+      const userTl = getTlNameForUser(activeUser);
+      const effectiveTl = userTl || tlFilter || undefined;
       const res = await api.getCustomers({
         search: search || undefined,
         optIn: optInFilter || undefined,
         bdmId: bdmFilter || undefined,
-        assignedTl: tlFilter || undefined,
+        assignedTl: effectiveTl,
       });
-      setCustomers(res.data || []);
+      let list = res.data || [];
+      if (userTl) {
+        list = list.filter((c: any) => isCustomerAssignedToTlUser(c, activeUser));
+      }
+      setCustomers(list);
     } catch (err: any) {
       console.error(err);
     } finally {
@@ -261,6 +268,11 @@ export default function CustomersPage() {
       try {
         const userRes = await api.getCurrentUser();
         setCurrentUser(userRes?.user);
+        const userTl = getTlNameForUser(userRes?.user);
+        if (userTl) {
+          setTlFilter(userTl);
+          fetchCustomers(userRes?.user);
+        }
         if (userRes?.user?.role === 'BDM') {
           setNewCust((prev) => ({
             ...prev,
@@ -483,10 +495,10 @@ export default function CustomersPage() {
           </select>
         )}
 
-        {currentUser?.role === 'LOGISTICS_TL' ? (
+        {getTlNameForUser(currentUser) ? (
           <div className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs font-semibold text-amber-800 shrink-0">
             <User className="w-3.5 h-3.5 text-amber-600" />
-            <span>TL: {currentUser.name}</span>
+            <span>TL: {getTlNameForUser(currentUser)}</span>
           </div>
         ) : (
           <select

@@ -5,7 +5,7 @@ import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { PROJECT_STAGE_NEXT_WORK } from './reminders';
 import { getNextCustomerId, getNextOldCustomerId, splitSharedCustomerProjects, resequenceCustomerIds } from '../utils/idGenerators';
 import { parseAndImportExcel, generateImportTemplateBuffer } from '../services/import/excelImportService';
-import { getCustomerTlFilter, isCustomerAccessibleByTl } from '../utils/tlAuth';
+import { getCustomerTlFilter, isCustomerAccessibleByTl, isTlUser } from '../utils/tlAuth';
 import { ensureUploadsDir } from './projects';
 import multer from 'multer';
 import path from 'path';
@@ -190,7 +190,10 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
           ],
         });
       } else {
-        query.assignedTl = new RegExp(`^${assignedTl.trim()}$`, 'i');
+        const cleanTl = assignedTl.trim().replace(/[^a-zA-Z0-9]/g, '');
+        andConditions.push({
+          assignedTl: new RegExp(cleanTl, 'i'),
+        });
       }
     }
 
@@ -265,7 +268,7 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
       });
     }
 
-    if (req.user?.role === 'LOGISTICS_TL') {
+    if (isTlUser(req.user)) {
       strictlyFiltered = strictlyFiltered.filter((c) => isCustomerAccessibleByTl(c, req.user));
     }
 

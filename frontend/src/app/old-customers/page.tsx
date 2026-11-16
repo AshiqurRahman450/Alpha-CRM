@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { api } from '../../lib/api';
-import { DEFAULT_BDMS } from '../../lib/constants';
+import { DEFAULT_BDMS, getTlNameForUser, isCustomerAssignedToTlUser } from '../../lib/constants';
 import EditCustomerModal from '../../components/EditCustomerModal';
 
 interface MissingField {
@@ -148,18 +148,24 @@ export default function OldCustomersPage() {
     }, 150);
   };
 
-  const fetchCustomers = async () => {
+  const fetchCustomers = async (overrideUser?: any) => {
     try {
       setLoading(true);
+      const activeUser = overrideUser || currentUser;
+      const userTl = getTlNameForUser(activeUser);
       const res = await api.getCustomers({
         search: search || undefined,
         optIn: optInFilter || undefined,
         bdmId: bdmFilter || undefined,
+        assignedTl: userTl || undefined,
         isOldCustomer: 'true',
       });
-      const list = (res.data || []).filter(
+      let list = (res.data || []).filter(
         (c: any) => c.isOldCustomer === true || String(c.customerId || '').trim().toUpperCase().startsWith('OLD')
       );
+      if (userTl) {
+        list = list.filter((c: any) => isCustomerAssignedToTlUser(c, activeUser));
+      }
       setCustomers(list);
     } catch (err: any) {
       console.error(err);
@@ -201,6 +207,9 @@ export default function OldCustomersPage() {
       try {
         const userRes = await api.getCurrentUser();
         setCurrentUser(userRes?.user);
+        if (getTlNameForUser(userRes?.user)) {
+          fetchCustomers(userRes?.user);
+        }
         if (userRes?.user?.role === 'BDM') {
           setNewCust((prev) => ({
             ...prev,
