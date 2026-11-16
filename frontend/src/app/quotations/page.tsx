@@ -754,81 +754,7 @@ export default function QuotationCreatorPage() {
         console.warn('Could not read base PDF css:', e);
       }
 
-      // Also get the live preview style block
-      let liveStylesText = '';
-      try {
-        const liveStyleEl = document.getElementById('alpha-live-proposal-styles');
-        if (liveStyleEl && liveStyleEl.innerHTML) {
-          liveStylesText = liveStyleEl.innerHTML;
-        }
-      } catch (e) {
-        console.warn('Could not read live proposal styles:', e);
-      }
-
       const proposalOverrides = `
-        ${liveStylesText}
-        p, ul, li {
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-        #p4 p, #p4 ul, #p4 li {
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-        #p4 .shaft-spec-header {
-          position: absolute !important;
-          left: 44.83px !important;
-          top: 175px !important;
-          height: 22px !important;
-          line-height: 22px !important;
-          font-size: 18px !important;
-          font-weight: bold !important;
-          color: #000000 !important;
-          z-index: 435 !important;
-          white-space: nowrap !important;
-        }
-        #p4 .shaft-spec-value {
-          position: absolute !important;
-          left: 260.73px !important;
-          top: 211px !important;
-          height: 24px !important;
-          line-height: 24px !important;
-          font-size: 14px !important;
-          color: #000000 !important;
-          z-index: 381 !important;
-          white-space: nowrap !important;
-        }
-        #p4 .accessories-header {
-          position: absolute !important;
-          left: 44.83px !important;
-          top: 248px !important;
-          height: 22px !important;
-          line-height: 22px !important;
-          font-size: 18px !important;
-          font-weight: bold !important;
-          color: #000000 !important;
-          z-index: 456 !important;
-          white-space: nowrap !important;
-        }
-        #p4 .warranty-term-box {
-          position: absolute !important;
-          left: 250px !important;
-          top: 669px !important;
-          width: 530px !important;
-          height: 45px !important;
-          min-height: 45px !important;
-          line-height: 13.5px !important;
-          font-size: 11px !important;
-          font-weight: 600 !important;
-          color: #000000 !important;
-          z-index: 950 !important;
-        }
-        #p4 .warranty-term-box div {
-          line-height: 13.5px !important;
-          font-size: 11px !important;
-          margin: 0 !important;
-          padding: 0 !important;
-        }
         #p0 .c1 { color: #0f4b31 !important; }
         #p0 .im[style*="714.6"] { display: none !important; }
         #p0::after {
@@ -943,11 +869,6 @@ export default function QuotationCreatorPage() {
 
       const pageWidth = isCircle ? 720 : 793.28;
       const pageHeight = isCircle ? 1040 : 1122.72;
-
-      // Ensure all embedded fonts are fully loaded and decoded before capturing
-      if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
-        await document.fonts.ready;
-      }
 
       for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
         setDownloadProgress(`Rendering Page ${pageNum} of ${totalPages} (exact alignment)...`);
