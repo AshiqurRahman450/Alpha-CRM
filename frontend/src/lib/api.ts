@@ -514,12 +514,27 @@ export const api = {
       headers['Authorization'] = `Bearer ${token}`;
     }
     const baseUrl = getApiBaseUrl();
-    const res = await fetch(`${baseUrl}/api/projects/import-template`, {
+    let res = await fetch(`${baseUrl}/api/projects/import-template`, {
       method: 'GET',
       headers,
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ message: 'Failed to download import template' }));
+    }).catch(() => null);
+
+    if (!res || !res.ok) {
+      // Robust fallback to customer import-template endpoint
+      const fallbackRes = await fetch(`${baseUrl}/api/customers/import-template`, {
+        method: 'GET',
+        headers,
+      }).catch(() => null);
+
+      if (fallbackRes && fallbackRes.ok) {
+        res = fallbackRes;
+      }
+    }
+
+    if (!res || !res.ok) {
+      const err = (await res?.json().catch(() => ({ message: 'Failed to download import template' }))) || {
+        message: 'Failed to download import template',
+      };
       throw new Error(err.message || 'Failed to download import template');
     }
     return res.blob();

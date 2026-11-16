@@ -1,4 +1,5 @@
 import { Router, Response, Request, NextFunction } from 'express';
+import mongoose, { Types } from 'mongoose';
 import { Customer, Project, Payment, WhatsAppMessage, ProjectActivity, User, Quotation } from '../models';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { PROJECT_STAGE_NEXT_WORK } from './reminders';
@@ -54,7 +55,44 @@ const excelUpload = multer({
 
 export const customerRouter = Router();
 
+/**
+ * GET /api/customers/import-template
+ * Downloads sample Excel import template with guidance (Public / Pre-auth for direct download)
+ */
+customerRouter.get('/import-template', async (_req: Request, res: Response) => {
+  try {
+    const buffer = generateImportTemplateBuffer();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="Alpha_CRM_Import_Template.xlsx"');
+    return res.send(buffer);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 customerRouter.use(authenticate);
+
+/**
+ * POST /api/customers/import-excel
+ * Imports customers and elevator projects from an uploaded Excel (.xlsx, .xls) spreadsheet
+ */
+customerRouter.post('/import-excel', excelUpload.single('file'), async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ success: false, message: 'Please upload an Excel (.xlsx, .xls) file' });
+    }
+
+    const result = await parseAndImportExcel(req.file.buffer, req.user);
+    return res.status(200).json({
+      success: true,
+      message: result.message,
+      data: result,
+    });
+  } catch (err: any) {
+    console.error('[import-excel] Error importing spreadsheet:', err);
+    return res.status(500).json({ success: false, message: err.message || 'Failed to process Excel file' });
+  }
+});
 
 /**
  * GET /api/customers
@@ -427,48 +465,24 @@ customerRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM'), async (req
 });
 
 /**
- * GET /api/customers/import-template
- * Downloads sample Excel import template with guidance
- */
-customerRouter.get('/import-template', async (_req: AuthRequest, res: Response) => {
-  try {
-    const buffer = generateImportTemplateBuffer();
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename="Alpha_CRM_Import_Template.xlsx"');
-    return res.send(buffer);
-  } catch (err: any) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
-});
-
-/**
- * POST /api/customers/import-excel
- * Imports customers and elevator projects from an uploaded Excel (.xlsx, .xls) spreadsheet
- */
-customerRouter.post('/import-excel', excelUpload.single('file'), async (req: AuthRequest, res: Response) => {
-  try {
-    if (!req.file || !req.file.buffer) {
-      return res.status(400).json({ success: false, message: 'Please upload an Excel (.xlsx, .xls) file' });
-    }
-
-    const result = await parseAndImportExcel(req.file.buffer, req.user);
-    return res.status(200).json({
-      success: true,
-      message: result.message,
-      data: result,
-    });
-  } catch (err: any) {
-    console.error('[import-excel] Error importing spreadsheet:', err);
-    return res.status(500).json({ success: false, message: err.message || 'Failed to process Excel file' });
-  }
-});
-
-/**
  * GET /api/customers/:id
  */
 customerRouter.get('/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const customer = await Customer.findById(req.params.id).populate('bdmId', 'name email phone');
+    if (req.params.id === 'import-template') {
+      const buffer = generateImportTemplateBuffer();
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="Alpha_CRM_Import_Template.xlsx"');
+      return res.send(buffer);
+    }
+
+    let customer: any = null;
+    if (Types.ObjectId.isValid(req.params.id)) {
+      customer = await Customer.findById(req.params.id).populate('bdmId', 'name email phone');
+    } else {
+      customer = await Customer.findOne({ customerId: req.params.id.toUpperCase() }).populate('bdmId', 'name email phone');
+    }
+
     if (!customer) {
       return res.status(404).json({ success: false, message: 'Customer not found' });
     }

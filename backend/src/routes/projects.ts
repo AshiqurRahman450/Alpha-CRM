@@ -1,4 +1,5 @@
 import { Router, Response, Request, NextFunction } from 'express';
+import mongoose, { Types } from 'mongoose';
 import * as XLSX from 'xlsx';
 import {
   Project,
@@ -506,7 +507,44 @@ Alpha Elevators Team`;
 
 export const projectRouter = Router();
 
+/**
+ * GET /api/projects/import-template
+ * Downloads sample Excel import template with guidance (Public / Pre-auth for direct download)
+ */
+projectRouter.get('/import-template', async (_req: Request, res: Response) => {
+  try {
+    const buffer = generateImportTemplateBuffer();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="Alpha_CRM_Import_Template.xlsx"');
+    return res.send(buffer);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 projectRouter.use(authenticate);
+
+/**
+ * POST /api/projects/import-excel
+ * Imports customers and elevator projects from an uploaded Excel (.xlsx, .xls) spreadsheet
+ */
+projectRouter.post('/import-excel', excelUpload.single('file'), async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ success: false, message: 'Please upload an Excel (.xlsx, .xls) file' });
+    }
+
+    const result = await parseAndImportExcel(req.file.buffer, req.user);
+    return res.status(200).json({
+      success: true,
+      message: result.message,
+      data: result,
+    });
+  } catch (err: any) {
+    console.error('[import-excel] Error importing spreadsheet:', err);
+    return res.status(500).json({ success: false, message: err.message || 'Failed to process Excel file' });
+  }
+});
 
 /**
  * GET /api/projects
@@ -1464,48 +1502,24 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
 });
 
 /**
- * GET /api/projects/import-template
- * Downloads sample Excel import template with guidance
- */
-projectRouter.get('/import-template', async (_req: AuthRequest, res: Response) => {
-  try {
-    const buffer = generateImportTemplateBuffer();
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename="Alpha_CRM_Import_Template.xlsx"');
-    return res.send(buffer);
-  } catch (err: any) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
-});
-
-/**
- * POST /api/projects/import-excel
- * Imports customers and elevator projects from an uploaded Excel (.xlsx, .xls) spreadsheet
- */
-projectRouter.post('/import-excel', excelUpload.single('file'), async (req: AuthRequest, res: Response) => {
-  try {
-    if (!req.file || !req.file.buffer) {
-      return res.status(400).json({ success: false, message: 'Please upload an Excel (.xlsx, .xls) file' });
-    }
-
-    const result = await parseAndImportExcel(req.file.buffer, req.user);
-    return res.status(200).json({
-      success: true,
-      message: result.message,
-      data: result,
-    });
-  } catch (err: any) {
-    console.error('[import-excel] Error importing spreadsheet:', err);
-    return res.status(500).json({ success: false, message: err.message || 'Failed to process Excel file' });
-  }
-});
-
-/**
  * GET /api/projects/:id
  */
 projectRouter.get('/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const project = await Project.findById(req.params.id).populate('customerId');
+    if (req.params.id === 'import-template') {
+      const buffer = generateImportTemplateBuffer();
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="Alpha_CRM_Import_Template.xlsx"');
+      return res.send(buffer);
+    }
+
+    let project: any = null;
+    if (Types.ObjectId.isValid(req.params.id)) {
+      project = await Project.findById(req.params.id).populate('customerId');
+    } else {
+      project = await Project.findOne({ projectId: req.params.id.toUpperCase() }).populate('customerId');
+    }
+
     if (!project) {
       return res.status(404).json({ success: false, message: 'Project not found' });
     }
@@ -1539,7 +1553,12 @@ projectRouter.get('/:id', async (req: AuthRequest, res: Response) => {
  */
 projectRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT', 'BDM', 'TECHNICAL_LEAD', 'LOGISTICS', 'LOGISTICS_TL'), async (req: AuthRequest, res: Response) => {
   try {
-    const project = await Project.findById(req.params.id);
+    let project: any = null;
+    if (Types.ObjectId.isValid(req.params.id)) {
+      project = await Project.findById(req.params.id);
+    } else {
+      project = await Project.findOne({ projectId: req.params.id.toUpperCase() });
+    }
     if (!project) {
       return res.status(404).json({ success: false, message: 'Project not found' });
     }
@@ -1618,7 +1637,12 @@ projectRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT', 'BD
 projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'TECHNICAL_LEAD', 'LOGISTICS', 'LOGISTICS_TL'), async (req: AuthRequest, res: Response) => {
   try {
     const { status, notes, vrlLrNumber, trackingNumber, productionTimelineDays } = req.body;
-    const project = await Project.findById(req.params.id);
+    let project: any = null;
+    if (Types.ObjectId.isValid(req.params.id)) {
+      project = await Project.findById(req.params.id);
+    } else {
+      project = await Project.findOne({ projectId: req.params.id.toUpperCase() });
+    }
     if (!project) {
       return res.status(404).json({ success: false, message: 'Project not found' });
     }
@@ -1960,7 +1984,12 @@ projectRouter.patch('/:id/stage-dates', authorize('ADMIN', 'CRM', 'MANAGER', 'BD
       }
     }
 
-    const project = await Project.findById(req.params.id);
+    let project: any = null;
+    if (Types.ObjectId.isValid(req.params.id)) {
+      project = await Project.findById(req.params.id);
+    } else {
+      project = await Project.findOne({ projectId: req.params.id.toUpperCase() });
+    }
     if (!project) {
       return res.status(404).json({ success: false, message: 'Project not found' });
     }
@@ -2032,7 +2061,12 @@ projectRouter.patch('/:id/stage-dates-bulk', authorize('ADMIN', 'CRM', 'MANAGER'
       return res.status(400).json({ success: false, message: 'updates must be an array' });
     }
 
-    const project = await Project.findById(req.params.id);
+    let project: any = null;
+    if (Types.ObjectId.isValid(req.params.id)) {
+      project = await Project.findById(req.params.id);
+    } else {
+      project = await Project.findOne({ projectId: req.params.id.toUpperCase() });
+    }
     if (!project) {
       return res.status(404).json({ success: false, message: 'Project not found' });
     }
@@ -2111,7 +2145,12 @@ projectRouter.post('/:id/notes', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ success: false, message: 'Note text is required' });
     }
 
-    const project = await Project.findById(req.params.id);
+    let project: any = null;
+    if (Types.ObjectId.isValid(req.params.id)) {
+      project = await Project.findById(req.params.id);
+    } else {
+      project = await Project.findOne({ projectId: req.params.id.toUpperCase() });
+    }
     if (!project) {
       return res.status(404).json({ success: false, message: 'Project not found' });
     }
