@@ -799,6 +799,13 @@ export async function processDueWhatsAppUpdates(): Promise<{
             project.whatsapp.nextUpdateAt = undefined;
           }
           console.log(`[Scheduler] Project ${project.projectId}: Finished final production stage (Stage 6). Stopped interval updates.`);
+
+          // Trigger Readiness Payment reminder workflow in odd-day format (Day 1 sent, Day 3 next...)
+          try {
+            await handleSixStageProductionCompletedWorkflow(project);
+          } catch (rErr: any) {
+            console.error('[Scheduler] Error triggering readiness payment workflow:', rErr);
+          }
         } else {
           // Advance nextUpdateAt by configured interval for next stage
           project.nextUpdateAt = calculateNextUpdateDate(intervalDays, now);
@@ -1449,24 +1456,20 @@ export async function handleDrawingAndCabinApprovedWorkflow(
       }
     }
 
-    // Schedule Message 3 for 2 days from now (48 hours)
-    const scheduledAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+    // Day 1 has now been sent!
+    // Cadence: Only odd days (Day 1 sent immediately, neglect Day 2, send Day 3, neglect Day 4, send Day 5...)
+    const now = new Date();
+    const nextOddDayDue = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
     project.productionTimelineDays = days;
-    project.productionPaymentReminderScheduledAt = scheduledAt;
+    project.productionPaymentReminderCount = 1; // Day 1 completed
+    project.productionPaymentReminderLastSentAt = now;
+    project.productionPaymentReminderNextDueAt = nextOddDayDue;
+    project.productionPaymentReminderScheduledAt = nextOddDayDue;
     project.productionPaymentReminderSent = false;
+    project.productionPaymentReminderStopped = false;
     await project.save();
 
-    console.log(`[DrawingApproval] Scheduled 2-day Production Payment follow-up reminder for ${project.projectId} at ${scheduledAt.toISOString()}`);
-
-    // In-memory timer for exact execution if server remains up
-    setTimeout(async () => {
-      try {
-        await sendProductionPayment2DayReminder(project._id);
-      } catch (err: any) {
-        console.error('[DrawingApproval] Timer execution error for 2-day reminder:', err.message);
-      }
-    }, 2 * 24 * 60 * 60 * 1000);
-
+    console.log(`[DrawingApproval] Day 1 Production Payment reminder sent. Scheduled Day 3 reminder for ${project.projectId} at ${nextOddDayDue.toISOString()}`);
     return { success: true, message1Id, message2Id };
   } catch (err: any) {
     console.error('[DrawingApproval] Error handling Drawing & Cabin Approval workflow:', err);
@@ -1475,14 +1478,15 @@ export async function handleDrawingAndCabinApprovedWorkflow(
 }
 
 /**
- * Sends the 2-day follow-up reminder for production payment to the project WhatsApp group
+ * Sends odd-day follow-up reminder for production payment to the project WhatsApp group
+ * (Day 1 sent at approval, Day 2 neglected, Day 3 sent, Day 4 neglected, Day 5 sent...)
  */
-export async function sendProductionPayment2DayReminder(projectId: any): Promise<boolean> {
+export async function sendProductionPaymentOddDayReminder(projectId: any): Promise<boolean> {
   try {
     const project = await Project.findById(projectId);
     if (!project) return false;
 
-    if (project.productionPaymentReminderSent) {
+    if (project.productionPaymentReminderStopped) {
       return false;
     }
 
@@ -1491,7 +1495,7 @@ export async function sendProductionPayment2DayReminder(projectId: any): Promise
       return false;
     }
 
-    // Check if production payment has already been received
+    // Check if production payment has already been received or stage has advanced
     const { Payment } = await import('../../models');
     const existingPayment = await Payment.findOne({
       projectId: project._id,
@@ -1499,31 +1503,176 @@ export async function sendProductionPayment2DayReminder(projectId: any): Promise
       paymentType: { $regex: /production/i },
     });
 
-    if (existingPayment || project.paymentStatus === 'FULLY_PAID') {
-      console.log(`[ProductionReminder] Project ${project.projectId} already received production payment. Skipping 2-day reminder.`);
+    const isEngExecuted =
+      project.stageDates?.get?.('ENGINEERING')?.executedDate ||
+      (project.stageDates as any)?.['ENGINEERING']?.executedDate;
+
+    if (
+      existingPayment ||
+      isEngExecuted ||
+      project.paymentStatus === 'FULLY_PAID' ||
+      project.projectStatus === 'MANUFACTURING' ||
+      project.projectStatus === 'PRODUCTION_IN_PROGRESS' ||
+      ['QUALITY_CHECK', 'DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY', 'INSTALLATION', 'TESTING'].includes(project.projectStatus)
+    ) {
+      console.log(`[ProductionReminder] Project ${project.projectId} already received production payment or advanced. Stopping odd-day reminders.`);
+      project.productionPaymentReminderStopped = true;
       project.productionPaymentReminderSent = true;
-      project.productionPaymentReminderSentAt = new Date();
+      project.productionPaymentReminderNextDueAt = undefined;
+      project.productionPaymentReminderScheduledAt = undefined;
       await project.save();
       return true;
     }
 
     const days = project.productionTimelineDays || 60;
-    const msg3Text =
+    const reminderText =
       `Dear Sir/Madam,\n\n` +
-      `This is a gentle reminder to kindly release the production payment to initiate the production process.\n` +
-      `Please note that the production timeline is approximately ${days} days from the date of payment and approval. Kindly complete the payment at the earliest to avoid any delay in the production schedule.\n\n` +
+      `Kindly release the production payment to initiate the production process. Please note that the production timeline is approximately ${days} days from the date of payment and approval.\n\n` +
       `Regards,\nAlpha Elevators Team`;
 
     const inviteTarget = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
+    let sent = false;
+
     if (inviteTarget) {
       const botStatus = whatsAppWebBot.getStatus();
       if (botStatus.isConnected) {
-        const res = await whatsAppWebBot.sendMessageToGroup(inviteTarget, msg3Text);
+        const res = await whatsAppWebBot.sendMessageToGroup(inviteTarget, reminderText);
         if (res.success) {
+          sent = true;
           await WhatsAppMessageLog.create({
             projectId: project._id,
             groupId: project.whatsapp?.groupId || project.whatsappGroupId || 'GROUP',
-            messageText: msg3Text,
+            messageText: reminderText,
+            messageType: 'text',
+            scheduledAt: new Date(),
+            attemptedAt: new Date(),
+            sentAt: new Date(),
+            providerMessageId: res.messageId,
+            status: 'SENT',
+            attemptCount: 1,
+            isDryRun: false,
+          });
+
+          const currentCount = (project.productionPaymentReminderCount || 1) + 1;
+          const oddDayNumber = currentCount * 2 - 1; // 1->1, 2->3, 3->5, 4->7...
+          await logProjectActivity({
+            projectId: project._id,
+            projectCode: project.projectId,
+            type: 'WHATSAPP_SENT',
+            description: `Day ${oddDayNumber} Production Payment reminder (${days} days delivery timeline) dispatched to WhatsApp group`,
+          });
+
+          console.log(`[ProductionReminder] Sent Day ${oddDayNumber} reminder for project ${project.projectId}`);
+        }
+      }
+    }
+
+    // Advance count and schedule next odd day (2 days / 48 hours later)
+    const newCount = (project.productionPaymentReminderCount || 1) + 1;
+    const nextOddDayDue = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+    project.productionPaymentReminderCount = newCount;
+    project.productionPaymentReminderLastSentAt = new Date();
+    project.productionPaymentReminderNextDueAt = nextOddDayDue;
+    project.productionPaymentReminderScheduledAt = nextOddDayDue;
+    await project.save();
+
+    return sent;
+  } catch (err: any) {
+    console.error('[ProductionReminder] Error sending odd-day reminder:', err);
+    return false;
+  }
+}
+
+/**
+ * Background processor for odd-day production payment reminders (checked periodically)
+ */
+export async function processDueProductionPaymentReminders(): Promise<void> {
+  try {
+    const now = new Date();
+    const dueProjects = await Project.find({
+      $or: [
+        { productionPaymentReminderNextDueAt: { $lte: now } },
+        { productionPaymentReminderScheduledAt: { $lte: now } },
+      ],
+      productionPaymentReminderStopped: { $ne: true },
+      projectStatus: {
+        $nin: [
+          'COMPLETED',
+          'CANCELLED',
+          'MANUFACTURING',
+          'PRODUCTION_IN_PROGRESS',
+          'QUALITY_CHECK',
+          'DISPATCH',
+          'MATERIAL_DISPATCHED',
+          'MATERIAL_IN_TRANSIT',
+          'DELIVERY',
+          'MATERIAL_DELIVERY',
+          'INSTALLATION',
+          'TESTING',
+        ],
+      },
+    });
+
+    for (const p of dueProjects) {
+      await sendProductionPaymentOddDayReminder(p._id);
+    }
+  } catch (err: any) {
+    console.error('[ProductionReminder] Error in processDueProductionPaymentReminders:', err);
+  }
+}
+
+/**
+ * Handles workflow triggered after the Six Stage Production message is sent to group:
+ * 1. Advances project status to QUALITY_CHECK (Readiness Payment) if in manufacturing
+ * 2. Sends Day 1 Readiness Payment reminder to WhatsApp group
+ * 3. Schedules Day 3 Readiness Payment reminder (odd-day format: Day 1, Day 3, Day 5, etc.)
+ */
+export async function handleSixStageProductionCompletedWorkflow(
+  projectOrId: any,
+  userId?: any,
+  userName?: string
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  try {
+    const project = typeof projectOrId === 'string' || projectOrId._bsontype
+      ? await Project.findById(projectOrId)
+      : projectOrId;
+
+    if (!project) return { success: false, error: 'Project not found' };
+
+    // Move project to QUALITY_CHECK (Readiness Payment) if in MANUFACTURING
+    if (project.projectStatus === 'MANUFACTURING' || project.projectStatus === 'PRODUCTION_IN_PROGRESS') {
+      const prevStatus = project.projectStatus;
+      project.projectStatus = 'QUALITY_CHECK';
+      await logProjectActivity({
+        projectId: project._id,
+        projectCode: project.projectId,
+        type: 'STATUS_CHANGE',
+        description: `Six-stage manufacturing updates completed. Project advanced from ${prevStatus} to "Readiness Payment".`,
+        userId,
+        userName,
+      });
+    }
+
+    const reminderText =
+      `Dear Sir/Madam,\n\n` +
+      `This is a gentle reminder to kindly release the Readiness payment to proceed with the Material dispatch.\n` +
+      `We request you to complete the payment at the earliest to avoid any delay in the dispatch schedule.\n\n` +
+      `Regards,\nAlpha Elevators Team`;
+
+    const inviteTarget = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
+    let messageId: string | undefined;
+
+    if (inviteTarget) {
+      const botStatus = whatsAppWebBot.getStatus();
+      if (botStatus.isConnected) {
+        console.log(`[ReadinessReminder] Sending Day 1 Readiness Payment reminder to group for ${project.projectId}`);
+        const res = await whatsAppWebBot.sendMessageToGroup(inviteTarget, reminderText);
+        if (res.success) {
+          messageId = res.messageId;
+          await WhatsAppMessageLog.create({
+            projectId: project._id,
+            groupId: project.whatsapp?.groupId || project.whatsappGroupId || 'GROUP',
+            messageText: reminderText,
             messageType: 'text',
             scheduledAt: new Date(),
             attemptedAt: new Date(),
@@ -1538,41 +1687,169 @@ export async function sendProductionPayment2DayReminder(projectId: any): Promise
             projectId: project._id,
             projectCode: project.projectId,
             type: 'WHATSAPP_SENT',
-            description: `2-Day Production Payment reminder (${days} days delivery timeline) dispatched to WhatsApp group`,
+            description: `Day 1 Readiness payment reminder dispatched to WhatsApp group`,
+            userId,
+            userName,
           });
-
-          console.log(`[ProductionReminder] Sent 2-day reminder for project ${project.projectId}`);
         }
       }
     }
 
-    project.productionPaymentReminderSent = true;
-    project.productionPaymentReminderSentAt = new Date();
+    // Day 1 has now been sent!
+    // Next is Day 3 (2 days from now = 48 hours). Day 2 is neglected/skipped.
+    const now = new Date();
+    const nextOddDayDue = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
+    project.readinessPaymentReminderCount = 1; // Day 1 completed
+    project.readinessPaymentReminderLastSentAt = now;
+    project.readinessPaymentReminderNextDueAt = nextOddDayDue;
+    project.readinessPaymentReminderStopped = false;
     await project.save();
-    return true;
+
+    console.log(`[ReadinessReminder] Day 1 sent. Scheduled Day 3 Readiness Payment reminder for ${project.projectId} at ${nextOddDayDue.toISOString()}`);
+    return { success: true, messageId };
   } catch (err: any) {
-    console.error('[ProductionReminder] Error sending 2-day reminder:', err);
+    console.error('[ReadinessReminder] Error handling six stage completion workflow:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Sends odd-day follow-up reminder for Readiness Payment to the project WhatsApp group
+ * (Day 1 sent after Stage 6, Day 2 neglected, Day 3 sent, Day 4 neglected, Day 5 sent...)
+ */
+export async function sendReadinessPaymentOddDayReminder(projectId: any): Promise<boolean> {
+  try {
+    const project = await Project.findById(projectId);
+    if (!project) return false;
+
+    if (project.readinessPaymentReminderStopped) return false;
+
+    // Check if project completed or cancelled
+    if (project.projectStatus === 'COMPLETED' || project.projectStatus === 'CANCELLED') {
+      return false;
+    }
+
+    // Check if readiness payment has already been received or project moved to DISPATCH or later
+    const { Payment } = await import('../../models');
+    const existingPayment = await Payment.findOne({
+      projectId: project._id,
+      paymentStatus: 'SUCCESS',
+      paymentType: { $regex: /readiness|qc|quality/i },
+    });
+
+    const isQcExecuted =
+      project.stageDates?.get?.('QUALITY_CHECK')?.executedDate ||
+      (project.stageDates as any)?.['QUALITY_CHECK']?.executedDate;
+
+    if (
+      existingPayment ||
+      isQcExecuted ||
+      project.paymentStatus === 'FULLY_PAID' ||
+      [
+        'DISPATCH',
+        'MATERIAL_DISPATCHED',
+        'MATERIAL_IN_TRANSIT',
+        'DELIVERY',
+        'MATERIAL_DELIVERY',
+        'INSTALLATION',
+        'TESTING',
+        'COMPLETED',
+      ].includes(project.projectStatus)
+    ) {
+      console.log(`[ReadinessReminder] Project ${project.projectId} already received readiness payment or dispatched. Stopping reminders.`);
+      project.readinessPaymentReminderStopped = true;
+      project.readinessPaymentReminderNextDueAt = undefined;
+      await project.save();
+      return true;
+    }
+
+    const reminderText =
+      `Dear Sir/Madam,\n\n` +
+      `This is a gentle reminder to kindly release the Readiness payment to proceed with the Material dispatch.\n` +
+      `We request you to complete the payment at the earliest to avoid any delay in the dispatch schedule.\n\n` +
+      `Regards,\nAlpha Elevators Team`;
+
+    const inviteTarget = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
+    let sent = false;
+
+    if (inviteTarget) {
+      const botStatus = whatsAppWebBot.getStatus();
+      if (botStatus.isConnected) {
+        const res = await whatsAppWebBot.sendMessageToGroup(inviteTarget, reminderText);
+        if (res.success) {
+          sent = true;
+          await WhatsAppMessageLog.create({
+            projectId: project._id,
+            groupId: project.whatsapp?.groupId || project.whatsappGroupId || 'GROUP',
+            messageText: reminderText,
+            messageType: 'text',
+            scheduledAt: new Date(),
+            attemptedAt: new Date(),
+            sentAt: new Date(),
+            providerMessageId: res.messageId,
+            status: 'SENT',
+            attemptCount: 1,
+            isDryRun: false,
+          });
+
+          const currentCount = (project.readinessPaymentReminderCount || 1) + 1;
+          const oddDayNumber = currentCount * 2 - 1; // 1->1, 2->3, 3->5, 4->7...
+          await logProjectActivity({
+            projectId: project._id,
+            projectCode: project.projectId,
+            type: 'WHATSAPP_SENT',
+            description: `Day ${oddDayNumber} Readiness Payment reminder dispatched to WhatsApp group`,
+          });
+
+          console.log(`[ReadinessReminder] Sent Day ${oddDayNumber} reminder for project ${project.projectId}`);
+        }
+      }
+    }
+
+    // Advance count and schedule next odd day (2 days / 48 hours later)
+    const newCount = (project.readinessPaymentReminderCount || 1) + 1;
+    const nextOddDayDue = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+    project.readinessPaymentReminderCount = newCount;
+    project.readinessPaymentReminderLastSentAt = new Date();
+    project.readinessPaymentReminderNextDueAt = nextOddDayDue;
+    await project.save();
+
+    return sent;
+  } catch (err: any) {
+    console.error('[ReadinessReminder] Error sending odd-day reminder:', err);
     return false;
   }
 }
 
 /**
- * Background processor for 2-day production payment reminders (checked every 15 minutes)
+ * Background processor for odd-day Readiness Payment reminders (checked periodically)
  */
-export async function processDueProductionPaymentReminders(): Promise<void> {
+export async function processDueReadinessPaymentReminders(): Promise<void> {
   try {
     const now = new Date();
     const dueProjects = await Project.find({
-      productionPaymentReminderScheduledAt: { $lte: now },
-      productionPaymentReminderSent: { $ne: true },
-      projectStatus: { $nin: ['COMPLETED', 'CANCELLED'] },
+      readinessPaymentReminderNextDueAt: { $lte: now },
+      readinessPaymentReminderStopped: { $ne: true },
+      projectStatus: {
+        $nin: [
+          'COMPLETED',
+          'CANCELLED',
+          'DISPATCH',
+          'MATERIAL_DISPATCHED',
+          'MATERIAL_IN_TRANSIT',
+          'DELIVERY',
+          'MATERIAL_DELIVERY',
+          'INSTALLATION',
+          'TESTING',
+        ],
+      },
     });
 
     for (const p of dueProjects) {
-      await sendProductionPayment2DayReminder(p._id);
+      await sendReadinessPaymentOddDayReminder(p._id);
     }
   } catch (err: any) {
-    console.error('[ProductionReminder] Error in processDueProductionPaymentReminders:', err);
+    console.error('[ReadinessReminder] Error in processDueReadinessPaymentReminders:', err);
   }
 }
 
@@ -1744,17 +2021,20 @@ export function initScheduler(): void {
     }
   );
 
-  // Periodic check: Checks every 1 minute for due WhatsApp milestone updates (supporting fast cadences like 2 minutes or 30 minutes)
+  // Periodic check: Checks every 1 minute for due WhatsApp milestone updates & odd-day payment reminders
   cron.schedule('* * * * *', async () => {
     await processDueWhatsAppUpdates();
+    await processDueProductionPaymentReminders();
+    await processDueReadinessPaymentReminders();
   });
 
-  // Periodic heartbeat: Checks every 15 minutes for 3-hour CRM reminders, due escalation matrices, and 2-day production payment reminders
+  // Periodic heartbeat: Checks every 15 minutes for 3-hour CRM reminders, due escalation matrices, and payment reminders
   cron.schedule('*/15 * * * *', async () => {
     await checkScheduleDateReminders();
     await processDueReminders();
     await processDueEscalationMatrixUpdates();
     await processDueProductionPaymentReminders();
+    await processDueReadinessPaymentReminders();
   });
 
   // Initial check on server start
@@ -1762,6 +2042,7 @@ export function initScheduler(): void {
   processDueReminders().catch((err) => console.error('[Scheduler] Initial processDueReminders error:', err));
   processDueEscalationMatrixUpdates().catch((err) => console.error('[Scheduler] Initial processDueEscalationMatrixUpdates error:', err));
   processDueProductionPaymentReminders().catch((err) => console.error('[Scheduler] Initial processDueProductionPaymentReminders error:', err));
+  processDueReadinessPaymentReminders().catch((err) => console.error('[Scheduler] Initial processDueReadinessPaymentReminders error:', err));
 
   console.log('[Scheduler] Daily 09:00 AM IST & 15-minute heartbeat scheduler active.');
 }

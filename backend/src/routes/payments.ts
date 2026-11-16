@@ -9,6 +9,7 @@ import { generatePaymentReceiptPdf } from '../services/receipt/receiptGenerator'
 import {
   scheduleEscalationMatrixDispatch,
   triggerAdvancePaymentReminderForCRMAndAdmin,
+  calculateNextUpdateDate,
 } from '../services/scheduler/schedulerService';
 
 export const paymentRouter = Router();
@@ -147,6 +148,79 @@ paymentRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT'), asyn
       console.log(`[Payment] Marked stage "PAYMENT_RECEIVED" as EXECUTED/DONE for project ${project.projectId}`);
     }
 
+    // Check if this payment fulfills or corresponds to Production Payment
+    const isProductionPayment =
+      !isAdvancePayment &&
+      ((paymentType && String(paymentType).toLowerCase().includes('production')) ||
+        (payment.paymentType && String(payment.paymentType).toLowerCase().includes('production')) ||
+        (project.paymentRequest?.paymentType && String(project.paymentRequest.paymentType).toLowerCase().includes('production')) ||
+        project.projectStatus === 'ENGINEERING' ||
+        project.projectStatus === 'CUSTOMER_APPROVAL' ||
+        (project.productionPaymentReminderCount && project.productionPaymentReminderCount > 0 && !project.productionPaymentReminderStopped));
+
+    if (isProductionPayment) {
+      if (!project.stageDates) {
+        project.stageDates = new Map();
+      }
+      const prodStage = project.stageDates.get('ENGINEERING') || {};
+      prodStage.executedDate = new Date();
+      if (!prodStage.scheduleDate) {
+        prodStage.scheduleDate = new Date();
+      }
+      project.stageDates.set('ENGINEERING', prodStage);
+
+      // Stop production payment odd-day reminders
+      project.productionPaymentReminderStopped = true;
+      project.productionPaymentReminderSent = true;
+      project.productionPaymentReminderNextDueAt = undefined;
+      project.productionPaymentReminderScheduledAt = undefined;
+
+      // Automatically move stage to "Production in progress" (MANUFACTURING)
+      const prevStatus = project.projectStatus;
+      project.projectStatus = 'MANUFACTURING';
+      project.productionStage = 1;
+      const intervalDays = project.whatsapp?.intervalDays || project.updateFrequencyDays || 10;
+      project.nextUpdateAt = calculateNextUpdateDate(intervalDays, new Date());
+      if (project.whatsapp) {
+        project.whatsapp.lastUpdateAt = new Date();
+        project.whatsapp.nextUpdateAt = project.nextUpdateAt;
+      }
+
+      console.log(`[Payment] Marked stage "ENGINEERING" (Production Payment) as EXECUTED and moved project ${project.projectId} from ${prevStatus} to MANUFACTURING (Production in progress).`);
+    }
+
+    // Check if this payment fulfills or corresponds to Readiness Payment
+    const isReadinessPayment =
+      !isAdvancePayment &&
+      !isProductionPayment &&
+      ((paymentType && (String(paymentType).toLowerCase().includes('readiness') || String(paymentType).toLowerCase().includes('qc'))) ||
+        (payment.paymentType && (String(payment.paymentType).toLowerCase().includes('readiness') || String(payment.paymentType).toLowerCase().includes('qc'))) ||
+        (project.paymentRequest?.paymentType && (String(project.paymentRequest.paymentType).toLowerCase().includes('readiness') || String(project.paymentRequest.paymentType).toLowerCase().includes('qc'))) ||
+        project.projectStatus === 'QUALITY_CHECK' ||
+        (project.readinessPaymentReminderCount && project.readinessPaymentReminderCount > 0 && !project.readinessPaymentReminderStopped));
+
+    if (isReadinessPayment) {
+      if (!project.stageDates) {
+        project.stageDates = new Map();
+      }
+      const qcStage = project.stageDates.get('QUALITY_CHECK') || {};
+      qcStage.executedDate = new Date();
+      if (!qcStage.scheduleDate) {
+        qcStage.scheduleDate = new Date();
+      }
+      project.stageDates.set('QUALITY_CHECK', qcStage);
+
+      // Stop readiness payment odd-day reminders
+      project.readinessPaymentReminderStopped = true;
+      project.readinessPaymentReminderNextDueAt = undefined;
+
+      // Automatically move stage to "Material ready to Dispatch" (DISPATCH)
+      const prevStatus = project.projectStatus;
+      project.projectStatus = 'DISPATCH';
+
+      console.log(`[Payment] Marked stage "QUALITY_CHECK" (Readiness Payment) as EXECUTED and moved project ${project.projectId} from ${prevStatus} to DISPATCH (Material ready to Dispatch).`);
+    }
+
     await project.save();
 
     // Log Activity
@@ -175,6 +249,30 @@ paymentRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT'), asyn
 
       // 2. Remind CRM and Admin to schedule Site Visit (both in-app reminder and 1-to-1 WhatsApp messages)
       await triggerAdvancePaymentReminderForCRMAndAdmin(project._id, paidNum);
+    }
+
+    if (isProductionPayment) {
+      await logProjectActivity({
+        projectId: project._id,
+        projectCode: project.projectId,
+        type: 'STATUS_CHANGE',
+        description: `Production payment of ₹${paidNum.toLocaleString('en-IN')} recorded. "Production Payment" marked COMPLETED and project advanced to "Production in progress". Stage 1 WhatsApp update scheduled.`,
+        userId: req.user?._id,
+        userName: req.user?.name,
+        metadata: { amount: paidNum, newStatus: 'MANUFACTURING' },
+      });
+    }
+
+    if (isReadinessPayment) {
+      await logProjectActivity({
+        projectId: project._id,
+        projectCode: project.projectId,
+        type: 'STATUS_CHANGE',
+        description: `Readiness payment of ₹${paidNum.toLocaleString('en-IN')} recorded. "Readiness Payment" marked COMPLETED and project advanced to "Material ready to Dispatch".`,
+        userId: req.user?._id,
+        userName: req.user?.name,
+        metadata: { amount: paidNum, newStatus: 'DISPATCH' },
+      });
     }
 
     // Automatically generate official PDF Receipt

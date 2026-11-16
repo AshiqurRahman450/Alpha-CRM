@@ -1696,6 +1696,11 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
     const isPostProduction = POST_PRODUCTION_PAYMENT_STAGES.includes(status);
 
     if (isPostProduction) {
+      // Stop production payment reminders once in manufacturing or beyond
+      project.productionPaymentReminderStopped = true;
+      project.productionPaymentReminderNextDueAt = undefined;
+      project.productionPaymentReminderScheduledAt = undefined;
+
       if (!project.productionStage || project.productionStage < 1) {
         project.productionStage = 1;
       }
@@ -1716,6 +1721,11 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
       if (project.whatsapp) {
         project.whatsapp.nextUpdateAt = undefined;
       }
+    }
+
+    if (['DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY', 'INSTALLATION', 'TESTING', 'COMPLETED'].includes(status)) {
+      project.readinessPaymentReminderStopped = true;
+      project.readinessPaymentReminderNextDueAt = undefined;
     }
     await project.save();
 
@@ -2041,6 +2051,15 @@ projectRouter.patch('/:id/stage-dates', authorize('ADMIN', 'CRM', 'MANAGER', 'BD
       } else if (schedRes?.error) {
         groupMessageError = schedRes.error;
       }
+    } else if (stageKey === 'ENGINEERING' && executedDate) {
+      project.productionPaymentReminderStopped = true;
+      project.productionPaymentReminderNextDueAt = undefined;
+      project.productionPaymentReminderScheduledAt = undefined;
+      await project.save();
+    } else if (stageKey === 'QUALITY_CHECK' && executedDate) {
+      project.readinessPaymentReminderStopped = true;
+      project.readinessPaymentReminderNextDueAt = undefined;
+      await project.save();
     }
 
     if (stageKey === 'SITE_MEASUREMENT' && executedDate) {

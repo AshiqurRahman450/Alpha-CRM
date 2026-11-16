@@ -83,6 +83,15 @@ export interface IProject extends Document {
   productionPaymentReminderScheduledAt?: Date; // Scheduled 2 days after Drawing and cabin Approved
   productionPaymentReminderSent?: boolean;
   productionPaymentReminderSentAt?: Date;
+  productionPaymentReminderCount?: number; // 1 = Day 1, 2 = Day 3, 3 = Day 5...
+  productionPaymentReminderNextDueAt?: Date;
+  productionPaymentReminderLastSentAt?: Date;
+  productionPaymentReminderStopped?: boolean;
+
+  readinessPaymentReminderCount?: number; // 1 = Day 1, 2 = Day 3, 3 = Day 5...
+  readinessPaymentReminderNextDueAt?: Date;
+  readinessPaymentReminderLastSentAt?: Date;
+  readinessPaymentReminderStopped?: boolean;
 
   // Dedicated WATI WhatsApp Group Data Model
   whatsapp?: {
@@ -452,6 +461,14 @@ const ProjectSchema = new Schema<IProject>(
     productionPaymentReminderScheduledAt: { type: Date },
     productionPaymentReminderSent: { type: Boolean, default: false },
     productionPaymentReminderSentAt: { type: Date },
+    productionPaymentReminderCount: { type: Number, default: 0 },
+    productionPaymentReminderNextDueAt: { type: Date },
+    productionPaymentReminderLastSentAt: { type: Date },
+    productionPaymentReminderStopped: { type: Boolean, default: false },
+    readinessPaymentReminderCount: { type: Number, default: 0 },
+    readinessPaymentReminderNextDueAt: { type: Date },
+    readinessPaymentReminderLastSentAt: { type: Date },
+    readinessPaymentReminderStopped: { type: Boolean, default: false },
     stageDates: {
       type: Map,
       of: new Schema(

@@ -560,10 +560,17 @@ export default function ProjectDetailPage() {
               </p>
               <p className="text-[11px] text-amber-800/80 leading-relaxed">
                 Timeline: <strong>{project.productionTimelineDays || 60} days</strong> from production payment to delivery. 
-                {project.productionPaymentReminderSent ? (
-                  <span className="text-emerald-700 font-semibold ml-1.5">✓ 2-Day Production Payment reminder already dispatched.</span>
+                {project.productionPaymentReminderStopped ? (
+                  <span className="text-emerald-700 font-semibold ml-1.5">✓ Production payment received. Reminders concluded.</span>
+                ) : project.productionPaymentReminderNextDueAt ? (
+                  <span className="text-amber-800 font-medium ml-1.5">⏱ Production payment odd-day reminder due {new Date(project.productionPaymentReminderNextDueAt).toLocaleDateString()}.</span>
                 ) : project.productionPaymentReminderScheduledAt ? (
-                  <span className="text-amber-800 font-medium ml-1.5">⏱ 2-Day reminder scheduled for {new Date(project.productionPaymentReminderScheduledAt).toLocaleDateString()}.</span>
+                  <span className="text-amber-800 font-medium ml-1.5">⏱ Production payment odd-day reminder scheduled for {new Date(project.productionPaymentReminderScheduledAt).toLocaleDateString()}.</span>
+                ) : null}
+                {project.readinessPaymentReminderStopped ? (
+                  <span className="text-emerald-700 font-semibold ml-1.5">✓ Readiness payment received. Moved to Dispatch.</span>
+                ) : project.readinessPaymentReminderNextDueAt ? (
+                  <span className="text-blue-800 font-medium ml-1.5">⏱ Readiness payment odd-day reminder due {new Date(project.readinessPaymentReminderNextDueAt).toLocaleDateString()}.</span>
                 ) : null}
               </p>
             </div>

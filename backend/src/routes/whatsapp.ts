@@ -18,6 +18,7 @@ import {
   generateProjectUpdateText,
   formatProjectStatus,
   POST_PRODUCTION_PAYMENT_STAGES,
+  handleSixStageProductionCompletedWorkflow,
 } from '../services/scheduler/schedulerService';
 import { config } from '../config';
 
@@ -307,6 +308,14 @@ whatsappRouter.post('/send', authorize('ADMIN', 'CRM', 'MANAGER', 'TECHNICAL_LEA
         } else if (templateName === 'PRODUCTION_UPDATE_STAGE_6') {
           project.productionStage = 7;
           project.nextUpdateAt = undefined;
+          // Trigger Readiness Payment reminder workflow in odd-day format (Day 1 sent, Day 3 next...)
+          setTimeout(async () => {
+            try {
+              await handleSixStageProductionCompletedWorkflow(project._id, req.user?._id, req.user?.name);
+            } catch (rErr: any) {
+              console.error('[WhatsAppRoute] Error triggering readiness payment workflow:', rErr);
+            }
+          }, 1500);
         } else {
           project.nextUpdateAt = calculateNextUpdateDate(interval, new Date());
         }
