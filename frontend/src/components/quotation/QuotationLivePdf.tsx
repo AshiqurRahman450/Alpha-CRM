@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { QuotationData, buildPage6WarrantyParagraph, parseDeliveryDays } from '../../types/quotation';
+import { QuotationData, buildPage6WarrantyParagraph, parseDeliveryDays, formatEffectiveShaft } from '../../types/quotation';
 import {
   renderExactPdfPage,
   sanitizeProposalParagraphs,
@@ -266,6 +266,32 @@ export default function QuotationLivePdf({
       updated = updated.replace(/<div class="t c9" style="z-index:791;transform:matrix\(1,0,0,1,310\.59,191\.55\)[^"]*">/g, '<div class="t c9" style="z-index:791;transform:matrix(1,0,0,1,310.59,191.55);color:#000000 !important;">');
       updated = updated.replace(/<div class="t c9" style="z-index:816;transform:matrix\(1,0,0,1,62\.53,216\.83\)[^"]*">/g, '<div class="t c9" style="z-index:816;transform:matrix(1,0,0,1,62.53,216.83);color:#000000 !important;">');
       updated = updated.replace(/<div class="t c17" style="z-index:729;transform:matrix\(1,0,0,1,346\.53,364\.86\)[^"]*">/g, '<div class="t c17" style="z-index:729;transform:matrix(1,0,0,1,346.53,364.86);color:#000000 !important;">');
+    }
+
+    // Fix Page 5 Shaft Specifications & Accessories Headers
+    if (pageNum === 5 || updated.includes('id="p4"') || updated.includes('Shaft Specifications')) {
+      const effectiveShaft = formatEffectiveShaft(data.shaftScope, data.shaftType);
+      if (effectiveShaft) {
+        const shaftRegex = /<div class="t c13[^"]*" style="[^"]*260\.73,213\.5[^"]*"[^>]*>[\s\S]*?<\/div>|<div class="t c13[^"]*shaft-spec-value[^"]*"[\s\S]*?<\/div>/;
+        const replacement = `<div class="t c13 shaft-spec-value" style="position:absolute;left:260.73px;top:211px;height:24px;line-height:24px;white-space:nowrap;z-index:381;color:#000000 !important;font-family:'f1',sans-serif;font-size:14px;">${effectiveShaft}</div>`;
+        if (shaftRegex.test(updated)) {
+          updated = updated.replace(shaftRegex, replacement);
+        } else {
+          updated = updated.replace(/Shaft-Glass Shaft\s*/i, effectiveShaft);
+        }
+      }
+
+      const shaftHeaderRegex = /<div class="t c8[^"]*" style="[^"]*44\.83,180\.09[^"]*"[^>]*>[\s\S]*?<\/div>|<div class="t c8[^"]*shaft-spec-header[^"]*"[\s\S]*?<\/div>/;
+      const shaftHeaderReplacement = `<div class="t c8 shaft-spec-header" style="position:absolute;left:44.83px;top:175px;height:22px;line-height:22px;white-space:nowrap;z-index:435;color:#000000 !important;font-family:'f1',sans-serif;font-size:18px;font-weight:bold;">Shaft Specifications:&nbsp;</div>`;
+      if (shaftHeaderRegex.test(updated)) {
+        updated = updated.replace(shaftHeaderRegex, shaftHeaderReplacement);
+      }
+
+      const accHeaderRegex = /<div class="t c8[^"]*" style="[^"]*44\.83,250\.97[^"]*"[^>]*>[\s\S]*?<\/div>|<div class="t c8[^"]*accessories-header[^"]*"[\s\S]*?<\/div>/;
+      const accHeaderReplacement = `<div class="t c8 accessories-header" style="position:absolute;left:44.83px;top:248px;height:22px;line-height:22px;white-space:nowrap;z-index:456;color:#000000 !important;font-family:'f1',sans-serif;font-size:18px;font-weight:bold;">Accessories + Features: </div>`;
+      if (accHeaderRegex.test(updated)) {
+        updated = updated.replace(accHeaderRegex, accHeaderReplacement);
+      }
     }
 
     // Fix Page 5 Warranty, Delivery, & Payment Terms in savedPages
@@ -976,7 +1002,7 @@ export default function QuotationLivePdf({
           }}
         >
           {/* Proposal styles: colors, cleanups, and watermark */}
-          <style dangerouslySetInnerHTML={{
+          <style id="alpha-live-proposal-styles" dangerouslySetInnerHTML={{
             __html: `
             .exact-pdf-container,
             .exact-pdf-container *,
@@ -1056,6 +1082,64 @@ export default function QuotationLivePdf({
               background: #ffffff !important;
               z-index: 40 !important;
               pointer-events: none !important;
+            }
+            #p4 p, #p4 ul, #p4 li {
+              margin: 0 !important;
+              padding: 0 !important;
+            }
+            #p4 .shaft-spec-header {
+              position: absolute !important;
+              left: 44.83px !important;
+              top: 175px !important;
+              height: 22px !important;
+              line-height: 22px !important;
+              font-size: 18px !important;
+              font-weight: bold !important;
+              color: #000000 !important;
+              z-index: 435 !important;
+              white-space: nowrap !important;
+            }
+            #p4 .shaft-spec-value {
+              position: absolute !important;
+              left: 260.73px !important;
+              top: 211px !important;
+              height: 24px !important;
+              line-height: 24px !important;
+              font-size: 14px !important;
+              color: #000000 !important;
+              z-index: 381 !important;
+              white-space: nowrap !important;
+            }
+            #p4 .accessories-header {
+              position: absolute !important;
+              left: 44.83px !important;
+              top: 248px !important;
+              height: 22px !important;
+              line-height: 22px !important;
+              font-size: 18px !important;
+              font-weight: bold !important;
+              color: #000000 !important;
+              z-index: 456 !important;
+              white-space: nowrap !important;
+            }
+            #p4 .warranty-term-box {
+              position: absolute !important;
+              left: 250px !important;
+              top: 669px !important;
+              width: 530px !important;
+              height: 45px !important;
+              min-height: 45px !important;
+              line-height: 13.5px !important;
+              font-size: 11px !important;
+              font-weight: 600 !important;
+              color: #000000 !important;
+              z-index: 950 !important;
+            }
+            #p4 .warranty-term-box div {
+              line-height: 13.5px !important;
+              font-size: 11px !important;
+              margin: 0 !important;
+              padding: 0 !important;
             }
             #p5 .customer-scope-underline-remover {
               position: absolute;

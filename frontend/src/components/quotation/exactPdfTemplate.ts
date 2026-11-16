@@ -93,12 +93,25 @@ export function sanitizeProposalParagraphs(html: string, pageNum: number, data?:
     // 1. Shaft Specifications on Page 5
     const effectiveShaft = formatEffectiveShaft(safeData.shaftScope, safeData.shaftType);
     if (effectiveShaft) {
-      const shaftRegex = /<div class="t c13" style="z-index:381;transform:matrix\(1,0,0,1,260\.73,213\.5\)[^"]*">[\s\S]*?<\/div>/;
+      const shaftRegex = /<div class="t c13[^"]*" style="[^"]*260\.73,213\.5[^"]*"[^>]*>[\s\S]*?<\/div>|<div class="t c13[^"]*shaft-spec-value[^"]*"[\s\S]*?<\/div>/;
+      const replacement = `<div class="t c13 shaft-spec-value" style="position:absolute;left:260.73px;top:211px;height:24px;line-height:24px;white-space:nowrap;z-index:381;color:#000000 !important;font-family:'f1',sans-serif;font-size:14px;">${effectiveShaft}</div>`;
       if (shaftRegex.test(updated)) {
-        updated = updated.replace(shaftRegex, `<div class="t c13" style="z-index:381;transform:matrix(1,0,0,1,260.73,213.5);white-space:nowrap;">${effectiveShaft}</div>`);
+        updated = updated.replace(shaftRegex, replacement);
       } else {
         updated = updated.replace(/Shaft-Glass Shaft\s*/i, effectiveShaft);
       }
+    }
+
+    const shaftHeaderRegex = /<div class="t c8[^"]*" style="[^"]*44\.83,180\.09[^"]*"[^>]*>[\s\S]*?<\/div>|<div class="t c8[^"]*shaft-spec-header[^"]*"[\s\S]*?<\/div>/;
+    const shaftHeaderReplacement = `<div class="t c8 shaft-spec-header" style="position:absolute;left:44.83px;top:175px;height:22px;line-height:22px;white-space:nowrap;z-index:435;color:#000000 !important;font-family:'f1',sans-serif;font-size:18px;font-weight:bold;">Shaft Specifications:&nbsp;</div>`;
+    if (shaftHeaderRegex.test(updated)) {
+      updated = updated.replace(shaftHeaderRegex, shaftHeaderReplacement);
+    }
+
+    const accHeaderRegex = /<div class="t c8[^"]*" style="[^"]*44\.83,250\.97[^"]*"[^>]*>[\s\S]*?<\/div>|<div class="t c8[^"]*accessories-header[^"]*"[\s\S]*?<\/div>/;
+    const accHeaderReplacement = `<div class="t c8 accessories-header" style="position:absolute;left:44.83px;top:248px;height:22px;line-height:22px;white-space:nowrap;z-index:456;color:#000000 !important;font-family:'f1',sans-serif;font-size:18px;font-weight:bold;">Accessories + Features: </div>`;
+    if (accHeaderRegex.test(updated)) {
+      updated = updated.replace(accHeaderRegex, accHeaderReplacement);
     }
 
     // 2. Accessories + Features on Page 5
@@ -1044,7 +1057,7 @@ export function buildPage3TablesHtml(html: string, data?: QuotationData): string
 
 export function buildPage5WarrantyHtml(text?: string): string {
   const cleanText = (text && text.trim()) ? text.trim() : (DEFAULT_QUOTATION_DATA.warranty || 'Lifetime- MOTOR WARRANTY, 5 years - manufacturing warranty + 1 Years Free Maintenance , 5 years Battery warranty ( 3 Years replaceable and 2 years service.');
-  const boxStyle = "position:absolute;left:250px;top:677px;width:530px;height:48px;min-height:48px;line-height:15px;font-family:'f3','Segoe UI',Arial,sans-serif !important;font-size:11.5px;font-weight:600;color:#000000 !important;z-index:950;";
+  const boxStyle = "position:absolute;left:250px;top:669px;width:530px;height:45px;min-height:45px;line-height:13.5px;font-family:'f3','Segoe UI',Arial,sans-serif !important;font-size:11px;font-weight:600;color:#000000 !important;z-index:950;";
 
   const idx1 = cleanText.indexOf('Free Maintenance');
   const idx2 = cleanText.indexOf('years service');
@@ -1053,13 +1066,13 @@ export function buildPage5WarrantyHtml(text?: string): string {
     const l1 = cleanText.substring(0, idx1).trimEnd();
     const l2 = cleanText.substring(idx1, idx2).trimEnd();
     const l3 = cleanText.substring(idx2).trim();
-    return `<!-- START_WARRANTY_BOX --><div class="t c26 warranty-term-box" style="${boxStyle}"><div style="white-space:nowrap;">${l1} </div><div style="white-space:nowrap;">${l2} </div><div style="white-space:nowrap;">${l3}</div></div><!-- END_WARRANTY_BOX -->`;
+    return `<!-- START_WARRANTY_BOX --><div class="t c26 warranty-term-box" style="${boxStyle}"><div style="white-space:nowrap;line-height:13.5px;">${l1} </div><div style="white-space:nowrap;line-height:13.5px;">${l2} </div><div style="white-space:nowrap;line-height:13.5px;">${l3}</div></div><!-- END_WARRANTY_BOX -->`;
   }
 
   // If text has newline characters:
   if (cleanText.includes('\n')) {
     const lines = cleanText.split('\n').filter(Boolean);
-    const inner = lines.slice(0, 3).map((l) => `<div style="white-space:nowrap;">${l}</div>`).join('');
+    const inner = lines.slice(0, 3).map((l) => `<div style="white-space:nowrap;line-height:13.5px;">${l}</div>`).join('');
     return `<!-- START_WARRANTY_BOX --><div class="t c26 warranty-term-box" style="${boxStyle}">${inner}</div><!-- END_WARRANTY_BOX -->`;
   }
 
@@ -1068,10 +1081,10 @@ export function buildPage5WarrantyHtml(text?: string): string {
     const parts = cleanText.split('+');
     const l1 = parts[0].trim();
     const l2 = '+ ' + parts.slice(1).join('+').trim();
-    return `<!-- START_WARRANTY_BOX --><div class="t c26 warranty-term-box" style="${boxStyle}"><div style="white-space:nowrap;">${l1}</div><div style="white-space:nowrap;">${l2}</div></div><!-- END_WARRANTY_BOX -->`;
+    return `<!-- START_WARRANTY_BOX --><div class="t c26 warranty-term-box" style="${boxStyle}"><div style="white-space:nowrap;line-height:13.5px;">${l1}</div><div style="white-space:nowrap;line-height:13.5px;">${l2}</div></div><!-- END_WARRANTY_BOX -->`;
   }
 
-  return `<!-- START_WARRANTY_BOX --><div class="t c26 warranty-term-box" style="${boxStyle}"><div style="white-space:normal;">${cleanText}</div></div><!-- END_WARRANTY_BOX -->`;
+  return `<!-- START_WARRANTY_BOX --><div class="t c26 warranty-term-box" style="${boxStyle}"><div style="white-space:normal;line-height:13.5px;">${cleanText}</div></div><!-- END_WARRANTY_BOX -->`;
 }
 
 export function buildPage5AccessoriesHtml(features?: string[]): string {
@@ -1327,8 +1340,25 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
     html = html.replace('AE/QTN/AE-261026-131', safeData.offerNo || 'AE/QTN/AE-261026-131');
     const effectiveShaft = formatEffectiveShaft(safeData.shaftScope, safeData.shaftType);
     if (effectiveShaft) {
-      html = html.replace(/<div class="t c13" style="z-index:381;transform:matrix\(1,0,0,1,260\.73,213\.5\)">[\s\S]*?<\/div>/, `<div class="t c13" style="z-index:381;transform:matrix(1,0,0,1,260.73,213.5);white-space:nowrap;">${effectiveShaft}</div>`);
-      html = html.replace(/Shaft-Glass Shaft\s*/i, effectiveShaft);
+      const shaftRegex = /<div class="t c13[^"]*" style="[^"]*260\.73,213\.5[^"]*"[^>]*>[\s\S]*?<\/div>|<div class="t c13[^"]*shaft-spec-value[^"]*"[\s\S]*?<\/div>/;
+      const replacement = `<div class="t c13 shaft-spec-value" style="position:absolute;left:260.73px;top:211px;height:24px;line-height:24px;white-space:nowrap;z-index:381;color:#000000 !important;font-family:'f1',sans-serif;font-size:14px;">${effectiveShaft}</div>`;
+      if (shaftRegex.test(html)) {
+        html = html.replace(shaftRegex, replacement);
+      } else {
+        html = html.replace(/Shaft-Glass Shaft\s*/i, effectiveShaft);
+      }
+    }
+
+    const shaftHeaderRegex = /<div class="t c8[^"]*" style="[^"]*44\.83,180\.09[^"]*"[^>]*>[\s\S]*?<\/div>|<div class="t c8[^"]*shaft-spec-header[^"]*"[\s\S]*?<\/div>/;
+    const shaftHeaderReplacement = `<div class="t c8 shaft-spec-header" style="position:absolute;left:44.83px;top:175px;height:22px;line-height:22px;white-space:nowrap;z-index:435;color:#000000 !important;font-family:'f1',sans-serif;font-size:18px;font-weight:bold;">Shaft Specifications:&nbsp;</div>`;
+    if (shaftHeaderRegex.test(html)) {
+      html = html.replace(shaftHeaderRegex, shaftHeaderReplacement);
+    }
+
+    const accHeaderRegex = /<div class="t c8[^"]*" style="[^"]*44\.83,250\.97[^"]*"[^>]*>[\s\S]*?<\/div>|<div class="t c8[^"]*accessories-header[^"]*"[\s\S]*?<\/div>/;
+    const accHeaderReplacement = `<div class="t c8 accessories-header" style="position:absolute;left:44.83px;top:248px;height:22px;line-height:22px;white-space:nowrap;z-index:456;color:#000000 !important;font-family:'f1',sans-serif;font-size:18px;font-weight:bold;">Accessories + Features: </div>`;
+    if (accHeaderRegex.test(html)) {
+      html = html.replace(accHeaderRegex, accHeaderReplacement);
     }
 
     const featuresList = (safeData.accessoriesFeatures && safeData.accessoriesFeatures.length > 0)
