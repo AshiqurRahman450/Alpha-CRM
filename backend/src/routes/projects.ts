@@ -1,4 +1,4 @@
-import { Router, Response } from 'express';
+import { Router, Response, Request, NextFunction } from 'express';
 import * as XLSX from 'xlsx';
 import {
   Project,
@@ -43,16 +43,71 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 
+// Ensure uploads directory exists reliably across local, development, and VPS environments
+export function ensureUploadsDir(): string {
+  const candidateDirs = [
+    path.resolve(__dirname, '../../uploads'),
+    path.resolve(__dirname, '../uploads'),
+    path.resolve(process.cwd(), 'backend/uploads'),
+    path.resolve(process.cwd(), 'uploads'),
+  ];
+
+  for (const dir of candidateDirs) {
+    try {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      return dir;
+    } catch {}
+  }
+
+  const fallbackDir = path.resolve(process.cwd(), 'uploads');
+  try {
+    if (!fs.existsSync(fallbackDir)) {
+      fs.mkdirSync(fallbackDir, { recursive: true });
+    }
+  } catch {}
+  return fallbackDir;
+}
+
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/');
+  destination: (_req, _file, cb) => {
+    try {
+      const targetDir = ensureUploadsDir();
+      cb(null, targetDir);
+    } catch (err: any) {
+      cb(err, '');
+    }
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, req.params.id + '-drawing-' + uniqueSuffix + path.extname(file.originalname));
+    const safeName = file.originalname ? path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]/g, '_') : 'drawing';
+    const ext = path.extname(safeName) || '.pdf';
+    cb(null, `${req.params.id}-drawing-${uniqueSuffix}${ext}`);
   },
 });
-const upload = multer({ storage });
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+});
+
+const handleDrawingUploadMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  upload.single('drawing')(req, res, (err: any) => {
+    if (err) {
+      console.error('[DrawingUpload] Multer error:', err);
+      const isTooLarge = err.code === 'LIMIT_FILE_SIZE';
+      return res.status(400).json({
+        success: false,
+        message: isTooLarge
+          ? 'Drawing file is too large (max 50MB allowed)'
+          : err.message || 'File upload failed',
+      });
+    }
+    next();
+  });
+};
+
 const excelUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024 },
@@ -1535,51 +1590,56 @@ projectRouter.post('/:id/notes', async (req: AuthRequest, res: Response) => {
 /**
  * POST /api/projects/:id/drawing
  */
-projectRouter.post('/:id/drawing', authorize('ADMIN', 'CRM', 'MANAGER'), upload.single('drawing'), async (req: AuthRequest, res: Response) => {
-  try {
-    const project = await Project.findById(req.params.id);
-    if (!project) return res.status(404).json({ success: false, message: 'Project not found' });
-    if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
+projectRouter.post(
+  '/:id/drawing',
+  authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'TECHNICAL_LEAD', 'TECHNICAL_MANAGER'),
+  handleDrawingUploadMiddleware,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const project = await Project.findById(req.params.id);
+      if (!project) return res.status(404).json({ success: false, message: 'Project not found' });
+      if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
 
-    project.drawingUrl = `/uploads/${req.file.filename}`;
+      project.drawingUrl = `/uploads/${req.file.filename}`;
 
-    // Automatically set DESIGN schedule & executed dates to today
-    if (!project.stageDates) project.stageDates = new Map();
-    const currentDates = project.stageDates.get('DESIGN') || {};
-    currentDates.scheduleDate = new Date();
-    currentDates.executedDate = new Date();
-    project.stageDates.set('DESIGN', currentDates);
+      // Automatically set DESIGN schedule & executed dates to today
+      if (!project.stageDates) project.stageDates = new Map();
+      const currentDates = project.stageDates.get('DESIGN') || {};
+      currentDates.scheduleDate = new Date();
+      currentDates.executedDate = new Date();
+      project.stageDates.set('DESIGN', currentDates);
 
-    const prevStatus = project.projectStatus;
-    // Advance to next stage (CUSTOMER_APPROVAL)
-    project.projectStatus = 'CUSTOMER_APPROVAL';
+      const prevStatus = project.projectStatus;
+      // Advance to next stage (CUSTOMER_APPROVAL)
+      project.projectStatus = 'CUSTOMER_APPROVAL';
 
-    await project.save();
+      await project.save();
 
-    await logProjectActivity({
-      projectId: project._id,
-      projectCode: project.projectId,
-      type: 'DOCUMENT_UPLOAD',
-      description: `Drawing uploaded. DESIGN stage auto-completed. Status advanced from ${prevStatus} to CUSTOMER_APPROVAL.`,
-      userId: req.user?._id,
-      userName: req.user?.name,
-    });
+      await logProjectActivity({
+        projectId: project._id,
+        projectCode: project.projectId,
+        type: 'DOCUMENT_UPLOAD',
+        description: `Drawing uploaded. DESIGN stage auto-completed. Status advanced from ${prevStatus} to CUSTOMER_APPROVAL.`,
+        userId: req.user?._id,
+        userName: req.user?.name,
+      });
 
-    // Automatically send Drawing and Cabin Design document to the WhatsApp Group!
-    let documentSentToGroup = false;
-    let documentSendError: string | null = null;
-    const inviteTarget = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
+      // Automatically send Drawing and Cabin Design document to the WhatsApp Group!
+      let documentSentToGroup = false;
+      let documentSendError: string | null = null;
+      const inviteTarget = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
 
-    if (inviteTarget) {
-      try {
-        const customer = await Customer.findById(project.customerId);
-        const customerName = customer?.fullName || 'Valued Client';
-        const caption = `Dear Sir/Madam,\n\nThe elevator drawing and cabin design are ready for your review and approval.\n\n*Project:* ${project.projectName} (${project.liftModel || 'Elevator'})\n*Stage:* Drawing and Cabin Design Approval\n\nKindly review and confirm your approval to proceed to the next stage.\n\nRegards,\nAlpha Elevators Team`;
+      if (inviteTarget) {
+        try {
+          const customer = await Customer.findById(project.customerId);
+          const customerName = customer?.fullName || 'Valued Client';
+          const caption = `Dear Sir/Madam,\n\nThe elevator drawing and cabin design are ready for your review and approval.\n\n*Project:* ${project.projectName} (${project.liftModel || 'Elevator'})\n*Stage:* Drawing and Cabin Design Approval\n\nKindly review and confirm your approval to proceed to the next stage.\n\nRegards,\nAlpha Elevators Team`;
 
-        const fullFilePath = req.file.path
-          ? path.resolve(req.file.path)
-          : path.resolve(__dirname, '../../uploads', req.file.filename);
-        const botStatus = whatsAppWebBot.getStatus();
+          const activeDir = ensureUploadsDir();
+          const fullFilePath = req.file.path
+            ? path.resolve(req.file.path)
+            : path.resolve(activeDir, req.file.filename);
+          const botStatus = whatsAppWebBot.getStatus();
 
         if (botStatus.isConnected) {
           const docRes = await whatsAppWebBot.sendDocumentToGroup(

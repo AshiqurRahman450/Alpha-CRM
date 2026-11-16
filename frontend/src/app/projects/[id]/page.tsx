@@ -212,6 +212,12 @@ export default function ProjectDetailPage() {
   const handleDrawingUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
+
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error('File size exceeds 50MB limit. Please upload a smaller or compressed drawing file.');
+      e.target.value = '';
+      return;
+    }
     
     try {
       setUploadingDrawing(true);
@@ -225,7 +231,7 @@ export default function ProjectDetailPage() {
       }
       await fetchProject();
     } catch (err: any) {
-      toast.error(`Failed to upload drawing: ${err.message}`);
+      toast.error(`Failed to upload drawing: ${err.message || 'Server error or network failure'}`);
     } finally {
       setUploadingDrawing(false);
       e.target.value = '';

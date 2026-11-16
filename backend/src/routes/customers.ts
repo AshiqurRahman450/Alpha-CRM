@@ -1,23 +1,51 @@
-import { Router, Response } from 'express';
+import { Router, Response, Request, NextFunction } from 'express';
 import { Customer, Project, Payment, WhatsAppMessage, ProjectActivity, User, Quotation } from '../models';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { PROJECT_STAGE_NEXT_WORK } from './reminders';
 import { getNextCustomerId, getNextOldCustomerId, splitSharedCustomerProjects, resequenceCustomerIds } from '../utils/idGenerators';
 import { parseAndImportExcel, generateImportTemplateBuffer } from '../services/import/excelImportService';
+import { ensureUploadsDir } from './projects';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/');
+  destination: (_req, _file, cb) => {
+    try {
+      const targetDir = ensureUploadsDir();
+      cb(null, targetDir);
+    } catch (err: any) {
+      cb(err, '');
+    }
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, req.params.id + '-' + uniqueSuffix + path.extname(file.originalname));
+    const safeName = file.originalname ? path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]/g, '_') : 'document';
+    const ext = path.extname(safeName) || '.pdf';
+    cb(null, `${req.params.id}-${uniqueSuffix}${ext}`);
   },
 });
-const upload = multer({ storage });
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+});
+
+const handleCustomerDocUploadMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  upload.single('document')(req, res, (err: any) => {
+    if (err) {
+      console.error('[CustomerDocUpload] Multer error:', err);
+      const isTooLarge = err.code === 'LIMIT_FILE_SIZE';
+      return res.status(400).json({
+        success: false,
+        message: isTooLarge
+          ? 'Document file exceeds 50MB limit'
+          : err.message || 'File upload failed',
+      });
+    }
+    next();
+  });
+};
 const excelUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024 },
@@ -414,7 +442,11 @@ customerRouter.get('/:id', async (req: AuthRequest, res: Response) => {
 /**
  * POST /api/customers/:id/documents
  */
-customerRouter.post('/:id/documents', authorize('ADMIN', 'CRM', 'MANAGER'), upload.single('document'), async (req: AuthRequest, res: Response) => {
+customerRouter.post(
+  '/:id/documents',
+  authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'TECHNICAL_LEAD', 'TECHNICAL_MANAGER'),
+  handleCustomerDocUploadMiddleware,
+  async (req: AuthRequest, res: Response) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'No file uploaded' });

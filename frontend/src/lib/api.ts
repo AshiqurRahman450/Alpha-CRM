@@ -70,20 +70,43 @@ async function fetchWithAuth(endpoint: string, options: RequestInit = {}): Promi
   }
 
   const baseUrl = getApiBaseUrl();
-  let res: Response;
+  let res!: Response;
   try {
     res = await fetch(`${baseUrl}${endpoint}`, {
       ...options,
       headers,
     });
-  } catch (netErr) {
-    if (baseUrl !== 'http://localhost:5000') {
-      res = await fetch(`http://localhost:5000${endpoint}`, {
-        ...options,
-        headers,
-      });
-    } else {
-      throw netErr;
+  } catch (netErr: any) {
+    // If primary URL fails on live, attempt fallback to https://crmapi.alphaelevators.io or direct window.location.origin
+    const fallbackBaseUrl =
+      baseUrl.includes('crmapi') || baseUrl.includes('localhost')
+        ? (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5000')
+        : 'https://crmapi.alphaelevators.io';
+
+    let fallbackSuccess = false;
+    if (fallbackBaseUrl !== baseUrl) {
+      try {
+        res = await fetch(`${fallbackBaseUrl}${endpoint}`, {
+          ...options,
+          headers,
+        });
+        fallbackSuccess = true;
+      } catch {}
+    }
+
+    if (!fallbackSuccess) {
+      if (baseUrl !== 'http://localhost:5000') {
+        try {
+          res = await fetch(`http://localhost:5000${endpoint}`, {
+            ...options,
+            headers,
+          });
+        } catch {
+          throw new Error('Network connection error: Unable to reach CRM API server. Please check your internet connection or server status.');
+        }
+      } else {
+        throw netErr;
+      }
     }
   }
 
@@ -113,18 +136,12 @@ async function fetchWithAuth(endpoint: string, options: RequestInit = {}): Promi
 
 export const api = {
   uploadCustomerDocument: async (customerId: string, file: File) => {
-    const token = getAuthToken();
     const formData = new FormData();
     formData.append('document', file);
-    const baseUrl = getApiBaseUrl();
-    const res = await fetch(`${baseUrl}/api/customers/${customerId}/documents`, {
+    return fetchWithAuth(`/api/customers/${customerId}/documents`, {
       method: 'POST',
-      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       body: formData,
     });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.message || 'Upload failed');
-    return data;
   },
   deleteCustomerDocument: async (customerId: string, docId: string) => {
     return fetchWithAuth(`/api/customers/${customerId}/documents/${docId}`, {
@@ -562,18 +579,12 @@ export const api = {
       body: JSON.stringify({ note }),
     }),
   uploadProjectDrawing: async (id: string, file: File) => {
-    const token = getAuthToken();
     const formData = new FormData();
     formData.append('drawing', file);
-    const baseUrl = getApiBaseUrl();
-    const res = await fetch(`${baseUrl}/api/projects/${id}/drawing`, {
+    return fetchWithAuth(`/api/projects/${id}/drawing`, {
       method: 'POST',
-      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       body: formData,
     });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.message || 'Upload failed');
-    return data;
   },
   addProjectNote: (id: string, note: string) =>
     fetchWithAuth(`/api/projects/${id}/notes`, { method: 'POST', body: JSON.stringify({ note }) }),

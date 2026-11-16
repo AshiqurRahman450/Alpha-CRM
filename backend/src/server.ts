@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import { config } from './config';
 import { connectDB } from './config/db';
 import path from 'path';
+import fs from 'fs';
 import { initScheduler } from './services/scheduler/schedulerService';
 import { whatsAppWebBot } from './services/whatsapp';
 
@@ -49,8 +50,22 @@ if (config.nodeEnv !== 'test') {
   app.use(morgan('dev'));
 }
 
-// Serve uploaded documents
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// Ensure uploaded document directories exist and serve uploaded documents
+const uploadDirs = [
+  path.join(__dirname, '../uploads'),
+  path.resolve(__dirname, '../../uploads'),
+  path.resolve(process.cwd(), 'uploads'),
+  path.resolve(process.cwd(), 'backend/uploads'),
+];
+
+uploadDirs.forEach((dir) => {
+  try {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    app.use('/uploads', express.static(dir));
+  } catch {}
+});
 
 // WhatsApp Web Bot Public Diagnostic Route
 app.get('/api/health/whatsapp-bot', async (req: Request, res: Response) => {
