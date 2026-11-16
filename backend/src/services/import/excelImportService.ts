@@ -415,6 +415,7 @@ export async function parseAndImportExcel(
       );
       const rawProjectManager = getVal('projectmanager', 'pm');
       const rawProjectExecutive = getVal('projectexecutive', 'pe');
+      const rawAssignedTl = getVal('assignedtl', 'tl', 'teamlead', 'assignedteamlead');
       const rawTracking = getVal('trackingnumber', 'lrnumber', 'vrllrnumber', 'vrllrtrackingnumber', 'tracking', 'lrno', 'vrlno');
       const rawWhatsappGroup = getVal('whatsappgroupid', 'groupid', 'wagroup', 'group');
       const rawWhatsappGroupName = getVal('whatsappgroupname', 'groupname', 'wagroupname');
@@ -470,6 +471,35 @@ export async function parseAndImportExcel(
           const uClean = normalizeKey(u.name);
           return uClean.includes(execClean) || execClean.includes(uClean);
         });
+      }
+
+      // Resolve Assigned TL (Srinivasan, Sundaram, Bala)
+      let resolvedAssignedTl: string | undefined = undefined;
+      let resolvedAssignedTlId: any = undefined;
+      if (rawAssignedTl) {
+        const tlStr = String(rawAssignedTl).trim();
+        if (/srinivasan/i.test(tlStr)) {
+          resolvedAssignedTl = 'Srinivasan (TL)';
+        } else if (/sundaram/i.test(tlStr)) {
+          resolvedAssignedTl = 'Sundaram';
+        } else if (/bala/i.test(tlStr)) {
+          resolvedAssignedTl = 'Bala';
+        } else {
+          resolvedAssignedTl = tlStr;
+        }
+
+        const tlUser = allUsers.find((u) => {
+          if (resolvedAssignedTl && (u.role === 'LOGISTICS_TL' || u.role === 'TECHNICAL_LEAD')) {
+            const uClean = normalizeKey(u.name);
+            const tlClean = normalizeKey(resolvedAssignedTl);
+            return uClean.includes(tlClean) || tlClean.includes(uClean);
+          }
+          return false;
+        });
+        if (tlUser) {
+          resolvedAssignedTlId = tlUser._id;
+          resolvedAssignedTl = tlUser.name;
+        }
       }
 
       // 1. Resolve or Create Customer
@@ -543,6 +573,11 @@ export async function parseAndImportExcel(
           changed = true;
         }
         if (rawBdmPhone && !customer.bdmPhone) { customer.bdmPhone = rawBdmPhone; changed = true; }
+        if (resolvedAssignedTl && !customer.assignedTl) {
+          customer.assignedTl = resolvedAssignedTl;
+          customer.assignedTlId = resolvedAssignedTlId;
+          changed = true;
+        }
         if (rawCustomerNotes && (!customer.notes || customer.notes === 'Imported from Excel spreadsheet')) {
           customer.notes = rawCustomerNotes;
           changed = true;
@@ -578,6 +613,8 @@ export async function parseAndImportExcel(
           optInSource: rawOptInSource || 'EXCEL_IMPORT',
           notes: customerNotes,
           isOldCustomer: parsedIsOld,
+          assignedTl: resolvedAssignedTl || undefined,
+          assignedTlId: resolvedAssignedTlId || undefined,
         });
         isNewCustomer = true;
         summary.customersCreated++;
@@ -688,6 +725,13 @@ export async function parseAndImportExcel(
         if (rawExecutive) project.assignedEmployee = rawExecutive;
         if (rawProjectManager) project.projectManager = rawProjectManager;
         if (rawProjectExecutive) project.projectExecutive = rawProjectExecutive;
+        if (resolvedAssignedTl) {
+          project.assignedTl = resolvedAssignedTl;
+          project.assignedTlId = resolvedAssignedTlId;
+        } else if (customer.assignedTl && !project.assignedTl) {
+          project.assignedTl = customer.assignedTl;
+          project.assignedTlId = customer.assignedTlId;
+        }
         if (rawTracking) {
           project.vrlLrNumber = rawTracking;
           project.trackingNumber = rawTracking;
@@ -749,6 +793,8 @@ export async function parseAndImportExcel(
           projectExecutive: rawProjectExecutive || rawExecutive || undefined,
           bdmId: customer.bdmId || matchedUser?._id,
           bdmPhone: customer.bdmPhone || rawBdmPhone || matchedUser?.phone,
+          assignedTl: resolvedAssignedTl || customer.assignedTl || undefined,
+          assignedTlId: resolvedAssignedTlId || customer.assignedTlId || undefined,
           vrlLrNumber: rawTracking || undefined,
           trackingNumber: rawTracking || undefined,
           drawingUrl: rawDrawingUrl || undefined,
@@ -869,6 +915,7 @@ export function generateImportTemplateBuffer(): Buffer {
     'Assigned Executive',
     'Project Manager',
     'Project Executive',
+    'Assigned TL',
     'BDM Phone',
     'VRL LR Tracking Number',
     'WhatsApp Group ID',
@@ -928,6 +975,7 @@ export function generateImportTemplateBuffer(): Buffer {
       '15/04/2026',
       '',
       '',
+      'Srinivasan (TL)',
       'Srinivasan (TL)',
       'Srinivasan (TL)',
       'Srinivasan (TL)',
@@ -991,6 +1039,7 @@ export function generateImportTemplateBuffer(): Buffer {
       'Sundaram',
       'Sundaram',
       'Sundaram',
+      'Sundaram',
       '9876500002',
       '',
       '',
@@ -1048,6 +1097,7 @@ export function generateImportTemplateBuffer(): Buffer {
       '10/03/2026',
       '',
       '',
+      'Bala',
       'Bala',
       'Bala',
       'Bala',
@@ -1114,6 +1164,7 @@ export function generateImportTemplateBuffer(): Buffer {
     ['Current Stage', 'Any milestone stage name:\n• Advance Payment Received\n• Site Visit\n• Drawing and Cabin\n• Drawing and Cabin Design Approval\n• Production Payment\n• Production in progress\n• Readiness Payment\n• Material ready to Dispatch\n• Material in transit\n• Pre Site Visit\n• Material Delivered\n• Installation in Progress\n• Handover - Payment Pending\n• Project Completed'],
     ['Order Date / Delivery Dates', 'Order Date, Expected Delivery Date, Actual Delivery Date, Installation Date (DD/MM/YYYY).'],
     ['Team Assignments', 'Assigned Executive, Project Manager, Project Executive (e.g. Srinivasan (TL), Sundaram, Bala, etc.).'],
+    ['Assigned TL', 'Assigned Team Lead: Srinivasan (TL) | Sundaram | Bala. Restricts visibility so only the assigned TL can access this customer and their projects.'],
     ['BDM Phone', '10-digit WhatsApp number of assigned Business Development Manager.'],
     ['VRL LR Tracking Number', 'VRL Logistics LR tracking number for transit status tracking.'],
     ['WhatsApp Group ID / Name', 'WATI WhatsApp Group ID (e.g. 120363024888123456@g.us) and Group Name.'],

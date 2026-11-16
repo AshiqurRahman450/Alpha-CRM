@@ -22,7 +22,9 @@ import {
   ExternalLink,
   Bell,
   Edit2,
+  UserCheck,
 } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import { api } from '../../../lib/api';
 import { formatProjectStatus } from '../../../components/Timeline';
 import InstallationProgrammeTable from '../../../components/InstallationProgrammeTable';
@@ -162,6 +164,24 @@ export default function CustomerDetailPage() {
   useEffect(() => {
     if (customerId) fetchCustomer(true);
   }, [customerId]);
+
+  const [assigningTl, setAssigningTl] = useState(false);
+
+  const handleAssignTl = async (tlName: string) => {
+    if (!data?.customer) return;
+    try {
+      setAssigningTl(true);
+      const res = await api.assignCustomerTL(data.customer._id, tlName || null);
+      if (res?.success) {
+        toast.success(tlName ? `Customer assigned to TL ${tlName}` : 'Customer unassigned from TL');
+      }
+      await fetchCustomer();
+    } catch (err: any) {
+      alert(`Error assigning TL: ${err.message}`);
+    } finally {
+      setAssigningTl(false);
+    }
+  };
 
   const handleToggleOptIn = async () => {
     if (!data?.customer) return;
@@ -331,7 +351,7 @@ export default function CustomerDetailPage() {
         </div>
 
         {/* Contact Info Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
           <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1">
             <span className="text-slate-400 block text-[11px] flex items-center gap-1">
               <Phone className="w-3.5 h-3.5 text-slate-400" /> Phone Numbers
@@ -353,6 +373,55 @@ export default function CustomerDetailPage() {
                 </span>
               )}
             </div>
+          </div>
+
+          {/* Assigned TL (Team Lead) */}
+          <div className="p-3.5 bg-gradient-to-br from-cyan-50/70 to-slate-50 rounded-2xl border border-cyan-200/80 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-cyan-900 block text-[11px] font-bold flex items-center gap-1">
+                <Users className="w-3.5 h-3.5 text-cyan-600" /> Assigned TL
+              </span>
+              {customer.assignedTl ? (
+                <span className="px-2 py-0.5 bg-cyan-600 text-white text-[10px] font-bold rounded-full shadow-2xs">
+                  Assigned
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 bg-slate-200 text-slate-600 text-[10px] font-medium rounded-full">
+                  Unassigned
+                </span>
+              )}
+            </div>
+
+            <div className="text-xs">
+              <div className="font-black text-slate-900 flex items-center gap-1.5">
+                <UserCheck className="w-4 h-4 text-cyan-600 shrink-0" />
+                <span className="text-sm text-cyan-950 font-black">{customer.assignedTl || 'Not Assigned'}</span>
+              </div>
+              <p className="text-[10px] text-slate-500 mt-0.5">
+                {customer.assignedTl
+                  ? `Only visible to ${customer.assignedTl}`
+                  : 'Customer visible to all team members'}
+              </p>
+            </div>
+
+            {!isLogisticsRole && (
+              <div className="pt-1 border-t border-cyan-100">
+                <label className="text-[10px] text-slate-500 font-semibold block mb-1">
+                  Assign Customer to TL:
+                </label>
+                <select
+                  value={customer.assignedTl || ''}
+                  onChange={(e) => handleAssignTl(e.target.value)}
+                  disabled={assigningTl}
+                  className="w-full py-1.5 px-2 bg-white border border-cyan-300 rounded-xl text-xs font-bold text-cyan-950 focus:outline-none focus:ring-2 focus:ring-cyan-500 cursor-pointer shadow-2xs disabled:opacity-50"
+                >
+                  <option value="">-- Unassigned (None) --</option>
+                  <option value="Srinivasan (TL)">Srinivasan (TL)</option>
+                  <option value="Sundaram">Sundaram</option>
+                  <option value="Bala">Bala</option>
+                </select>
+              </div>
+            )}
           </div>
 
           <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1">

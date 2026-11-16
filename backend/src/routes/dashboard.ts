@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { Customer, Project, WhatsAppMessage, WhatsAppChannel, SystemSettings } from '../models';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { getTlRegexForUser, getCustomerTlFilter } from '../utils/tlAuth';
 
 export const dashboardRouter = Router();
 
@@ -24,7 +25,41 @@ dashboardRouter.get('/', async (req: AuthRequest, res: Response) => {
     in7Days.setDate(in7Days.getDate() + 7);
 
     const isBDM = req.user?.role === 'BDM';
-    const bdmFilter = isBDM ? { bdmId: req.user?._id } : {};
+    const isLogisticsTL = req.user?.role === 'LOGISTICS_TL';
+
+    let bdmFilter: any = {};
+    let customerFilter: any = {};
+
+    if (isBDM) {
+      bdmFilter = { bdmId: req.user?._id };
+      customerFilter = { bdmId: req.user?._id };
+    } else if (isLogisticsTL) {
+      const tlRegex = getTlRegexForUser(req.user);
+      if (tlRegex) {
+        const assignedCusts = await Customer.find({
+          $or: [
+            { assignedTl: tlRegex },
+            { assignedTlId: req.user?._id },
+            { assignedEmployee: tlRegex },
+          ],
+        }).select('_id').lean();
+        const custIds = assignedCusts.map((c) => c._id);
+        bdmFilter = {
+          $or: [
+            { assignedTl: tlRegex },
+            { assignedEmployee: tlRegex },
+            { customerId: { $in: custIds } },
+          ],
+        };
+        customerFilter = {
+          $or: [
+            { assignedTl: tlRegex },
+            { assignedTlId: req.user?._id },
+            { assignedEmployee: tlRegex },
+          ],
+        };
+      }
+    }
 
     // 1. Core Metrics
     const [
@@ -45,7 +80,7 @@ dashboardRouter.get('/', async (req: AuthRequest, res: Response) => {
       crmPaymentRequestsCount,
       crmPaymentRequests,
     ] = await Promise.all([
-      Customer.countDocuments({ ...bdmFilter }),
+      Customer.countDocuments({ ...customerFilter }),
       Project.countDocuments({ ...bdmFilter }),
       Project.countDocuments({ ...bdmFilter, projectStatus: { $nin: ['COMPLETED', 'CANCELLED'] } }),
       Project.countDocuments({ ...bdmFilter, paymentStatus: { $in: ['PENDING', 'PARTIAL_PAID'] } }),
@@ -284,7 +319,41 @@ dashboardRouter.get('/card-items', async (req: AuthRequest, res: Response) => {
     in7Days.setDate(in7Days.getDate() + 7);
 
     const isBDM = req.user?.role === 'BDM';
-    const bdmFilter = isBDM ? { bdmId: req.user?._id } : {};
+    const isLogisticsTL = req.user?.role === 'LOGISTICS_TL';
+
+    let bdmFilter: any = {};
+    let customerFilter: any = {};
+
+    if (isBDM) {
+      bdmFilter = { bdmId: req.user?._id };
+      customerFilter = { bdmId: req.user?._id };
+    } else if (isLogisticsTL) {
+      const tlRegex = getTlRegexForUser(req.user);
+      if (tlRegex) {
+        const assignedCusts = await Customer.find({
+          $or: [
+            { assignedTl: tlRegex },
+            { assignedTlId: req.user?._id },
+            { assignedEmployee: tlRegex },
+          ],
+        }).select('_id').lean();
+        const custIds = assignedCusts.map((c) => c._id);
+        bdmFilter = {
+          $or: [
+            { assignedTl: tlRegex },
+            { assignedEmployee: tlRegex },
+            { customerId: { $in: custIds } },
+          ],
+        };
+        customerFilter = {
+          $or: [
+            { assignedTl: tlRegex },
+            { assignedTlId: req.user?._id },
+            { assignedEmployee: tlRegex },
+          ],
+        };
+      }
+    }
 
     let title = 'Dashboard Count List';
     let subtitle = 'Records overview';
@@ -321,7 +390,7 @@ dashboardRouter.get('/card-items', async (req: AuthRequest, res: Response) => {
         title = 'Total Customers';
         subtitle = 'All registered and verified elevator customers';
         itemType = 'customer';
-        const customers = await Customer.find({ ...bdmFilter }).sort({ createdAt: -1 });
+        const customers = await Customer.find({ ...customerFilter }).sort({ createdAt: -1 });
         const projectCounts = await Project.aggregate([
           { $match: { ...bdmFilter } },
           { $group: { _id: '$customerId', count: { $sum: 1 } } },

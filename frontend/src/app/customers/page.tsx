@@ -49,6 +49,7 @@ export default function CustomersPage() {
   const [search, setSearch] = useState('');
   const [optInFilter, setOptInFilter] = useState('');
   const [bdmFilter, setBdmFilter] = useState('');
+  const [tlFilter, setTlFilter] = useState('');
 
   // BDM assignment support
   const [bdms, setBdms] = useState<any[]>(DEFAULT_BDMS);
@@ -79,6 +80,7 @@ export default function CustomersPage() {
     leadSource: 'Architect Referral',
     bdmId: '',
     bdmPhone: '',
+    assignedTl: '',
     whatsappOptIn: true,
     notes: '',
   });
@@ -216,6 +218,7 @@ export default function CustomersPage() {
         search: search || undefined,
         optIn: optInFilter || undefined,
         bdmId: bdmFilter || undefined,
+        assignedTl: tlFilter || undefined,
       });
       setCustomers(res.data || []);
     } catch (err: any) {
@@ -286,7 +289,7 @@ export default function CustomersPage() {
 
   useEffect(() => {
     fetchCustomers();
-  }, [optInFilter, bdmFilter]);
+  }, [optInFilter, bdmFilter, tlFilter]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -325,6 +328,7 @@ export default function CustomersPage() {
         pincode: newCust.pincode?.trim() || '',
         bdmId: newCust.bdmId || undefined,
         bdmPhone: newCust.bdmPhone ? newCust.bdmPhone.trim() : undefined,
+        assignedTl: newCust.assignedTl ? newCust.assignedTl.trim() : undefined,
       });
 
       const custCode = created?.data?.customerId || '';
@@ -353,6 +357,7 @@ export default function CustomersPage() {
         leadSource: 'Architect Referral',
         bdmId: '',
         bdmPhone: '',
+        assignedTl: '',
         whatsappOptIn: true,
         notes: '',
       });
@@ -477,6 +482,25 @@ export default function CustomersPage() {
             })}
           </select>
         )}
+
+        {currentUser?.role === 'LOGISTICS_TL' ? (
+          <div className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs font-semibold text-amber-800 shrink-0">
+            <User className="w-3.5 h-3.5 text-amber-600" />
+            <span>TL: {currentUser.name}</span>
+          </div>
+        ) : (
+          <select
+            value={tlFilter}
+            onChange={(e) => setTlFilter(e.target.value)}
+            className="px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none bg-white text-slate-700 font-medium"
+          >
+            <option value="">All Team Leads (TL)</option>
+            <option value="Srinivasan (TL)">TL: Srinivasan (TL)</option>
+            <option value="Sundaram">TL: Sundaram</option>
+            <option value="Bala">TL: Bala</option>
+            <option value="unassigned">Unassigned TL</option>
+          </select>
+        )}
       </div>
 
       {/* Customer List */}
@@ -520,11 +544,16 @@ export default function CustomersPage() {
                       <Link href={`/customers/${c._id}`} className="font-extrabold text-slate-900 hover:text-sky-600 block">
                         {c.fullName}
                       </Link>
-                      <div className="flex items-center gap-1.5 mt-0.5">
+                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                         <span className="text-[10px] text-slate-400">{c.email || 'No email'}</span>
                         {(c.bdmId || c.assignedEmployee) && (
                           <span className="text-[9px] font-bold px-1.5 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 rounded-md">
                             BDM: {c.bdmId?.name || (typeof c.bdmId === 'string' && bdms.find((b) => b._id === c.bdmId || b.id === c.bdmId || b.email === c.bdmId)?.name) || c.assignedEmployee || 'Assigned'} {c.bdmPhone || c.bdmId?.phone ? `(${c.bdmPhone || c.bdmId?.phone})` : ''}
+                          </span>
+                        )}
+                        {c.assignedTl && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-md">
+                            TL: {c.assignedTl}
                           </span>
                         )}
                       </div>
@@ -853,6 +882,27 @@ export default function CustomersPage() {
                 </div>
                 <p className="text-[10.5px] text-slate-500 leading-relaxed">
                   💡 If this customer&apos;s project stage is <strong>Drawing and Cabin Design Approval</strong>, a 1-to-1 WhatsApp notification will be sent automatically to this BDM for Approval.
+                </p>
+              </div>
+
+              {/* Assigned TL (Team Lead) */}
+              <div className="p-3.5 bg-amber-50/50 border border-amber-200/80 rounded-2xl space-y-2">
+                <label htmlFor="cust_assignedTl" className="block text-[11px] font-bold text-amber-950">
+                  Assigned Team Lead (TL):
+                </label>
+                <select
+                  id="cust_assignedTl"
+                  value={newCust.assignedTl}
+                  onChange={(e) => updateCustField('assignedTl', e.target.value)}
+                  className="w-full p-2.5 text-xs border border-amber-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none bg-white font-medium text-slate-800"
+                >
+                  <option value="">-- No TL Assigned (Unassigned) --</option>
+                  <option value="Srinivasan (TL)">Srinivasan (TL)</option>
+                  <option value="Sundaram">Sundaram</option>
+                  <option value="Bala">Bala</option>
+                </select>
+                <p className="text-[10.5px] text-amber-800/90 leading-relaxed">
+                  Assigning a TL ensures that only the designated Team Lead (Srinivasan, Sundaram, or Bala) can access this customer and their projects.
                 </p>
               </div>
 

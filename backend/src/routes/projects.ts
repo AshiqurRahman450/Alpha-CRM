@@ -39,6 +39,7 @@ import { DEFAULT_INSTALLATION_STAGES } from '../models/Project';
 import { config } from '../config';
 import { getNextProjectId } from '../utils/idGenerators';
 import { parseAndImportExcel, generateImportTemplateBuffer } from '../services/import/excelImportService';
+import { getTlRegexForUser, isProjectAccessibleByTl } from '../utils/tlAuth';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -529,6 +530,38 @@ projectRouter.get('/', async (req: AuthRequest, res: Response) => {
       query.$or = bdmConditions;
     }
 
+    if (req.user?.role === 'LOGISTICS_TL') {
+      const tlRegex = getTlRegexForUser(req.user);
+      if (tlRegex) {
+        const matchingCustomers = await Customer.find({
+          $or: [
+            { assignedTl: tlRegex },
+            { assignedTlId: req.user._id },
+            { assignedEmployee: tlRegex },
+          ],
+        }).select('_id').lean();
+        const custIds = matchingCustomers.map((c) => c._id);
+
+        const tlConditions: any[] = [
+          { assignedTl: tlRegex },
+          { assignedEmployee: tlRegex },
+          { customerId: { $in: custIds } },
+        ];
+        if (req.user._id) {
+          tlConditions.push({ assignedTlId: req.user._id });
+        }
+
+        if (query.$or) {
+          query.$and = (query.$and || []).concat([{ $or: query.$or }, { $or: tlConditions }]);
+          delete query.$or;
+        } else if (query.$and) {
+          query.$and.push({ $or: tlConditions });
+        } else {
+          query.$or = tlConditions;
+        }
+      }
+    }
+
     if (status && typeof status === 'string') {
       if (status.includes(',')) {
         query.projectStatus = { $in: status.split(',') };
@@ -701,6 +734,8 @@ projectRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthRe
       projectManager,
       bdmId: customer.bdmId,
       bdmPhone: customer.bdmPhone,
+      assignedTl: customer.assignedTl,
+      assignedTlId: customer.assignedTlId,
       notes,
       whatsappGroupId: whatsappGroupId ? whatsappGroupId.trim() : undefined,
       whatsappGroupName: whatsappGroupId ? `${projectName.trim()} — Alpha Updates` : undefined,
@@ -765,6 +800,38 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
         }
       }
       query.$or = bdmConditions;
+    }
+
+    if (req.user?.role === 'LOGISTICS_TL') {
+      const tlRegex = getTlRegexForUser(req.user);
+      if (tlRegex) {
+        const matchingCustomers = await Customer.find({
+          $or: [
+            { assignedTl: tlRegex },
+            { assignedTlId: req.user._id },
+            { assignedEmployee: tlRegex },
+          ],
+        }).select('_id').lean();
+        const custIds = matchingCustomers.map((c) => c._id);
+
+        const tlConditions: any[] = [
+          { assignedTl: tlRegex },
+          { assignedEmployee: tlRegex },
+          { customerId: { $in: custIds } },
+        ];
+        if (req.user._id) {
+          tlConditions.push({ assignedTlId: req.user._id });
+        }
+
+        if (query.$or) {
+          query.$and = (query.$and || []).concat([{ $or: query.$or }, { $or: tlConditions }]);
+          delete query.$or;
+        } else if (query.$and) {
+          query.$and.push({ $or: tlConditions });
+        } else {
+          query.$or = tlConditions;
+        }
+      }
     }
 
     if (status && typeof status === 'string') {
@@ -1057,6 +1124,7 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
       base['Postponed Until'] = '';
       base['Customer Type'] = '';
       base['Lead Source'] = '';
+      base['Assigned TL'] = '';
       base['Old Customer'] = '';
       base['Customer Notes'] = '';
       base['Project Notes'] = '';
@@ -1230,6 +1298,7 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
           'Postponed Until': postponedUntil,
           'Customer Type': customerType,
           'Lead Source': leadSource,
+          'Assigned TL': p.assignedTl || customer.assignedTl || '',
           'Old Customer': isOldCustomer,
           'Customer Notes': customerNotes,
           'Project Notes': projectNotes,
@@ -1322,6 +1391,7 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
         'Postponed Until': postponedUntil,
         'Customer Type': customerType,
         'Lead Source': leadSource,
+        'Assigned TL': p.assignedTl || customer.assignedTl || '',
         'Old Customer': isOldCustomer,
         'Customer Notes': customerNotes,
         'Project Notes': projectNotes,
@@ -1438,6 +1508,10 @@ projectRouter.get('/:id', async (req: AuthRequest, res: Response) => {
     const project = await Project.findById(req.params.id).populate('customerId');
     if (!project) {
       return res.status(404).json({ success: false, message: 'Project not found' });
+    }
+
+    if (!isProjectAccessibleByTl(project, req.user)) {
+      return res.status(403).json({ success: false, message: 'Access denied. This project is assigned to another TL.' });
     }
 
     const channel = await WhatsAppChannel.findOne({ projectId: project._id });

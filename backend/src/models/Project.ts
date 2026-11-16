@@ -57,6 +57,8 @@ export interface IProject extends Document {
   assignedEmployee?: string;
   projectManager?: string;
   projectExecutive?: string;
+  assignedTl?: string;
+  assignedTlId?: Types.ObjectId;
   bdmId?: Types.ObjectId;
   bdmPhone?: string;
   notes?: string;
@@ -343,6 +345,16 @@ const ProjectSchema = new Schema<IProject>(
     projectExecutive: {
       type: String,
       trim: true,
+    },
+    assignedTl: {
+      type: String,
+      trim: true,
+      index: true,
+    },
+    assignedTlId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      index: true,
     },
     bdmId: {
       type: Schema.Types.ObjectId,

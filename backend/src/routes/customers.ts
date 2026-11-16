@@ -4,6 +4,7 @@ import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { PROJECT_STAGE_NEXT_WORK } from './reminders';
 import { getNextCustomerId, getNextOldCustomerId, splitSharedCustomerProjects, resequenceCustomerIds } from '../utils/idGenerators';
 import { parseAndImportExcel, generateImportTemplateBuffer } from '../services/import/excelImportService';
+import { getCustomerTlFilter, isCustomerAccessibleByTl } from '../utils/tlAuth';
 import { ensureUploadsDir } from './projects';
 import multer from 'multer';
 import path from 'path';
@@ -60,7 +61,7 @@ customerRouter.use(authenticate);
  */
 customerRouter.get('/', async (req: AuthRequest, res: Response) => {
   try {
-    const { search, optIn, customerType, bdmId, isOldCustomer } = req.query;
+    const { search, optIn, customerType, bdmId, isOldCustomer, assignedTl } = req.query;
     const query: any = {};
 
     // Ensure each project has its own dedicated individual customer
@@ -134,6 +135,41 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
         ];
       } else {
         query.bdmId = bdmId;
+      }
+    }
+
+    if (assignedTl && typeof assignedTl === 'string' && assignedTl !== 'ALL') {
+      if (assignedTl === 'unassigned') {
+        const unassignedCondition = {
+          $or: [
+            { assignedTl: null },
+            { assignedTl: '' },
+            { assignedTl: { $exists: false } },
+          ],
+        };
+        if (query.$or) {
+          query.$and = (query.$and || []).concat([{ $or: query.$or }, unassignedCondition]);
+          delete query.$or;
+        } else if (query.$and) {
+          query.$and.push(unassignedCondition);
+        } else {
+          query.$or = unassignedCondition.$or;
+        }
+      } else {
+        query.assignedTl = new RegExp(`^${assignedTl.trim()}$`, 'i');
+      }
+    }
+
+    // Role-based visibility: LOGISTICS_TL (Srinivasan, Sundaram, Bala) only sees assigned customers
+    const tlFilter = getCustomerTlFilter(req.user);
+    if (tlFilter) {
+      if (query.$or) {
+        query.$and = (query.$and || []).concat([{ $or: query.$or }, tlFilter]);
+        delete query.$or;
+      } else if (query.$and) {
+        query.$and.push(tlFilter);
+      } else {
+        query.$or = tlFilter.$or;
       }
     }
 
@@ -215,6 +251,10 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
       });
     }
 
+    if (req.user?.role === 'LOGISTICS_TL') {
+      strictlyFiltered = strictlyFiltered.filter((c) => isCustomerAccessibleByTl(c, req.user));
+    }
+
     const custIds = strictlyFiltered.map((c) => c._id);
     const activeProjects = await Project.find({
       customerId: { $in: custIds },
@@ -269,6 +309,7 @@ customerRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM'), async (req
       assignedEmployee,
       bdmId,
       bdmPhone,
+      assignedTl,
       whatsappOptIn,
       optInSource,
       notes,
@@ -336,6 +377,20 @@ customerRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM'), async (req
       }
     }
 
+    let finalAssignedTl: string | undefined = undefined;
+    let finalAssignedTlId: any = undefined;
+    if (assignedTl && assignedTl !== 'UNASSIGNED' && assignedTl !== 'NONE') {
+      finalAssignedTl = String(assignedTl).trim();
+      const matchedTlUser = await User.findOne({
+        role: { $in: ['LOGISTICS_TL', 'TECHNICAL_LEAD'] },
+        name: new RegExp(`^${finalAssignedTl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+      });
+      if (matchedTlUser) {
+        finalAssignedTlId = matchedTlUser._id;
+        finalAssignedTl = matchedTlUser.name;
+      }
+    }
+
     const newCustomer = await Customer.create({
       customerId,
       isOldCustomer: isOld,
@@ -356,6 +411,8 @@ customerRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM'), async (req
       assignedEmployee: assignedEmployee || req.user?.name,
       bdmId: assignedBdmId,
       bdmPhone: finalBdmPhone,
+      assignedTl: finalAssignedTl,
+      assignedTlId: finalAssignedTlId,
       whatsappOptIn: whatsappOptIn !== undefined ? !!whatsappOptIn : true,
       optInDate: new Date(),
       optInSource: optInSource || 'PROJECT_CONFIRMATION',
@@ -414,6 +471,10 @@ customerRouter.get('/:id', async (req: AuthRequest, res: Response) => {
     const customer = await Customer.findById(req.params.id).populate('bdmId', 'name email phone');
     if (!customer) {
       return res.status(404).json({ success: false, message: 'Customer not found' });
+    }
+
+    if (!isCustomerAccessibleByTl(customer, req.user)) {
+      return res.status(403).json({ success: false, message: 'Access denied. This customer is assigned to another TL.' });
     }
 
     // Fetch related projects
@@ -522,11 +583,96 @@ customerRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'ACCOUNTA
     } else if (updateData.address && (updateData.address.startsWith('http') || updateData.address.includes('maps'))) {
       updateData.googleMapsLink = updateData.address.trim();
     }
+
+    if (updateData.assignedTl !== undefined) {
+      let tlName: string | undefined = undefined;
+      let tlUserId: any = undefined;
+      if (updateData.assignedTl && updateData.assignedTl !== 'UNASSIGNED' && updateData.assignedTl !== 'NONE') {
+        tlName = String(updateData.assignedTl).trim();
+        const matchedUser = await User.findOne({
+          role: { $in: ['LOGISTICS_TL', 'TECHNICAL_LEAD'] },
+          name: new RegExp(`^${tlName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+        });
+        if (matchedUser) {
+          tlUserId = matchedUser._id;
+          tlName = matchedUser.name;
+        }
+      }
+      updateData.assignedTl = tlName;
+      updateData.assignedTlId = tlUserId;
+    }
+
     const updated = await Customer.findByIdAndUpdate(req.params.id, updateData, { new: true });
     if (!updated) {
       return res.status(404).json({ success: false, message: 'Customer not found' });
     }
+
+    if (updateData.assignedTl !== undefined) {
+      await Project.updateMany(
+        { customerId: updated._id },
+        {
+          $set: {
+            assignedTl: updated.assignedTl,
+            assignedTlId: updated.assignedTlId,
+          },
+        }
+      );
+    }
+
     return res.json({ success: true, data: updated });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * PATCH /api/customers/:id/assign-tl
+ * Assigns a customer and all their projects to a specific Team Lead (Srinivasan, Sundaram, Bala)
+ */
+customerRouter.patch('/:id/assign-tl', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthRequest, res: Response) => {
+  try {
+    const { assignedTl } = req.body;
+    const customer = await Customer.findById(req.params.id);
+    
+    if (!customer) {
+      return res.status(404).json({ success: false, message: 'Customer not found' });
+    }
+
+    let tlName: string | undefined = undefined;
+    let tlUserId: any = undefined;
+
+    if (assignedTl && assignedTl !== 'UNASSIGNED' && assignedTl !== 'NONE') {
+      tlName = String(assignedTl).trim();
+      const matchedUser = await User.findOne({
+        role: { $in: ['LOGISTICS_TL', 'TECHNICAL_LEAD'] },
+        name: new RegExp(`^${tlName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+      });
+      if (matchedUser) {
+        tlUserId = matchedUser._id;
+        tlName = matchedUser.name;
+      }
+    }
+
+    customer.assignedTl = tlName;
+    customer.assignedTlId = tlUserId;
+    await customer.save();
+
+    // Also synchronize assignedTl to all projects of this customer
+    await Project.updateMany(
+      { customerId: customer._id },
+      {
+        $set: {
+          assignedTl: tlName,
+          assignedTlId: tlUserId,
+        },
+      }
+    );
+
+    return res.json({
+      success: true,
+      message: tlName ? `Customer assigned to TL ${tlName} successfully` : 'Customer unassigned from TL',
+      data: customer,
+    });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
   }

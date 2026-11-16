@@ -53,6 +53,7 @@ export default function EditCustomerModal({
     pincode: '',
     bdmId: '',
     bdmPhone: '',
+    assignedTl: '',
     whatsappOptIn: true,
     notes: '',
   });
@@ -79,6 +80,7 @@ export default function EditCustomerModal({
         pincode: customer.pincode || '',
         bdmId: typeof customer.bdmId === 'object' && customer.bdmId !== null ? customer.bdmId._id : (customer.bdmId || ''),
         bdmPhone: customer.bdmPhone || (typeof customer.bdmId === 'object' && customer.bdmId !== null ? customer.bdmId.phone : ''),
+        assignedTl: customer.assignedTl || '',
         whatsappOptIn: customer.whatsappOptIn !== undefined ? customer.whatsappOptIn : true,
         notes: customer.notes || '',
       });
@@ -152,6 +154,7 @@ export default function EditCustomerModal({
         pincode: formData.pincode.trim(),
         bdmId: formData.bdmId || undefined,
         bdmPhone: formData.bdmPhone ? formData.bdmPhone.trim() : undefined,
+        assignedTl: formData.assignedTl ? formData.assignedTl.trim() : null,
         whatsappOptIn: formData.whatsappOptIn,
         notes: formData.notes.trim(),
       };
@@ -365,6 +368,38 @@ export default function EditCustomerModal({
                 />
               </div>
             </div>
+          </div>
+
+          {/* Assigned TL (Team Lead) */}
+          <div className="p-3.5 bg-gradient-to-br from-cyan-50/70 to-slate-50 border border-cyan-200 rounded-2xl space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-cyan-950 flex items-center gap-1.5">
+                <Users className="w-4 h-4 text-cyan-600" />
+                <span>Assigned TL (Team Lead):</span>
+              </label>
+              {formData.assignedTl ? (
+                <span className="px-2 py-0.5 bg-cyan-600 text-white text-[10px] font-bold rounded-full">
+                  Assigned
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 bg-slate-200 text-slate-600 text-[10px] font-medium rounded-full">
+                  Unassigned
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-500">
+              Select one of the 3 Team Leads. When assigned, this customer is only visible to that specific TL.
+            </p>
+            <select
+              value={formData.assignedTl || ''}
+              onChange={(e) => updateField('assignedTl', e.target.value)}
+              className="w-full p-2.5 text-xs font-bold border border-cyan-300 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:outline-none bg-white text-slate-800 cursor-pointer shadow-2xs"
+            >
+              <option value="">-- Unassigned (Visible to Management) --</option>
+              <option value="Srinivasan (TL)">Srinivasan (TL)</option>
+              <option value="Sundaram">Sundaram</option>
+              <option value="Bala">Bala</option>
+            </select>
           </div>
 
           {/* Customer Type & Lead Source */}

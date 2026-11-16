@@ -432,12 +432,13 @@ export const api = {
   },
 
   // Customers
-  getCustomers: (params?: { search?: string; optIn?: string; customerType?: string; bdmId?: string; isOldCustomer?: boolean | string }) => {
+  getCustomers: (params?: { search?: string; optIn?: string; customerType?: string; bdmId?: string; isOldCustomer?: boolean | string; assignedTl?: string }) => {
     const q = new URLSearchParams();
     if (params?.search) q.append('search', params.search);
     if (params?.optIn) q.append('optIn', params.optIn);
     if (params?.customerType) q.append('customerType', params.customerType);
     if (params?.bdmId) q.append('bdmId', params.bdmId);
+    if (params?.assignedTl) q.append('assignedTl', params.assignedTl);
     if (params?.isOldCustomer !== undefined) q.append('isOldCustomer', String(params.isOldCustomer));
     const qs = q.toString() ? `?${q.toString()}` : '';
     return fetchWithAuth(`/api/customers${qs}`);
@@ -449,6 +450,8 @@ export const api = {
     fetchWithAuth(`/api/customers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   assignBDM: (id: string, bdmId: string | null) =>
     fetchWithAuth(`/api/customers/${id}/assign-bdm`, { method: 'PATCH', body: JSON.stringify({ bdmId }) }),
+  assignCustomerTL: (id: string, assignedTl: string | null) =>
+    fetchWithAuth(`/api/customers/${id}/assign-tl`, { method: 'PATCH', body: JSON.stringify({ assignedTl }) }),
   toggleCustomerOptIn: (id: string, whatsappOptIn: boolean, optInSource?: string) =>
     fetchWithAuth(`/api/customers/${id}/opt-in`, {
       method: 'PATCH',
