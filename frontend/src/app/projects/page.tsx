@@ -75,7 +75,7 @@ export default function ProjectsPage() {
     customerId: '',
     projectName: '',
     siteAddress: '',
-    liftModel: 'AE 01 Home Series',
+    liftModel: 'AE 01 - Hydralic Home Series',
     liftType: 'Home Lift',
     numberOfFloors: 'G+1',
     shaftModel: '',
@@ -205,7 +205,7 @@ export default function ProjectsPage() {
         customerId: '',
         projectName: '',
         siteAddress: '',
-        liftModel: 'AE 01 Home Series',
+        liftModel: 'AE 01 - Hydralic Home Series',
         liftType: 'Home Lift',
         numberOfFloors: 'G+1',
         shaftModel: '',
@@ -584,7 +584,10 @@ export default function ProjectsPage() {
                         onChange={(e) => setNewProject({ ...newProject, liftModel: e.target.value })}
                         className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none"
                       >
-                        <option value="AE 01 Home Series">AE 01 Home Series</option>
+                        <option value="AE 01 - Hydralic Home Series">AE 01 - Hydralic Home Series</option>
+                        {newProject.liftModel === 'AE 01 Home Series' && (
+                          <option value="AE 01 Home Series">AE 01 Home Series (Legacy)</option>
+                        )}
                         <option value="AE 02 Gearless Rope Home Series">AE 02 Gearless Rope Home Series</option>
                         <option value="AE 03 Gearless Belt Home series">AE 03 Gearless Belt Home series</option>
                         <option value="AE 03 Gearless Belt Home series EV">AE 03 Gearless Belt Home series EV</option>

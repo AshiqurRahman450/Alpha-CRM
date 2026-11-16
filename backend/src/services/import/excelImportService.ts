@@ -231,15 +231,15 @@ function resolveShaftModel(rawModel: any): string {
  * Normalizes lift model name
  */
 function resolveLiftModel(rawModel: any): string {
-  if (!rawModel) return 'AE 01 Home Series';
+  if (!rawModel) return 'AE 01 - Hydralic Home Series';
   const clean = normalizeKey(rawModel);
-  if (clean.includes('ae01') || clean.includes('ae1')) return 'AE 01 Home Series';
+  if (clean.includes('ae01') || clean.includes('ae1')) return 'AE 01 - Hydralic Home Series';
   if (clean.includes('ae02') || clean.includes('ae2') || clean.includes('rope')) return 'AE 02 Gearless Rope Home Series';
   if (clean.includes('ae03') || clean.includes('ae3') || clean.includes('belt')) return 'AE 03 Gearless Belt Home series';
   if (clean.includes('alphaev') || clean.includes('ev')) return 'Alpha EV';
   if (clean.includes('alphapremier') || clean.includes('premier')) return 'Alpha Premier';
   if (clean.includes('alphaluxe') || clean.includes('luxe')) return 'Alpha Luxe';
-  if (clean.includes('hydraulic')) return 'Hydraulic Home Series';
+  if (clean.includes('hydralic') || clean.includes('hydraulic')) return 'AE 01 - Hydralic Home Series';
   return String(rawModel).trim();
 }
 
@@ -1041,7 +1041,7 @@ export function generateImportTemplateBuffer(): Buffer {
       'Kumar Residence',
       '#42, 100 Feet Road, Indiranagar, Bengaluru',
       'https://maps.google.com/?q=12.9716,77.5946',
-      'AE 01 Home Series',
+      'AE 01 - Hydralic Home Series',
       'Home Lift',
       'G+2',
       'Civil Shaft',
@@ -1237,7 +1237,7 @@ export function generateImportTemplateBuffer(): Buffer {
     ['Project Name *', 'Project identification title (e.g. "Kumar Residence"). Defaults to "<Customer Name> Residence".'],
     ['Site Address *', 'Physical elevator installation site address (Mandatory). Defaults to Customer Address.'],
     ['Site Google Maps Link', 'Direct Google Maps web URL pointing to the exact installation site gate.'],
-    ['Lift Model', 'AE 01 Home Series | AE 02 Gearless Rope Home Series | AE 03 Gearless Belt Home series | Alpha EV | Alpha Premier | Alpha Luxe | Hydraulic Home Series'],
+    ['Lift Model', 'AE 01 - Hydralic Home Series | AE 01 Home Series | AE 02 Gearless Rope Home Series | AE 03 Gearless Belt Home series | Alpha EV | Alpha Premier | Alpha Luxe | Hydraulic Home Series'],
     ['Lift Type', 'Home Lift | Villa Elevator | Glass Panoramic | Commercial | Dumbwaiter (Default: Home Lift)'],
     ['Number of Floors', 'e.g. G+1, G+2, G+3, 2 Stops, 3 Stops, 4 Stops (Default: G+1)'],
     ['Shaft Model', 'Civil Shaft | ACP Shaft | Glass Shaft | MS Structure | Customer Scope (Default: Civil Shaft)'],

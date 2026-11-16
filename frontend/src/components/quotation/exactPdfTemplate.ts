@@ -70,6 +70,12 @@ export function sanitizeProposalParagraphs(html: string, pageNum: number, data?:
   // ===================== PAGE 2 =====================
   if (pageNum === 2 || updated.includes('id="p1"')) {
     updated = buildPage2LetterHtml(updated, safeData);
+    updated = updated.replace(/<img class="im"[^>]*40\.63[^>]*>/gi, '');
+    updated = updated.replace(/<img[^>]*40\.63[^>]*>/gi, '');
+    updated = updated.replace(/<img[^>]*697\.85[^>]*>/gi, '');
+    updated = updated.replace(/<div class="t c11"[^>]*38\.78[^>]*>[\s\S]*?<\/div>/gi, '');
+    updated = updated.replace(/<div class="t c11"[^>]*938\.43[^>]*>[\s\S]*?<\/div>/gi, '');
+    updated = updated.replace(/<div[^>]*>Our Bangalore Manufacturing Facility at Peenya Industrial Area\s*<\/div>/gi, '');
   }
 
   // ===================== PAGE 3 =====================
@@ -808,10 +814,10 @@ export function buildPage2LetterHtml(html: string, data?: QuotationData): string
     </div>
 
     <!-- Promise White Mask to cover background dots -->
-    <div style="position:absolute;left:360px;top:655px;width:400px;height:320px;background:#ffffff;z-index:15;"></div>
+    <div style="position:absolute;left:40px;top:655px;width:713px;height:320px;background:#ffffff;z-index:15;"></div>
 
     <!-- Promise Block -->
-    <div class="page2-promise-block" style="position:absolute;left:370px;top:660px;width:380px;z-index:20;">
+    <div class="page2-promise-block" style="position:absolute;left:40px;top:660px;width:713px;z-index:20;">
       <div style="font-family:'f4',sans-serif;font-size:17px;font-weight:bold;color:#000000;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px;">
         Our Promise
       </div>
@@ -859,6 +865,13 @@ export function buildPage2LetterHtml(html: string, data?: QuotationData): string
     const e = html.indexOf('<!-- END_PAGE2_CUSTOM_CONTENT -->');
     if (s !== -1 && e !== -1) {
       html = html.substring(0, s) + page2NewContent + html.substring(e + '<!-- END_PAGE2_CUSTOM_CONTENT -->'.length);
+      // Remove Page 2 elevator photo image & caption
+      html = html.replace(/<img class="im"[^>]*40\.63[^>]*>/gi, '');
+      html = html.replace(/<img[^>]*40\.63[^>]*>/gi, '');
+      html = html.replace(/<img[^>]*697\.85[^>]*>/gi, '');
+      html = html.replace(/<div class="t c11"[^>]*38\.78[^>]*>[\s\S]*?<\/div>/gi, '');
+      html = html.replace(/<div class="t c11"[^>]*938\.43[^>]*>[\s\S]*?<\/div>/gi, '');
+      html = html.replace(/<div[^>]*>Our Bangalore Manufacturing Facility at Peenya Industrial Area\s*<\/div>/gi, '');
       return html;
     }
   }
@@ -871,6 +884,13 @@ export function buildPage2LetterHtml(html: string, data?: QuotationData): string
       const endIdx = endTagline !== -1 ? endTagline + '</div>\n    </div>'.length : html.indexOf('</div>', e + 50);
       if (endIdx !== -1) {
         html = html.substring(0, s) + page2NewContent + html.substring(endIdx);
+        // Remove Page 2 elevator photo image & caption
+        html = html.replace(/<img class="im"[^>]*40\.63[^>]*>/gi, '');
+        html = html.replace(/<img[^>]*40\.63[^>]*>/gi, '');
+        html = html.replace(/<img[^>]*697\.85[^>]*>/gi, '');
+        html = html.replace(/<div class="t c11"[^>]*38\.78[^>]*>[\s\S]*?<\/div>/gi, '');
+        html = html.replace(/<div class="t c11"[^>]*938\.43[^>]*>[\s\S]*?<\/div>/gi, '');
+        html = html.replace(/<div[^>]*>Our Bangalore Manufacturing Facility at Peenya Industrial Area\s*<\/div>/gi, '');
         return html;
       }
     }
@@ -879,9 +899,6 @@ export function buildPage2LetterHtml(html: string, data?: QuotationData): string
   // Remove old vision and promise titles
   html = html.replace(/<div class="t c7"[^>]*>VISION -<\/div>/g, '');
   html = html.replace(/<div class="t c7"[^>]*>OUR PROMISE:<\/div>/g, '');
-  // Keep photo and caption at initial coordinates
-  html = html.replace(/transform:matrix\(1,0,0,1,40\.63,555\)/g, 'transform:matrix(1,0,0,1,40.63,697.85)');
-  html = html.replace(/transform:matrix\(1,0,0,1,38\.78,795\)/g, 'transform:matrix(1,0,0,1,38.78,938.43)');
 
   // Find start and end markers of old body
   const startMarker = '<div class="t c3" style="z-index:11;transform:matrix(1,0,0,1,62.53,282.21)">';
@@ -902,6 +919,14 @@ export function buildPage2LetterHtml(html: string, data?: QuotationData): string
       }
     }
   }
+
+  // Remove Page 2 elevator photo image & caption
+  html = html.replace(/<img class="im"[^>]*40\.63[^>]*>/gi, '');
+  html = html.replace(/<img[^>]*40\.63[^>]*>/gi, '');
+  html = html.replace(/<img[^>]*697\.85[^>]*>/gi, '');
+  html = html.replace(/<div class="t c11"[^>]*38\.78[^>]*>[\s\S]*?<\/div>/gi, '');
+  html = html.replace(/<div class="t c11"[^>]*938\.43[^>]*>[\s\S]*?<\/div>/gi, '');
+  html = html.replace(/<div[^>]*>Our Bangalore Manufacturing Facility at Peenya Industrial Area\s*<\/div>/gi, '');
 
   return html;
 }

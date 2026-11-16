@@ -39,7 +39,7 @@ export default function EditProjectModal({
     projectName: '',
     siteAddress: '',
     googleMapsLink: '',
-    liftModel: 'AE 01 Home Series',
+    liftModel: 'AE 01 - Hydralic Home Series',
     liftType: 'Home Lift',
     numberOfFloors: 'G+1',
     shaftModel: '',
@@ -97,7 +97,7 @@ export default function EditProjectModal({
         projectName: project.projectName || '',
         siteAddress: project.siteAddress || '',
         googleMapsLink: project.googleMapsLink || '',
-        liftModel: project.liftModel || 'AE 01 Home Series',
+        liftModel: (project.liftModel === 'AE 01 Home Series' ? 'AE 01 - Hydralic Home Series' : project.liftModel) || 'AE 01 - Hydralic Home Series',
         liftType: project.liftType || 'Home Lift',
         numberOfFloors: project.numberOfFloors || 'G+1',
         shaftModel: resolvedShaft,
@@ -466,7 +466,10 @@ export default function EditProjectModal({
                   onChange={(e) => updateField('liftModel', e.target.value)}
                   className="w-full p-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 bg-white"
                 >
-                  <option value="AE 01 Home Series">AE 01 Home Series</option>
+                  <option value="AE 01 - Hydralic Home Series">AE 01 - Hydralic Home Series</option>
+                  {formData.liftModel === 'AE 01 Home Series' && (
+                    <option value="AE 01 Home Series">AE 01 Home Series (Legacy)</option>
+                  )}
                   <option value="AE 02 Gearless Rope Home Series">AE 02 Gearless Rope Home Series</option>
                   <option value="AE 03 Gearless Belt Home series">AE 03 Gearless Belt Home series</option>
                   <option value="AE 03 Gearless Belt Home series EV">AE 03 Gearless Belt Home series EV</option>

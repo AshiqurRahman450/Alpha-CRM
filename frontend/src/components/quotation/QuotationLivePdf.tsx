@@ -135,14 +135,18 @@ export default function QuotationLivePdf({
     if (!html) return html;
     let updated = sanitizeProposalParagraphs(html, pageNum || 1, data);
 
-    // Page 2: Ensure new letter content and customer name font color
+    // Page 2: Ensure new letter content, remove page 2 image & caption, and customer name font color
     if (pageNum === 2 && updated) {
       updated = buildPage2LetterHtml(updated, data);
+      updated = updated.replace(/<img class="im"[^>]*40\.63[^>]*>/gi, '');
+      updated = updated.replace(/<img[^>]*40\.63[^>]*>/gi, '');
+      updated = updated.replace(/<img[^>]*697\.85[^>]*>/gi, '');
+      updated = updated.replace(/<div class="t c11"[^>]*38\.78[^>]*>[\s\S]*?<\/div>/gi, '');
+      updated = updated.replace(/<div class="t c11"[^>]*938\.43[^>]*>[\s\S]*?<\/div>/gi, '');
+      updated = updated.replace(/<div[^>]*>Our Bangalore Manufacturing Facility at Peenya Industrial Area\s*<\/div>/gi, '');
       updated = updated.replace(/top:490px/g, 'top:570px');
       updated = updated.replace(/top:555px/g, 'top:672px');
       updated = updated.replace(/top:550px/g, 'top:670px');
-      updated = updated.replace(/transform:matrix\(1,0,0,1,40\.63,555\)/g, 'transform:matrix(1,0,0,1,40.63,697.85)');
-      updated = updated.replace(/transform:matrix\(1,0,0,1,38\.78,795\)/g, 'transform:matrix(1,0,0,1,38.78,938.43)');
       updated = updated.replace(
         '<div class="t c9" style="z-index:1263;transform:matrix(1,0,0,1,94.46,200.44)">',
         '<div class="t c8" style="z-index:1263;transform:matrix(1,0,0,1,94.46,200.44);color:#000000;">'
@@ -1147,7 +1151,7 @@ export default function QuotationLivePdf({
             // Standard 11-page template
             if (pageNum === 1 && (!isEditing || !baseHtml || !baseHtml.includes('CLIENT NAME') || !baseHtml.includes('MODEL') || baseHtml.includes('-3.33,641.44') || !baseHtml.includes('page1-dot-remover'))) {
               baseHtml = renderExactPdfPage(0, data);
-            } else if (pageNum === 2 && (!isEditing || !baseHtml || baseHtml.includes('NK Group of Companies') || !baseHtml.includes('Where Vertical Mobility Meets Sophistication') || baseHtml.includes('top:490px') || baseHtml.includes('top:555px') || baseHtml.includes('40.63,555'))) {
+            } else if (pageNum === 2 && (!isEditing || !baseHtml || baseHtml.includes('NK Group of Companies') || !baseHtml.includes('Where Vertical Mobility Meets Sophistication') || baseHtml.includes('top:490px') || baseHtml.includes('top:555px') || baseHtml.includes('40.63,555') || baseHtml.includes('40.63,697.85') || baseHtml.includes('Our Bangalore Manufacturing Facility'))) {
               baseHtml = renderExactPdfPage(1, data);
             } else if (pageNum === 3 && (!isEditing || !baseHtml || baseHtml.includes('page3-compact-civil-cabin-wrapper') || baseHtml.includes('490.24,806.2') || !baseHtml.includes('color:#000000'))) {
               baseHtml = renderExactPdfPage(2, data);

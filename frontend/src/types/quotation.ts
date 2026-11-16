@@ -219,11 +219,11 @@ export const DEFAULT_QUOTATION_DATA: QuotationData = {
 
 export const QUOTATION_PRESETS: { name: string; description: string; data: Partial<QuotationData> }[] = [
   {
-    name: 'AE 01 Home Series',
+    name: 'AE 01 - Hydralic Home Series',
     description: 'Compact hydraulic / villa home lift with ground-floor storage and whisper-quiet power pack',
     data: {
-      model: 'AE 01 Home Series',
-      seriesTitle: 'Alpha Home Series: AE 01 Home Series',
+      model: 'AE 01 - Hydralic Home Series',
+      seriesTitle: 'Alpha Home Series: AE 01 - Hydralic Home Series',
       hoistWayShaftSize: '1350mm X 1500mm',
       pitDepth: '150mm',
       minFloorHeight: '2800mm',
