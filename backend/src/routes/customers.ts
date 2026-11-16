@@ -740,11 +740,25 @@ customerRouter.patch('/:id/assign-bdm', authorize('ADMIN', 'CRM', 'MANAGER'), as
 
 /**
  * DELETE /api/customers/:id
- * Deletes a customer and automatically resequences all remaining customer IDs (e.g. CUST-003 becomes CUST-002)
+ * Deletes a customer and automatically resequences all remaining customer IDs (e.g. if CUST-122 is deleted, CUST-123 becomes CUST-122)
  */
-customerRouter.delete('/:id', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthRequest, res: Response) => {
+customerRouter.delete('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'TECHNICAL_LEAD', 'TECHNICAL_MANAGER', 'BDM'), async (req: AuthRequest, res: Response) => {
   try {
-    const customer = await Customer.findById(req.params.id);
+    let customer: any = null;
+    if (Types.ObjectId.isValid(req.params.id)) {
+      customer = await Customer.findById(req.params.id);
+    }
+    if (!customer) {
+      const cleanCode = req.params.id.replace(/\s+/g, '').toUpperCase();
+      customer = await Customer.findOne({ customerId: cleanCode });
+    }
+    if (!customer) {
+      const numMatch = req.params.id.match(/\d+/);
+      if (numMatch) {
+        const paddedCode = `CUST-${numMatch[0].padStart(3, '0')}`;
+        customer = await Customer.findOne({ customerId: paddedCode });
+      }
+    }
     if (!customer) {
       return res.status(404).json({ success: false, message: 'Customer not found' });
     }
@@ -753,7 +767,7 @@ customerRouter.delete('/:id', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: 
     const deletedName = customer.fullName;
 
     // 1. Delete customer
-    await Customer.findByIdAndDelete(req.params.id);
+    await Customer.findByIdAndDelete(customer._id);
 
     // 2. Cascade cleanup on linked collections
     await Project.deleteMany({ customerId: customer._id });
@@ -764,12 +778,12 @@ customerRouter.delete('/:id', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: 
       { $unset: { createdCustomerId: '', createdCustomerCode: '' } }
     );
 
-    // 3. Automatically resequence remaining customer IDs to shift down numbers with zero gaps
+    // 3. Automatically resequence remaining customer IDs to shift down numbers with zero gaps (e.g. CUST-123 becomes CUST-122)
     const resequenceResult = await resequenceCustomerIds();
 
     return res.json({
       success: true,
-      message: `Customer ${deletedCode} (${deletedName}) deleted successfully. Remaining ${resequenceResult.totalResequenced} customer IDs resequenced dynamically.`,
+      message: `Customer ${deletedCode} (${deletedName}) deleted successfully. Remaining ${resequenceResult.totalResequenced} customer IDs shifted down dynamically without gaps.`,
       resequenceResult,
     });
   } catch (err: any) {

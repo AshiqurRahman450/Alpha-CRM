@@ -106,7 +106,8 @@ export async function resequenceCustomerIds(): Promise<{ totalResequenced: numbe
     customers.sort((a, b) => {
       const extractNum = (cid: string | undefined): number => {
         if (!cid) return 999999;
-        const match = cid.match(/\d+/);
+        const clean = cid.replace(/__TMP_[a-f0-9]+_\d+/i, '');
+        const match = (clean || cid).match(/\d+/);
         return match ? parseInt(match[0], 10) : 999999;
       };
 
@@ -143,8 +144,9 @@ export async function resequenceCustomerIds(): Promise<{ totalResequenced: numbe
     }
 
     // Phase 1: assign temporary unique IDs to prevent E11000 duplicate key errors on unique index { customerId: 1 }
-    for (const item of updates) {
-      const tempId = `__TMP_${item.id}_${Date.now()}`;
+    for (let i = 0; i < updates.length; i++) {
+      const item = updates[i];
+      const tempId = `__TMP_${item.id}_${Date.now()}_${i}`;
       await Customer.updateOne({ _id: item.id }, { $set: { customerId: tempId } });
     }
 
@@ -152,15 +154,15 @@ export async function resequenceCustomerIds(): Promise<{ totalResequenced: numbe
     for (const item of updates) {
       await Customer.updateOne({ _id: item.id }, { $set: { customerId: item.targetId } });
 
-      // Synchronize Project customerCode
+      // Synchronize Project customerCode by customerId reference OR by previous oldId
       await Project.updateMany(
-        { customerId: item.id },
+        { $or: [{ customerId: item.id }, { customerCode: item.oldId }] },
         { $set: { customerCode: item.targetId } }
       );
 
       // Synchronize Quotation createdCustomerCode
       await Quotation.updateMany(
-        { createdCustomerId: item.id },
+        { $or: [{ createdCustomerId: item.id }, { createdCustomerCode: item.oldId }] },
         { $set: { createdCustomerCode: item.targetId } }
       );
     }
