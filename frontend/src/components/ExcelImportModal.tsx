@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { api } from '../lib/api';
+import { generateClientExcelTemplateBlob } from '../lib/excelTemplate';
 
 interface ExcelImportModalProps {
   isOpen: boolean;
@@ -91,7 +92,14 @@ export default function ExcelImportModal({
   const handleDownloadTemplate = async () => {
     try {
       setDownloadingTemplate(true);
-      const blob = await api.downloadImportTemplate();
+      let blob: Blob;
+      try {
+        blob = await api.downloadImportTemplate();
+      } catch (backendErr) {
+        console.warn('Backend download failed, generating client-side template:', backendErr);
+        blob = generateClientExcelTemplateBlob();
+      }
+
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -102,7 +110,21 @@ export default function ExcelImportModal({
       document.body.removeChild(a);
       toast.success('Sample import template downloaded successfully');
     } catch (err: any) {
-      toast.error(err.message || 'Failed to download template');
+      // Direct fail-safe fallback in case of any unexpected browser error
+      try {
+        const fallbackBlob = generateClientExcelTemplateBlob();
+        const url = window.URL.createObjectURL(fallbackBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'Alpha_CRM_Import_Template.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        toast.success('Sample import template downloaded successfully');
+      } catch (finalErr: any) {
+        toast.error(finalErr.message || 'Failed to download template');
+      }
     } finally {
       setDownloadingTemplate(false);
     }

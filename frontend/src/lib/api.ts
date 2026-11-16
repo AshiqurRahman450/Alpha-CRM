@@ -1,3 +1,5 @@
+import { generateClientExcelTemplateBlob } from './excelTemplate';
+
 export function getApiBaseUrl(): string {
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
@@ -508,18 +510,25 @@ export const api = {
     });
   },
   downloadImportTemplate: async (): Promise<Blob> => {
-    const token = getAuthToken();
-    const headers: Record<string, string> = {};
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    const baseUrl = getApiBaseUrl();
-    let res = await fetch(`${baseUrl}/api/projects/import-template`, {
-      method: 'GET',
-      headers,
-    }).catch(() => null);
+    try {
+      const token = getAuthToken();
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/api/projects/import-template`, {
+        method: 'GET',
+        headers,
+      }).catch(() => null);
 
-    if (!res || !res.ok) {
+      if (res && res.ok) {
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('spreadsheetml') || contentType.includes('octet-stream')) {
+          return await res.blob();
+        }
+      }
+
       // Robust fallback to customer import-template endpoint
       const fallbackRes = await fetch(`${baseUrl}/api/customers/import-template`, {
         method: 'GET',
@@ -527,17 +536,17 @@ export const api = {
       }).catch(() => null);
 
       if (fallbackRes && fallbackRes.ok) {
-        res = fallbackRes;
+        const contentType = fallbackRes.headers.get('content-type') || '';
+        if (contentType.includes('spreadsheetml') || contentType.includes('octet-stream')) {
+          return await fallbackRes.blob();
+        }
       }
+    } catch (e) {
+      console.warn('Backend template fetch failed, falling back to client-side generator:', e);
     }
 
-    if (!res || !res.ok) {
-      const err = (await res?.json().catch(() => ({ message: 'Failed to download import template' }))) || {
-        message: 'Failed to download import template',
-      };
-      throw new Error(err.message || 'Failed to download import template');
-    }
-    return res.blob();
+    // Zero-failure fallback: generate exact 58-column 2-sheet template directly in client browser
+    return generateClientExcelTemplateBlob();
   },
   getExportProjectsExcelUrl: (params?: { status?: string; paymentStatus?: string; search?: string }) => {
     const q = new URLSearchParams();
