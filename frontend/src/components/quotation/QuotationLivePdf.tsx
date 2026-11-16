@@ -1047,6 +1047,16 @@ export default function QuotationLivePdf({
             }
             #p1 .c9, #p1 * { color: #000000 !important; }
             #p2 .c9, #p2 .c17, #p2 * { color: #000000 !important; }
+            #p2 .page3-table-mask {
+              position: absolute !important;
+              left: 35px !important;
+              top: 400px !important;
+              width: 725px !important;
+              height: 620px !important;
+              background: #ffffff !important;
+              z-index: 40 !important;
+              pointer-events: none !important;
+            }
             #p5 .customer-scope-underline-remover {
               position: absolute;
               left: 32px;
