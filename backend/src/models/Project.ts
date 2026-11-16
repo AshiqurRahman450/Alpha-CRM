@@ -206,7 +206,8 @@ const ProjectSchema = new Schema<IProject>(
     },
     numberOfFloors: {
       type: String,
-      enum: ['G+1', 'G+2', 'G+3', 'G+4', 'G+5'],
+      trim: true,
+      default: 'G+1',
     },
     shaftModel: {
       type: String,

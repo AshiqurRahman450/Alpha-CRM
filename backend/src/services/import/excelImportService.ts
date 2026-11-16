@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { Customer, Project, User, ProjectStatus } from '../../models';
+import { Customer, Project, User, ProjectStatus, WhatsAppChannel } from '../../models';
 import { getNextCustomerId, getNextProjectId } from '../../utils/idGenerators';
 import { logProjectActivity } from '../activity/activityService';
 import { calculateNextUpdateDate } from '../scheduler/schedulerService';
@@ -244,6 +244,33 @@ function resolveLiftModel(rawModel: any): string {
 }
 
 /**
+ * Normalizes number of floors / stops string (e.g. "G+1", "2 Stops", "3", "Ground + 2")
+ */
+function resolveFloors(rawFloors: any): string {
+  if (!rawFloors) return 'G+1';
+  const str = String(rawFloors).trim();
+  if (!str) return 'G+1';
+
+  // Matches "G+1", "G+2", "G + 2", "g+3"
+  const gMatch = str.match(/^g\s*\+\s*(\d+)$/i);
+  if (gMatch) return `G+${gMatch[1]}`;
+
+  // Matches "Ground + 1", "Ground+2"
+  const groundMatch = str.match(/^ground\s*\+\s*(\d+)$/i);
+  if (groundMatch) return `G+${groundMatch[1]}`;
+
+  // Matches "2 Stops", "3 Stops", "4 Stops", "2 Floors", "3 Floors", or just "2", "3"
+  const numMatch = str.match(/^(\d+)\s*(stops?|floors?|levels?|stations?)?$/i);
+  if (numMatch) {
+    const stops = parseInt(numMatch[1], 10);
+    if (stops <= 1) return 'G+0';
+    return `G+${stops - 1}`;
+  }
+
+  return str;
+}
+
+/**
  * Main importer function: parses Excel buffer, creates/updates Customers and Projects
  */
 export async function parseAndImportExcel(
@@ -299,6 +326,7 @@ export async function parseAndImportExcel(
 
   const items: ImportedItem[] = [];
   const errors: ImportError[] = [];
+  const usedProjectIds = new Set<string>();
 
   for (let rowIndex = 0; rowIndex < rawRows.length; rowIndex++) {
     const raw = rawRows[rowIndex];
@@ -626,18 +654,18 @@ export async function parseAndImportExcel(
       const projectName = String(rawProjectName || `${customer.fullName} Residence`).trim();
       const liftModel = resolveLiftModel(rawLiftModel);
       const liftType = String(rawLiftType || 'Home Lift').trim();
-      const numberOfFloors = String(rawFloors || 'G+1').trim();
+      const numberOfFloors = resolveFloors(rawFloors);
       const shaftModel = resolveShaftModel(rawShaftModel);
 
-      // Financial figures
-      const parsedLiftAmount = rawLiftAmount !== '' ? parseExcelNumber(rawLiftAmount, 0) : 0;
-      const parsedShaftAmount = rawShaftAmount !== '' ? parseExcelNumber(rawShaftAmount, 0) : 0;
-      const parsedLiftBaseAmount = rawLiftBaseAmount !== '' ? parseExcelNumber(rawLiftBaseAmount, 0) : undefined;
-      const parsedLiftDiscountAmount = rawLiftDiscountAmount !== '' ? parseExcelNumber(rawLiftDiscountAmount, 0) : undefined;
-      const parsedShaftBaseAmount = rawShaftBaseAmount !== '' ? parseExcelNumber(rawShaftBaseAmount, 0) : undefined;
-      const parsedShaftDiscountAmount = rawShaftDiscountAmount !== '' ? parseExcelNumber(rawShaftDiscountAmount, 0) : undefined;
+      // Financial figures safely clamped
+      const parsedLiftAmount = rawLiftAmount !== '' ? Math.max(0, parseExcelNumber(rawLiftAmount, 0)) : 0;
+      const parsedShaftAmount = rawShaftAmount !== '' ? Math.max(0, parseExcelNumber(rawShaftAmount, 0)) : 0;
+      const parsedLiftBaseAmount = rawLiftBaseAmount !== '' ? Math.max(0, parseExcelNumber(rawLiftBaseAmount, 0)) : undefined;
+      const parsedLiftDiscountAmount = rawLiftDiscountAmount !== '' ? Math.max(0, parseExcelNumber(rawLiftDiscountAmount, 0)) : undefined;
+      const parsedShaftBaseAmount = rawShaftBaseAmount !== '' ? Math.max(0, parseExcelNumber(rawShaftBaseAmount, 0)) : undefined;
+      const parsedShaftDiscountAmount = rawShaftDiscountAmount !== '' ? Math.max(0, parseExcelNumber(rawShaftDiscountAmount, 0)) : undefined;
 
-      let orderValue = rawOrderValue !== '' ? parseExcelNumber(rawOrderValue, 0) : 0;
+      let orderValue = rawOrderValue !== '' ? Math.max(0, parseExcelNumber(rawOrderValue, 0)) : 0;
       if (orderValue <= 0) {
         orderValue = parsedLiftAmount + (shaftModel === 'Customer Scope' ? 0 : parsedShaftAmount);
       }
@@ -646,30 +674,30 @@ export async function parseAndImportExcel(
       }
 
       const liftAmount = parsedLiftAmount > 0 ? parsedLiftAmount : (parsedShaftAmount > 0 ? Math.max(0, orderValue - parsedShaftAmount) : orderValue);
-      const shaftAmount = parsedShaftAmount > 0 ? parsedShaftAmount : Math.max(0, orderValue - liftAmount);
+      const shaftAmount = shaftModel === 'Customer Scope' ? 0 : (parsedShaftAmount > 0 ? parsedShaftAmount : Math.max(0, orderValue - liftAmount));
 
       let advanceAmount = 0;
       let advancePercentage = 30;
 
       if (rawAdvanceAmount !== '') {
-        advanceAmount = parseExcelNumber(rawAdvanceAmount, 0);
-        advancePercentage = orderValue > 0 ? Math.round((advanceAmount / orderValue) * 100) : 30;
+        advanceAmount = Math.max(0, parseExcelNumber(rawAdvanceAmount, 0));
+        advancePercentage = orderValue > 0 ? Math.min(100, Math.max(0, Math.round((advanceAmount / orderValue) * 100))) : 30;
       } else if (rawAdvancePct !== '') {
-        advancePercentage = parseExcelNumber(rawAdvancePct, 30);
+        advancePercentage = Math.min(100, Math.max(0, parseExcelNumber(rawAdvancePct, 30)));
         advanceAmount = Math.round((orderValue * advancePercentage) / 100);
       } else {
         advancePercentage = 30;
         advanceAmount = Math.round((orderValue * 30) / 100);
       }
 
-      const totalPaid = rawTotalPaid !== '' ? parseExcelNumber(rawTotalPaid, advanceAmount) : advanceAmount;
-      const balanceAmount = rawBalanceAmount !== '' ? parseExcelNumber(rawBalanceAmount, Math.max(0, orderValue - totalPaid)) : Math.max(0, orderValue - totalPaid);
+      const totalPaid = rawTotalPaid !== '' ? Math.max(0, parseExcelNumber(rawTotalPaid, advanceAmount)) : advanceAmount;
+      const balanceAmount = rawBalanceAmount !== '' ? Math.max(0, parseExcelNumber(rawBalanceAmount, Math.max(0, orderValue - totalPaid))) : Math.max(0, orderValue - totalPaid);
       const paymentStatus = resolvePaymentStatus(rawPaymentStatus, totalPaid, advanceAmount, orderValue);
 
-      const productionPaymentPercent = rawProductionPercent !== '' ? parseExcelNumber(rawProductionPercent, 40) : 40;
-      const readinessNotificationPercent = rawReadinessPercent !== '' ? parseExcelNumber(rawReadinessPercent, 30) : 30;
-      const dispatchMaterialsPercent = rawDispatchPercent !== '' ? parseExcelNumber(rawDispatchPercent, 0) : 0;
-      const afterInstallationPercent = rawAfterInstallPercent !== '' ? parseExcelNumber(rawAfterInstallPercent, 0) : 0;
+      const productionPaymentPercent = Math.min(100, Math.max(0, rawProductionPercent !== '' ? parseExcelNumber(rawProductionPercent, 40) : 40));
+      const readinessNotificationPercent = Math.min(100, Math.max(0, rawReadinessPercent !== '' ? parseExcelNumber(rawReadinessPercent, 30) : 30));
+      const dispatchMaterialsPercent = Math.min(100, Math.max(0, rawDispatchPercent !== '' ? parseExcelNumber(rawDispatchPercent, 0) : 0));
+      const afterInstallationPercent = Math.min(100, Math.max(0, rawAfterInstallPercent !== '' ? parseExcelNumber(rawAfterInstallPercent, 0) : 0));
 
       const projectStatus = resolveProjectStage(rawCurrentStage);
       const parsedOrderDate = parseExcelDate(rawOrderDate) || new Date();
@@ -678,12 +706,24 @@ export async function parseAndImportExcel(
       const parsedInstallationDate = parseExcelDate(rawInstallationDate);
       const projectNotes = rawProjectNotes || (rawNotes ? `Excel Import: ${rawNotes}` : 'Imported from Excel spreadsheet');
 
-      // Check if project exists
+      // Check if project exists FOR THIS SPECIFIC CUSTOMER
       if (rawProjectCode) {
-        project = await Project.findOne({ projectId: String(rawProjectCode).trim().toUpperCase() });
+        const targetCode = String(rawProjectCode).trim().toUpperCase();
+        project = await Project.findOne({
+          customerId: customer._id,
+          projectId: targetCode,
+        });
       }
 
-      if (!project && customer) {
+      if (!project && customer && rawProjectName) {
+        project = await Project.findOne({
+          customerId: customer._id,
+          projectName: new RegExp(`^${String(rawProjectName).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+        });
+      }
+
+      // If customer is an existing customer and only has 1 project with default name
+      if (!project && customer && !isNewCustomer) {
         project = await Project.findOne({
           customerId: customer._id,
           projectName: new RegExp(`^${projectName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
@@ -746,17 +786,40 @@ export async function parseAndImportExcel(
         await project.save();
         summary.projectsUpdated++;
       } else {
-        // Create new Project
-        const newProjectId = rawProjectCode ? String(rawProjectCode).trim().toUpperCase() : await getNextProjectId();
+        // Create new Project for this customer
+        let newProjectId = '';
+        if (rawProjectCode) {
+          const candidate = String(rawProjectCode).trim().toUpperCase();
+          const inUse = usedProjectIds.has(candidate) || (await Project.exists({ projectId: candidate }));
+          if (!inUse) {
+            newProjectId = candidate;
+          }
+        }
+
+        while (!newProjectId || usedProjectIds.has(newProjectId) || (await Project.exists({ projectId: newProjectId }))) {
+          newProjectId = await getNextProjectId();
+          if (usedProjectIds.has(newProjectId)) {
+            const num = parseInt(newProjectId.replace(/\D/g, ''), 10) || 1;
+            newProjectId = `ALP-${String(num + 1).padStart(3, '0')}`;
+          }
+        }
+        usedProjectIds.add(newProjectId);
+
         const nextUpdate = calculateNextUpdateDate(rawUpdateFreq ? parseExcelNumber(rawUpdateFreq, 20) : 20, new Date());
+        const effectiveSiteAddress = (
+          siteAddress ||
+          customer.address ||
+          customerAddress ||
+          'Installation Site Address'
+        ).trim();
 
         project = await Project.create({
           projectId: newProjectId,
           customerId: customer._id,
           customerCode: customer.customerId,
-          projectName,
-          siteAddress,
-          googleMapsLink: siteMapsLink || undefined,
+          projectName: projectName || `${customer.fullName} Residence`,
+          siteAddress: effectiveSiteAddress,
+          googleMapsLink: siteMapsLink || customer.googleMapsLink || customerMapsLink || undefined,
           liftModel,
           liftType,
           numberOfFloors,
@@ -820,6 +883,34 @@ export async function parseAndImportExcel(
           userId: currentUser?._id,
           userName: currentUser?.name || 'Excel Importer',
         });
+
+        if (rawWhatsappGroup) {
+          try {
+            await WhatsAppChannel.findOneAndUpdate(
+              { projectId: project._id },
+              {
+                $set: {
+                  whatsappGroupId: String(rawWhatsappGroup).trim(),
+                  groupName: rawWhatsappGroupName || `${projectName} — Alpha Updates`,
+                  projectId: project._id,
+                  projectCode: project.projectId,
+                  customerId: customer._id,
+                  customerName: customer.fullName,
+                  groupStatus: 'ACTIVE',
+                  automationEnabled: parseExcelBoolean(rawAutomationEnabled, true),
+                  updateFrequencyDays: rawUpdateFreq ? parseExcelNumber(rawUpdateFreq, 20) : 20,
+                  nextUpdateDate: nextUpdate,
+                  participants: [
+                    { phoneNumber: customer.phoneNumber, name: customer.fullName, role: 'MEMBER' },
+                  ],
+                },
+              },
+              { upsert: true, new: true }
+            );
+          } catch (waErr) {
+            console.warn('[ExcelImport] WhatsApp channel link warning:', waErr);
+          }
+        }
       }
 
       items.push({
@@ -835,6 +926,7 @@ export async function parseAndImportExcel(
         isNewProject,
       });
     } catch (rowErr: any) {
+      console.error(`[ExcelImport] Error processing row ${rowNum}:`, rowErr);
       summary.errorsCount++;
       errors.push({
         rowNumber: rowNum,

@@ -124,6 +124,7 @@ export default function ExcelImportModal({
           `Import complete! ${summary.customersCreated} new customers, ${summary.projectsCreated} new projects added.`,
           { duration: 6000 }
         );
+        onSuccess();
       } else {
         toast.success('Spreadsheet data processed successfully');
       }
