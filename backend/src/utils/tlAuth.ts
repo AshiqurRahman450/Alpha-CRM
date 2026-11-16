@@ -4,6 +4,21 @@ export const TL_NAMES = ['Srinivasan (TL)', 'Sundaram', 'Bala'] as const;
 
 /**
  * Checks if the user is one of the three designated Team Leads (Srinivasan, Sundaram, Bala)
+ * by role, name, or email across local and live environments
+ */
+export function isTlUser(user: any): boolean {
+  if (!user) return false;
+  if (user.role === 'LOGISTICS_TL') return true;
+  const name = user.name || '';
+  const email = user.email || '';
+  if (/srinivasan/i.test(name) || /srinivasan/i.test(email)) return true;
+  if (/sundaram/i.test(name) || /sundaram/i.test(email)) return true;
+  if (/bala/i.test(name) || /bala/i.test(email)) return true;
+  return false;
+}
+
+/**
+ * Gets the specific TL regex matching the user (Srinivasan, Sundaram, or Bala)
  */
 export function getTlRegexForUser(user: any): RegExp | null {
   if (!user) return null;
@@ -29,7 +44,7 @@ export function getTlRegexForUser(user: any): RegExp | null {
  * Returns query condition for customers assigned to this TL
  */
 export function getCustomerTlFilter(user: any): any | null {
-  if (!user || user.role !== 'LOGISTICS_TL') return null;
+  if (!user || !isTlUser(user)) return null;
   const regex = getTlRegexForUser(user);
   if (!regex) return null;
 
@@ -47,7 +62,7 @@ export function getCustomerTlFilter(user: any): any | null {
  * Checks if a specific customer is accessible by the logged-in TL user
  */
 export function isCustomerAccessibleByTl(customer: any, user: any): boolean {
-  if (!user || user.role !== 'LOGISTICS_TL') return true;
+  if (!user || !isTlUser(user)) return true;
   const regex = getTlRegexForUser(user);
   if (!regex) return true;
 
@@ -61,7 +76,7 @@ export function isCustomerAccessibleByTl(customer: any, user: any): boolean {
  * Checks if a specific project is accessible by the logged-in TL user
  */
 export function isProjectAccessibleByTl(project: any, user: any): boolean {
-  if (!user || user.role !== 'LOGISTICS_TL') return true;
+  if (!user || !isTlUser(user)) return true;
   const regex = getTlRegexForUser(user);
   if (!regex) return true;
 

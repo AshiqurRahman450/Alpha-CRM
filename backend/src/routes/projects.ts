@@ -40,7 +40,7 @@ import { DEFAULT_INSTALLATION_STAGES } from '../models/Project';
 import { config } from '../config';
 import { getNextProjectId } from '../utils/idGenerators';
 import { parseAndImportExcel, generateImportTemplateBuffer } from '../services/import/excelImportService';
-import { getTlRegexForUser, isProjectAccessibleByTl } from '../utils/tlAuth';
+import { getTlRegexForUser, isProjectAccessibleByTl, isTlUser } from '../utils/tlAuth';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -553,6 +553,7 @@ projectRouter.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const { status, paymentStatus, search, updateDue, employee } = req.query;
     const query: any = {};
+    const andConditions: any[] = [];
 
     if (req.user?.role === 'BDM') {
       const bdmConditions: any[] = [{ bdmId: req.user._id }];
@@ -565,19 +566,20 @@ projectRouter.get('/', async (req: AuthRequest, res: Response) => {
           bdmConditions.push({ bdmPhone: new RegExp(cleanPhone) });
         }
       }
-      query.$or = bdmConditions;
+      andConditions.push({ $or: bdmConditions });
     }
 
-    if (req.user?.role === 'LOGISTICS_TL') {
+    if (isTlUser(req.user)) {
       const tlRegex = getTlRegexForUser(req.user);
       if (tlRegex) {
-        const matchingCustomers = await Customer.find({
-          $or: [
-            { assignedTl: tlRegex },
-            { assignedTlId: req.user._id },
-            { assignedEmployee: tlRegex },
-          ],
-        }).select('_id').lean();
+        const custConditions: any[] = [
+          { assignedTl: tlRegex },
+          { assignedEmployee: tlRegex },
+        ];
+        if (req.user?._id) {
+          custConditions.push({ assignedTlId: req.user._id });
+        }
+        const matchingCustomers = await Customer.find({ $or: custConditions }).select('_id').lean();
         const custIds = matchingCustomers.map((c) => c._id);
 
         const tlConditions: any[] = [
@@ -585,18 +587,11 @@ projectRouter.get('/', async (req: AuthRequest, res: Response) => {
           { assignedEmployee: tlRegex },
           { customerId: { $in: custIds } },
         ];
-        if (req.user._id) {
+        if (req.user?._id) {
           tlConditions.push({ assignedTlId: req.user._id });
         }
 
-        if (query.$or) {
-          query.$and = (query.$and || []).concat([{ $or: query.$or }, { $or: tlConditions }]);
-          delete query.$or;
-        } else if (query.$and) {
-          query.$and.push({ $or: tlConditions });
-        } else {
-          query.$or = tlConditions;
-        }
+        andConditions.push({ $or: tlConditions });
       }
     }
 
@@ -638,21 +633,29 @@ projectRouter.get('/', async (req: AuthRequest, res: Response) => {
       query.automationEnabled = true;
       query.whatsappGroupId = { $exists: true, $ne: '' };
       query.projectStatus = { $nin: ['COMPLETED', 'CANCELLED', 'ON_HOLD'] };
-      query.$or = [
-        { nextUpdateAt: { $lte: endOfDay } },
-        { nextUpdateAt: { $exists: false } },
-        { nextUpdateAt: null },
-      ];
+      andConditions.push({
+        $or: [
+          { nextUpdateAt: { $lte: endOfDay } },
+          { nextUpdateAt: { $exists: false } },
+          { nextUpdateAt: null },
+        ],
+      });
     }
 
-    if (search && typeof search === 'string') {
+    if (search && typeof search === 'string' && search.trim()) {
       const searchRegex = new RegExp(search.trim(), 'i');
-      query.$or = [
-        { projectName: searchRegex },
-        { projectId: searchRegex },
-        { liftModel: searchRegex },
-        { siteAddress: searchRegex },
-      ];
+      andConditions.push({
+        $or: [
+          { projectName: searchRegex },
+          { projectId: searchRegex },
+          { liftModel: searchRegex },
+          { siteAddress: searchRegex },
+        ],
+      });
+    }
+
+    if (andConditions.length > 0) {
+      query.$and = andConditions;
     }
 
     const projects = await Project.find(query).populate('customerId').sort({ createdAt: -1 });
@@ -825,6 +828,7 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
   try {
     const { status, paymentStatus, search, employee } = req.query;
     const query: any = {};
+    const andConditions: any[] = [];
 
     if (req.user?.role === 'BDM') {
       const bdmConditions: any[] = [{ bdmId: req.user._id }];
@@ -837,19 +841,20 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
           bdmConditions.push({ bdmPhone: new RegExp(cleanPhone) });
         }
       }
-      query.$or = bdmConditions;
+      andConditions.push({ $or: bdmConditions });
     }
 
-    if (req.user?.role === 'LOGISTICS_TL') {
+    if (isTlUser(req.user)) {
       const tlRegex = getTlRegexForUser(req.user);
       if (tlRegex) {
-        const matchingCustomers = await Customer.find({
-          $or: [
-            { assignedTl: tlRegex },
-            { assignedTlId: req.user._id },
-            { assignedEmployee: tlRegex },
-          ],
-        }).select('_id').lean();
+        const custConditions: any[] = [
+          { assignedTl: tlRegex },
+          { assignedEmployee: tlRegex },
+        ];
+        if (req.user?._id) {
+          custConditions.push({ assignedTlId: req.user._id });
+        }
+        const matchingCustomers = await Customer.find({ $or: custConditions }).select('_id').lean();
         const custIds = matchingCustomers.map((c) => c._id);
 
         const tlConditions: any[] = [
@@ -857,18 +862,11 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
           { assignedEmployee: tlRegex },
           { customerId: { $in: custIds } },
         ];
-        if (req.user._id) {
+        if (req.user?._id) {
           tlConditions.push({ assignedTlId: req.user._id });
         }
 
-        if (query.$or) {
-          query.$and = (query.$and || []).concat([{ $or: query.$or }, { $or: tlConditions }]);
-          delete query.$or;
-        } else if (query.$and) {
-          query.$and.push({ $or: tlConditions });
-        } else {
-          query.$or = tlConditions;
-        }
+        andConditions.push({ $or: tlConditions });
       }
     }
 
@@ -921,14 +919,20 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
       query.assignedEmployee = employee;
     }
 
-    if (search && typeof search === 'string') {
+    if (search && typeof search === 'string' && search.trim()) {
       const searchRegex = new RegExp(search.trim(), 'i');
-      query.$or = [
-        { projectName: searchRegex },
-        { projectId: searchRegex },
-        { liftModel: searchRegex },
-        { siteAddress: searchRegex },
-      ];
+      andConditions.push({
+        $or: [
+          { projectName: searchRegex },
+          { projectId: searchRegex },
+          { liftModel: searchRegex },
+          { siteAddress: searchRegex },
+        ],
+      });
+    }
+
+    if (andConditions.length > 0) {
+      query.$and = andConditions;
     }
 
     const projects = await Project.find(query).populate('customerId').sort({ createdAt: -1 });

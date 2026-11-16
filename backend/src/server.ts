@@ -288,17 +288,18 @@ export async function startServer() {
       // Ensure Logistics Users exist: Bilal, Srinivasan (TL), Sundaram, Bala
       try {
         const logisticsUsers = [
-          { name: 'Bilal (Logistics)', email: 'bilal@alphaelevators.com', pass: 'bilal123', role: 'LOGISTICS' as const, phone: '+91 98401 77881' },
-          { name: 'Srinivasan (TL)', email: 'srinivasan@alphaelevators.com', pass: 'srini123', role: 'LOGISTICS_TL' as const, phone: '+91 98401 77882' },
-          { name: 'Sundaram', email: 'sundaram@alphaelevators.com', pass: 'sundaram123', role: 'LOGISTICS_TL' as const, phone: '+91 98401 77883' },
-          { name: 'Bala', email: 'bala@alphaelevators.com', pass: 'bala123', role: 'LOGISTICS_TL' as const, phone: '+91 98401 77884' },
+          { name: 'Bilal (Logistics)', email: 'bilal@alphaelevators.com', pass: 'bilal123', role: 'LOGISTICS' as const, phone: '+91 98401 77881', altRegex: /bilal/i },
+          { name: 'Srinivasan (TL)', email: 'srinivasan@alphaelevators.com', pass: 'srini123', role: 'LOGISTICS_TL' as const, phone: '+91 98401 77882', altRegex: /srinivasan/i },
+          { name: 'Sundaram', email: 'sundaram@alphaelevators.com', pass: 'sundaram123', role: 'LOGISTICS_TL' as const, phone: '+91 98401 77883', altRegex: /sundaram/i },
+          { name: 'Bala', email: 'bala@alphaelevators.com', pass: 'bala123', role: 'LOGISTICS_TL' as const, phone: '+91 98401 77884', altRegex: /bala/i },
         ];
 
         for (const lu of logisticsUsers) {
           const userDoc = await User.findOne({
             $or: [
               { email: lu.email },
-              { name: new RegExp(`^${lu.name.replace(/[^a-zA-Z0-9]/g, '.*')}$`, 'i') },
+              { email: lu.altRegex },
+              { name: lu.altRegex },
             ],
           });
           const hash = await bcrypt.hash(lu.pass, 10);
@@ -318,16 +319,27 @@ export async function startServer() {
               {
                 $set: {
                   role: lu.role,
-                  name: lu.name,
-                  email: lu.email,
+                  name: userDoc.name || lu.name,
                   passwordHash: hash,
-                  phone: lu.phone,
+                  phone: userDoc.phone || lu.phone,
                   isActive: true,
                 },
               }
             );
-            console.log(`[Server] Verified Logistics user: ${lu.name} (${lu.email}) with role ${lu.role}`);
+            console.log(`[Server] Verified Logistics user: ${userDoc.name} (${userDoc.email}) with role ${lu.role}`);
           }
+        }
+
+        // Ensure any customer assigned to a TL has their projects synchronized
+        const customersWithTl = await Customer.find({
+          assignedTl: { $exists: true, $nin: [null, ''] },
+        }).select('_id assignedTl assignedTlId');
+
+        for (const c of customersWithTl) {
+          await Project.updateMany(
+            { customerId: c._id, $or: [{ assignedTl: { $exists: false } }, { assignedTl: null }, { assignedTl: '' }] },
+            { $set: { assignedTl: c.assignedTl, assignedTlId: c.assignedTlId } }
+          );
         }
       } catch (logisticsInitErr: any) {
         console.warn('[Server] Notice initializing Logistics users:', logisticsInitErr.message);

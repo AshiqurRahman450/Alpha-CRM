@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import { Customer, Project, WhatsAppMessage, WhatsAppChannel, SystemSettings } from '../models';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { getTlRegexForUser, getCustomerTlFilter } from '../utils/tlAuth';
+import { getTlRegexForUser, getCustomerTlFilter, isTlUser } from '../utils/tlAuth';
 
 export const dashboardRouter = Router();
 
@@ -25,7 +25,7 @@ dashboardRouter.get('/', async (req: AuthRequest, res: Response) => {
     in7Days.setDate(in7Days.getDate() + 7);
 
     const isBDM = req.user?.role === 'BDM';
-    const isLogisticsTL = req.user?.role === 'LOGISTICS_TL';
+    const isLogisticsTL = isTlUser(req.user);
 
     let bdmFilter: any = {};
     let customerFilter: any = {};
@@ -319,7 +319,7 @@ dashboardRouter.get('/card-items', async (req: AuthRequest, res: Response) => {
     in7Days.setDate(in7Days.getDate() + 7);
 
     const isBDM = req.user?.role === 'BDM';
-    const isLogisticsTL = req.user?.role === 'LOGISTICS_TL';
+    const isLogisticsTL = isTlUser(req.user);
 
     let bdmFilter: any = {};
     let customerFilter: any = {};

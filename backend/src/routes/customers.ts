@@ -146,6 +146,8 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
       // Non-blocking sync
     }
 
+    const andConditions: any[] = [];
+
     if (req.user?.role === 'BDM') {
       const bdmConditions: any[] = [
         { bdmId: req.user._id },
@@ -163,14 +165,16 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
           bdmConditions.push({ bdmPhone: new RegExp(cleanPhone) });
         }
       }
-      query.$or = bdmConditions;
+      andConditions.push({ $or: bdmConditions });
     } else if (bdmId && bdmId !== 'ALL') {
       const bdmMatch = await User.findById(bdmId).catch(() => null);
       if (bdmMatch) {
-        query.$or = [
-          { bdmId: bdmMatch._id },
-          { assignedEmployee: new RegExp(`^${bdmMatch.name.trim()}$`, 'i') },
-        ];
+        andConditions.push({
+          $or: [
+            { bdmId: bdmMatch._id },
+            { assignedEmployee: new RegExp(`^${bdmMatch.name.trim()}$`, 'i') },
+          ],
+        });
       } else {
         query.bdmId = bdmId;
       }
@@ -178,54 +182,35 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
 
     if (assignedTl && typeof assignedTl === 'string' && assignedTl !== 'ALL') {
       if (assignedTl === 'unassigned') {
-        const unassignedCondition = {
+        andConditions.push({
           $or: [
             { assignedTl: null },
             { assignedTl: '' },
             { assignedTl: { $exists: false } },
           ],
-        };
-        if (query.$or) {
-          query.$and = (query.$and || []).concat([{ $or: query.$or }, unassignedCondition]);
-          delete query.$or;
-        } else if (query.$and) {
-          query.$and.push(unassignedCondition);
-        } else {
-          query.$or = unassignedCondition.$or;
-        }
+        });
       } else {
         query.assignedTl = new RegExp(`^${assignedTl.trim()}$`, 'i');
       }
     }
 
-    // Role-based visibility: LOGISTICS_TL (Srinivasan, Sundaram, Bala) only sees assigned customers
+    // Role-based visibility: Team Leads (Srinivasan, Sundaram, Bala) only see assigned customers
     const tlFilter = getCustomerTlFilter(req.user);
     if (tlFilter) {
-      if (query.$or) {
-        query.$and = (query.$and || []).concat([{ $or: query.$or }, tlFilter]);
-        delete query.$or;
-      } else if (query.$and) {
-        query.$and.push(tlFilter);
-      } else {
-        query.$or = tlFilter.$or;
-      }
+      andConditions.push(tlFilter);
     }
 
-    if (search && typeof search === 'string') {
+    if (search && typeof search === 'string' && search.trim()) {
       const searchRegex = new RegExp(search.trim(), 'i');
-      const searchOr = [
-        { fullName: searchRegex },
-        { phoneNumber: searchRegex },
-        { whatsappNumber: searchRegex },
-        { customerId: searchRegex },
-        { city: searchRegex },
-      ];
-      if (query.$or) {
-        query.$and = [{ $or: query.$or }, { $or: searchOr }];
-        delete query.$or;
-      } else {
-        query.$or = searchOr;
-      }
+      andConditions.push({
+        $or: [
+          { fullName: searchRegex },
+          { phoneNumber: searchRegex },
+          { whatsappNumber: searchRegex },
+          { customerId: searchRegex },
+          { city: searchRegex },
+        ],
+      });
     }
 
     if (optIn !== undefined && optIn !== '') {
@@ -237,30 +222,21 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
     }
 
     if (String(isOldCustomer) === 'true') {
-      const oldFilter = {
+      andConditions.push({
         $or: [
           { isOldCustomer: true },
           { customerId: { $regex: /^OLD/i } },
         ],
-      };
-      if (query.$or) {
-        query.$and = (query.$and || []).concat([{ $or: query.$or }, oldFilter]);
-        delete query.$or;
-      } else if (query.$and) {
-        query.$and.push(oldFilter);
-      } else {
-        query.$or = oldFilter.$or;
-      }
+      });
     } else if (String(isOldCustomer) === 'false') {
-      const regularFilter = {
+      andConditions.push({
         isOldCustomer: { $ne: true },
         customerId: { $regex: /^(?!OLD)/i },
-      };
-      if (query.$and) {
-        query.$and.push(regularFilter);
-      } else {
-        Object.assign(query, regularFilter);
-      }
+      });
+    }
+
+    if (andConditions.length > 0) {
+      query.$and = andConditions;
     }
 
     const customers = await Customer.find(query).populate('bdmId', 'name email phone').lean();
@@ -643,10 +619,15 @@ customerRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'ACCOUNTA
  * PATCH /api/customers/:id/assign-tl
  * Assigns a customer and all their projects to a specific Team Lead (Srinivasan, Sundaram, Bala)
  */
-customerRouter.patch('/:id/assign-tl', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthRequest, res: Response) => {
+customerRouter.patch('/:id/assign-tl', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'TECHNICAL_LEAD', 'LOGISTICS', 'LOGISTICS_TL'), async (req: AuthRequest, res: Response) => {
   try {
     const { assignedTl } = req.body;
-    const customer = await Customer.findById(req.params.id);
+    let customer: any = null;
+    if (Types.ObjectId.isValid(req.params.id)) {
+      customer = await Customer.findById(req.params.id);
+    } else {
+      customer = await Customer.findOne({ customerId: req.params.id.toUpperCase() });
+    }
     
     if (!customer) {
       return res.status(404).json({ success: false, message: 'Customer not found' });
@@ -657,9 +638,13 @@ customerRouter.patch('/:id/assign-tl', authorize('ADMIN', 'CRM', 'MANAGER'), asy
 
     if (assignedTl && assignedTl !== 'UNASSIGNED' && assignedTl !== 'NONE') {
       tlName = String(assignedTl).trim();
+      const cleanKeyword = tlName.replace(/[^a-zA-Z]/g, '');
       const matchedUser = await User.findOne({
-        role: { $in: ['LOGISTICS_TL', 'TECHNICAL_LEAD'] },
-        name: new RegExp(`^${tlName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+        $or: [
+          { name: new RegExp(`^${tlName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+          { name: new RegExp(cleanKeyword, 'i') },
+          { email: new RegExp(cleanKeyword, 'i') },
+        ],
       });
       if (matchedUser) {
         tlUserId = matchedUser._id;
