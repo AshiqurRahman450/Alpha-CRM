@@ -769,11 +769,32 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
 
     if (status && typeof status === 'string') {
       if (status.includes(',')) {
-        query.projectStatus = { $in: status.split(',') };
+        const statuses = status.split(',');
+        const expandedStatuses = new Set<string>();
+        statuses.forEach((st) => {
+          const trimmed = st.trim();
+          expandedStatuses.add(trimmed);
+          if (trimmed === 'DISPATCH' || trimmed === 'MATERIAL_DISPATCHED') {
+            expandedStatuses.add('DISPATCH');
+            expandedStatuses.add('MATERIAL_DISPATCHED');
+          }
+          if (trimmed === 'MANUFACTURING' || trimmed === 'PRODUCTION_IN_PROGRESS') {
+            expandedStatuses.add('MANUFACTURING');
+            expandedStatuses.add('PRODUCTION_IN_PROGRESS');
+          }
+          if (trimmed === 'MATERIAL_DELIVERY') {
+            expandedStatuses.add('MATERIAL_DELIVERY');
+          }
+        });
+        query.projectStatus = { $in: Array.from(expandedStatuses) };
       } else if (status === 'HANDOVER') {
         query.projectStatus = { $in: ['TESTING', 'COMPLETED'] };
       } else if (status === 'ACTIVE') {
         query.projectStatus = { $nin: ['TESTING', 'COMPLETED', 'CANCELLED'] };
+      } else if (status === 'DISPATCH' || status === 'MATERIAL_DISPATCHED') {
+        query.projectStatus = { $in: ['DISPATCH', 'MATERIAL_DISPATCHED'] };
+      } else if (status === 'MANUFACTURING' || status === 'PRODUCTION_IN_PROGRESS') {
+        query.projectStatus = { $in: ['MANUFACTURING', 'PRODUCTION_IN_PROGRESS'] };
       } else {
         query.projectStatus = status;
       }
@@ -808,21 +829,91 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
     const projects = await Project.find(query).populate('customerId').sort({ createdAt: -1 });
 
     const MILESTONE_STAGES = [
-      { key: 'PAYMENT_RECEIVED', label: 'Advance Payment Received' },
-      { key: 'SITE_MEASUREMENT', label: 'Site Visit' },
-      { key: 'DESIGN', label: 'Drawing and Cabin' },
-      { key: 'CUSTOMER_APPROVAL', label: 'Drawing and Cabin Design Approval' },
-      { key: 'ENGINEERING', label: 'Production Payment' },
-      { key: 'MANUFACTURING', label: 'Production in progress' },
-      { key: 'QUALITY_CHECK', label: 'Readiness Payment' },
-      { key: 'DISPATCH', label: 'Material ready to Dispatch' },
-      { key: 'MATERIAL_IN_TRANSIT', label: 'Material in transit' },
-      { key: 'DELIVERY', label: 'Pre Site Visit' },
-      { key: 'MATERIAL_DELIVERY', label: 'Material Delivered' },
-      { key: 'INSTALLATION', label: 'Installation in Progress' },
-      { key: 'TESTING', label: 'Handover - Payment Pending' },
-      { key: 'COMPLETED', label: 'Project Completed' },
+      {
+        key: 'PAYMENT_RECEIVED',
+        label: 'Advance Payment Received',
+        aliases: ['PAYMENT_RECEIVED', 'ADVANCE_PAID'],
+      },
+      {
+        key: 'SITE_MEASUREMENT',
+        label: 'Site Visit',
+        aliases: ['SITE_MEASUREMENT', 'SITE_VISIT'],
+      },
+      {
+        key: 'DESIGN',
+        label: 'Drawing and Cabin',
+        aliases: ['DESIGN', 'DRAWING_AND_CABIN', 'DRAWING'],
+      },
+      {
+        key: 'CUSTOMER_APPROVAL',
+        label: 'Drawing and Cabin Design Approval',
+        aliases: ['CUSTOMER_APPROVAL', 'DRAWING_AND_CABIN_DESIGN_APPROVAL'],
+      },
+      {
+        key: 'ENGINEERING',
+        label: 'Production Payment',
+        aliases: ['ENGINEERING', 'PRODUCTION_PAYMENT'],
+      },
+      {
+        key: 'MANUFACTURING',
+        label: 'Production in progress',
+        aliases: ['MANUFACTURING', 'PRODUCTION_IN_PROGRESS', 'PRODUCTION'],
+      },
+      {
+        key: 'QUALITY_CHECK',
+        label: 'Readiness Payment',
+        aliases: ['QUALITY_CHECK', 'READINESS_PAYMENT', 'QC'],
+      },
+      {
+        key: 'DISPATCH',
+        label: 'Material ready to Dispatch',
+        aliases: ['DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_READY_TO_DISPATCH', 'READY_TO_DISPATCH'],
+      },
+      {
+        key: 'MATERIAL_IN_TRANSIT',
+        label: 'Material in transit',
+        aliases: ['MATERIAL_IN_TRANSIT', 'IN_TRANSIT', 'TRANSIT'],
+      },
+      {
+        key: 'DELIVERY',
+        label: 'Pre Site Visit',
+        aliases: ['DELIVERY', 'PRE_SITE_VISIT', 'PRE_SITEVISIT'],
+      },
+      {
+        key: 'MATERIAL_DELIVERY',
+        label: 'Material Delivered',
+        aliases: ['MATERIAL_DELIVERY', 'MATERIAL_DELIVERED'],
+      },
+      {
+        key: 'INSTALLATION',
+        label: 'Installation in Progress',
+        aliases: ['INSTALLATION', 'INSTALLATION_IN_PROGRESS'],
+      },
+      {
+        key: 'TESTING',
+        label: 'Handover - Payment Pending',
+        aliases: ['TESTING', 'HANDOVER', 'HANDOVER_PAYMENT_PENDING'],
+      },
+      {
+        key: 'COMPLETED',
+        label: 'Project Completed',
+        aliases: ['COMPLETED', 'PROJECT_COMPLETED'],
+      },
     ];
+
+    const formatStageLabel = (status: string | undefined): string => {
+      if (!status) return 'N/A';
+      if (status === 'PRODUCTION_IN_PROGRESS') return 'Production in progress';
+      if (status === 'MATERIAL_DISPATCHED' || status === 'DISPATCH') return 'Material ready to Dispatch';
+      if (status === 'MATERIAL_DELIVERY') return 'Material Delivered';
+      if (status === 'DELIVERY') return 'Pre Site Visit';
+      if (status === 'MATERIAL_IN_TRANSIT') return 'Material in transit';
+      if (status === 'TESTING') return 'Handover - Payment Pending';
+      if (status === 'COMPLETED') return 'Project Completed';
+      const meta = MILESTONE_STAGES.find((s) => s.key === status || s.aliases.includes(status));
+      if (meta) return meta.label;
+      return status.replace(/_/g, ' ');
+    };
 
     const formatDate = (val: any): string => {
       if (!val) return '';
@@ -834,60 +925,117 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
       return `${day}/${month}/${year}`;
     };
 
-    const getStageDates = (p: any, stageKey: string) => {
+    const getStageDates = (p: any, stageKey: string, aliases: string[] = []) => {
       if (!p.stageDates) return null;
-      if (typeof p.stageDates.get === 'function') {
-        return p.stageDates.get(stageKey);
+      const keysToCheck = [stageKey, ...aliases];
+      for (const k of keysToCheck) {
+        let val = null;
+        if (typeof p.stageDates.get === 'function') {
+          val = p.stageDates.get(k);
+        } else {
+          val = p.stageDates[k];
+        }
+        if (val && (val.scheduleDate || val.executedDate)) {
+          return val;
+        }
       }
-      return p.stageDates[stageKey];
+      for (const k of keysToCheck) {
+        const val = typeof p.stageDates.get === 'function' ? p.stageDates.get(k) : p.stageDates[k];
+        if (val) return val;
+      }
+      return null;
     };
 
     // Sheet 1: All Stages Raw Data
     const rawRows: any[] = [];
     // Sheet 2: Current Stage Summary
     const summaryRows: any[] = [];
+    // Sheet 3: Installation Programme Stages
+    const installationRows: any[] = [];
 
     for (const p of projects) {
       const customer = (p.customerId as any) || {};
       const customerName = customer.fullName || customer.name || p.projectName || 'N/A';
       const projectCode = p.projectId || 'N/A';
-
-      const curStageMeta = MILESTONE_STAGES.find((s) => s.key === p.projectStatus);
-      const curStageLabel = curStageMeta?.label || String(p.projectStatus || 'N/A').replace(/_/g, ' ');
+      const projectName = p.projectName || 'Elevator Project';
+      const trackingNumber = p.vrlLrNumber || p.trackingNumber || '';
+      const curStageLabel = formatStageLabel(p.projectStatus);
+      const assignedExec = p.assignedEmployee || customer.assignedEmployee || p.projectExecutive || '';
 
       // 1. All Stages Raw Data
       for (const st of MILESTONE_STAGES) {
-        const datesObj = getStageDates(p, st.key);
+        const datesObj = getStageDates(p, st.key, st.aliases);
         rawRows.push({
           'Customer Name': customerName,
           'Project Code': projectCode,
+          'Project Name': projectName,
           'Current Stage': curStageLabel,
           'Stage': st.label,
           'Schedule Date': datesObj?.scheduleDate ? formatDate(datesObj.scheduleDate) : '',
           'Executed Date': datesObj?.executedDate ? formatDate(datesObj.executedDate) : '',
+          'Schedule Time': datesObj?.scheduleTime || '',
+          'VRL Tracking Number': trackingNumber,
+          'Assigned Executive': assignedExec,
         });
       }
 
       // 2. Current Stage Summary
-      const curDates = p.projectStatus ? getStageDates(p, p.projectStatus) : null;
+      const curDates = p.projectStatus ? getStageDates(p, p.projectStatus, [
+        ...(p.projectStatus === 'MATERIAL_DISPATCHED' ? ['DISPATCH'] : []),
+        ...(p.projectStatus === 'DISPATCH' ? ['MATERIAL_DISPATCHED'] : []),
+        ...(p.projectStatus === 'PRODUCTION_IN_PROGRESS' ? ['MANUFACTURING'] : []),
+        ...(p.projectStatus === 'MANUFACTURING' ? ['PRODUCTION_IN_PROGRESS'] : []),
+        ...(p.projectStatus === 'MATERIAL_DELIVERY' ? ['DELIVERY'] : []),
+        ...(p.projectStatus === 'DELIVERY' ? ['MATERIAL_DELIVERY'] : []),
+      ]) : null;
 
       summaryRows.push({
         'Customer Name': customerName,
         'Project Code': projectCode,
+        'Project Name': projectName,
         'Current Stage': curStageLabel,
         'Schedule Date': curDates?.scheduleDate ? formatDate(curDates.scheduleDate) : '',
         'Executed Date': curDates?.executedDate ? formatDate(curDates.executedDate) : '',
+        'Schedule Time': curDates?.scheduleTime || '',
+        'VRL Tracking Number': trackingNumber,
+        'Lift Model': p.liftModel || 'Elevator',
+        'Shaft Model': p.shaftModel || '',
+        'Site Address': p.siteAddress || '',
+        'Assigned Executive': assignedExec,
       });
+
+      // 3. Installation Programme Stages
+      if (p.installationStages && p.installationStages.length > 0) {
+        for (const inst of p.installationStages) {
+          installationRows.push({
+            'Customer Name': customerName,
+            'Project Code': projectCode,
+            'Project Name': projectName,
+            'Sl No': inst.slNo,
+            'Installation Stage': inst.stageName,
+            'Start Date': inst.startDate ? formatDate(inst.startDate) : '',
+            'Complete Date': inst.completeDate ? formatDate(inst.completeDate) : '',
+            'Status': inst.status || 'PENDING',
+            'Duration (Working Days)': inst.durationWorkingDays || '',
+            'Delay Reason': inst.delayReason || '',
+            'Delay Notes': inst.delayNotes || '',
+          });
+        }
+      }
     }
 
     const defaultRawEmptyRow = [
       {
         'Customer Name': '',
         'Project Code': '',
+        'Project Name': '',
         'Current Stage': '',
         'Stage': '',
         'Schedule Date': '',
         'Executed Date': '',
+        'Schedule Time': '',
+        'VRL Tracking Number': '',
+        'Assigned Executive': '',
       },
     ];
 
@@ -895,21 +1043,70 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
       {
         'Customer Name': '',
         'Project Code': '',
+        'Project Name': '',
         'Current Stage': '',
         'Schedule Date': '',
         'Executed Date': '',
+        'Schedule Time': '',
+        'VRL Tracking Number': '',
+        'Lift Model': '',
+        'Shaft Model': '',
+        'Site Address': '',
+        'Assigned Executive': '',
       },
     ];
 
     const workbook = XLSX.utils.book_new();
 
     const wsRaw = XLSX.utils.json_to_sheet(rawRows.length > 0 ? rawRows : defaultRawEmptyRow);
-    wsRaw['!cols'] = [{ wch: 28 }, { wch: 18 }, { wch: 32 }, { wch: 35 }, { wch: 18 }, { wch: 18 }];
+    wsRaw['!cols'] = [
+      { wch: 28 }, // Customer Name
+      { wch: 16 }, // Project Code
+      { wch: 26 }, // Project Name
+      { wch: 32 }, // Current Stage
+      { wch: 35 }, // Stage
+      { wch: 18 }, // Schedule Date
+      { wch: 18 }, // Executed Date
+      { wch: 16 }, // Schedule Time
+      { wch: 22 }, // VRL Tracking Number
+      { wch: 22 }, // Assigned Executive
+    ];
     XLSX.utils.book_append_sheet(workbook, wsRaw, 'All Stages (Raw Data)');
 
     const wsSummary = XLSX.utils.json_to_sheet(summaryRows.length > 0 ? summaryRows : defaultSummaryEmptyRow);
-    wsSummary['!cols'] = [{ wch: 28 }, { wch: 18 }, { wch: 35 }, { wch: 18 }, { wch: 18 }];
+    wsSummary['!cols'] = [
+      { wch: 28 }, // Customer Name
+      { wch: 16 }, // Project Code
+      { wch: 26 }, // Project Name
+      { wch: 32 }, // Current Stage
+      { wch: 18 }, // Schedule Date
+      { wch: 18 }, // Executed Date
+      { wch: 16 }, // Schedule Time
+      { wch: 22 }, // VRL Tracking Number
+      { wch: 24 }, // Lift Model
+      { wch: 18 }, // Shaft Model
+      { wch: 35 }, // Site Address
+      { wch: 22 }, // Assigned Executive
+    ];
     XLSX.utils.book_append_sheet(workbook, wsSummary, 'Current Stage Summary');
+
+    if (installationRows.length > 0) {
+      const wsInstallation = XLSX.utils.json_to_sheet(installationRows);
+      wsInstallation['!cols'] = [
+        { wch: 28 }, // Customer Name
+        { wch: 16 }, // Project Code
+        { wch: 26 }, // Project Name
+        { wch: 10 }, // Sl No
+        { wch: 45 }, // Installation Stage
+        { wch: 16 }, // Start Date
+        { wch: 16 }, // Complete Date
+        { wch: 16 }, // Status
+        { wch: 24 }, // Working Days
+        { wch: 20 }, // Delay Reason
+        { wch: 30 }, // Delay Notes
+      ];
+      XLSX.utils.book_append_sheet(workbook, wsInstallation, 'Installation Programme Stages');
+    }
 
     const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
     const filename = `Projects_Raw_Data_${new Date().toISOString().slice(0, 10)}.xlsx`;
