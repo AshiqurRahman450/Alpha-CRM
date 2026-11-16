@@ -378,16 +378,16 @@ export default function ExcelImportModal({
                     </p>
                     <ul className="list-disc pl-5 space-y-1 text-[11px] text-slate-600">
                       <li>
-                        <strong>Customer Details:</strong> Name, 10-digit Phone, WhatsApp, Email, Site Address, City, State, Pincode. Matched automatically or created with continuous <code>CUST-XXX</code> numbering.
+                        <strong>Add Customer Record Fields:</strong> Customer Code (optional), Full Name, Phone Number, WhatsApp Number, Email, Door No, Street Name, Landmark, Address, Google Maps Link, City, State, Pincode, Customer Type (Residential/Villa/Commercial/Builder), Lead Source, WhatsApp Opt-In, Old Customer, and Customer Notes.
                       </li>
                       <li>
-                        <strong>Project Details:</strong> Project Name, Lift Model (AE 01 Home Series, etc.), Shaft Model (Civil Shaft, ACP Shaft, etc.), Floors, Order Value, Advance Amount. Sequential <code>ALP-XXX</code> generated for new projects.
+                        <strong>Create Elevator Project Fields:</strong> Project Code (optional), Project Name, Site Address, Site Google Maps Link, Lift Model, Lift Type, Floors, Shaft Model, Drawing URL, Order Value, Lift & Shaft Base & Discount Amounts, Advance %, Advance Amount, Total Paid, Balance Amount, Payment Status, and Stage Payment Percentages (Production 40%, Readiness 30%, Dispatch 0%, Installation 0%).
                       </li>
                       <li>
-                        <strong>Lifecycle & Team:</strong> Current Stage (Site Visit, Material Delivered, etc.), Assigned Executive (Srinivasan, Sundaram, Bala, etc.), Delivery Date, Tracking LR number.
+                        <strong>Lifecycle, Dates & Team:</strong> Current Stage (Site Visit, Material in transit, Material Delivered, etc.), Order Date, Expected/Actual Delivery Date, Installation Date, Assigned Executive, Project Manager, Project Executive, BDM Phone, VRL LR Tracking Number, WhatsApp Group ID & Name, WhatsApp Automation Enabled, Update Frequency, and Project Notes.
                       </li>
                       <li>
-                        <strong>Auto-Deduplication:</strong> If a customer with the same phone or project code already exists, their records will be updated rather than duplicated.
+                        <strong>Auto-Deduplication & Synchronization:</strong> If a customer or project already exists (matched by Phone, Email, Customer Code, or Project Code), all fields will be automatically updated with latest spreadsheet values rather than duplicated.
                       </li>
                     </ul>
                   </div>

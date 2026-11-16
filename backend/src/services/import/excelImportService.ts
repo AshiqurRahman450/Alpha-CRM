@@ -170,6 +170,51 @@ function resolveProjectStage(rawStage: any): ProjectStatus {
 }
 
 /**
+ * Parses boolean representation from Excel
+ */
+function parseExcelBoolean(val: any, defaultVal = true): boolean {
+  if (val === undefined || val === null || val === '') return defaultVal;
+  if (typeof val === 'boolean') return val;
+  const str = String(val).trim().toLowerCase();
+  if (['yes', 'true', '1', 'y', 'enabled'].includes(str)) return true;
+  if (['no', 'false', '0', 'n', 'disabled'].includes(str)) return false;
+  return defaultVal;
+}
+
+/**
+ * Parses numeric currency / percentage value safely from Excel
+ */
+function parseExcelNumber(val: any, defaultVal = 0): number {
+  if (val === undefined || val === null || val === '') return defaultVal;
+  if (typeof val === 'number') return isNaN(val) ? defaultVal : val;
+  const clean = String(val).replace(/[^0-9.-]/g, '');
+  const num = parseFloat(clean);
+  return isNaN(num) ? defaultVal : num;
+}
+
+/**
+ * Resolves PaymentStatus from raw string or calculated financial figures
+ */
+function resolvePaymentStatus(
+  rawStatus: any,
+  totalPaid: number,
+  advanceAmount: number,
+  orderValue: number
+): 'PENDING' | 'ADVANCE_PAID' | 'PARTIAL_PAID' | 'FULLY_PAID' {
+  if (rawStatus) {
+    const clean = normalizeKey(rawStatus);
+    if (clean.includes('fully') || clean.includes('full') || clean.includes('complete')) return 'FULLY_PAID';
+    if (clean.includes('advance')) return 'ADVANCE_PAID';
+    if (clean.includes('partial') || clean.includes('part')) return 'PARTIAL_PAID';
+    if (clean.includes('pending') || clean.includes('due') || clean.includes('unpaid')) return 'PENDING';
+  }
+  if (totalPaid >= orderValue && orderValue > 0) return 'FULLY_PAID';
+  if (totalPaid >= advanceAmount && advanceAmount > 0) return 'ADVANCE_PAID';
+  if (totalPaid > 0) return 'PARTIAL_PAID';
+  return 'PENDING';
+}
+
+/**
  * Normalizes shaft model name with civil shaft support
  */
 function resolveShaftModel(rawModel: any): string {
@@ -277,6 +322,7 @@ export async function parseAndImportExcel(
       };
 
       // Extract Customer Fields
+      const rawCustomerCode = getVal('customercode', 'customerid', 'custid', 'custcode');
       const rawCustomerName = getVal(
         'customername',
         'clientname',
@@ -302,32 +348,62 @@ export async function parseAndImportExcel(
         'wano'
       );
       const rawEmail = getVal('email', 'emailaddress', 'mail', 'e-mail');
-      const rawAddress = getVal(
+      const rawDoorNo = getVal('doorno', 'door', 'flatno', 'houseno');
+      const rawStreetName = getVal('streetname', 'street', 'road');
+      const rawLandmark = getVal('landmark', 'near');
+      const rawCustomerAddress = getVal('customeraddress', 'custaddress', 'clientaddress');
+      const rawSiteAddress = getVal(
         'siteaddress',
         'address',
-        'customeraddress',
         'deliveryaddress',
+        'installationaddress',
         'location',
         'street'
       );
+      const rawCustomerMapsLink = getVal('customergooglemapslink', 'customergooglemaps', 'customermapslink', 'customermaps');
+      const rawSiteMapsLink = getVal('sitegooglemapslink', 'sitegooglemaps', 'googlemapslink', 'googlemaps', 'mapslink', 'maps');
       const rawCity = getVal('city', 'town', 'district');
       const rawState = getVal('state', 'province');
       const rawPincode = getVal('pincode', 'pin', 'postalcode', 'zip', 'zipcode');
       const rawCustomerType = getVal('customertype', 'clienttype', 'type');
       const rawLeadSource = getVal('leadsource', 'source', 'reference');
-      const rawCustomerCode = getVal('customercode', 'customerid', 'custid', 'custcode');
+      const rawWhatsappOptIn = getVal('whatsappoptin', 'optin', 'waoptin');
+      const rawOptInDate = getVal('whatsappoptindate', 'optindate');
+      const rawOptInSource = getVal('whatsappoptinsource', 'optinsource');
+      const rawIsOldCustomer = getVal('oldcustomer', 'isoldcustomer', 'existingcustomer');
+      const rawCustomerNotes = getVal('customernotes', 'customernote', 'clientnotes');
+      const rawCustomerAssignedEmp = getVal('customerassignedemployee', 'customerassigned');
+      const rawBdmPhone = getVal('bdmphone', 'bdmcontact', 'bdmmobile');
 
       // Extract Project Fields
       const rawProjectName = getVal('projectname', 'project', 'sitename', 'title');
       const rawProjectCode = getVal('projectcode', 'projectid', 'alpid', 'alpcode');
       const rawLiftModel = getVal('liftmodel', 'elevatormodel', 'model');
-      const rawLiftType = getVal('lifttype', 'elevatortype', 'type');
+      const rawLiftType = getVal('lifttype', 'elevatortype');
       const rawFloors = getVal('numberoffloors', 'floors', 'stops', 'levels', 'noofstops');
       const rawShaftModel = getVal('shaftmodel', 'shafttype', 'shaft');
-      const rawOrderValue = getVal('ordervalue', 'totalamount', 'totalvalue', 'amount', 'price', 'totalprice');
-      const rawAdvanceAmount = getVal('advanceamount', 'advancepaid', 'paidamount', 'advance', 'initialpayment');
+      const rawDrawingUrl = getVal('drawingurl', 'drawinglink', 'drawing');
+      const rawOrderValue = getVal('ordervalue', 'ordervalueinr', 'totalamount', 'totalvalue', 'amount', 'price', 'totalprice');
+      const rawLiftAmount = getVal('liftamount', 'liftamountinr', 'liftprice');
+      const rawLiftBaseAmount = getVal('liftbaseamount', 'liftbaseamountinr', 'liftbase');
+      const rawLiftDiscountAmount = getVal('liftdiscountamount', 'liftdiscountamountinr', 'liftdiscount');
+      const rawShaftAmount = getVal('shaftamount', 'shaftamountinr', 'shaftprice');
+      const rawShaftBaseAmount = getVal('shaftbaseamount', 'shaftbaseamountinr', 'shaftbase');
+      const rawShaftDiscountAmount = getVal('shaftdiscountamount', 'shaftdiscountamountinr', 'shaftdiscount');
+      const rawAdvanceAmount = getVal('advanceamount', 'advanceamountinr', 'advancepaid', 'paidamount', 'advance', 'initialpayment');
       const rawAdvancePct = getVal('advancepercentage', 'advancepercent', 'advancepct', 'adv%');
+      const rawTotalPaid = getVal('totalpaid', 'totalpaidinr', 'paidtotal');
+      const rawBalanceAmount = getVal('balanceamount', 'balanceamountinr', 'balance', 'dueamount');
+      const rawPaymentStatus = getVal('paymentstatus', 'paystatus');
+      const rawProductionPercent = getVal('productionpaymentpercent', 'productionpayment', 'productionpercent', 'production%');
+      const rawReadinessPercent = getVal('readinessnotificationpercent', 'readinesspaymentpercent', 'readinessnotification', 'readiness%');
+      const rawDispatchPercent = getVal('dispatchmaterialspercent', 'dispatchmaterials', 'dispatchpercent', 'dispatch%');
+      const rawAfterInstallPercent = getVal('afterinstallationpercent', 'afterinstallation', 'afterinstallpercent', 'afterinstall%');
       const rawCurrentStage = getVal('currentstage', 'stage', 'status', 'projectstatus', 'milestone');
+      const rawOrderDate = getVal('orderdate', 'bookingdate', 'contractdate', 'date');
+      const rawDeliveryDate = getVal('expecteddeliverydate', 'deliverydate', 'targetdate', 'estdelivery');
+      const rawActualDeliveryDate = getVal('actualdeliverydate', 'delivereddate');
+      const rawInstallationDate = getVal('installationdate', 'installdate');
       const rawExecutive = getVal(
         'assignedexecutive',
         'assignedemployee',
@@ -337,14 +413,20 @@ export async function parseAndImportExcel(
         'executive',
         'employee'
       );
-      const rawDeliveryDate = getVal('expecteddeliverydate', 'deliverydate', 'targetdate', 'estdelivery');
-      const rawOrderDate = getVal('orderDate', 'bookingdate', 'date');
-      const rawTracking = getVal('trackingnumber', 'lrnumber', 'vrllrnumber', 'tracking', 'lrno', 'vrlno');
-      const rawNotes = getVal('notes', 'remarks', 'comments', 'description');
+      const rawProjectManager = getVal('projectmanager', 'pm');
+      const rawProjectExecutive = getVal('projectexecutive', 'pe');
+      const rawTracking = getVal('trackingnumber', 'lrnumber', 'vrllrnumber', 'vrllrtrackingnumber', 'tracking', 'lrno', 'vrlno');
       const rawWhatsappGroup = getVal('whatsappgroupid', 'groupid', 'wagroup', 'group');
+      const rawWhatsappGroupName = getVal('whatsappgroupname', 'groupname', 'wagroupname');
+      const rawAutomationEnabled = getVal('whatsappautomationenabled', 'automationenabled', 'automation');
+      const rawUpdateFreq = getVal('updatefrequencydays', 'updatefrequency', 'frequencydays', 'frequency');
+      const rawProductionStage = getVal('productionstage');
+      const rawProductionTimelineDays = getVal('productiontimelinedays', 'productiontimeline');
+      const rawProjectNotes = getVal('projectnotes', 'projectnote');
+      const rawNotes = getVal('notes', 'remarks', 'comments', 'description');
 
       // Check if row has meaningful data
-      const hasCustomerData = Boolean(rawCustomerName || rawPhone || rawEmail);
+      const hasCustomerData = Boolean(rawCustomerName || rawPhone || rawEmail || rawCustomerCode);
       const hasProjectData = Boolean(rawProjectName || rawLiftModel || rawOrderValue || rawProjectCode);
 
       if (!hasCustomerData && !hasProjectData) {
@@ -357,15 +439,33 @@ export async function parseAndImportExcel(
       const phone = normalizePhone(rawPhone);
       const whatsapp = normalizePhone(rawWhatsapp) || phone;
       const email = String(rawEmail || '').trim().toLowerCase();
-      const city = String(rawCity || 'Bengaluru').trim();
-      const state = String(rawState || 'Karnataka').trim();
+      const city = String(rawCity || 'Chennai').trim();
+      const state = String(rawState || 'Tamil Nadu').trim();
       const pincode = String(rawPincode || '').trim();
-      const address = String(rawAddress || `${city}, ${state}`).trim();
+      const doorNo = String(rawDoorNo || '').trim();
+      const streetName = String(rawStreetName || '').trim();
+      const landmark = String(rawLandmark || '').trim();
+
+      const addressFallback = [doorNo, streetName, landmark].filter(Boolean).join(', ') || `${city}, ${state}`;
+      const customerAddress = String(rawCustomerAddress || rawSiteAddress || addressFallback).trim();
+      const siteAddress = String(rawSiteAddress || rawCustomerAddress || addressFallback).trim();
+
+      const customerMapsLink = String(
+        rawCustomerMapsLink ||
+        (customerAddress.startsWith('http') || customerAddress.includes('maps') ? customerAddress : '')
+      ).trim();
+
+      const siteMapsLink = String(
+        rawSiteMapsLink ||
+        rawCustomerMapsLink ||
+        (siteAddress.startsWith('http') || siteAddress.includes('maps') ? siteAddress : '')
+      ).trim();
 
       // Find matching user for BDM / Assigned Employee
       let matchedUser: any = null;
-      if (rawExecutive) {
-        const execClean = normalizeKey(rawExecutive);
+      const execToMatch = rawExecutive || rawCustomerAssignedEmp || rawProjectExecutive;
+      if (execToMatch) {
+        const execClean = normalizeKey(execToMatch);
         matchedUser = allUsers.find((u) => {
           const uClean = normalizeKey(u.name);
           return uClean.includes(execClean) || execClean.includes(uClean);
@@ -403,29 +503,48 @@ export async function parseAndImportExcel(
         });
       }
 
+      const parsedOptIn = rawWhatsappOptIn !== '' ? parseExcelBoolean(rawWhatsappOptIn, true) : true;
+      const parsedIsOld = rawIsOldCustomer !== '' ? parseExcelBoolean(rawIsOldCustomer, false) : false;
+      const parsedOptInDate = parseExcelDate(rawOptInDate) || new Date();
+      const customerNotes = rawCustomerNotes || (rawNotes ? `Imported from Excel: ${rawNotes}` : 'Imported from Excel spreadsheet');
+
       if (customer) {
-        // Existing customer: update missing details
+        // Existing customer: update missing or modified details
         let changed = false;
-        if (!customer.phoneNumber && phone) {
-          customer.phoneNumber = phone;
+        if (!customer.phoneNumber && phone) { customer.phoneNumber = phone; changed = true; }
+        if (!customer.whatsappNumber && whatsapp) { customer.whatsappNumber = whatsapp; changed = true; }
+        if (!customer.email && email) { customer.email = email; changed = true; }
+        if (doorNo && !customer.doorNo) { customer.doorNo = doorNo; changed = true; }
+        if (streetName && !customer.streetName) { customer.streetName = streetName; changed = true; }
+        if (landmark && !customer.landmark) { customer.landmark = landmark; changed = true; }
+        if (customerAddress && (!customer.address || customer.address === 'Bengaluru, Karnataka' || customer.address === 'Chennai, Tamil Nadu' || customer.address === 'Site Address')) {
+          customer.address = customerAddress;
           changed = true;
         }
-        if (!customer.whatsappNumber && whatsapp) {
-          customer.whatsappNumber = whatsapp;
-          changed = true;
+        if (customerMapsLink && !customer.googleMapsLink) { customer.googleMapsLink = customerMapsLink; changed = true; }
+        if (city && (!customer.city || customer.city === 'Bengaluru' || customer.city === 'Mumbai')) { customer.city = city; changed = true; }
+        if (state && (!customer.state || customer.state === 'Karnataka' || customer.state === 'Maharashtra')) { customer.state = state; changed = true; }
+        if (pincode && !customer.pincode) { customer.pincode = pincode; changed = true; }
+        if (rawCustomerType && customer.customerType !== rawCustomerType) { customer.customerType = rawCustomerType; changed = true; }
+        if (rawLeadSource && (!customer.leadSource || customer.leadSource === 'Referral')) { customer.leadSource = rawLeadSource; changed = true; }
+        if (rawIsOldCustomer !== '') {
+          if (customer.isOldCustomer !== parsedIsOld) { customer.isOldCustomer = parsedIsOld; changed = true; }
         }
-        if (!customer.email && email) {
-          customer.email = email;
-          changed = true;
-        }
-        if ((!customer.address || customer.address === 'Bengaluru, Karnataka') && address) {
-          customer.address = address;
-          changed = true;
+        if (rawWhatsappOptIn !== '') {
+          if (customer.whatsappOptIn !== parsedOptIn) { customer.whatsappOptIn = parsedOptIn; changed = true; }
         }
         if (matchedUser && !customer.bdmId) {
           customer.bdmId = matchedUser._id;
           customer.bdmPhone = matchedUser.phone;
           customer.assignedEmployee = matchedUser.name;
+          changed = true;
+        } else if (rawCustomerAssignedEmp && !customer.assignedEmployee) {
+          customer.assignedEmployee = rawCustomerAssignedEmp;
+          changed = true;
+        }
+        if (rawBdmPhone && !customer.bdmPhone) { customer.bdmPhone = rawBdmPhone; changed = true; }
+        if (rawCustomerNotes && (!customer.notes || customer.notes === 'Imported from Excel spreadsheet')) {
+          customer.notes = rawCustomerNotes;
           changed = true;
         }
         if (changed) {
@@ -434,24 +553,31 @@ export async function parseAndImportExcel(
         }
       } else {
         // Create new Customer
-        const newCustomerId = await getNextCustomerId();
+        const newCustomerId = rawCustomerCode ? String(rawCustomerCode).trim().toUpperCase() : await getNextCustomerId();
         customer = await Customer.create({
           customerId: newCustomerId,
           fullName: customerName,
           phoneNumber: phone || '9999999999',
           whatsappNumber: whatsapp || phone || '9999999999',
           email: email || undefined,
-          address: address || 'Site Address',
-          city: city || 'Bengaluru',
-          state: state || 'Karnataka',
+          doorNo: doorNo || undefined,
+          streetName: streetName || undefined,
+          landmark: landmark || undefined,
+          address: customerAddress || siteAddress || 'Site Address',
+          googleMapsLink: customerMapsLink || undefined,
+          city: city || 'Chennai',
+          state: state || 'Tamil Nadu',
           pincode: pincode || '',
           customerType: rawCustomerType || 'Residential',
           leadSource: rawLeadSource || 'Excel Import',
-          assignedEmployee: matchedUser?.name || rawExecutive || currentUser?.name || 'CRM Team',
+          assignedEmployee: rawCustomerAssignedEmp || matchedUser?.name || rawExecutive || currentUser?.name || 'CRM Team',
           bdmId: matchedUser?._id,
-          bdmPhone: matchedUser?.phone,
-          whatsappOptIn: true,
-          notes: rawNotes ? `Imported from Excel: ${rawNotes}` : 'Imported from Excel spreadsheet',
+          bdmPhone: rawBdmPhone || matchedUser?.phone,
+          whatsappOptIn: parsedOptIn,
+          optInDate: parsedOptInDate,
+          optInSource: rawOptInSource || 'EXCEL_IMPORT',
+          notes: customerNotes,
+          isOldCustomer: parsedIsOld,
         });
         isNewCustomer = true;
         summary.customersCreated++;
@@ -461,39 +587,59 @@ export async function parseAndImportExcel(
       let project: any = null;
       let isNewProject = false;
       const projectName = String(rawProjectName || `${customer.fullName} Residence`).trim();
-      const siteAddress = String(rawAddress || customer.address || `${city}, ${state}`).trim();
       const liftModel = resolveLiftModel(rawLiftModel);
       const liftType = String(rawLiftType || 'Home Lift').trim();
       const numberOfFloors = String(rawFloors || 'G+1').trim();
       const shaftModel = resolveShaftModel(rawShaftModel);
 
-      // Numeric values
-      const orderValue = rawOrderValue ? Math.max(0, Number(String(rawOrderValue).replace(/[^\d.]/g, '')) || 0) : 1000000;
+      // Financial figures
+      const parsedLiftAmount = rawLiftAmount !== '' ? parseExcelNumber(rawLiftAmount, 0) : 0;
+      const parsedShaftAmount = rawShaftAmount !== '' ? parseExcelNumber(rawShaftAmount, 0) : 0;
+      const parsedLiftBaseAmount = rawLiftBaseAmount !== '' ? parseExcelNumber(rawLiftBaseAmount, 0) : undefined;
+      const parsedLiftDiscountAmount = rawLiftDiscountAmount !== '' ? parseExcelNumber(rawLiftDiscountAmount, 0) : undefined;
+      const parsedShaftBaseAmount = rawShaftBaseAmount !== '' ? parseExcelNumber(rawShaftBaseAmount, 0) : undefined;
+      const parsedShaftDiscountAmount = rawShaftDiscountAmount !== '' ? parseExcelNumber(rawShaftDiscountAmount, 0) : undefined;
+
+      let orderValue = rawOrderValue !== '' ? parseExcelNumber(rawOrderValue, 0) : 0;
+      if (orderValue <= 0) {
+        orderValue = parsedLiftAmount + (shaftModel === 'Customer Scope' ? 0 : parsedShaftAmount);
+      }
+      if (orderValue <= 0) {
+        orderValue = 1000000;
+      }
+
+      const liftAmount = parsedLiftAmount > 0 ? parsedLiftAmount : (parsedShaftAmount > 0 ? Math.max(0, orderValue - parsedShaftAmount) : orderValue);
+      const shaftAmount = parsedShaftAmount > 0 ? parsedShaftAmount : Math.max(0, orderValue - liftAmount);
+
       let advanceAmount = 0;
       let advancePercentage = 30;
 
-      if (rawAdvanceAmount) {
-        advanceAmount = Math.max(0, Number(String(rawAdvanceAmount).replace(/[^\d.]/g, '')) || 0);
+      if (rawAdvanceAmount !== '') {
+        advanceAmount = parseExcelNumber(rawAdvanceAmount, 0);
         advancePercentage = orderValue > 0 ? Math.round((advanceAmount / orderValue) * 100) : 30;
-      } else if (rawAdvancePct) {
-        advancePercentage = Math.max(0, Number(String(rawAdvancePct).replace(/[^\d.]/g, '')) || 30);
+      } else if (rawAdvancePct !== '') {
+        advancePercentage = parseExcelNumber(rawAdvancePct, 30);
         advanceAmount = Math.round((orderValue * advancePercentage) / 100);
       } else {
+        advancePercentage = 30;
         advanceAmount = Math.round((orderValue * 30) / 100);
       }
 
-      const totalPaid = advanceAmount;
-      const balanceAmount = Math.max(0, orderValue - totalPaid);
-      let paymentStatus: any = 'PENDING';
-      if (totalPaid >= orderValue && orderValue > 0) {
-        paymentStatus = 'FULLY_PAID';
-      } else if (totalPaid > 0) {
-        paymentStatus = totalPaid >= advanceAmount ? 'ADVANCE_PAID' : 'PARTIAL_PAID';
-      }
+      const totalPaid = rawTotalPaid !== '' ? parseExcelNumber(rawTotalPaid, advanceAmount) : advanceAmount;
+      const balanceAmount = rawBalanceAmount !== '' ? parseExcelNumber(rawBalanceAmount, Math.max(0, orderValue - totalPaid)) : Math.max(0, orderValue - totalPaid);
+      const paymentStatus = resolvePaymentStatus(rawPaymentStatus, totalPaid, advanceAmount, orderValue);
+
+      const productionPaymentPercent = rawProductionPercent !== '' ? parseExcelNumber(rawProductionPercent, 40) : 40;
+      const readinessNotificationPercent = rawReadinessPercent !== '' ? parseExcelNumber(rawReadinessPercent, 30) : 30;
+      const dispatchMaterialsPercent = rawDispatchPercent !== '' ? parseExcelNumber(rawDispatchPercent, 0) : 0;
+      const afterInstallationPercent = rawAfterInstallPercent !== '' ? parseExcelNumber(rawAfterInstallPercent, 0) : 0;
 
       const projectStatus = resolveProjectStage(rawCurrentStage);
-      const parsedDeliveryDate = parseExcelDate(rawDeliveryDate);
       const parsedOrderDate = parseExcelDate(rawOrderDate) || new Date();
+      const parsedDeliveryDate = parseExcelDate(rawDeliveryDate);
+      const parsedActualDeliveryDate = parseExcelDate(rawActualDeliveryDate);
+      const parsedInstallationDate = parseExcelDate(rawInstallationDate);
+      const projectNotes = rawProjectNotes || (rawNotes ? `Excel Import: ${rawNotes}` : 'Imported from Excel spreadsheet');
 
       // Check if project exists
       if (rawProjectCode) {
@@ -509,25 +655,56 @@ export async function parseAndImportExcel(
 
       if (project) {
         // Update existing project
-        project.liftModel = liftModel;
-        project.liftType = liftType;
-        project.shaftModel = shaftModel;
-        project.numberOfFloors = numberOfFloors;
         if (orderValue > 0) project.orderValue = orderValue;
-        if (advanceAmount > 0) project.advanceAmount = advanceAmount;
+        if (liftAmount > 0) project.liftAmount = liftAmount;
+        if (parsedLiftBaseAmount !== undefined) project.liftBaseAmount = parsedLiftBaseAmount;
+        if (parsedLiftDiscountAmount !== undefined) project.liftDiscountAmount = parsedLiftDiscountAmount;
+        if (shaftAmount >= 0 && rawShaftAmount !== '') project.shaftAmount = shaftAmount;
+        if (parsedShaftBaseAmount !== undefined) project.shaftBaseAmount = parsedShaftBaseAmount;
+        if (parsedShaftDiscountAmount !== undefined) project.shaftDiscountAmount = parsedShaftDiscountAmount;
+        if (rawAdvanceAmount !== '') project.advanceAmount = advanceAmount;
+        if (rawAdvancePct !== '') project.advancePercentage = advancePercentage;
+        if (rawProductionPercent !== '') project.productionPaymentPercent = productionPaymentPercent;
+        if (rawReadinessPercent !== '') project.readinessNotificationPercent = readinessNotificationPercent;
+        if (rawDispatchPercent !== '') project.dispatchMaterialsPercent = dispatchMaterialsPercent;
+        if (rawAfterInstallPercent !== '') project.afterInstallationPercent = afterInstallationPercent;
+        if (rawTotalPaid !== '') project.totalPaid = totalPaid;
+        if (rawBalanceAmount !== '') project.balanceAmount = balanceAmount;
+        if (rawPaymentStatus !== '') project.paymentStatus = paymentStatus;
+        if (rawLiftModel) project.liftModel = liftModel;
+        if (rawLiftType) project.liftType = liftType;
+        if (rawShaftModel) project.shaftModel = shaftModel;
+        if (rawFloors) project.numberOfFloors = numberOfFloors;
         if (rawCurrentStage) project.projectStatus = projectStatus;
+        if (siteAddress && (!project.siteAddress || project.siteAddress === 'Bengaluru, Karnataka' || project.siteAddress === 'Chennai, Tamil Nadu' || project.siteAddress === 'Site Address')) {
+          project.siteAddress = siteAddress;
+        }
+        if (siteMapsLink && !project.googleMapsLink) project.googleMapsLink = siteMapsLink;
+        if (rawDrawingUrl) project.drawingUrl = rawDrawingUrl;
+        if (rawOrderDate && parsedOrderDate) project.orderDate = parsedOrderDate;
+        if (parsedDeliveryDate) project.expectedDeliveryDate = parsedDeliveryDate;
+        if (parsedActualDeliveryDate) project.actualDeliveryDate = parsedActualDeliveryDate;
+        if (parsedInstallationDate) project.installationDate = parsedInstallationDate;
+        if (rawExecutive) project.assignedEmployee = rawExecutive;
+        if (rawProjectManager) project.projectManager = rawProjectManager;
+        if (rawProjectExecutive) project.projectExecutive = rawProjectExecutive;
         if (rawTracking) {
           project.vrlLrNumber = rawTracking;
           project.trackingNumber = rawTracking;
         }
-        if (parsedDeliveryDate) project.expectedDeliveryDate = parsedDeliveryDate;
-        if (rawNotes) project.notes = rawNotes;
+        if (rawWhatsappGroup) project.whatsappGroupId = String(rawWhatsappGroup).trim();
+        if (rawWhatsappGroupName) project.whatsappGroupName = rawWhatsappGroupName;
+        if (rawAutomationEnabled !== '') project.automationEnabled = parseExcelBoolean(rawAutomationEnabled, true);
+        if (rawUpdateFreq !== '') project.updateFrequencyDays = parseExcelNumber(rawUpdateFreq, 20);
+        if (rawProductionStage !== '') project.productionStage = parseExcelNumber(rawProductionStage, 1);
+        if (rawProductionTimelineDays !== '') project.productionTimelineDays = parseExcelNumber(rawProductionTimelineDays, 0);
+        if (projectNotes) project.notes = projectNotes;
         await project.save();
         summary.projectsUpdated++;
       } else {
         // Create new Project
-        const newProjectId = await getNextProjectId();
-        const nextUpdate = calculateNextUpdateDate(20, new Date());
+        const newProjectId = rawProjectCode ? String(rawProjectCode).trim().toUpperCase() : await getNextProjectId();
+        const nextUpdate = calculateNextUpdateDate(rawUpdateFreq ? parseExcelNumber(rawUpdateFreq, 20) : 20, new Date());
 
         project = await Project.create({
           projectId: newProjectId,
@@ -535,19 +712,24 @@ export async function parseAndImportExcel(
           customerCode: customer.customerId,
           projectName,
           siteAddress,
+          googleMapsLink: siteMapsLink || undefined,
           liftModel,
           liftType,
           numberOfFloors,
           shaftModel,
-          liftAmount: orderValue,
-          shaftAmount: 0,
+          liftAmount,
+          liftBaseAmount: parsedLiftBaseAmount,
+          liftDiscountAmount: parsedLiftDiscountAmount,
+          shaftAmount,
+          shaftBaseAmount: parsedShaftBaseAmount,
+          shaftDiscountAmount: parsedShaftDiscountAmount,
           orderValue,
           advancePercentage,
-          productionPaymentPercent: 40,
-          readinessNotificationPercent: 30,
-          dispatchMaterialsPercent: 0,
-          afterInstallationPercent: 0,
           advanceAmount,
+          productionPaymentPercent,
+          readinessNotificationPercent,
+          dispatchMaterialsPercent,
+          afterInstallationPercent,
           totalPaid,
           balanceAmount,
           paymentStatus,
@@ -559,18 +741,25 @@ export async function parseAndImportExcel(
               d.setDate(d.getDate() + 120);
               return d;
             })(),
+          actualDeliveryDate: parsedActualDeliveryDate,
+          installationDate: parsedInstallationDate,
           projectStatus,
-          assignedEmployee: matchedUser?.name || rawExecutive || customer.assignedEmployee || currentUser?.name || 'CRM Team',
+          assignedEmployee: rawExecutive || customer.assignedEmployee || matchedUser?.name || currentUser?.name || 'CRM Team',
+          projectManager: rawProjectManager || undefined,
+          projectExecutive: rawProjectExecutive || rawExecutive || undefined,
           bdmId: customer.bdmId || matchedUser?._id,
-          bdmPhone: customer.bdmPhone || matchedUser?.phone,
+          bdmPhone: customer.bdmPhone || rawBdmPhone || matchedUser?.phone,
           vrlLrNumber: rawTracking || undefined,
           trackingNumber: rawTracking || undefined,
+          drawingUrl: rawDrawingUrl || undefined,
           whatsappGroupId: rawWhatsappGroup ? String(rawWhatsappGroup).trim() : undefined,
-          whatsappGroupName: rawWhatsappGroup ? `${projectName} — Alpha Updates` : undefined,
-          automationEnabled: true,
-          updateFrequencyDays: 20,
+          whatsappGroupName: rawWhatsappGroupName || (rawWhatsappGroup ? `${projectName} — Alpha Updates` : undefined),
+          automationEnabled: parseExcelBoolean(rawAutomationEnabled, true),
+          updateFrequencyDays: rawUpdateFreq ? parseExcelNumber(rawUpdateFreq, 20) : 20,
+          productionStage: rawProductionStage ? parseExcelNumber(rawProductionStage, 1) : undefined,
+          productionTimelineDays: rawProductionTimelineDays ? parseExcelNumber(rawProductionTimelineDays, 0) : undefined,
           nextUpdateAt: nextUpdate,
-          notes: rawNotes ? `Excel Import: ${rawNotes}` : 'Imported from Excel spreadsheet',
+          notes: projectNotes,
         });
 
         isNewProject = true;
@@ -627,163 +816,314 @@ export function generateImportTemplateBuffer(): Buffer {
 
   // Sheet 1: Data Import
   const templateHeaders = [
+    // Customer Details
+    'Customer Code',
     'Customer Name *',
     'Phone Number *',
     'WhatsApp Number',
     'Email',
-    'Site Address *',
+    'Door No',
+    'Street Name',
+    'Landmark',
     'City',
     'State',
     'Pincode',
+    'Customer Address',
+    'Customer Google Maps Link',
     'Customer Type',
+    'Lead Source',
+    'WhatsApp Opt-In',
+    'Old Customer',
+    'Customer Notes',
+    // Project Details
+    'Project Code',
     'Project Name *',
+    'Site Address *',
+    'Site Google Maps Link',
     'Lift Model',
     'Lift Type',
     'Number of Floors',
     'Shaft Model',
+    'Drawing URL',
     'Order Value (INR) *',
+    'Lift Amount (INR)',
+    'Lift Base Amount (INR)',
+    'Lift Discount Amount (INR)',
+    'Shaft Amount (INR)',
+    'Shaft Base Amount (INR)',
+    'Shaft Discount Amount (INR)',
+    'Advance Percentage (%)',
     'Advance Amount (INR)',
-    'Advance %',
+    'Total Paid (INR)',
+    'Balance Amount (INR)',
+    'Payment Status',
+    'Production Payment (%)',
+    'Readiness Notification (%)',
+    'Dispatch Materials (%)',
+    'After Installation (%)',
     'Current Stage',
-    'Assigned Executive',
+    'Order Date (DD/MM/YYYY)',
     'Expected Delivery Date (DD/MM/YYYY)',
+    'Actual Delivery Date (DD/MM/YYYY)',
+    'Installation Date (DD/MM/YYYY)',
+    'Assigned Executive',
+    'Project Manager',
+    'Project Executive',
+    'BDM Phone',
     'VRL LR Tracking Number',
-    'Notes',
+    'WhatsApp Group ID',
+    'WhatsApp Group Name',
+    'WhatsApp Automation Enabled',
+    'Update Frequency (Days)',
+    'Project Notes',
   ];
 
   const sampleRows = [
     [
+      'CUST-001',
       'Rajesh Kumar',
       '9876543210',
       '9876543210',
       'rajesh.kumar@gmail.com',
-      '#42, 100 Feet Road, Indiranagar',
+      'Flat 402',
+      '100 Feet Road',
+      'Near Metro Station',
       'Bengaluru',
       'Karnataka',
       '560038',
+      '#42, Flat 402, 100 Feet Road, Indiranagar, Bengaluru, Karnataka - 560038',
+      'https://maps.google.com/?q=12.9716,77.5946',
       'Residential',
+      'Architect Referral',
+      'Yes',
+      'No',
+      'Client prefers weekend phone calls only',
+      'ALP-001',
       'Kumar Residence',
+      '#42, 100 Feet Road, Indiranagar, Bengaluru',
+      'https://maps.google.com/?q=12.9716,77.5946',
       'AE 01 Home Series',
       'Home Lift',
       'G+2',
       'Civil Shaft',
+      '',
       1250000,
-      375000,
+      1250000,
+      1200000,
+      0,
+      0,
+      0,
+      0,
       30,
+      375000,
+      375000,
+      875000,
+      'ADVANCE_PAID',
+      40,
+      30,
+      0,
+      0,
       'Site Visit',
-      'Srinivasan (TL)',
+      '10/01/2026',
       '15/04/2026',
       '',
-      'Hydraulic Home Elevator for private villa',
+      '',
+      'Srinivasan (TL)',
+      'Srinivasan (TL)',
+      'Srinivasan (TL)',
+      '9876500001',
+      '',
+      '120363024888123456@g.us',
+      'Kumar Residence — Alpha Updates',
+      'Yes',
+      20,
+      'Hydraulic Home Elevator for private villa, cabin design approved',
     ],
     [
+      'CUST-002',
       'Priya Sharma',
       '9845123456',
       '9845123456',
       'priya.sharma@outlook.com',
-      'Villa 18, Palm Meadows, Whitefield',
+      'Villa 18',
+      'Palm Meadows Avenue',
+      'Opposite Clubhouse',
       'Bengaluru',
       'Karnataka',
       '560066',
+      'Villa 18, Palm Meadows, Whitefield, Bengaluru, Karnataka - 560066',
+      'https://maps.google.com/?q=12.9698,77.7499',
       'Villa',
+      'Digital Ad',
+      'Yes',
+      'No',
+      'Requires silent motor specifications',
+      'ALP-002',
       'Sharma Villa',
+      'Villa 18, Palm Meadows, Whitefield, Bengaluru',
+      'https://maps.google.com/?q=12.9698,77.7499',
       'Alpha EV',
       'Villa Elevator',
       'G+1',
       'ACP Shaft',
+      '',
       1400000,
-      420000,
+      1100000,
+      1100000,
+      0,
+      300000,
+      300000,
+      0,
       30,
+      420000,
+      420000,
+      980000,
+      'ADVANCE_PAID',
+      40,
+      30,
+      0,
+      0,
       'Advance Payment Received',
-      'Sundaram',
+      '15/02/2026',
       '20/05/2026',
       '',
-      '3 passenger panoramic cabin finish',
+      '',
+      'Sundaram',
+      'Sundaram',
+      'Sundaram',
+      '9876500002',
+      '',
+      '',
+      '',
+      'Yes',
+      20,
+      '3 passenger panoramic cabin finish with glass shaft',
     ],
     [
+      'CUST-003',
       'Venkat Raman',
       '9900112233',
       '9900112233',
       'venkat@ramangroup.in',
-      'No. 88, Anna Nagar West',
+      'No. 88',
+      '2nd Main Road',
+      'Anna Nagar West Extension',
       'Chennai',
       'Tamil Nadu',
       '600040',
+      'No. 88, 2nd Main Road, Anna Nagar West, Chennai, Tamil Nadu - 600040',
+      'https://maps.google.com/?q=13.0850,80.2101',
       'Commercial',
+      'Direct',
+      'Yes',
+      'No',
+      'Commercial office building with high traffic',
+      'ALP-003',
       'Raman Commercial Center',
+      'No. 88, Anna Nagar West, Chennai',
+      'https://maps.google.com/?q=13.0850,80.2101',
       'AE 02 Gearless Rope Home Series',
       'Commercial',
       'G+4',
       'Glass Shaft',
+      '',
       2200000,
-      660000,
+      1700000,
+      1700000,
+      0,
+      500000,
+      500000,
+      0,
       30,
+      660000,
+      1540000,
+      660000,
+      'PARTIAL_PAID',
+      40,
+      20,
+      5,
+      5,
       'Material in transit',
-      'Bala',
+      '01/12/2025',
       '10/03/2026',
+      '',
+      '',
+      'Bala',
+      'Bala',
+      'Bala',
+      '9876500003',
       'VRL-BLR-884920',
-      '6 passenger MRL gearless lift',
+      '120363024888789012@g.us',
+      'Raman Commercial — Alpha Updates',
+      'Yes',
+      15,
+      '6 passenger MRL gearless lift in transit via VRL Logistics',
     ],
   ];
 
   const wsData = [templateHeaders, ...sampleRows];
   const ws1 = XLSX.utils.aoa_to_sheet(wsData);
 
-  // Set column widths
-  ws1['!cols'] = [
-    { wch: 20 }, // Customer Name
-    { wch: 15 }, // Phone Number
-    { wch: 16 }, // WhatsApp Number
-    { wch: 24 }, // Email
-    { wch: 32 }, // Site Address
-    { wch: 14 }, // City
-    { wch: 14 }, // State
-    { wch: 10 }, // Pincode
-    { wch: 15 }, // Customer Type
-    { wch: 24 }, // Project Name
-    { wch: 24 }, // Lift Model
-    { wch: 16 }, // Lift Type
-    { wch: 16 }, // Number of Floors
-    { wch: 16 }, // Shaft Model
-    { wch: 18 }, // Order Value
-    { wch: 20 }, // Advance Amount
-    { wch: 12 }, // Advance %
-    { wch: 22 }, // Current Stage
-    { wch: 20 }, // Assigned Executive
-    { wch: 26 }, // Expected Delivery Date
-    { wch: 22 }, // VRL Tracking
-    { wch: 35 }, // Notes
-  ];
+  // Set column widths dynamically
+  ws1['!cols'] = templateHeaders.map((h) => ({
+    wch: Math.min(Math.max(h.length + 4, 14), 50),
+  }));
 
   XLSX.utils.book_append_sheet(wb, ws1, 'Data Import');
 
   // Sheet 2: Guidelines & Allowed Values
   const guideData = [
-    ['Alpha CRM Excel Import Reference Guide', ''],
-    ['Field Name', 'Description & Allowed Values'],
-    ['Customer Name *', 'Full name of customer or primary contact person (Mandatory).'],
-    ['Phone Number *', '10-digit mobile number for contact (Mandatory).'],
-    ['WhatsApp Number', '10-digit mobile number for automated WhatsApp updates (Defaults to Phone Number).'],
-    ['Email', 'Customer email address (Optional).'],
-    ['Site Address *', 'Installation physical site address or location (Mandatory).'],
-    ['City / State / Pincode', 'City, State and Pincode of the project location.'],
+    ['Alpha CRM Excel Import Comprehensive Reference Guide', ''],
+    ['Field Name', 'Description, Permitted Formats & Default Values'],
+    ['--- CUSTOMER FIELDS ---', '---------------------------------------------------------------------------------'],
+    ['Customer Code', 'e.g. CUST-001. If provided, updates existing or sets customer code. If left blank, continuous sequential code is generated.'],
+    ['Customer Name *', 'Full name of customer or project owner (Mandatory).'],
+    ['Phone Number *', '10-digit primary contact mobile number (Mandatory).'],
+    ['WhatsApp Number', '10-digit mobile number for milestone group automation (Defaults to Phone Number).'],
+    ['Email', 'Customer email address for proposal and invoice dispatches.'],
+    ['Door No / Street / Landmark', 'Flat, door, street, and landmark details for precise dispatch address.'],
+    ['City / State / Pincode', 'Customer residential or billing location (Defaults to Chennai, Tamil Nadu).'],
+    ['Customer Address', 'Full customer mailing address or Google Maps location link.'],
+    ['Customer Google Maps Link', 'Direct Google Maps web link (https://maps.google.com/...) for location routing.'],
     ['Customer Type', 'Residential | Villa | Commercial | Builder (Default: Residential)'],
-    ['Project Name *', 'Name for the elevator project (e.g. "Kumar Residence"). Defaults to Customer Name Residence.'],
+    ['Lead Source', 'Architect Referral | Digital Ad | Website | Walk-in | Direct | Referral (Default: Excel Import)'],
+    ['WhatsApp Opt-In', 'Yes | No | true | false (Default: Yes). Enables Meta WhatsApp notifications.'],
+    ['Old Customer', 'Yes | No | true | false (Default: No). Designates historical pre-existing accounts.'],
+    ['Customer Notes', 'Special customer preferences, gate access rules, or interaction history.'],
+    ['--- ELEVATOR PROJECT FIELDS ---', '---------------------------------------------------------------------------------'],
+    ['Project Code', 'e.g. ALP-001. If provided, updates existing project; if left blank, next sequential ALP-XXX is created.'],
+    ['Project Name *', 'Project identification title (e.g. "Kumar Residence"). Defaults to "<Customer Name> Residence".'],
+    ['Site Address *', 'Physical elevator installation site address (Mandatory). Defaults to Customer Address.'],
+    ['Site Google Maps Link', 'Direct Google Maps web URL pointing to the exact installation site gate.'],
     ['Lift Model', 'AE 01 Home Series | AE 02 Gearless Rope Home Series | AE 03 Gearless Belt Home series | Alpha EV | Alpha Premier | Alpha Luxe | Hydraulic Home Series'],
-    ['Lift Type', 'Home Lift | Villa Elevator | Glass Panoramic | Commercial | Dumbwaiter'],
-    ['Number of Floors', 'e.g. G+1, G+2, G+3, 2 Stops, 3 Stops'],
-    ['Shaft Model', 'Civil Shaft | ACP Shaft | Glass Shaft | MS Structure (Default: Civil Shaft)'],
-    ['Order Value (INR) *', 'Total elevator order value in INR without commas (e.g. 1250000).'],
-    ['Advance Amount (INR)', 'Initial advance payment amount received (e.g. 375000). If left blank, calculated from Advance %.'],
-    ['Advance %', 'Advance percentage (Default: 30%).'],
-    ['Current Stage', 'One of the standard stages:\n• Advance Payment Received\n• Site Visit\n• Drawing and Cabin\n• Drawing and Cabin Design Approval\n• Production Payment\n• Production in progress\n• Readiness Payment\n• Material ready to Dispatch\n• Material in transit\n• Pre Site Visit\n• Material Delivered\n• Installation in Progress\n• Handover - Payment Pending\n• Project Completed'],
-    ['Assigned Executive', 'Name of BDM / Sales Executive / Technical Lead (e.g. Srinivasan, Sundaram, Bala, etc.).'],
-    ['Expected Delivery Date', 'Target delivery date in DD/MM/YYYY format.'],
-    ['VRL LR Tracking Number', 'VRL or courier tracking LR number for materials.'],
+    ['Lift Type', 'Home Lift | Villa Elevator | Glass Panoramic | Commercial | Dumbwaiter (Default: Home Lift)'],
+    ['Number of Floors', 'e.g. G+1, G+2, G+3, 2 Stops, 3 Stops, 4 Stops (Default: G+1)'],
+    ['Shaft Model', 'Civil Shaft | ACP Shaft | Glass Shaft | MS Structure | Customer Scope (Default: Civil Shaft)'],
+    ['Drawing URL', 'URL or path to uploaded technical elevator CAD/PDF drawing.'],
+    ['Order Value (INR) *', 'Total contracted elevator project amount in INR (e.g. 1250000).'],
+    ['Lift Amount (INR)', 'Portion of order value attributable to the lift machine & cabin.'],
+    ['Lift Base Amount / Discount', 'Base catalog price and discount amount for lift component.'],
+    ['Shaft Amount (INR)', 'Portion of order value attributable to external elevator shaft.'],
+    ['Shaft Base Amount / Discount', 'Base catalog price and discount amount for shaft structure.'],
+    ['Advance Percentage (%)', 'Advance booking percentage (Default: 30%).'],
+    ['Advance Amount (INR)', 'Initial advance payment amount (calculated from Advance % if left empty).'],
+    ['Total Paid (INR)', 'Total cumulative amount received to date (Defaults to Advance Amount).'],
+    ['Balance Amount (INR)', 'Remaining unpaid balance (Defaults to Order Value minus Total Paid).'],
+    ['Payment Status', 'PENDING | ADVANCE_PAID | PARTIAL_PAID | FULLY_PAID (Auto-calculated if blank).'],
+    ['Stage Payment Percentages (%)', 'Production Payment % (default 40), Readiness Notification % (default 30), Dispatch Materials % (default 0), After Installation % (default 0).'],
+    ['Current Stage', 'Any milestone stage name:\n• Advance Payment Received\n• Site Visit\n• Drawing and Cabin\n• Drawing and Cabin Design Approval\n• Production Payment\n• Production in progress\n• Readiness Payment\n• Material ready to Dispatch\n• Material in transit\n• Pre Site Visit\n• Material Delivered\n• Installation in Progress\n• Handover - Payment Pending\n• Project Completed'],
+    ['Order Date / Delivery Dates', 'Order Date, Expected Delivery Date, Actual Delivery Date, Installation Date (DD/MM/YYYY).'],
+    ['Team Assignments', 'Assigned Executive, Project Manager, Project Executive (e.g. Srinivasan (TL), Sundaram, Bala, etc.).'],
+    ['BDM Phone', '10-digit WhatsApp number of assigned Business Development Manager.'],
+    ['VRL LR Tracking Number', 'VRL Logistics LR tracking number for transit status tracking.'],
+    ['WhatsApp Group ID / Name', 'WATI WhatsApp Group ID (e.g. 120363024888123456@g.us) and Group Name.'],
+    ['WhatsApp Automation Enabled', 'Yes | No (Default: Yes). Enables automated scheduled updates to client WhatsApp group.'],
+    ['Update Frequency (Days)', 'Periodic frequency for automated status dispatch (Default: 20 days; 10, 15, 20).'],
+    ['Project Notes', 'Engineering site notes, shaft preparation remarks, or project milestone updates.'],
   ];
 
   const ws2 = XLSX.utils.aoa_to_sheet(guideData);
-  ws2['!cols'] = [{ wch: 28 }, { wch: 80 }];
+  ws2['!cols'] = [{ wch: 32 }, { wch: 85 }];
   XLSX.utils.book_append_sheet(wb, ws2, 'Reference Guide');
 
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
