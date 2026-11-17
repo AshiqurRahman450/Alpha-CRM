@@ -1228,7 +1228,16 @@ export async function sendEscalationMatrixToProjectGroup(projectId: any): Promis
       return false;
     }
 
-    const matrixCaption = `*Alpha Elevators - Customer Concern Escalation Matrix* 📞\n\nDear Sir/Madam,\n\nThank you for your advance payment confirmation. For your complete peace of mind and transparent project execution, please find our official Customer Concern Escalation Matrix attached above.\n\n• *Step 1 (Customer Relationship Manager):* Renuka (+91 93848 20044 | crm@alphaelevators.in) - TAT: Within 24 Hours\n• *Step 2 (Technical Incharge):* Sundram (+91 80560 41386 | sundaram@alphaelevators.in) - TAT: Within 24-48 Hours\n• *Step 3 (Technical Manager):* Kishore (+91 93848 20214 | kishore@alphaelevators.in) - TAT: Within 48 Hours\n• *Step 4 (Operational Head):* Abeal (+91 93848 20499 | abeal@alphaelevators.in) - TAT: Within 48 Hours\n\nKindly follow the escalation process step by step to ensure timely resolution of your concern.\n\nRegards,\nAlpha Elevators Team`;
+    const matrixCaption =
+      `Alpha Elevators - Customer Concern Escalation Matrix 📞\n\n` +
+      `Dear Sir/Madam,\n\n` +
+      `Thank you for your advance payment confirmation. For your complete peace of mind and transparent project execution, please find our official Customer Concern Escalation Matrix attached above.\n\n` +
+      `* Step 1 (Customer Relationship Manager): Dimple Sharma (+91 93848 20044 | crm@alphaelevators.in) - TAT: Within 24 Hours\n` +
+      `* Step 2 (Technical Incharge): Sundram (+91 80560 41386 | sundaram@alphaelevators.in) - TAT: Within 24-48 Hours\n` +
+      `* Step 3 (Technical Manager): Kishore (+91 93848 20214 | kishore@alphaelevators.in) - TAT: Within 48 Hours\n` +
+      `* Step 4 (Operational Head): Abeal (+91 93848 20499 | abeal@alphaelevators.in) - TAT: Within 48 Hours\n\n` +
+      `Kindly follow the escalation process step by step to ensure timely resolution of your concern.\n\n` +
+      `Regards,\nAlpha Elevators Team`;
 
     const botStatus = whatsAppWebBot.getStatus();
     let sentSuccess = false;
@@ -1295,6 +1304,129 @@ export async function sendEscalationMatrixToProjectGroup(projectId: any): Promis
       });
 
       console.log(`[EscalationMatrix] Successfully posted Customer Concern Escalation Matrix for project ${project.projectId}`);
+
+      // Immediately follow with "Customer Project Journey" message
+      try {
+        const trackingNumber = project.trackingNumber || project.vrlLrNumber || '[Tracking Number]';
+
+        const journeyText =
+          `Alpha Elevators – Customer Project Journey\n` +
+          `1. Advance Payment Received\n` +
+          `Starting Point\n` +
+          `Once the advance payment is received, we will initiate the elevator project process.\n\n` +
+          `2. Site Visit\n` +
+          `Duration: Within 2–4 Days\n\n` +
+          `Our technical team will schedule a site visit, inspect the location and complete the required measurements within 2–4 days.\n\n` +
+          `3. Site Visit Report\n` +
+          `Duration: On the Same Day of the Site Visit\n\n` +
+          `Once the site visit is completed, we will prepare and share the site visit report with you on the same day.\n\n` +
+          `4. Drawing & Cabin Design Preparation\n` +
+          `Duration: Within 4 Days from the Site Visit Report\n\n` +
+          `Based on the site visit report and measurements, our team will prepare the elevator drawing and cabin design within 4 days.\n\n` +
+          `5. Drawing & Cabin Design Approval\n` +
+          `Duration: Customer Approval Required Within 2 Days of Receiving the Drawings\n\n` +
+          `Once the drawings and cabin design are ready, we will share them with you for review and approval. Kindly review and confirm your approval within 2 days so that we can proceed with the next stage without delay.\n\n` +
+          `6. Production Payment\n` +
+          `Duration: Expected Within 3 Days from the Drawing Approval Date\n\n` +
+          `Kindly release the production payment within 3 days of drawing approval to initiate the production process.\n` +
+          `Once the production payment is received, we will proceed with the production process accordingly.\n` +
+          `Production & Installation Timeline: Approximately 120 days from the date of production payment and drawing approval.\n\n` +
+          `7. Production\n` +
+          `Duration: Approximately 90 Days\n` +
+          `The production process will be carried out in stages:\n` +
+          `We will update you on each stage once it is completed. Production progress updates will be shared approximately every 15 days.\n\n` +
+          `8. Readiness Payment\n` +
+          `Once your elevator is ready for dispatch, we will inform you and request the readiness payment to proceed with the material dispatch process.\n` +
+          `Kindly complete the payment at the earliest to avoid any delay in dispatch.\n\n` +
+          `9. Material Ready to Dispatch & In transit \n` +
+          `Duration: Delivery Within 7 Days from Dispatch\n\n` +
+          `Once the readiness payment is received, your elevator material will be dispatched through Partner Logistics Team\n\n` +
+          `Partner Logistics  Team Tracking No.: ${trackingNumber}\n` +
+          `You can use the tracking number to track the material movement.\n` +
+          `We will keep you updated on the delivery status.\n` +
+          `Note: Kindly ensure proper Covered space and access for safe unloading and material storage.\n` +
+          `Note: Additional Warehouse Charges would Imply if you want us to Store the Material Incase there is no sufficient Covered Storage space at your site.\n\n` +
+          `10. Pre-Installation Site Inspection\n` +
+          `Duration: During Material Transit\n\n` +
+          `While the elevator material is in transit, our technical team will simultaneously visit your site for a pre-installation inspection to verify site readiness and installation requirements.\n\n` +
+          `11. Customer Scope of Work & Balance Payment \n\n` +
+          `Complete all Civil, Electrical, Carpentry , Other Required Site Works before Material Delivery \n\n\n` +
+          `12. Material Delivered\n\n` +
+          `Your elevator material will be delivered to your site.\n\n` +
+          `Kindly ensure that the site is ready and accessible for safe material unloading and storage.\n\n` +
+          `12. Installation - Start \n` +
+          `Duration: Within 25–30 Days from Material Delivery\n\n` +
+          `Once the material is delivered to your site, our installation team will arrive and commence the installation work with in 25-30 days.\n` +
+          `During the installation period, we will keep you updated on the work progress through regular notifications.\n\n` +
+          `13. Final Handover.\n\n` +
+          `Duration:  ( Subject to Site Readiness ) We will Completed within 25-30 days from Installation Start date\n` +
+          `Once the installation is completed, we will carry out the final checks and complete the necessary handover formalities.\n\n` +
+          `Project Completed!\n` +
+          `Thank you for choosing Alpha Elevators.\n\n` +
+          `Regards,\nAlpha Elevators Team`;
+
+        // Small pause between messages so WhatsApp group receives them in order
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        let journeySentSuccess = false;
+        let journeyMessageId: string | undefined;
+
+        if (botStatus.isConnected) {
+          console.log(`[EscalationMatrix] Dispatching Customer Project Journey message to group ${inviteTarget} via WhatsApp Web Bot...`);
+          const journeyBotRes = await whatsAppWebBot.sendMessageToGroup(inviteTarget, journeyText);
+          if (journeyBotRes.success) {
+            journeySentSuccess = true;
+            journeyMessageId = journeyBotRes.messageId;
+          } else {
+            console.warn('[EscalationMatrix] Bot journey dispatch notice:', journeyBotRes.error);
+          }
+        }
+
+        if (!journeySentSuccess) {
+          try {
+            console.log(`[EscalationMatrix] Dispatching Customer Project Journey message to group via WATI...`);
+            const watiJourneyRes = await watiService.sendGroupText({
+              target: inviteTarget,
+              targetType: 'GROUP',
+              text: journeyText,
+            });
+            if (watiJourneyRes.success) {
+              journeySentSuccess = true;
+              journeyMessageId = watiJourneyRes.messageId;
+            }
+          } catch (jErr: any) {
+            console.error('[EscalationMatrix] WATI group journey dispatch error:', jErr.message);
+          }
+        }
+
+        if (journeySentSuccess) {
+          await WhatsAppMessageLog.create({
+            projectId: project._id,
+            groupId: project.whatsapp?.groupId || project.whatsappGroupId || 'GROUP',
+            messageText: journeyText,
+            messageType: 'text',
+            scheduledAt: new Date(),
+            attemptedAt: new Date(),
+            sentAt: new Date(),
+            providerMessageId: journeyMessageId,
+            status: 'SENT',
+            attemptCount: 1,
+            isDryRun: false,
+          });
+
+          await logProjectActivity({
+            projectId: project._id,
+            projectCode: project.projectId,
+            type: 'WHATSAPP_SENT',
+            description: `Customer Project Journey message dispatched automatically to WhatsApp group (${project.whatsappGroupName || inviteTarget})`,
+          });
+
+          console.log(`[EscalationMatrix] Successfully posted Customer Project Journey for project ${project.projectId}`);
+        }
+      } catch (journeyErr: any) {
+        console.error('[EscalationMatrix] Error sending Customer Project Journey message:', journeyErr.message);
+      }
+
       return true;
     }
 
