@@ -190,9 +190,12 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
           ],
         });
       } else {
-        const cleanTl = assignedTl.trim().replace(/[^a-zA-Z0-9]/g, '');
+        const rawTl = assignedTl.trim();
+        const baseWord = rawTl.split(/[\s(]/)[0].trim();
+        const escaped = rawTl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const pattern = baseWord.length >= 3 ? `${escaped}|${baseWord}` : escaped;
         andConditions.push({
-          assignedTl: new RegExp(cleanTl, 'i'),
+          assignedTl: new RegExp(pattern, 'i'),
         });
       }
     }

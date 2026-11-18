@@ -236,7 +236,7 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
   const [missingFields, setMissingFields] = useState<string[]>([]);
   const [lastGeneratedPdfUrl, setLastGeneratedPdfUrl] = useState<string | null>(null);
 
-  // Load CRM Customers & Projects for autofill
+  // Load CRM Customers & Projects for autofill (filtered for Srinivasan (TL))
   useEffect(() => {
     const fetchCrmData = async () => {
       try {
@@ -245,8 +245,24 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
           api.getCustomers().catch(() => ({ data: [] })),
           api.getProjects().catch(() => ({ data: [] })),
         ]);
-        setCrmCustomers(custRes.data || []);
-        setCrmProjects(projRes.data || []);
+        const allCustomers = custRes.data || [];
+        const allProjects = projRes.data || [];
+
+        // Show only customers where Admin or CRM assigned Srinivasan (TL)
+        const sriniCustomers = allCustomers.filter((c: any) => {
+          if (c.assignedTl && /srinivasan/i.test(c.assignedTl)) return true;
+          const associatedProject = allProjects.find(
+            (p: any) =>
+              (p.customerId?._id && p.customerId._id === c._id) ||
+              p.customerId === c._id ||
+              p.customerCode === c.customerId
+          );
+          if (associatedProject?.assignedTl && /srinivasan/i.test(associatedProject.assignedTl)) return true;
+          return false;
+        });
+
+        setCrmCustomers(sriniCustomers);
+        setCrmProjects(allProjects);
       } catch (err) {
         console.warn('Could not load CRM customers for autofill:', err);
       } finally {
@@ -758,12 +774,12 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
                 <div>
                   <div className="text-xs font-bold text-white flex items-center gap-2">
                     <span>CRM Client Data Autofill</span>
-                    <span className="text-[10px] bg-sky-500/30 text-sky-200 px-2 py-0.5 rounded-full font-mono">
-                      Fast Auto-Fill
+                    <span className="text-[10px] bg-cyan-500/30 text-cyan-200 border border-cyan-400/30 px-2 py-0.5 rounded-full font-mono">
+                      Srinivasan (TL)
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-300">
-                    Select any client or project from CRM to autofill client name, phone number, city, and job order.
+                    Select a client assigned to Srinivasan (TL) from CRM to autofill client name, phone number, city, and job order.
                   </p>
                 </div>
               </div>
@@ -844,8 +860,8 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
             <div>
               <div className="text-xs font-bold text-slate-900 flex items-center gap-2">
                 <span>Auto-Fill Client Data from CRM</span>
-                <span className="text-[10px] bg-sky-200/80 text-sky-900 px-2 py-0.5 rounded-full font-bold">
-                  {crmCustomers.length} Clients
+                <span className="text-[10px] bg-cyan-100 text-cyan-800 border border-cyan-200 px-2 py-0.5 rounded-full font-bold">
+                  {crmCustomers.length} Assigned to Srinivasan (TL)
                 </span>
               </div>
               <p className="text-[11px] text-slate-600 mt-0.5">
@@ -855,7 +871,7 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
                     Autofilled from: <strong className="underline">{selectedCrmItem.fullName}</strong> ({selectedCrmItem.city || 'Tamil Nadu'})
                   </span>
                 ) : (
-                  'Click to search and select any customer from Alpha CRM to instantly populate client name, contact, city, and job order.'
+                  'Click to search and select clients assigned to Srinivasan (TL) to instantly populate client name, contact, city, and job order.'
                 )}
               </p>
             </div>
@@ -2103,9 +2119,14 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
                   <Sparkles className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm sm:text-base font-bold font-poppins">Select Client from CRM</h3>
+                  <h3 className="text-sm sm:text-base font-bold font-poppins flex items-center gap-2 flex-wrap">
+                    <span>Select Client from CRM</span>
+                    <span className="text-[10px] bg-cyan-400/20 text-cyan-200 border border-cyan-400/40 px-2 py-0.5 rounded-full font-bold">
+                      Srinivasan (TL) Assigned
+                    </span>
+                  </h3>
                   <p className="text-[11px] text-slate-300">
-                    Click any client to autofill name, phone, city & order details
+                    Showing only clients assigned to Srinivasan (TL) by Admin or CRM
                   </p>
                 </div>
               </div>
@@ -2169,9 +2190,11 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
               {filteredCrmItems.length === 0 ? (
                 <div className="py-12 text-center space-y-2">
                   <User className="w-10 h-10 text-slate-300 mx-auto" />
-                  <div className="text-sm font-bold text-slate-700">No matching clients found</div>
+                  <div className="text-sm font-bold text-slate-700">No clients assigned to Srinivasan (TL) found</div>
                   <p className="text-xs text-slate-400 max-w-xs mx-auto">
-                    No CRM client found matching "{searchQuery}". You can type details manually in the form.
+                    {searchQuery
+                      ? `No clients matching "${searchQuery}".`
+                      : 'Make sure Admin or CRM has assigned Srinivasan (TL) to the client in CRM.'}
                   </p>
                 </div>
               ) : (
@@ -2195,7 +2218,7 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
                       className="w-full text-left p-3.5 hover:bg-sky-50/80 rounded-2xl border border-transparent hover:border-sky-200 transition-all flex items-center justify-between group cursor-pointer"
                     >
                       <div className="space-y-1">
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                           <span className="text-sm font-bold text-slate-900 group-hover:text-sky-700">
                             {cust.fullName}
                           </span>
@@ -2204,6 +2227,9 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
                               {cust.customerId}
                             </span>
                           )}
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-100 text-cyan-800 border border-cyan-200">
+                            TL: Srinivasan (TL)
+                          </span>
                         </div>
 
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
