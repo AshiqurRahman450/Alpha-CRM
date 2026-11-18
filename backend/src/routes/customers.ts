@@ -5,7 +5,7 @@ import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { PROJECT_STAGE_NEXT_WORK } from './reminders';
 import { getNextCustomerId, getNextOldCustomerId, splitSharedCustomerProjects, resequenceCustomerIds } from '../utils/idGenerators';
 import { parseAndImportExcel, generateImportTemplateBuffer } from '../services/import/excelImportService';
-import { getCustomerTlFilter, isCustomerAccessibleByTl, isTlUser } from '../utils/tlAuth';
+import { getCustomerTlFilter, isCustomerAccessibleByTl, isTlUser, getTlRegexForUser } from '../utils/tlAuth';
 import { ensureUploadsDir } from './projects';
 import multer from 'multer';
 import path from 'path';
@@ -190,12 +190,9 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
           ],
         });
       } else {
-        const rawTl = assignedTl.trim();
-        const baseWord = rawTl.split(/[\s(]/)[0].trim();
-        const escaped = rawTl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const pattern = baseWord.length >= 3 ? `${escaped}|${baseWord}` : escaped;
+        const cleanTl = assignedTl.trim().replace(/[^a-zA-Z0-9]/g, '');
         andConditions.push({
-          assignedTl: new RegExp(pattern, 'i'),
+          assignedTl: new RegExp(cleanTl, 'i'),
         });
       }
     }
@@ -272,7 +269,19 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
     }
 
     if (isTlUser(req.user)) {
-      strictlyFiltered = strictlyFiltered.filter((c) => isCustomerAccessibleByTl(c, req.user));
+      const tlRegex = getTlRegexForUser(req.user);
+      const projectConditions: any[] = [];
+      if (tlRegex) projectConditions.push({ assignedTl: tlRegex });
+      if (req.user?._id) projectConditions.push({ assignedTlId: req.user._id });
+
+      const matchingProjects = projectConditions.length > 0
+        ? await Project.find({ $or: projectConditions }).select('customerId').lean()
+        : [];
+      const projectCustIds = new Set(matchingProjects.map((p) => String(p.customerId)));
+
+      strictlyFiltered = strictlyFiltered.filter(
+        (c) => isCustomerAccessibleByTl(c, req.user) || projectCustIds.has(String(c._id))
+      );
     }
 
     const custIds = strictlyFiltered.map((c) => c._id);
@@ -401,9 +410,13 @@ customerRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM'), async (req
     let finalAssignedTlId: any = undefined;
     if (assignedTl && assignedTl !== 'UNASSIGNED' && assignedTl !== 'NONE') {
       finalAssignedTl = String(assignedTl).trim();
+      const cleanKeyword = finalAssignedTl.replace(/[^a-zA-Z]/g, '');
       const matchedTlUser = await User.findOne({
-        role: { $in: ['LOGISTICS_TL', 'TECHNICAL_LEAD'] },
-        name: new RegExp(`^${finalAssignedTl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+        $or: [
+          { name: new RegExp(`^${finalAssignedTl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+          { name: new RegExp(cleanKeyword, 'i') },
+          { email: new RegExp(cleanKeyword, 'i') },
+        ],
       });
       if (matchedTlUser) {
         finalAssignedTlId = matchedTlUser._id;
@@ -585,9 +598,13 @@ customerRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'ACCOUNTA
       let tlUserId: any = undefined;
       if (updateData.assignedTl && updateData.assignedTl !== 'UNASSIGNED' && updateData.assignedTl !== 'NONE') {
         tlName = String(updateData.assignedTl).trim();
+        const cleanKeyword = tlName.replace(/[^a-zA-Z]/g, '');
         const matchedUser = await User.findOne({
-          role: { $in: ['LOGISTICS_TL', 'TECHNICAL_LEAD'] },
-          name: new RegExp(`^${tlName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+          $or: [
+            { name: new RegExp(`^${tlName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+            { name: new RegExp(cleanKeyword, 'i') },
+            { email: new RegExp(cleanKeyword, 'i') },
+          ],
         });
         if (matchedUser) {
           tlUserId = matchedUser._id;

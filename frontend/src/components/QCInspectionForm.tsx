@@ -34,7 +34,8 @@ import {
   Check,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { api } from '../lib/api';
+import { api, getStoredUser } from '../lib/api';
+import { getTlNameForUser, isCustomerAssignedToTlUser, isProjectAssignedToTlUser } from '../lib/constants';
 
 const TAMIL_NADU_REGIONS = [
   'Tamil Nadu — Chennai',
@@ -236,33 +237,28 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
   const [missingFields, setMissingFields] = useState<string[]>([]);
   const [lastGeneratedPdfUrl, setLastGeneratedPdfUrl] = useState<string | null>(null);
 
-  // Load CRM Customers & Projects for autofill (filtered for Srinivasan (TL))
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    setCurrentUser(getStoredUser());
+  }, []);
+
+  const assignedTlName = useMemo(() => getTlNameForUser(currentUser), [currentUser]);
+
+  // Load CRM Customers & Projects for autofill
   useEffect(() => {
     const fetchCrmData = async () => {
       try {
         setLoadingCrm(true);
+        const user = getStoredUser();
+        setCurrentUser(user);
+
         const [custRes, projRes] = await Promise.all([
           api.getCustomers().catch(() => ({ data: [] })),
           api.getProjects().catch(() => ({ data: [] })),
         ]);
-        const allCustomers = custRes.data || [];
-        const allProjects = projRes.data || [];
-
-        // Show only customers where Admin or CRM assigned Srinivasan (TL)
-        const sriniCustomers = allCustomers.filter((c: any) => {
-          if (c.assignedTl && /srinivasan/i.test(c.assignedTl)) return true;
-          const associatedProject = allProjects.find(
-            (p: any) =>
-              (p.customerId?._id && p.customerId._id === c._id) ||
-              p.customerId === c._id ||
-              p.customerCode === c.customerId
-          );
-          if (associatedProject?.assignedTl && /srinivasan/i.test(associatedProject.assignedTl)) return true;
-          return false;
-        });
-
-        setCrmCustomers(sriniCustomers);
-        setCrmProjects(allProjects);
+        setCrmCustomers(custRes.data || []);
+        setCrmProjects(projRes.data || []);
       } catch (err) {
         console.warn('Could not load CRM customers for autofill:', err);
       } finally {
@@ -309,20 +305,39 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
     }
   }, [floorMeasurements, floorConfig, totalTravel, pitClient]);
 
+  // Accessible CRM customers: strictly filtered for TL roles (Srinivasan, Bala, Sundaram)
+  const accessibleCrmCustomers = useMemo(() => {
+    if (!assignedTlName || !currentUser) {
+      return crmCustomers;
+    }
+    return crmCustomers.filter((c) => {
+      const isAssignedDirect = isCustomerAssignedToTlUser(c, currentUser);
+      const isAssignedViaProject = crmProjects.some(
+        (p) =>
+          ((p.customerId?._id && p.customerId._id === c._id) ||
+            p.customerId === c._id ||
+            p.customerCode === c.customerId) &&
+          isProjectAssignedToTlUser(p, currentUser)
+      );
+      return isAssignedDirect || isAssignedViaProject;
+    });
+  }, [crmCustomers, crmProjects, assignedTlName, currentUser]);
+
   // Filtered CRM search items
   const filteredCrmItems = useMemo(() => {
-    if (!searchQuery.trim()) return crmCustomers.slice(0, 10);
+    if (!searchQuery.trim()) {
+      return accessibleCrmCustomers;
+    }
     const q = searchQuery.toLowerCase().trim();
-    return crmCustomers
-      .filter(
-        (c) =>
-          c.fullName?.toLowerCase().includes(q) ||
-          c.phoneNumber?.includes(q) ||
-          c.city?.toLowerCase().includes(q) ||
-          c.customerId?.toLowerCase().includes(q)
-      )
-      .slice(0, 12);
-  }, [crmCustomers, searchQuery]);
+    return accessibleCrmCustomers.filter(
+      (c) =>
+        c.fullName?.toLowerCase().includes(q) ||
+        c.phoneNumber?.includes(q) ||
+        c.city?.toLowerCase().includes(q) ||
+        c.customerId?.toLowerCase().includes(q) ||
+        c.assignedTl?.toLowerCase().includes(q)
+    );
+  }, [accessibleCrmCustomers, searchQuery]);
 
   // Handle CRM Customer Autofill selection
   const handleSelectCrmCustomer = (customer: any) => {
@@ -774,12 +789,12 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
                 <div>
                   <div className="text-xs font-bold text-white flex items-center gap-2">
                     <span>CRM Client Data Autofill</span>
-                    <span className="text-[10px] bg-cyan-500/30 text-cyan-200 border border-cyan-400/30 px-2 py-0.5 rounded-full font-mono">
-                      Srinivasan (TL)
+                    <span className="text-[10px] bg-sky-500/30 text-sky-200 px-2 py-0.5 rounded-full font-mono">
+                      Fast Auto-Fill
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-300">
-                    Select a client assigned to Srinivasan (TL) from CRM to autofill client name, phone number, city, and job order.
+                    Select any client or project from CRM to autofill client name, phone number, city, and job order.
                   </p>
                 </div>
               </div>
@@ -796,7 +811,13 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
                 className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-sky-500 via-sky-600 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-sky-950/60 active:scale-95 transition-all flex items-center justify-center gap-2 border border-sky-400/30 cursor-pointer"
               >
                 <Search className="w-4 h-4" />
-                <span>{selectedCrmItem ? `Linked: ${selectedCrmItem.fullName} (Change)` : 'Search & Select CRM Client'}</span>
+                <span>
+                  {selectedCrmItem
+                    ? `Linked: ${selectedCrmItem.fullName} (Change)`
+                    : assignedTlName
+                    ? `Search & Select Client (${assignedTlName})`
+                    : 'Search & Select CRM Client'}
+                </span>
               </button>
             </div>
 
@@ -860,8 +881,8 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
             <div>
               <div className="text-xs font-bold text-slate-900 flex items-center gap-2">
                 <span>Auto-Fill Client Data from CRM</span>
-                <span className="text-[10px] bg-cyan-100 text-cyan-800 border border-cyan-200 px-2 py-0.5 rounded-full font-bold">
-                  {crmCustomers.length} Assigned to Srinivasan (TL)
+                <span className="text-[10px] bg-sky-200/80 text-sky-900 px-2 py-0.5 rounded-full font-bold">
+                  {accessibleCrmCustomers.length} Clients
                 </span>
               </div>
               <p className="text-[11px] text-slate-600 mt-0.5">
@@ -871,7 +892,7 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
                     Autofilled from: <strong className="underline">{selectedCrmItem.fullName}</strong> ({selectedCrmItem.city || 'Tamil Nadu'})
                   </span>
                 ) : (
-                  'Click to search and select clients assigned to Srinivasan (TL) to instantly populate client name, contact, city, and job order.'
+                  'Click to search and select any customer from Alpha CRM to instantly populate client name, contact, city, and job order.'
                 )}
               </p>
             </div>
@@ -898,7 +919,13 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
               className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold shadow-md shadow-sky-900/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
             >
               <Search className="w-3.5 h-3.5" />
-              <span>{selectedCrmItem ? 'Change Client' : 'Search & Select Client'}</span>
+              <span>
+                {selectedCrmItem
+                  ? 'Change Client'
+                  : assignedTlName
+                  ? `Select Client (${assignedTlName})`
+                  : 'Search & Select Client'}
+              </span>
             </button>
           </div>
         </div>
@@ -2119,14 +2146,18 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
                   <Sparkles className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm sm:text-base font-bold font-poppins flex items-center gap-2 flex-wrap">
-                    <span>Select Client from CRM</span>
-                    <span className="text-[10px] bg-cyan-400/20 text-cyan-200 border border-cyan-400/40 px-2 py-0.5 rounded-full font-bold">
-                      Srinivasan (TL) Assigned
-                    </span>
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm sm:text-base font-bold font-poppins">Select Client from CRM</h3>
+                    {assignedTlName && (
+                      <span className="text-[10px] bg-amber-400 text-slate-900 font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                        TL: {assignedTlName}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-[11px] text-slate-300">
-                    Showing only clients assigned to Srinivasan (TL) by Admin or CRM
+                    {assignedTlName
+                      ? `Showing only clients assigned to ${assignedTlName}`
+                      : 'Click any client to autofill name, phone, city & order details'}
                   </p>
                 </div>
               </div>
@@ -2190,11 +2221,11 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
               {filteredCrmItems.length === 0 ? (
                 <div className="py-12 text-center space-y-2">
                   <User className="w-10 h-10 text-slate-300 mx-auto" />
-                  <div className="text-sm font-bold text-slate-700">No clients assigned to Srinivasan (TL) found</div>
+                  <div className="text-sm font-bold text-slate-700">No matching clients found</div>
                   <p className="text-xs text-slate-400 max-w-xs mx-auto">
-                    {searchQuery
-                      ? `No clients matching "${searchQuery}".`
-                      : 'Make sure Admin or CRM has assigned Srinivasan (TL) to the client in CRM.'}
+                    {assignedTlName
+                      ? `No clients currently assigned to ${assignedTlName}. Ask Admin or CRM to assign customers to ${assignedTlName}.`
+                      : `No CRM client found matching "${searchQuery}". You can type details manually in the form.`}
                   </p>
                 </div>
               ) : (
@@ -2218,7 +2249,7 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
                       className="w-full text-left p-3.5 hover:bg-sky-50/80 rounded-2xl border border-transparent hover:border-sky-200 transition-all flex items-center justify-between group cursor-pointer"
                     >
                       <div className="space-y-1">
-                        <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                        <div className="flex items-center space-x-2">
                           <span className="text-sm font-bold text-slate-900 group-hover:text-sky-700">
                             {cust.fullName}
                           </span>
@@ -2227,9 +2258,11 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
                               {cust.customerId}
                             </span>
                           )}
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-100 text-cyan-800 border border-cyan-200">
-                            TL: Srinivasan (TL)
-                          </span>
+                          {cust.assignedTl && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                              TL: {cust.assignedTl}
+                            </span>
+                          )}
                         </div>
 
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
@@ -2263,7 +2296,10 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
 
             {/* Modal Footer */}
             <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500 shrink-0">
-              <span>Showing {filteredCrmItems.length} of {crmCustomers.length} clients</span>
+              <span>
+                Showing {filteredCrmItems.length} of {accessibleCrmCustomers.length} clients
+                {assignedTlName ? ` (Assigned to ${assignedTlName})` : ''}
+              </span>
               <button
                 type="button"
                 onClick={() => setIsCrmModalOpen(false)}

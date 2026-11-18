@@ -12,10 +12,13 @@ export function isTlUser(user: any): boolean {
   const name = String(user.name || '');
   const email = String(user.email || '');
 
-  if (role === 'LOGISTICS_TL' || role === 'TL' || role === 'TEAM_LEAD') return true;
+  // Never match BDMs (e.g. Balaji)
+  if (role === 'BDM') return false;
+
+  if (role === 'LOGISTICS_TL' || role === 'TL' || role === 'TEAM_LEAD' || role === 'TECHNICAL_LEAD') return true;
   if (/srinivasan|srini/i.test(role) || /srinivasan|srini/i.test(name) || /srinivasan|srini/i.test(email)) return true;
   if (/sundaram|sundar/i.test(role) || /sundaram|sundar/i.test(name) || /sundaram|sundar/i.test(email)) return true;
-  if (/bala/i.test(role) || /bala/i.test(name) || /bala/i.test(email)) return true;
+  if (/\bbala\b/i.test(role) || /\bbala\b/i.test(name) || /\bbala\b/i.test(email) || email.startsWith('bala@')) return true;
   return false;
 }
 
@@ -28,16 +31,18 @@ export function getTlRegexForUser(user: any): RegExp | null {
   const name = String(user.name || '');
   const email = String(user.email || '');
 
+  if (role === 'BDM') return null;
+
   if (/srinivasan|srini/i.test(role) || /srinivasan|srini/i.test(name) || /srinivasan|srini/i.test(email)) {
     return /srinivasan|srini/i;
   }
   if (/sundaram|sundar/i.test(role) || /sundaram|sundar/i.test(name) || /sundaram|sundar/i.test(email)) {
     return /sundaram|sundar/i;
   }
-  if (/bala/i.test(role) || /bala/i.test(name) || /bala/i.test(email)) {
-    return /bala/i;
+  if (/\bbala\b/i.test(role) || /\bbala\b/i.test(name) || /\bbala\b/i.test(email) || email.startsWith('bala@')) {
+    return /\bbala\b/i;
   }
-  if ((role === 'LOGISTICS_TL' || role === 'TL' || role === 'TEAM_LEAD') && name) {
+  if ((role === 'LOGISTICS_TL' || role === 'TL' || role === 'TEAM_LEAD' || role === 'TECHNICAL_LEAD') && name) {
     const clean = name.replace(/[^a-zA-Z]/g, '');
     if (clean) return new RegExp(clean, 'i');
   }
@@ -57,6 +62,9 @@ export function getCustomerTlFilter(user: any): any | null {
   ];
   if (user._id) {
     conditions.push({ assignedTlId: user._id });
+    if (Types.ObjectId.isValid(user._id)) {
+      conditions.push({ assignedTlId: new Types.ObjectId(user._id) });
+    }
   }
   return { $or: conditions };
 }
@@ -70,7 +78,7 @@ export function isCustomerAccessibleByTl(customer: any, user: any): boolean {
   if (!regex) return true;
 
   if (customer.assignedTl && regex.test(customer.assignedTl)) return true;
-  if (customer.assignedTlId && String(customer.assignedTlId) === String(user._id)) return true;
+  if (customer.assignedTlId && (String(customer.assignedTlId) === String(user._id) || String(customer.assignedTlId) === String(user.id))) return true;
   return false;
 }
 
@@ -83,11 +91,11 @@ export function isProjectAccessibleByTl(project: any, user: any): boolean {
   if (!regex) return true;
 
   if (project.assignedTl && regex.test(project.assignedTl)) return true;
-  if (project.assignedTlId && String(project.assignedTlId) === String(user._id)) return true;
+  if (project.assignedTlId && (String(project.assignedTlId) === String(user._id) || String(project.assignedTlId) === String(user.id))) return true;
 
   const cust = (project.customerId as any) || {};
   if (cust.assignedTl && regex.test(cust.assignedTl)) return true;
-  if (cust.assignedTlId && String(cust.assignedTlId) === String(user._id)) return true;
+  if (cust.assignedTlId && (String(cust.assignedTlId) === String(user._id) || String(cust.assignedTlId) === String(user.id))) return true;
 
   return false;
 }
