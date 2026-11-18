@@ -908,6 +908,10 @@ export const api = {
       stage?: number;
       status?: string;
       all?: boolean;
+      month?: string;
+      year?: number | string;
+      fromDate?: string;
+      toDate?: string;
     }) => {
       const q = new URLSearchParams();
       if (params?.search) q.append('search', params.search);
@@ -916,6 +920,10 @@ export const api = {
       if (params?.stage) q.append('stage', String(params.stage));
       if (params?.status) q.append('status', params.status);
       if (params?.all) q.append('all', 'true');
+      if (params?.month) q.append('month', params.month);
+      if (params?.year) q.append('year', String(params.year));
+      if (params?.fromDate) q.append('fromDate', params.fromDate);
+      if (params?.toDate) q.append('toDate', params.toDate);
       const queryStr = q.toString() ? `?${q.toString()}` : '';
       return fetchWithAuth(`/api/quotations/bdm-stage-wise${queryStr}`);
     },

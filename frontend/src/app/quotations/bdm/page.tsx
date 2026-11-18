@@ -60,6 +60,8 @@ export default function BdmQuotationsPage() {
   const [selectedBdm, setSelectedBdm] = useState<string>('ALL');
   const [selectedStage, setSelectedStage] = useState<string>('ALL'); // 'ALL' | '1' | '2' | '3' | '4' | 'APPROVED'
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
+  const [selectedMonth, setSelectedMonth] = useState<string>('ALL');
+  const [availableMonths, setAvailableMonths] = useState<string[]>([]);
   const [viewMyOnly, setViewMyOnly] = useState<boolean>(false);
 
   // WhatsApp Send Modal State
@@ -72,6 +74,27 @@ export default function BdmQuotationsPage() {
 
   // CRM Approve State
   const [approvingOfferNo, setApprovingOfferNo] = useState<string | null>(null);
+
+  // Date helper variables for month filters
+  const now = new Date();
+  const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastYm = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
+  const currentMonthLabel = now.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  const lastMonthLabel = lastMonthDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+
+  const formatMonthName = (ym: string) => {
+    if (!ym || ym === 'ALL') return 'All Months';
+    if (ym === 'THIS_MONTH') return `This Month (${currentMonthLabel})`;
+    if (ym === 'LAST_MONTH') return `Last Month (${lastMonthLabel})`;
+    try {
+      const [y, m] = ym.split('-');
+      const d = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1);
+      return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    } catch {
+      return ym;
+    }
+  };
 
   // Load user on mount
   useEffect(() => {
@@ -90,6 +113,7 @@ export default function BdmQuotationsPage() {
       const params: any = {};
       if (searchTerm.trim()) params.search = searchTerm.trim();
       if (selectedBdm !== 'ALL') params.bdmName = selectedBdm;
+      if (selectedMonth !== 'ALL') params.month = selectedMonth;
       if (selectedStage !== 'ALL' && selectedStage !== 'APPROVED') {
         params.stage = Number(selectedStage);
       }
@@ -103,6 +127,7 @@ export default function BdmQuotationsPage() {
         setQuotations(res.data || []);
         if (res.metrics) setMetrics(res.metrics);
         if (res.availableBdms) setAvailableBdms(res.availableBdms);
+        if (res.availableMonths) setAvailableMonths(res.availableMonths);
       } else {
         toast.error(res?.message || 'Failed to load BDM quotations');
       }
@@ -116,7 +141,7 @@ export default function BdmQuotationsPage() {
 
   useEffect(() => {
     fetchQuotations();
-  }, [searchTerm, selectedBdm, selectedStage, selectedStatus, viewMyOnly]);
+  }, [searchTerm, selectedBdm, selectedStage, selectedStatus, selectedMonth, viewMyOnly]);
 
   // Client-side stage filter for 'APPROVED'
   const filteredQuotations = useMemo(() => {
@@ -406,13 +431,35 @@ export default function BdmQuotationsPage() {
               <select
                 value={selectedStatus}
                 onChange={(e) => setSelectedStatus(e.target.value)}
-                className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500"
+                className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500 cursor-pointer"
               >
                 <option value="ALL">All Statuses</option>
                 <option value="DRAFT">Draft</option>
                 <option value="SENT_TO_CUSTOMER">Sent to Customer (WhatsApp)</option>
                 <option value="FINALIZED">Finalized</option>
                 <option value="CRM_APPROVED">CRM Approved ✅</option>
+              </select>
+            </div>
+
+            {/* Month Filter Dropdown */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-bold text-slate-400 whitespace-nowrap flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Month:</span>
+              </label>
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-medium cursor-pointer"
+              >
+                <option value="ALL">All Months</option>
+                <option value="THIS_MONTH">This Month ({currentMonthLabel})</option>
+                <option value="LAST_MONTH">Last Month ({lastMonthLabel})</option>
+                {availableMonths.map((ym) => (
+                  <option key={ym} value={ym}>
+                    {formatMonthName(ym)}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -444,7 +491,116 @@ export default function BdmQuotationsPage() {
               </button>
             ))}
           </div>
+
+          {/* Month Filter Quick Pills & Custom Picker */}
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-800/60 text-xs">
+            <span className="text-[11px] font-bold text-indigo-300 uppercase tracking-wider mr-1 flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5 text-indigo-400" />
+              Filter Month:
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedMonth('ALL')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                selectedMonth === 'ALL'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-950/50'
+                  : 'bg-slate-950 text-slate-400 hover:text-white hover:bg-slate-800/80 border border-slate-800/80'
+              }`}
+            >
+              All Months
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedMonth('THIS_MONTH')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                selectedMonth === 'THIS_MONTH' || selectedMonth === currentYm
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-950/50'
+                  : 'bg-slate-950 text-slate-400 hover:text-white hover:bg-slate-800/80 border border-slate-800/80'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              This Month ({currentMonthLabel})
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedMonth('LAST_MONTH')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                selectedMonth === 'LAST_MONTH' || selectedMonth === lastYm
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-950/50'
+                  : 'bg-slate-950 text-slate-400 hover:text-white hover:bg-slate-800/80 border border-slate-800/80'
+              }`}
+            >
+              Last Month ({lastMonthLabel})
+            </button>
+
+            {/* Dynamic available months as pills (first 5) */}
+            {availableMonths.slice(0, 5).map((ym) => {
+              if (ym === currentYm || ym === lastYm) return null;
+              return (
+                <button
+                  key={ym}
+                  type="button"
+                  onClick={() => setSelectedMonth(ym)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    selectedMonth === ym
+                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-950/50'
+                      : 'bg-slate-950 text-slate-400 hover:text-white hover:bg-slate-800/80 border border-slate-800/80'
+                  }`}
+                >
+                  {formatMonthName(ym)}
+                </button>
+              );
+            })}
+
+            {/* Custom Month Date Input */}
+            <div className="flex items-center gap-1.5 sm:ml-auto">
+              <span className="text-[10px] text-slate-400 font-semibold hidden sm:inline">Pick Month:</span>
+              <input
+                type="month"
+                value={selectedMonth.includes('-') ? selectedMonth : ''}
+                onChange={(e) => setSelectedMonth(e.target.value || 'ALL')}
+                className="bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1 text-xs text-slate-300 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                title="Choose custom month & year"
+              />
+              {selectedMonth !== 'ALL' && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedMonth('ALL')}
+                  className="px-2 py-1 text-[11px] font-bold text-rose-400 hover:text-rose-300 bg-rose-950/40 border border-rose-800/50 rounded-lg transition-colors cursor-pointer"
+                  title="Clear month filter"
+                >
+                  ✕ Clear
+                </button>
+              )}
+            </div>
+          </div>
         </div>
+
+        {/* Active Month Filter Badge Banner */}
+        {selectedMonth !== 'ALL' && (
+          <div className="flex items-center justify-between p-3.5 bg-gradient-to-r from-indigo-950/60 to-slate-900 border border-indigo-500/30 rounded-2xl text-xs shadow-sm">
+            <div className="flex items-center gap-2.5 text-indigo-200">
+              <div className="w-7 h-7 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
+                <Calendar className="w-4 h-4" />
+              </div>
+              <div>
+                <span>
+                  Month Filter: <strong className="text-white font-black">{formatMonthName(selectedMonth)}</strong>
+                </span>
+                <span className="text-slate-400 text-[11px] ml-2">
+                  ({filteredQuotations.length} {filteredQuotations.length === 1 ? 'Quotation' : 'Quotations'} • Pipeline: ₹{(metrics.totalPipelineValue || 0).toLocaleString('en-IN')})
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedMonth('ALL')}
+              className="px-3 py-1.5 bg-indigo-900/60 hover:bg-indigo-800 text-indigo-200 rounded-xl text-xs font-bold border border-indigo-700/60 transition-colors cursor-pointer"
+            >
+              ✕ Reset to All Months
+            </button>
+          </div>
+        )}
 
         {/* Customer Quotation Stage Cards List */}
         {loading ? (
@@ -561,6 +717,13 @@ export default function BdmQuotationsPage() {
                         <span className="inline-flex items-center gap-1 text-sky-400">
                           <User className="w-3 h-3" />
                           <span>BDM: {item.bdmName}</span>
+                        </span>
+
+                        {/* Date Created / Updated */}
+                        <span className="text-slate-600">•</span>
+                        <span className="inline-flex items-center gap-1 text-indigo-300 font-medium bg-indigo-950/40 px-2 py-0.5 rounded-md border border-indigo-800/40">
+                          <Calendar className="w-3 h-3 text-indigo-400" />
+                          <span>{new Date(item.createdAt || item.updatedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                         </span>
                       </div>
                     </div>

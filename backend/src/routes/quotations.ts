@@ -123,9 +123,68 @@ async function resolveBdmData(
  */
 quotationRouter.get('/bdm-stage-wise', async (req: any, res: Response) => {
   try {
-    const { search, bdmId, bdmName, stage, status, all } = req.query;
+    const { search, bdmId, bdmName, stage, status, all, month, year, fromDate, toDate } = req.query;
 
     const query: any = {};
+
+    // Date / Month range resolution
+    let dateRange: { start: Date; end: Date } | null = null;
+    const now = new Date();
+
+    if (month && month !== 'ALL') {
+      const mStr = String(month).trim();
+      if (mStr === 'THIS_MONTH' || mStr === 'current') {
+        const y = now.getFullYear();
+        const m = now.getMonth();
+        dateRange = {
+          start: new Date(y, m, 1, 0, 0, 0, 0),
+          end: new Date(y, m + 1, 0, 23, 59, 59, 999),
+        };
+      } else if (mStr === 'LAST_MONTH' || mStr === 'previous') {
+        const y = now.getFullYear();
+        const m = now.getMonth() - 1;
+        dateRange = {
+          start: new Date(y, m, 1, 0, 0, 0, 0),
+          end: new Date(y, m + 1, 0, 23, 59, 59, 999),
+        };
+      } else if (/^\d{4}-\d{1,2}$/.test(mStr)) {
+        const [yStr, monthVal] = mStr.split('-');
+        const y = parseInt(yStr, 10);
+        const m = parseInt(monthVal, 10) - 1;
+        dateRange = {
+          start: new Date(y, m, 1, 0, 0, 0, 0),
+          end: new Date(y, m + 1, 0, 23, 59, 59, 999),
+        };
+      } else if (!isNaN(Number(mStr)) && Number(mStr) >= 1 && Number(mStr) <= 12) {
+        const m = Number(mStr) - 1;
+        const y = year ? Number(year) : now.getFullYear();
+        dateRange = {
+          start: new Date(y, m, 1, 0, 0, 0, 0),
+          end: new Date(y, m + 1, 0, 23, 59, 59, 999),
+        };
+      }
+    } else if (year && year !== 'ALL' && !isNaN(Number(year))) {
+      const y = Number(year);
+      dateRange = {
+        start: new Date(y, 0, 1, 0, 0, 0, 0),
+        end: new Date(y, 11, 31, 23, 59, 59, 999),
+      };
+    } else if (fromDate || toDate) {
+      const start = fromDate ? new Date(fromDate) : new Date(0);
+      const end = toDate ? new Date(toDate) : new Date(2100, 0, 1);
+      end.setHours(23, 59, 59, 999);
+      dateRange = { start, end };
+    }
+
+    if (dateRange) {
+      const matchingBases = await Quotation.distinct('baseOfferNo', {
+        $or: [
+          { createdAt: { $gte: dateRange.start, $lte: dateRange.end } },
+          { updatedAt: { $gte: dateRange.start, $lte: dateRange.end } },
+        ],
+      });
+      query.baseOfferNo = { $in: matchingBases };
+    }
 
     // Role-based scoping: if user is logged in as BDM and not explicitly viewing all
     if (req.user && req.user.role === 'BDM' && !all) {
@@ -279,6 +338,29 @@ quotationRouter.get('/bdm-stage-wise', async (req: any, res: Response) => {
     // Fetch active BDM users
     const bdmUsers = await User.find({ role: 'BDM', isActive: true }).select('_id name email phone');
 
+    // Extract available year-months for easy frontend month filter dropdown
+    const recentDateQuotes = await Quotation.find({})
+      .select('createdAt updatedAt')
+      .sort({ createdAt: -1 })
+      .limit(1000)
+      .lean();
+    const monthsSet = new Set<string>();
+    recentDateQuotes.forEach((q) => {
+      if (q.createdAt) {
+        const d = new Date(q.createdAt);
+        const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        monthsSet.add(ym);
+      }
+      if (q.updatedAt) {
+        const d = new Date(q.updatedAt);
+        const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        monthsSet.add(ym);
+      }
+    });
+    const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    monthsSet.add(currentYm);
+    const availableMonths = Array.from(monthsSet).sort().reverse();
+
     return res.json({
       success: true,
       count: customerQuotations.length,
@@ -292,6 +374,8 @@ quotationRouter.get('/bdm-stage-wise', async (req: any, res: Response) => {
         totalPipelineValue,
       },
       availableBdms: bdmUsers,
+      availableMonths,
+      activeDateRange: dateRange ? { start: dateRange.start, end: dateRange.end } : null,
       data: customerQuotations,
     });
   } catch (err: any) {
