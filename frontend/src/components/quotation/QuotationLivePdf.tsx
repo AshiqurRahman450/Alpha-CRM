@@ -136,9 +136,10 @@ export default function QuotationLivePdf({
     if (!html) return html;
     let updated = sanitizeProposalParagraphs(html, pageNum || 1, data);
 
-    // Page 2: Ensure new letter content, remove page 2 image & caption, and customer name font color
+    // Page 2: Ensure new letter content, remove page 2 image & caption, fix customer name font color, and fix repeated Sub:
     if (pageNum === 2 && updated) {
       updated = buildPage2LetterHtml(updated, data);
+      updated = updated.replace(/(?:Sub\s*:\s*){2,}/gi, 'Sub: ');
       updated = updated.replace(/<img class="im"[^>]*40\.63[^>]*>/gi, '');
       updated = updated.replace(/<img[^>]*40\.63[^>]*>/gi, '');
       updated = updated.replace(/<img[^>]*697\.85[^>]*>/gi, '');
@@ -1165,7 +1166,7 @@ export default function QuotationLivePdf({
             // Standard 11-page template
             if (pageNum === 1 && (!isEditing || !baseHtml || !baseHtml.includes('CLIENT NAME') || !baseHtml.includes('MODEL') || baseHtml.includes('-3.33,641.44') || !baseHtml.includes('page1-dot-remover'))) {
               baseHtml = renderExactPdfPage(0, data);
-            } else if (pageNum === 2 && (!isEditing || !baseHtml || baseHtml.includes('NK Group of Companies') || !baseHtml.includes('Where Vertical Mobility Meets Sophistication') || baseHtml.includes('top:490px') || baseHtml.includes('top:555px') || baseHtml.includes('40.63,555') || baseHtml.includes('40.63,697.85') || baseHtml.includes('Our Bangalore Manufacturing Facility'))) {
+            } else if (pageNum === 2 && (!isEditing || !baseHtml || /(?:Sub\s*:\s*){2,}/i.test(baseHtml) || baseHtml.includes('NK Group of Companies') || !baseHtml.includes('Where Vertical Mobility Meets Sophistication') || baseHtml.includes('top:490px') || baseHtml.includes('top:555px') || baseHtml.includes('40.63,555') || baseHtml.includes('40.63,697.85') || baseHtml.includes('Our Bangalore Manufacturing Facility'))) {
               baseHtml = renderExactPdfPage(1, data);
             } else if (pageNum === 3 && (!isEditing || !baseHtml || !baseHtml.includes('page3-civil-spec-table') || baseHtml.includes('page3-compact-civil-cabin-wrapper') || baseHtml.includes('490.24,806.2') || !baseHtml.includes('color:#000000'))) {
               baseHtml = renderExactPdfPage(2, data);

@@ -117,7 +117,7 @@ export const DEFAULT_QUOTATION_DATA: QuotationData = {
   seriesTitle: 'Alpha Home Series: AE 03 Gearless Belt Home series EV',
   offerNo: 'AE/QTN/ AE-261026-131',
   offerDate: '26/10/2026',
-  subject: 'Sub: Supply, Install, test and commission of one Belt Type Home Elevator EV',
+  subject: 'Supply, Install, test and commission of one Belt Type Home Elevator EV',
   representativeName: 'Thirunavukarasu',
   representativePhone: '+91 80151 29224',
   representativeEmail: 'info@alphaelevators.in',
@@ -807,4 +807,17 @@ export function getPresetAccessoriesFeatures(model?: string): string[] {
     'Self Diagnostic Control System',
     'Alarm with SOS + Phone',
   ];
+}
+
+/**
+ * Ensures the proposal subject line always begins with a single clean "Sub: " prefix
+ * and eliminates any repeated "Sub: Sub: ..." occurrences.
+ */
+export function formatSubjectLine(subject?: string): string {
+  const defaultSubject = 'Supply, Install, test and commission of one Belt Type Home Elevator EV';
+  if (!subject || !subject.trim()) {
+    return `Sub: ${defaultSubject}`;
+  }
+  const stripped = subject.replace(/^(?:\s*sub\s*[:.-]\s*)+/gi, '').trim();
+  return `Sub: ${stripped || defaultSubject}`;
 }

@@ -122,9 +122,9 @@ export function parseQuotationDataFromText(
   // 5. Subject Line: e.g. "Sub: Supply, Install, test and commission of one Belt Type Home Elevator EV"
   const subMatch = rawText.match(/Sub\s*:\s*([^.\n\r]+)/i);
   if (subMatch && subMatch[1]) {
-    const sub = clean(subMatch[1]);
+    const sub = clean(subMatch[1]).replace(/^(?:\s*sub\s*[:.-]\s*)+/gi, '').trim();
     if (sub.length > 5) {
-      result.subject = `Sub: ${sub}`;
+      result.subject = sub;
       matchedFields.push('Subject');
     }
   }

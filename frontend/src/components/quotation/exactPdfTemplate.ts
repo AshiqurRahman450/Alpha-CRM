@@ -6,6 +6,7 @@ import {
   DEFAULT_QUOTATION_DATA,
   formatEffectiveShaft,
   getPresetAccessoriesFeatures,
+  formatSubjectLine,
 } from '../../types/quotation';
 
 export function sanitizeProposalParagraphs(html: string, pageNum: number, data?: QuotationData): string {
@@ -70,6 +71,7 @@ export function sanitizeProposalParagraphs(html: string, pageNum: number, data?:
   // ===================== PAGE 2 =====================
   if (pageNum === 2 || updated.includes('id="p1"')) {
     updated = buildPage2LetterHtml(updated, safeData);
+    updated = updated.replace(/(?:Sub\s*:\s*){2,}/gi, 'Sub: ');
     updated = updated.replace(/<img class="im"[^>]*40\.63[^>]*>/gi, '');
     updated = updated.replace(/<img[^>]*40\.63[^>]*>/gi, '');
     updated = updated.replace(/<img[^>]*697\.85[^>]*>/gi, '');
@@ -754,13 +756,20 @@ export function buildPage2LetterHtml(html: string, data?: QuotationData): string
   );
 
   // Subject
-  if (data?.subject) {
-    html = html.replace('Sub: Supply, Install, test and commission of one Belt Type Home Elevator EV ', 'Sub: ' + data.subject + ' ');
+  const finalSubject = formatSubjectLine(data?.subject);
+  const subjectDivRegex = /<div class="t c12"[^>]*?(?:40\.64,234\.04|z-index:1444)[^>]*>[\s\S]*?<\/div>/i;
+  if (subjectDivRegex.test(html)) {
+    html = html.replace(
+      subjectDivRegex,
+      `<div class="t c12" style="z-index:1444;transform:matrix(1,0,0,1,40.64,234.04);font-family:'f3',sans-serif;font-size:14px;font-weight:600;color:#000000;">${finalSubject} </div>`
+    );
+  } else {
+    html = html.replace(
+      /(?:Sub\s*:\s*)+Supply,\s*Install,\s*test\s*and\s*commission\s*of\s*one\s*Belt\s*Type\s*Home\s*Elevator\s*EV\s*/gi,
+      `${finalSubject} `
+    );
   }
-  html = html.replace(
-    '<div class="t c12" style="z-index:1444;transform:matrix(1,0,0,1,40.64,234.04)">',
-    '<div class="t c12" style="z-index:1444;transform:matrix(1,0,0,1,40.64,234.04);font-family:\'f3\',sans-serif;font-size:14px;font-weight:600;color:#000000;">'
-  );
+  html = html.replace(/(?:Sub\s*:\s*){2,}/gi, 'Sub: ');
 
   const p1 =
     data?.introParagraph1 ||
@@ -865,6 +874,7 @@ export function buildPage2LetterHtml(html: string, data?: QuotationData): string
       html = html.replace(/<div class="t c11"[^>]*38\.78[^>]*>[\s\S]*?<\/div>/gi, '');
       html = html.replace(/<div class="t c11"[^>]*938\.43[^>]*>[\s\S]*?<\/div>/gi, '');
       html = html.replace(/<div[^>]*>Our Bangalore Manufacturing Facility at Peenya Industrial Area\s*<\/div>/gi, '');
+      html = html.replace(/(?:Sub\s*:\s*){2,}/gi, 'Sub: ');
       return html;
     }
   }
@@ -884,6 +894,7 @@ export function buildPage2LetterHtml(html: string, data?: QuotationData): string
         html = html.replace(/<div class="t c11"[^>]*38\.78[^>]*>[\s\S]*?<\/div>/gi, '');
         html = html.replace(/<div class="t c11"[^>]*938\.43[^>]*>[\s\S]*?<\/div>/gi, '');
         html = html.replace(/<div[^>]*>Our Bangalore Manufacturing Facility at Peenya Industrial Area\s*<\/div>/gi, '');
+        html = html.replace(/(?:Sub\s*:\s*){2,}/gi, 'Sub: ');
         return html;
       }
     }
@@ -921,6 +932,7 @@ export function buildPage2LetterHtml(html: string, data?: QuotationData): string
   html = html.replace(/<div class="t c11"[^>]*938\.43[^>]*>[\s\S]*?<\/div>/gi, '');
   html = html.replace(/<div[^>]*>Our Bangalore Manufacturing Facility at Peenya Industrial Area\s*<\/div>/gi, '');
 
+  html = html.replace(/(?:Sub\s*:\s*){2,}/gi, 'Sub: ');
   return html;
 }
 
