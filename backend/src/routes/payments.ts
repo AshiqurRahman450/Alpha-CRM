@@ -11,6 +11,7 @@ import {
   triggerAdvancePaymentReminderForCRMAndAdmin,
   calculateNextUpdateDate,
 } from '../services/scheduler/schedulerService';
+import { autoFillExecutedDatesForCompletedStages } from '../utils/stageDates';
 
 export const paymentRouter = Router();
 
@@ -221,6 +222,7 @@ paymentRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT'), asyn
       console.log(`[Payment] Marked stage "QUALITY_CHECK" (Readiness Payment) as EXECUTED and moved project ${project.projectId} from ${prevStatus} to DISPATCH (Material ready to Dispatch).`);
     }
 
+    autoFillExecutedDatesForCompletedStages(project);
     await project.save();
 
     // Log Activity

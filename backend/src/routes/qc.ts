@@ -4,6 +4,7 @@ import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { generateQCReportPdf } from '../services/qc/qcReportGenerator';
 import { whatsAppWebBot } from '../services/whatsapp/whatsappWebBot';
 import { logProjectActivity } from '../services/activity/activityService';
+import { autoFillExecutedDatesForCompletedStages } from '../utils/stageDates';
 import path from 'path';
 import fs from 'fs';
 
@@ -243,6 +244,7 @@ qcRouter.post('/:id/approve', authorize('TECHNICAL_MANAGER', 'ADMIN'), async (re
       siteVisitStage.executedDate = isNaN(inspectionDate.getTime()) ? new Date() : inspectionDate;
       project.stageDates.set('SITE_MEASUREMENT', siteVisitStage);
 
+      autoFillExecutedDatesForCompletedStages(project);
       await project.save();
 
       // Log project stage change activity

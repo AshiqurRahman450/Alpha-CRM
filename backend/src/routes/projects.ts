@@ -41,6 +41,7 @@ import { config } from '../config';
 import { getNextProjectId } from '../utils/idGenerators';
 import { parseAndImportExcel, generateImportTemplateBuffer } from '../services/import/excelImportService';
 import { getTlRegexForUser, isProjectAccessibleByTl, isTlUser } from '../utils/tlAuth';
+import { autoFillExecutedDatesForCompletedStages } from '../utils/stageDates';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -1532,8 +1533,12 @@ projectRouter.get('/:id', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ success: false, message: 'Project not found' });
     }
 
-    if (!isProjectAccessibleByTl(project, req.user)) {
+    if (isProjectAccessibleByTl(project, req.user) === false) {
       return res.status(403).json({ success: false, message: 'Access denied. This project is assigned to another TL.' });
+    }
+
+    if (autoFillExecutedDatesForCompletedStages(project)) {
+      await project.save();
     }
 
     const channel = await WhatsAppChannel.findOne({ projectId: project._id });
@@ -1586,6 +1591,7 @@ projectRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT', 'BD
       if (req.body.projectStatus && LOGISTICS_ALLOWED_STAGES.includes(req.body.projectStatus)) {
         project.projectStatus = req.body.projectStatus;
       }
+      autoFillExecutedDatesForCompletedStages(project);
       await project.save();
       return res.json({ success: true, data: project });
     }
@@ -1632,6 +1638,7 @@ projectRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT', 'BD
       project.paymentStatus = 'PENDING';
     }
 
+    autoFillExecutedDatesForCompletedStages(project);
     await project.save();
     return res.json({ success: true, data: project });
   } catch (err: any) {
@@ -1727,6 +1734,8 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
       project.readinessPaymentReminderStopped = true;
       project.readinessPaymentReminderNextDueAt = undefined;
     }
+
+    autoFillExecutedDatesForCompletedStages(project);
     await project.save();
 
     await logProjectActivity({
@@ -1951,6 +1960,7 @@ projectRouter.post('/:id/drawing-approved', authorize('ADMIN', 'CRM', 'MANAGER',
     if (!currentDates.executedDate) currentDates.executedDate = new Date();
     project.stageDates.set('CUSTOMER_APPROVAL', currentDates);
 
+    autoFillExecutedDatesForCompletedStages(project);
     await project.save();
 
     await logProjectActivity({
@@ -2034,6 +2044,7 @@ projectRouter.patch('/:id/stage-dates', authorize('ADMIN', 'CRM', 'MANAGER', 'BD
     }
 
     project.stageDates.set(stageKey, currentDates);
+    autoFillExecutedDatesForCompletedStages(project);
     await project.save();
 
     let groupMessageDispatched = false;
@@ -2131,6 +2142,7 @@ projectRouter.patch('/:id/stage-dates-bulk', authorize('ADMIN', 'CRM', 'MANAGER'
       project.stageDates.set(stageKey, currentDates);
     }
 
+    autoFillExecutedDatesForCompletedStages(project);
     await project.save();
 
     const hasPaymentExecuted = updates.some((u: any) => u.stageKey === 'PAYMENT_RECEIVED' && u.executedDate);
@@ -2223,6 +2235,7 @@ projectRouter.post(
       // Advance to next stage (CUSTOMER_APPROVAL)
       project.projectStatus = 'CUSTOMER_APPROVAL';
 
+      autoFillExecutedDatesForCompletedStages(project);
       await project.save();
 
       await logProjectActivity({

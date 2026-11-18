@@ -301,9 +301,9 @@ export default function Timeline({
       <div className="relative overflow-x-auto pb-28 pt-2 scrollbar-thin scrollbar-thumb-slate-200">
         <div className="flex items-center min-w-[900px] justify-between">
           {visibleStages.map((stage, idx) => {
-            const isCompleted = idx < visibleCurrentIndex;
-            const isCurrent = idx === visibleCurrentIndex;
-            const isUpcoming = idx > visibleCurrentIndex;
+            const isCompleted = idx < visibleCurrentIndex || (currentStatus === 'COMPLETED' && idx === visibleCurrentIndex);
+            const isCurrent = idx === visibleCurrentIndex && currentStatus !== 'COMPLETED';
+            const isUpcoming = currentStatus !== 'COMPLETED' && idx > visibleCurrentIndex;
             const dates = stageDates?.[stage.key];
             
             let canEditThisStage = isEditable;
@@ -477,18 +477,26 @@ export default function Timeline({
                       <span className="text-[9px] font-bold text-slate-500 uppercase z-10 pointer-events-none">Executed</span>
                       <div className="relative w-full flex justify-center mt-0.5">
                         <div className={`text-[10px] px-1.5 py-0.5 rounded border shadow-sm whitespace-nowrap w-full text-center ${
-                          dates?.executedDate 
-                            ? 'bg-emerald-50 border-emerald-400 text-emerald-700 shadow-emerald-100' 
+                          dates?.executedDate || isCompleted
+                            ? 'bg-emerald-50 border-emerald-400 text-emerald-700 shadow-emerald-100 font-semibold' 
                             : 'bg-white border-slate-200 text-slate-400'
                         }`}>
-                          {dates?.executedDate ? new Date(dates.executedDate).toLocaleDateString('en-GB') : 'Not Set'}
+                          {dates?.executedDate 
+                            ? new Date(dates.executedDate).toLocaleDateString('en-GB') 
+                            : isCompleted 
+                              ? (dates?.scheduleDate ? new Date(dates.scheduleDate).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB'))
+                              : 'Not Set'}
                         </div>
                         {isEditable && (currentUserRole !== 'BDM' || stage.key === 'CUSTOMER_APPROVAL') && (!isAnyLogistics || ['DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY'].includes(stage.key)) && onDateChange && (
                           <input 
                             type="date" 
                             className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-20"
                             onChange={(e) => handleDateChangeLocal(stage.key, 'executedDate', e.target.value)}
-                            value={dates?.executedDate ? new Date(dates.executedDate).toISOString().split('T')[0] : ''}
+                            value={dates?.executedDate 
+                              ? new Date(dates.executedDate).toISOString().split('T')[0] 
+                              : (isCompleted 
+                                  ? (dates?.scheduleDate ? new Date(dates.scheduleDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]) 
+                                  : '')}
                             onClick={(e) => e.stopPropagation()}
                           />
                         )}
