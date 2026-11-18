@@ -35,7 +35,7 @@ export default function ProjectsPage() {
   const [paymentFilter, setPaymentFilter] = useState('');
 
   // User role
-  const [currentUser, setCurrentUser] = useState<any>(() => (typeof window !== 'undefined' ? getStoredUser() : null));
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const fetchSeqRef = useRef<number>(0);
 
   useEffect(() => {

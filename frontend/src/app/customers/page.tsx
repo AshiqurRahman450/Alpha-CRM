@@ -44,19 +44,16 @@ interface MissingField {
 }
 
 export default function CustomersPage() {
-  const storedUser = typeof window !== 'undefined' ? getStoredUser() : null;
-  const initialTl = getTlNameForUser(storedUser);
-
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [optInFilter, setOptInFilter] = useState('');
   const [bdmFilter, setBdmFilter] = useState('');
-  const [tlFilter, setTlFilter] = useState<string>(initialTl || '');
+  const [tlFilter, setTlFilter] = useState<string>('');
 
   // BDM assignment support
   const [bdms, setBdms] = useState<any[]>(DEFAULT_BDMS);
-  const [currentUser, setCurrentUser] = useState<any>(storedUser);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const fetchSeqRef = useRef<number>(0);
 
   // Edit Customer modal
@@ -277,6 +274,12 @@ export default function CustomersPage() {
 
   useEffect(() => {
     const fetchInit = async () => {
+      const u = getStoredUser();
+      if (u) {
+        setCurrentUser(u);
+        const uTl = getTlNameForUser(u);
+        if (uTl) setTlFilter(uTl);
+      }
       try {
         const userRes = await api.getCurrentUser();
         if (userRes?.user) {

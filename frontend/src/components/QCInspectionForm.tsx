@@ -224,9 +224,9 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
   const [processingPhotos, setProcessingPhotos] = useState<boolean>(false);
 
   // CRM Autofill Data State
-  const [crmCustomers, setCrmCustomers] = useState<any[]>(() => cachedCrmCustomers || []);
-  const [crmProjects, setCrmProjects] = useState<any[]>(() => cachedCrmProjects || []);
-  const [loadingCrm, setLoadingCrm] = useState<boolean>(() => !cachedCrmCustomers);
+  const [crmCustomers, setCrmCustomers] = useState<any[]>([]);
+  const [crmProjects, setCrmProjects] = useState<any[]>([]);
+  const [loadingCrm, setLoadingCrm] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isCrmDropdownOpen, setIsCrmDropdownOpen] = useState<boolean>(false);
   const [isCrmModalOpen, setIsCrmModalOpen] = useState<boolean>(false);
@@ -241,11 +241,13 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
   const [missingFields, setMissingFields] = useState<string[]>([]);
   const [lastGeneratedPdfUrl, setLastGeneratedPdfUrl] = useState<string | null>(null);
 
-  const [currentUser, setCurrentUser] = useState<any>(() => (typeof window !== 'undefined' ? getStoredUser() : null));
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
     const u = getStoredUser();
     if (u) setCurrentUser(u);
+    if (cachedCrmCustomers) setCrmCustomers(cachedCrmCustomers);
+    if (cachedCrmProjects) setCrmProjects(cachedCrmProjects);
   }, []);
 
   const assignedTlName = useMemo(() => getTlNameForUser(currentUser), [currentUser]);
