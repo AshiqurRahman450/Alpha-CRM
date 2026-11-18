@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import {
   Building2,
@@ -35,15 +35,18 @@ export default function ProjectsPage() {
   const [paymentFilter, setPaymentFilter] = useState('');
 
   // User role
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<any>(() => (typeof window !== 'undefined' ? getStoredUser() : null));
+  const fetchSeqRef = useRef<number>(0);
 
   useEffect(() => {
     const u = getStoredUser();
-    setCurrentUser(u);
+    if (u) setCurrentUser(u);
     api.getCurrentUser().then(res => {
       if (res?.user) {
+        const prevTl = getTlNameForUser(u);
+        const newTl = getTlNameForUser(res.user);
         setCurrentUser(res.user);
-        if (getTlNameForUser(res.user)) {
+        if (newTl && newTl !== prevTl) {
           fetchProjects(res.user);
         }
       }
@@ -129,9 +132,10 @@ export default function ProjectsPage() {
   };
 
   const fetchProjects = async (overrideUser?: any) => {
+    const currentSeq = ++fetchSeqRef.current;
     try {
       setLoading(true);
-      const activeUser = overrideUser || currentUser;
+      const activeUser = overrideUser || currentUser || (typeof window !== 'undefined' ? getStoredUser() : null);
       const [projRes, custRes] = await Promise.all([
         api.getProjects({
           search: search || undefined,
@@ -141,6 +145,9 @@ export default function ProjectsPage() {
         }),
         api.getCustomers(),
       ]);
+
+      if (currentSeq !== fetchSeqRef.current) return;
+
       let projList = projRes.data || [];
       let custList = custRes.data || [];
       if (getTlNameForUser(activeUser)) {
@@ -150,9 +157,13 @@ export default function ProjectsPage() {
       setProjects(projList);
       setCustomers(custList);
     } catch (err: any) {
-      console.error(err);
+      if (currentSeq === fetchSeqRef.current) {
+        console.error(err);
+      }
     } finally {
-      setLoading(false);
+      if (currentSeq === fetchSeqRef.current) {
+        setLoading(false);
+      }
     }
   };
 

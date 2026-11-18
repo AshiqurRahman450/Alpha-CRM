@@ -20,6 +20,7 @@ import {
   Download,
   Printer,
   RotateCcw,
+  RefreshCw,
   CheckCircle2,
   AlertCircle,
   Search,
@@ -139,6 +140,9 @@ interface QCInspectionFormProps {
   onSaved?: () => void;
 }
 
+let cachedCrmCustomers: any[] | null = null;
+let cachedCrmProjects: any[] | null = null;
+
 export default function QCInspectionForm({ initialReport, onSaved }: QCInspectionFormProps) {
   // Form State
   const [reportDate, setReportDate] = useState<string>(new Date().toISOString().slice(0, 10));
@@ -220,9 +224,9 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
   const [processingPhotos, setProcessingPhotos] = useState<boolean>(false);
 
   // CRM Autofill Data State
-  const [crmCustomers, setCrmCustomers] = useState<any[]>([]);
-  const [crmProjects, setCrmProjects] = useState<any[]>([]);
-  const [loadingCrm, setLoadingCrm] = useState<boolean>(false);
+  const [crmCustomers, setCrmCustomers] = useState<any[]>(() => cachedCrmCustomers || []);
+  const [crmProjects, setCrmProjects] = useState<any[]>(() => cachedCrmProjects || []);
+  const [loadingCrm, setLoadingCrm] = useState<boolean>(() => !cachedCrmCustomers);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isCrmDropdownOpen, setIsCrmDropdownOpen] = useState<boolean>(false);
   const [isCrmModalOpen, setIsCrmModalOpen] = useState<boolean>(false);
@@ -237,34 +241,42 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
   const [missingFields, setMissingFields] = useState<string[]>([]);
   const [lastGeneratedPdfUrl, setLastGeneratedPdfUrl] = useState<string | null>(null);
 
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<any>(() => (typeof window !== 'undefined' ? getStoredUser() : null));
 
   useEffect(() => {
-    setCurrentUser(getStoredUser());
+    const u = getStoredUser();
+    if (u) setCurrentUser(u);
   }, []);
 
   const assignedTlName = useMemo(() => getTlNameForUser(currentUser), [currentUser]);
 
   // Load CRM Customers & Projects for autofill
-  useEffect(() => {
-    const fetchCrmData = async () => {
-      try {
+  const fetchCrmData = async (forceRefresh = false) => {
+    try {
+      if (!cachedCrmCustomers || forceRefresh) {
         setLoadingCrm(true);
-        const user = getStoredUser();
-        setCurrentUser(user);
-
-        const [custRes, projRes] = await Promise.all([
-          api.getCustomers().catch(() => ({ data: [] })),
-          api.getProjects().catch(() => ({ data: [] })),
-        ]);
-        setCrmCustomers(custRes.data || []);
-        setCrmProjects(projRes.data || []);
-      } catch (err) {
-        console.warn('Could not load CRM customers for autofill:', err);
-      } finally {
-        setLoadingCrm(false);
       }
-    };
+      const user = getStoredUser();
+      if (user) setCurrentUser(user);
+
+      const [custRes, projRes] = await Promise.all([
+        api.getCustomers().catch(() => ({ data: [] })),
+        api.getProjects().catch(() => ({ data: [] })),
+      ]);
+      const custData = custRes?.data || [];
+      const projData = projRes?.data || [];
+      cachedCrmCustomers = custData;
+      cachedCrmProjects = projData;
+      setCrmCustomers(custData);
+      setCrmProjects(projData);
+    } catch (err) {
+      console.warn('Could not load CRM customers for autofill:', err);
+    } finally {
+      setLoadingCrm(false);
+    }
+  };
+
+  useEffect(() => {
     fetchCrmData();
   }, []);
 
@@ -314,9 +326,9 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
       const isAssignedDirect = isCustomerAssignedToTlUser(c, currentUser);
       const isAssignedViaProject = crmProjects.some(
         (p) =>
-          ((p.customerId?._id && p.customerId._id === c._id) ||
-            p.customerId === c._id ||
-            p.customerCode === c.customerId) &&
+          ((p.customerId?._id && String(p.customerId._id) === String(c._id)) ||
+            (p.customerId && String(p.customerId) === String(c._id)) ||
+            (p.customerCode && String(p.customerCode) === String(c.customerId))) &&
           isProjectAssignedToTlUser(p, currentUser)
       );
       return isAssignedDirect || isAssignedViaProject;
@@ -2161,14 +2173,24 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
                   </p>
                 </div>
               </div>
-              <button
-                id="btn-close-crm-modal"
-                type="button"
-                onClick={() => setIsCrmModalOpen(false)}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors text-xs font-bold cursor-pointer"
-              >
-                ✕
-              </button>
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => fetchCrmData(true)}
+                  title="Refresh CRM client list"
+                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors text-xs font-bold cursor-pointer"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingCrm ? 'animate-spin' : ''}`} />
+                </button>
+                <button
+                  id="btn-close-crm-modal"
+                  type="button"
+                  onClick={() => setIsCrmModalOpen(false)}
+                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors text-xs font-bold cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             {/* Search Input Bar */}
@@ -2218,7 +2240,12 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
 
             {/* Client List */}
             <div className="flex-1 overflow-y-auto p-4 space-y-2 divide-y divide-slate-100">
-              {filteredCrmItems.length === 0 ? (
+              {loadingCrm && filteredCrmItems.length === 0 ? (
+                <div className="py-12 text-center space-y-3">
+                  <div className="w-8 h-8 border-2 border-sky-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                  <div className="text-xs font-semibold text-slate-500">Loading CRM clients...</div>
+                </div>
+              ) : filteredCrmItems.length === 0 ? (
                 <div className="py-12 text-center space-y-2">
                   <User className="w-10 h-10 text-slate-300 mx-auto" />
                   <div className="text-sm font-bold text-slate-700">No matching clients found</div>
@@ -2227,14 +2254,21 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
                       ? `No clients currently assigned to ${assignedTlName}. Ask Admin or CRM to assign customers to ${assignedTlName}.`
                       : `No CRM client found matching "${searchQuery}". You can type details manually in the form.`}
                   </p>
+                  <button
+                    type="button"
+                    onClick={() => fetchCrmData(true)}
+                    className="mt-2 text-xs font-bold text-sky-600 hover:text-sky-700 underline cursor-pointer"
+                  >
+                    Refresh Client List
+                  </button>
                 </div>
               ) : (
                 filteredCrmItems.map((cust) => {
                   const associatedProject = crmProjects.find(
                     (p) =>
-                      (p.customerId?._id && p.customerId._id === cust._id) ||
-                      p.customerId === cust._id ||
-                      p.customerCode === cust.customerId
+                      (p.customerId?._id && String(p.customerId._id) === String(cust._id)) ||
+                      (p.customerId && String(p.customerId) === String(cust._id)) ||
+                      (p.customerCode && String(p.customerCode) === String(cust.customerId))
                   );
 
                   return (

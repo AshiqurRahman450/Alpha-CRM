@@ -79,6 +79,10 @@ export function isCustomerAccessibleByTl(customer: any, user: any): boolean {
 
   if (customer.assignedTl && regex.test(customer.assignedTl)) return true;
   if (customer.assignedTlId && (String(customer.assignedTlId) === String(user._id) || String(customer.assignedTlId) === String(user.id))) return true;
+  if (customer.activeProject) {
+    if (customer.activeProject.assignedTl && regex.test(customer.activeProject.assignedTl)) return true;
+    if (customer.activeProject.assignedTlId && (String(customer.activeProject.assignedTlId) === String(user._id) || String(customer.activeProject.assignedTlId) === String(user.id))) return true;
+  }
   return false;
 }
 

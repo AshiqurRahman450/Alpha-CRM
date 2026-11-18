@@ -31,7 +31,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { api } from '../../lib/api';
+import { api, getStoredUser } from '../../lib/api';
 import { DEFAULT_BDMS, getTlNameForUser, isCustomerAssignedToTlUser } from '../../lib/constants';
 import EditCustomerModal from '../../components/EditCustomerModal';
 import ExcelImportModal from '../../components/ExcelImportModal';
@@ -44,16 +44,20 @@ interface MissingField {
 }
 
 export default function CustomersPage() {
+  const storedUser = typeof window !== 'undefined' ? getStoredUser() : null;
+  const initialTl = getTlNameForUser(storedUser);
+
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [optInFilter, setOptInFilter] = useState('');
   const [bdmFilter, setBdmFilter] = useState('');
-  const [tlFilter, setTlFilter] = useState('');
+  const [tlFilter, setTlFilter] = useState<string>(initialTl || '');
 
   // BDM assignment support
   const [bdms, setBdms] = useState<any[]>(DEFAULT_BDMS);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<any>(storedUser);
+  const fetchSeqRef = useRef<number>(0);
 
   // Edit Customer modal
   const [editingCustomer, setEditingCustomer] = useState<any>(null);
@@ -212,9 +216,10 @@ export default function CustomersPage() {
   };
 
   const fetchCustomers = async (overrideUser?: any) => {
+    const currentSeq = ++fetchSeqRef.current;
     try {
       setLoading(true);
-      const activeUser = overrideUser || currentUser;
+      const activeUser = overrideUser || currentUser || (typeof window !== 'undefined' ? getStoredUser() : null);
       const userTl = getTlNameForUser(activeUser);
       const effectiveTl = userTl || tlFilter || undefined;
       const res = await api.getCustomers({
@@ -223,15 +228,22 @@ export default function CustomersPage() {
         bdmId: bdmFilter || undefined,
         assignedTl: effectiveTl,
       });
+
+      if (currentSeq !== fetchSeqRef.current) return;
+
       let list = res.data || [];
       if (userTl) {
         list = list.filter((c: any) => isCustomerAssignedToTlUser(c, activeUser));
       }
       setCustomers(list);
     } catch (err: any) {
-      console.error(err);
+      if (currentSeq === fetchSeqRef.current) {
+        console.error(err);
+      }
     } finally {
-      setLoading(false);
+      if (currentSeq === fetchSeqRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -267,18 +279,19 @@ export default function CustomersPage() {
     const fetchInit = async () => {
       try {
         const userRes = await api.getCurrentUser();
-        setCurrentUser(userRes?.user);
-        const userTl = getTlNameForUser(userRes?.user);
-        if (userTl) {
-          setTlFilter(userTl);
-          fetchCustomers(userRes?.user);
-        }
-        if (userRes?.user?.role === 'BDM') {
-          setNewCust((prev) => ({
-            ...prev,
-            bdmId: userRes.user.id || userRes.user._id,
-            bdmPhone: userRes.user.phone || '',
-          }));
+        if (userRes?.user) {
+          setCurrentUser(userRes.user);
+          const userTl = getTlNameForUser(userRes.user);
+          if (userTl && userTl !== tlFilter) {
+            setTlFilter(userTl);
+          }
+          if (userRes.user.role === 'BDM') {
+            setNewCust((prev) => ({
+              ...prev,
+              bdmId: userRes.user.id || userRes.user._id,
+              bdmPhone: userRes.user.phone || '',
+            }));
+          }
         }
       } catch (err) {
         console.warn('Failed to load current user profile:', err);

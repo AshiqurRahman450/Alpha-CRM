@@ -102,49 +102,48 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
     const { search, optIn, customerType, bdmId, isOldCustomer, assignedTl } = req.query;
     const query: any = {};
 
-    // Ensure each project has its own dedicated individual customer
-    await splitSharedCustomerProjects();
+    // Background non-blocking sync for quotes missing bdmId (never blocks GET /api/customers)
+    setImmediate(async () => {
+      try {
+        const quotesWithBdm = await Quotation.find({
+          status: 'CRM_APPROVED',
+          createdCustomerId: { $exists: true, $ne: null },
+          $or: [{ bdmId: { $exists: true, $ne: null } }, { approvalRequestedBy: { $exists: true, $ne: null } }],
+        })
+          .select('createdCustomerId createdProjectId bdmId bdmName bdmPhone approvalRequestedBy approvalRequestedByName')
+          .lean();
 
-    // Auto-link any customer created from an approved quotation that is missing bdmId
-    try {
-      const quotesWithBdm = await Quotation.find({
-        status: 'CRM_APPROVED',
-        createdCustomerId: { $exists: true, $ne: null },
-        $or: [{ bdmId: { $exists: true, $ne: null } }, { approvalRequestedBy: { $exists: true, $ne: null } }],
-      })
-        .select('createdCustomerId createdProjectId bdmId bdmName bdmPhone approvalRequestedBy approvalRequestedByName')
-        .lean();
-
-      for (const q of quotesWithBdm) {
-        const bId = q.bdmId || q.approvalRequestedBy;
-        if (bId && q.createdCustomerId) {
-          await Customer.updateOne(
-            { _id: q.createdCustomerId, $or: [{ bdmId: null }, { bdmId: { $exists: false } }] },
-            {
-              $set: {
-                bdmId: bId,
-                ...(q.bdmName || q.approvalRequestedByName ? { assignedEmployee: q.bdmName || q.approvalRequestedByName } : {}),
-                ...(q.bdmPhone ? { bdmPhone: q.bdmPhone } : {}),
-              },
-            }
-          );
+        for (const q of quotesWithBdm) {
+          const bId = q.bdmId || q.approvalRequestedBy;
+          if (bId && q.createdCustomerId) {
+            await Customer.updateOne(
+              { _id: q.createdCustomerId, $or: [{ bdmId: null }, { bdmId: { $exists: false } }] },
+              {
+                $set: {
+                  bdmId: bId,
+                  ...(q.bdmName || q.approvalRequestedByName ? { assignedEmployee: q.bdmName || q.approvalRequestedByName } : {}),
+                  ...(q.bdmPhone ? { bdmPhone: q.bdmPhone } : {}),
+                },
+              }
+            );
+          }
+          if (bId && q.createdProjectId) {
+            await Project.updateOne(
+              { _id: q.createdProjectId, $or: [{ bdmId: null }, { bdmId: { $exists: false } }] },
+              {
+                $set: {
+                  bdmId: bId,
+                  ...(q.bdmName || q.approvalRequestedByName ? { assignedEmployee: q.bdmName || q.approvalRequestedByName } : {}),
+                  ...(q.bdmPhone ? { bdmPhone: q.bdmPhone } : {}),
+                },
+              }
+            );
+          }
         }
-        if (bId && q.createdProjectId) {
-          await Project.updateOne(
-            { _id: q.createdProjectId, $or: [{ bdmId: null }, { bdmId: { $exists: false } }] },
-            {
-              $set: {
-                bdmId: bId,
-                ...(q.bdmName || q.approvalRequestedByName ? { assignedEmployee: q.bdmName || q.approvalRequestedByName } : {}),
-                ...(q.bdmPhone ? { bdmPhone: q.bdmPhone } : {}),
-              },
-            }
-          );
-        }
+      } catch (e) {
+        // Non-blocking sync error swallowed
       }
-    } catch (e) {
-      // Non-blocking sync
-    }
+    });
 
     const andConditions: any[] = [];
 
@@ -180,7 +179,30 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
       }
     }
 
-    if (assignedTl && typeof assignedTl === 'string' && assignedTl !== 'ALL') {
+    // Role-based visibility: Team Leads (Srinivasan, Sundaram, Bala) only see assigned customers
+    if (isTlUser(req.user)) {
+      const tlRegex = getTlRegexForUser(req.user);
+      if (tlRegex) {
+        const projectConditions: any[] = [{ assignedTl: tlRegex }];
+        if (req.user?._id) {
+          projectConditions.push({ assignedTlId: req.user._id });
+        }
+        const matchingProjects = await Project.find({ $or: projectConditions }).select('customerId').lean();
+        const projectCustIds = matchingProjects.map((p) => p.customerId).filter(Boolean);
+
+        const tlConditions: any[] = [
+          { assignedTl: tlRegex },
+          { _id: { $in: projectCustIds } },
+        ];
+        if (req.user?._id) {
+          tlConditions.push({ assignedTlId: req.user._id });
+          if (Types.ObjectId.isValid(req.user._id)) {
+            tlConditions.push({ assignedTlId: new Types.ObjectId(req.user._id) });
+          }
+        }
+        andConditions.push({ $or: tlConditions });
+      }
+    } else if (assignedTl && typeof assignedTl === 'string' && assignedTl !== 'ALL') {
       if (assignedTl === 'unassigned') {
         andConditions.push({
           $or: [
@@ -190,17 +212,27 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
           ],
         });
       } else {
-        const cleanTl = assignedTl.trim().replace(/[^a-zA-Z0-9]/g, '');
+        const val = assignedTl.trim();
+        let targetRegex: RegExp;
+        if (/srinivasan|srini/i.test(val)) {
+          targetRegex = /srinivasan|srini/i;
+        } else if (/sundaram|sundar/i.test(val)) {
+          targetRegex = /sundaram|sundar/i;
+        } else if (/\bbala\b/i.test(val)) {
+          targetRegex = /\bbala\b/i;
+        } else {
+          const escaped = val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          targetRegex = new RegExp(escaped, 'i');
+        }
+        const projMatches = await Project.find({ assignedTl: targetRegex }).select('customerId').lean();
+        const pCustIds = projMatches.map((p) => p.customerId).filter(Boolean);
         andConditions.push({
-          assignedTl: new RegExp(cleanTl, 'i'),
+          $or: [
+            { assignedTl: targetRegex },
+            { _id: { $in: pCustIds } },
+          ],
         });
       }
-    }
-
-    // Role-based visibility: Team Leads (Srinivasan, Sundaram, Bala) only see assigned customers
-    const tlFilter = getCustomerTlFilter(req.user);
-    if (tlFilter) {
-      andConditions.push(tlFilter);
     }
 
     if (search && typeof search === 'string' && search.trim()) {
@@ -288,7 +320,7 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
     const activeProjects = await Project.find({
       customerId: { $in: custIds },
       projectStatus: { $nin: ['COMPLETED', 'CANCELLED'] },
-    }).select('customerId projectId projectName projectStatus nextUpdateAt').lean();
+    }).select('customerId projectId projectName projectStatus nextUpdateAt assignedTl assignedTlId').lean();
 
     const projectMap = new Map();
     activeProjects.forEach((p) => {
