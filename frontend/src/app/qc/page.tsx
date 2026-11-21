@@ -342,43 +342,59 @@ export default function QCPage() {
                   return (
                     <div
                       key={uniqueKey}
-                      className="p-4 rounded-2xl border border-slate-200 bg-slate-50/70 flex flex-col justify-between gap-3"
+                      className="p-4 rounded-2xl border-2 border-amber-300 bg-white shadow-sm flex flex-col justify-between gap-3"
                     >
-                      <div className="flex items-start gap-3">
-                        {imgs[0] && (
-                          <a
-                            href={resolveStageImageUrl(imgs[0])}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="w-20 h-20 rounded-xl overflow-hidden border-2 border-sky-400 shrink-0 bg-slate-200 block"
-                            title="Click to view full image"
-                          >
-                            <img
-                              src={resolveStageImageUrl(imgs[0])}
-                              alt={item.stage.stageName}
-                              className="w-full h-full object-cover"
-                            />
-                          </a>
-                        )}
-                        <div className="space-y-1 flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-100 text-indigo-900">
-                              {item.projectCode}
-                            </span>
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300">
-                              Stage {item.stage.slNo}/11
-                            </span>
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="space-y-1 flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-100 text-indigo-900">
+                                {item.projectCode}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300">
+                                Stage {item.stage.slNo}/11
+                              </span>
+                            </div>
+                            <h4 className="text-sm font-extrabold text-slate-900">
+                              {item.stage.stageName}
+                            </h4>
+                            <p className="text-xs text-slate-600">
+                              Project: <strong>{item.projectName}</strong> • Client: <strong>{item.customerName}</strong>
+                            </p>
+                            <p className="text-[11px] text-slate-500">
+                              Submitted by: <strong>{item.stage.submittedBy || item.assignedTl || 'Team Lead'}</strong>
+                            </p>
                           </div>
-                          <h4 className="text-sm font-extrabold text-slate-900 truncate">
-                            {item.stage.stageName}
-                          </h4>
-                          <p className="text-xs text-slate-600">
-                            Project: <strong>{item.projectName}</strong> • Client: <strong>{item.customerName}</strong>
-                          </p>
-                          <p className="text-[11px] text-slate-500">
-                            Submitted by: <strong>{item.stage.submittedBy || item.assignedTl || 'Team Lead'}</strong>
-                          </p>
                         </div>
+
+                        {/* Large Visible Stage Photo Preview */}
+                        {imgs.length > 0 ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {imgs.map((imgUrl, idx) => (
+                              <a
+                                key={idx}
+                                href={resolveStageImageUrl(imgUrl)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="block rounded-xl overflow-hidden border-2 border-sky-400 bg-slate-900 h-44 relative group"
+                                title="Click to open full-size image"
+                              >
+                                <img
+                                  src={resolveStageImageUrl(imgUrl)}
+                                  alt={`${item.stage.stageName} photo ${idx + 1}`}
+                                  className="w-full h-full object-contain group-hover:scale-105 transition-transform"
+                                />
+                                <span className="absolute bottom-1.5 right-1.5 bg-slate-900/80 text-white text-[10px] font-bold px-2 py-0.5 rounded-md">
+                                  🔍 View Full Photo
+                                </span>
+                              </a>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="p-4 rounded-xl bg-slate-100 text-center text-xs text-slate-400">
+                            No stage photo attached
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex items-center justify-between pt-2 border-t border-slate-200/80 gap-2">

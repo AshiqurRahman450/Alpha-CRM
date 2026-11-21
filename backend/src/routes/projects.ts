@@ -2639,6 +2639,54 @@ function resolveStageImageDiskPath(imageUrl: string, projectCodeOrId: string, st
 }
 
 /**
+ * Helper: Converts a local /uploads/... or /api/uploads/... image URL into a data:image/...;base64,... URL
+ * so the browser renders it inline without cross-origin or static-path issues.
+ */
+function imageUrlToDataUrl(imageUrl: string, projectCodeOrId: string, stageKey: string): string {
+  try {
+    if (!imageUrl || typeof imageUrl !== 'string') return '';
+    if (imageUrl.startsWith('data:image/')) return imageUrl;
+
+    const diskPath = resolveStageImageDiskPath(imageUrl, projectCodeOrId, stageKey);
+    if (diskPath && fs.existsSync(diskPath)) {
+      const ext = path.extname(diskPath).toLowerCase();
+      const mime = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+      const b64 = fs.readFileSync(diskPath).toString('base64');
+      if (b64) {
+        return `data:${mime};base64,${b64}`;
+      }
+    }
+    return imageUrl;
+  } catch {
+    return imageUrl;
+  }
+}
+
+/**
+ * Helper: Hydrates stage images so every stage has inline data:image/... URLs for instant rendering
+ */
+function hydrateStagesWithInlineImages(stages: any[], projectCodeOrId: string): any[] {
+  if (!Array.isArray(stages)) return [];
+  return stages.map((s: any) => {
+    const plain = typeof s.toObject === 'function' ? s.toObject() : s._doc ? { ...s._doc } : { ...s };
+    const rawList: string[] =
+      Array.isArray(plain.images) && plain.images.length > 0
+        ? plain.images
+        : plain.imageUrl
+        ? [plain.imageUrl]
+        : [];
+    if (rawList.length > 0) {
+      const hydrated = rawList
+        .map((u) => imageUrlToDataUrl(u, projectCodeOrId, plain.stageKey || 'STAGE'))
+        .filter(Boolean);
+      plain.images = hydrated;
+      plain.imageUrl = hydrated[0] || plain.imageUrl || '';
+    }
+    return plain;
+  });
+}
+
+/**
  * GET /api/projects/installation-stages/pending-approvals
  * Returns all projects that have installation stages awaiting Technical Manager (Kishore) approval
  */
@@ -2657,7 +2705,11 @@ projectRouter.get(
       const pendingItems: any[] = [];
       for (const proj of projects) {
         const cust: any = proj.customerId || {};
-        for (const st of proj.installationStages || []) {
+        const hydratedStages = hydrateStagesWithInlineImages(
+          proj.installationStages || [],
+          proj.projectId || String(proj._id)
+        );
+        for (const st of hydratedStages) {
           if (st.approvalStatus === 'PENDING_APPROVAL') {
             pendingItems.push({
               projectId: proj._id,
@@ -2708,7 +2760,12 @@ projectRouter.get('/:id/installation-stages', async (req: AuthRequest, res: Resp
       await project.save();
     }
 
-    return res.json({ success: true, data: stages });
+    const hydrated = hydrateStagesWithInlineImages(
+      stages as any[],
+      project.projectId || String(project._id)
+    );
+
+    return res.json({ success: true, data: hydrated });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -2906,7 +2963,7 @@ projectRouter.post(
         return res.json({
           success: true,
           message: `Stage ${updatedStage.slNo} ("${updatedStage.stageName}") photo uploaded & marked Done! Routed to Technical Manager (Kishore) for approval. WhatsApp group message will be sent with photo once Kishore approves.`,
-          data: updatedStages,
+          data: hydrateStagesWithInlineImages(updatedStages, project.projectId || String(project._id)),
           pendingApproval: true,
           whatsappResult: {
             sent: false,
@@ -2929,7 +2986,7 @@ projectRouter.post(
         return res.json({
           success: true,
           message: `Photo uploaded for Stage ${updatedStage.slNo} ("${updatedStage.stageName}").`,
-          data: updatedStages,
+          data: hydrateStagesWithInlineImages(updatedStages, project.projectId || String(project._id)),
         });
       }
 
@@ -3035,7 +3092,7 @@ Alpha Elevators Team`;
       return res.json({
         success: true,
         message: 'Installation stage updated and subsequent stages cascaded successfully',
-        data: updatedStages,
+        data: hydrateStagesWithInlineImages(updatedStages, project.projectId || String(project._id)),
         whatsappResult,
       });
     } catch (err: any) {
@@ -3235,7 +3292,7 @@ Alpha Elevators Team`;
       return res.json({
         success: true,
         message: whatsappResult.message || `Stage ${targetStage.slNo} approved and sent to WhatsApp group with photo!`,
-        data: stages,
+        data: hydrateStagesWithInlineImages(stages, project.projectId || String(project._id)),
         whatsappResult,
       });
     } catch (err: any) {
@@ -3287,7 +3344,7 @@ projectRouter.post(
       return res.json({
         success: true,
         message: `Stage ${targetStage.slNo} marked for revision. Team Lead can upload a new photo and resubmit.`,
-        data: stages,
+        data: hydrateStagesWithInlineImages(stages, project.projectId || String(project._id)),
       });
     } catch (err: any) {
       console.error('[Reject Installation Stage Error]:', err);

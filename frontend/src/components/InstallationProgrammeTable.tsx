@@ -646,6 +646,110 @@ export default function InstallationProgrammeTable({
         </div>
       </div>
 
+      {/* KISHORE / PENDING STAGE PHOTO APPROVALS HIGH-VISIBILITY PANEL */}
+      {stages.some((s) => s.approvalStatus === 'PENDING_APPROVAL') && (
+        <div className="bg-amber-50/90 border-b-2 border-amber-300 p-4 sm:p-5 space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" />
+              <h3 className="text-xs sm:text-sm font-extrabold text-amber-950 uppercase tracking-wide">
+                Stage Completion Photos Awaiting Technical Manager (Kishore) Approval
+              </h3>
+            </div>
+            <span className="text-[11px] font-bold text-amber-800 bg-amber-200/70 px-2.5 py-0.5 rounded-full">
+              {stages.filter((s) => s.approvalStatus === 'PENDING_APPROVAL').length} Stage(s) Pending Approval
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {stages
+              .filter((s) => s.approvalStatus === 'PENDING_APPROVAL')
+              .map((st) => {
+                const imgs = getStageImages(st);
+                return (
+                  <div
+                    key={st.stageKey}
+                    className="bg-white rounded-2xl border-2 border-amber-300 p-3.5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      {imgs.length > 0 ? (
+                        <div className="flex items-center gap-1.5">
+                          {imgs.map((imgUrl, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => {
+                                setPreviewStage(st);
+                                setPreviewImageIdx(i);
+                              }}
+                              className="relative w-20 h-20 rounded-xl overflow-hidden border-2 border-sky-500 shadow-sm bg-slate-100 shrink-0 group cursor-pointer"
+                              title="Click to enlarge stage photo"
+                            >
+                              <img
+                                src={resolveStageImageUrl(imgUrl)}
+                                alt={`Stage ${st.slNo}`}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                              />
+                              <span className="absolute bottom-0 inset-x-0 bg-slate-900/75 text-white text-[9px] font-bold py-0.5 text-center">
+                                🔍 View Photo
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="w-20 h-20 rounded-xl bg-slate-100 border border-slate-300 flex items-center justify-center text-[10px] text-slate-400">
+                          No Photo
+                        </div>
+                      )}
+                      <div>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300">
+                          Stage {st.slNo} of 11
+                        </span>
+                        <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 mt-1">
+                          {st.stageName}
+                        </h4>
+                        <p className="text-[11px] text-slate-500">
+                          Uploaded by: <strong>{st.submittedBy || 'Team Lead'}</strong>
+                        </p>
+                      </div>
+                    </div>
+
+                    {isKishoreOrAdmin ? (
+                      <div className="flex sm:flex-col items-center gap-1.5 w-full sm:w-auto justify-end">
+                        <button
+                          type="button"
+                          disabled={approvingStageKey === st.stageKey}
+                          onClick={() => handleKishoreApproveStage(st)}
+                          className="flex-1 sm:w-full px-3.5 py-2 rounded-xl text-xs font-extrabold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>
+                            {approvingStageKey === st.stageKey ? 'Sending...' : 'Approve & Send Group'}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRejectModalStage(st);
+                            setRejectReasonInput('');
+                          }}
+                          className="px-3 py-1.5 sm:w-full rounded-xl text-xs font-bold bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-300 cursor-pointer"
+                        >
+                          ✕ Reject
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-[11px] font-bold text-amber-800 bg-amber-100 px-2.5 py-1 rounded-xl border border-amber-300">
+                        ⏳ Waiting for Kishore Approval
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
       {/* The 11-Stage Spreadsheet Table (Exactly matching user format) */}
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs border-collapse">
@@ -761,40 +865,40 @@ export default function InstallationProgrammeTable({
                   <td className="py-2.5 px-3 text-center border-r border-slate-200">
                     <div className="flex flex-col items-center justify-center gap-1.5">
                       {stageImages.length > 0 ? (
-                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setPreviewStage(stage);
-                              setPreviewImageIdx(0);
-                            }}
-                            className="relative group/img rounded-xl overflow-hidden border-2 border-sky-400 shadow-xs w-12 h-12 bg-slate-100 shrink-0 cursor-pointer"
-                            title="Click to view full-size stage photo(s)"
-                          >
-                            <img
-                              src={resolveStageImageUrl(stageImages[0])}
-                              alt={`Stage ${stage.slNo}`}
-                              className="w-full h-full object-cover group-hover/img:scale-110 transition-transform"
-                            />
-                            <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center">
-                              <Eye className="w-4 h-4 text-white" />
-                            </div>
-                            {stageImages.length > 1 && (
-                              <span className="absolute bottom-0.5 right-0.5 bg-slate-900/85 text-white text-[9px] font-extrabold px-1 rounded">
-                                +{stageImages.length - 1}
-                              </span>
-                            )}
-                          </button>
+                        <div className="flex flex-col items-center justify-center gap-1">
+                          <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                            {stageImages.map((imgSrc, imgIdx) => (
+                              <button
+                                key={imgIdx}
+                                type="button"
+                                onClick={() => {
+                                  setPreviewStage(stage);
+                                  setPreviewImageIdx(imgIdx);
+                                }}
+                                className="relative group/img rounded-xl overflow-hidden border-2 border-sky-500 shadow-sm w-16 h-16 bg-slate-100 shrink-0 cursor-pointer"
+                                title="Click to view full-size stage photo"
+                              >
+                                <img
+                                  src={resolveStageImageUrl(imgSrc)}
+                                  alt={`Stage ${stage.slNo} Photo ${imgIdx + 1}`}
+                                  className="w-full h-full object-cover group-hover/img:scale-110 transition-transform"
+                                />
+                                <span className="absolute bottom-0 inset-x-0 bg-slate-900/75 text-white text-[8px] font-bold py-0.5 text-center">
+                                  🔍 View
+                                </span>
+                              </button>
+                            ))}
+                          </div>
 
                           {canEdit && !isApprovedByKishore && (
                             <button
                               type="button"
                               onClick={() => handleOpenPhotoModal(stage)}
-                              className="px-2 py-1 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer"
-                              title="Upload or change stage photo"
+                              className="px-2 py-0.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer"
+                              title="Add or change stage photo"
                             >
                               <Camera className="w-3 h-3 text-sky-600" />
-                              <span>Edit</span>
+                              <span>Change Img</span>
                             </button>
                           )}
                         </div>
