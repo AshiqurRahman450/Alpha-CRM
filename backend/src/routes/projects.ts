@@ -2830,8 +2830,14 @@ projectRouter.post(
 
       const savedNewUrls: string[] = [];
       incomingBase64List.forEach((b64, idx) => {
-        const url = saveBase64StageImageToDisk(project.projectId || String(project._id), stageKey, b64, idx);
-        if (url) savedNewUrls.push(url);
+        // Always write a disk copy for WhatsApp bot file sending
+        saveBase64StageImageToDisk(project.projectId || String(project._id), stageKey, b64, idx);
+        // Store the self-contained data:image/...;base64,... URL (or hydrated dataUrl) directly in MongoDB
+        // so it renders 100% reliably across localhost, VPS, and all browsers without external file dependency
+        const inlineDataUrl = b64.startsWith('data:image/')
+          ? b64
+          : imageUrlToDataUrl(b64, project.projectId || String(project._id), stageKey);
+        if (inlineDataUrl) savedNewUrls.push(inlineDataUrl);
       });
 
       const isPhotoOnlyUpdate = reason === 'PHOTO_UPLOAD';

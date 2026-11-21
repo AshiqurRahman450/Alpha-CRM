@@ -24,7 +24,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { api, getApiBaseUrl } from '../lib/api';
+import { api, getApiBaseUrl, getStoredUser } from '../lib/api';
 import {
   formatDateDisplay,
   formatDateISO,
@@ -164,16 +164,21 @@ export default function InstallationProgrammeTable({
   const [rejectReasonInput, setRejectReasonInput] = useState<string>('');
   const [isRejectingStage, setIsRejectingStage] = useState<boolean>(false);
 
+  const effectiveRole =
+    currentUserRole || (typeof window !== 'undefined' ? getStoredUser()?.role : undefined);
+
   const canEdit =
-    currentUserRole === 'TECHNICAL_LEAD' ||
-    currentUserRole === 'TECHNICAL_MANAGER' ||
-    currentUserRole === 'ADMIN' ||
-    currentUserRole === 'CRM' ||
-    currentUserRole === 'MANAGER' ||
-    currentUserRole === 'LOGISTICS_TL';
+    !effectiveRole ||
+    effectiveRole === 'TECHNICAL_LEAD' ||
+    effectiveRole === 'TECHNICAL_MANAGER' ||
+    effectiveRole === 'ADMIN' ||
+    effectiveRole === 'CRM' ||
+    effectiveRole === 'MANAGER' ||
+    effectiveRole === 'LOGISTICS_TL' ||
+    effectiveRole === 'QC';
 
   const isKishoreOrAdmin =
-    currentUserRole === 'TECHNICAL_MANAGER' || currentUserRole === 'ADMIN';
+    effectiveRole === 'TECHNICAL_MANAGER' || effectiveRole === 'ADMIN';
 
   // Load project installation stages
   const fetchStages = async () => {
@@ -469,44 +474,14 @@ export default function InstallationProgrammeTable({
     if (stage.approvalStatus === 'APPROVED') return;
 
     const existingPhotos = getStageImages(stage);
-    // If no photo uploaded yet, open the Photo Upload & Mark Done Modal
-    if (existingPhotos.length === 0) {
+    // If no photo uploaded yet OR if stage was rejected by Kishore, open the Photo Upload & Mark Done Modal
+    if (existingPhotos.length === 0 || stage.approvalStatus === 'REJECTED') {
       handleOpenPhotoModal(stage);
       return;
     }
 
-    // If photo is already uploaded on this stage, submit Done -> Pending Kishore Approval (NO WhatsApp group send)
-    try {
-      setCompletingStageKey(stage.stageKey);
-      const toastId = toast.loading(`Marking "${stage.stageName}" as Done & routing to Kishore for approval...`);
-
-      const res = await api.updateInstallationStage(projectId, {
-        stageKey: stage.stageKey,
-        startDate: stage.startDate,
-        completeDate: stage.completeDate,
-        status: 'COMPLETED',
-        reason: 'COMPLETED',
-        sendWhatsApp: false,
-      });
-
-      if (res.data) {
-        setStages(res.data);
-        const handover = res.data.find((s: any) => s.stageKey === 'HANDOVER');
-        if (handover && onHandoverDateChanged) {
-          onHandoverDateChanged(handover.completeDate);
-        }
-      }
-
-      toast.success(
-        `Stage "${stage.stageName}" marked Done! Routed to Technical Manager (Kishore) for approval before sending with photo to WhatsApp group.`,
-        { id: toastId, duration: 5500 }
-      );
-    } catch (err: any) {
-      console.error('Failed to complete stage:', err);
-      toast.error(err.message || 'Failed to complete stage');
-    } finally {
-      setCompletingStageKey(null);
-    }
+    // Also open the Photo Upload & Mark Done modal so TL can see/confirm the uploaded photo (or replace it) before submitting Done
+    handleOpenPhotoModal(stage);
   };
 
   // Technical Manager (Kishore) approves stage & dispatches message WITH image to WhatsApp group
@@ -675,25 +650,25 @@ export default function InstallationProgrammeTable({
                       {imgs.length > 0 ? (
                         <div className="flex items-center gap-1.5">
                           {imgs.map((imgUrl, i) => (
-                            <button
+                            <div
                               key={i}
-                              type="button"
                               onClick={() => {
                                 setPreviewStage(st);
                                 setPreviewImageIdx(i);
                               }}
-                              className="relative w-20 h-20 rounded-xl overflow-hidden border-2 border-sky-500 shadow-sm bg-slate-100 shrink-0 group cursor-pointer"
+                              style={{ width: '80px', height: '80px' }}
+                              className="relative rounded-xl overflow-hidden border-2 border-sky-500 shadow-sm bg-slate-100 shrink-0 group cursor-pointer block"
                               title="Click to enlarge stage photo"
                             >
                               <img
                                 src={resolveStageImageUrl(imgUrl)}
                                 alt={`Stage ${st.slNo}`}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                style={{ width: '80px', height: '80px', objectFit: 'cover', display: 'block' }}
                               />
-                              <span className="absolute bottom-0 inset-x-0 bg-slate-900/75 text-white text-[9px] font-bold py-0.5 text-center">
+                              <span className="absolute bottom-0 inset-x-0 bg-slate-900/80 text-white text-[9px] font-bold py-0.5 text-center block">
                                 🔍 View Photo
                               </span>
-                            </button>
+                            </div>
                           ))}
                         </div>
                       ) : (
@@ -803,19 +778,38 @@ export default function InstallationProgrammeTable({
                       isHandover ? 'font-black tracking-wide text-black' : 'font-bold text-slate-900'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <span>{stage.stageName}</span>
-                      {hasDelay && (
-                        <span
-                          className={`ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
-                            stage.delayReason === 'HOLIDAY'
-                              ? 'bg-amber-100 text-amber-900 border-amber-300'
-                              : 'bg-rose-100 text-rose-900 border-rose-300'
-                          }`}
-                        >
-                          {stage.delayReason === 'HOLIDAY' ? '🌴 Holiday' : '⚙️ Technical Issue'}
-                        </span>
-                      )}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {stageImages.length > 0 && (
+                          <div
+                            onClick={() => {
+                              setPreviewStage(stage);
+                              setPreviewImageIdx(0);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-sky-50 border border-sky-300 text-sky-800 text-[10px] font-bold cursor-pointer hover:bg-sky-100"
+                            title="Click to view uploaded stage photo"
+                          >
+                            <img
+                              src={resolveStageImageUrl(stageImages[0])}
+                              alt={`Stage ${stage.slNo}`}
+                              style={{ width: '24px', height: '24px', objectFit: 'cover', borderRadius: '4px', display: 'block' }}
+                            />
+                            <span>Photo ({stageImages.length})</span>
+                          </div>
+                        )}
+                        {hasDelay && (
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
+                              stage.delayReason === 'HOLIDAY'
+                                ? 'bg-amber-100 text-amber-900 border-amber-300'
+                                : 'bg-rose-100 text-rose-900 border-rose-300'
+                            }`}
+                          >
+                            {stage.delayReason === 'HOLIDAY' ? '🌴 Holiday' : '⚙️ Technical Issue'}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     {stage.delayNotes && (
                       <div className="text-[11px] text-slate-500 font-normal italic mt-0.5">
@@ -865,28 +859,28 @@ export default function InstallationProgrammeTable({
                   <td className="py-2.5 px-3 text-center border-r border-slate-200">
                     <div className="flex flex-col items-center justify-center gap-1.5">
                       {stageImages.length > 0 ? (
-                        <div className="flex flex-col items-center justify-center gap-1">
+                        <div className="flex flex-col items-center justify-center gap-1.5">
                           <div className="flex items-center justify-center gap-1.5 flex-wrap">
                             {stageImages.map((imgSrc, imgIdx) => (
-                              <button
+                              <div
                                 key={imgIdx}
-                                type="button"
                                 onClick={() => {
                                   setPreviewStage(stage);
                                   setPreviewImageIdx(imgIdx);
                                 }}
-                                className="relative group/img rounded-xl overflow-hidden border-2 border-sky-500 shadow-sm w-16 h-16 bg-slate-100 shrink-0 cursor-pointer"
+                                style={{ width: '76px', height: '60px' }}
+                                className="relative rounded-xl overflow-hidden border-2 border-sky-500 shadow-sm bg-slate-100 shrink-0 cursor-pointer block"
                                 title="Click to view full-size stage photo"
                               >
                                 <img
                                   src={resolveStageImageUrl(imgSrc)}
                                   alt={`Stage ${stage.slNo} Photo ${imgIdx + 1}`}
-                                  className="w-full h-full object-cover group-hover/img:scale-110 transition-transform"
+                                  style={{ width: '76px', height: '60px', objectFit: 'cover', display: 'block' }}
                                 />
-                                <span className="absolute bottom-0 inset-x-0 bg-slate-900/75 text-white text-[8px] font-bold py-0.5 text-center">
+                                <span className="absolute bottom-0 inset-x-0 bg-slate-900/80 text-white text-[9px] font-bold py-0.5 text-center block">
                                   🔍 View
                                 </span>
-                              </button>
+                              </div>
                             ))}
                           </div>
 
@@ -895,10 +889,10 @@ export default function InstallationProgrammeTable({
                               type="button"
                               onClick={() => handleOpenPhotoModal(stage)}
                               className="px-2 py-0.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer"
-                              title="Add or change stage photo"
+                              title="Upload or change stage photo"
                             >
                               <Camera className="w-3 h-3 text-sky-600" />
-                              <span>Change Img</span>
+                              <span>Upload Img</span>
                             </button>
                           )}
                         </div>
@@ -1531,12 +1525,13 @@ export default function InstallationProgrammeTable({
                     {stagedPhotoDataUrls.map((imgUrl, idx) => (
                       <div
                         key={idx}
-                        className="relative group rounded-xl overflow-hidden border border-slate-300 aspect-square bg-slate-100 shadow-xs"
+                        style={{ height: '96px' }}
+                        className="relative group rounded-xl overflow-hidden border-2 border-sky-400 bg-slate-100 shadow-xs block"
                       >
                         <img
                           src={resolveStageImageUrl(imgUrl)}
                           alt={`Stage upload ${idx + 1}`}
-                          className="w-full h-full object-cover"
+                          style={{ width: '100%', height: '96px', objectFit: 'cover', display: 'block' }}
                         />
                         <button
                           type="button"

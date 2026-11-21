@@ -102,6 +102,12 @@ export default function Timeline({
   const [showInstallationTable, setShowInstallationTable] = React.useState<boolean>(
     Boolean(!isLogistics && (initiallyOpenInstallation || currentUserRole === 'TECHNICAL_LEAD' || currentUserRole === 'TECHNICAL_MANAGER' || isLogisticsTL))
   );
+
+  React.useEffect(() => {
+    if (!isLogistics && (initiallyOpenInstallation || currentUserRole === 'TECHNICAL_LEAD' || currentUserRole === 'TECHNICAL_MANAGER' || isLogisticsTL)) {
+      setShowInstallationTable(true);
+    }
+  }, [isLogistics, initiallyOpenInstallation, currentUserRole, isLogisticsTL]);
   const [showVrlAlertModal, setShowVrlAlertModal] = React.useState<boolean>(false);
   const [vrlTrackingInput, setVrlTrackingInput] = React.useState<string>('');
   const [vrlInputError, setVrlInputError] = React.useState<string>('');
