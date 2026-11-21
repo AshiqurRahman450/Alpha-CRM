@@ -64,6 +64,7 @@ uploadDirs.forEach((dir) => {
       fs.mkdirSync(dir, { recursive: true });
     }
     app.use('/uploads', express.static(dir));
+    app.use('/api/uploads', express.static(dir));
   } catch {}
 });
 

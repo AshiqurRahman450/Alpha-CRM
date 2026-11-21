@@ -146,6 +146,17 @@ export interface IInstallationStage {
   durationWorkingDays: number;
   delayReason?: 'HOLIDAY' | 'TECHNICAL_ISSUE' | null;
   delayNotes?: string;
+  imageUrl?: string;
+  images?: string[];
+  approvalStatus?: 'NONE' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
+  submittedBy?: string;
+  submittedByRole?: string;
+  submittedAt?: Date;
+  approvedBy?: string;
+  approvedAt?: Date;
+  rejectionReason?: string;
+  whatsappSent?: boolean;
+  whatsappSentAt?: Date;
   lastUpdatedBy?: string;
   lastUpdatedAt?: Date;
 }
@@ -500,6 +511,21 @@ const ProjectSchema = new Schema<IProject>(
           default: null,
         },
         delayNotes: { type: String, trim: true },
+        imageUrl: { type: String },
+        images: [{ type: String }],
+        approvalStatus: {
+          type: String,
+          enum: ['NONE', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED'],
+          default: 'NONE',
+        },
+        submittedBy: { type: String, trim: true },
+        submittedByRole: { type: String, trim: true },
+        submittedAt: { type: Date },
+        approvedBy: { type: String, trim: true },
+        approvedAt: { type: Date },
+        rejectionReason: { type: String, trim: true },
+        whatsappSent: { type: Boolean, default: false },
+        whatsappSentAt: { type: Date },
         lastUpdatedBy: { type: String, trim: true },
         lastUpdatedAt: { type: Date },
       },

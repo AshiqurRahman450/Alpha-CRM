@@ -200,6 +200,7 @@ export function cascadeScheduleUpdates(
     const plain = typeof s.toObject === 'function' ? s.toObject() : s._doc ? { ...s._doc } : { ...s };
     const def = DEFAULT_INSTALLATION_STAGES[idx] || DEFAULT_INSTALLATION_STAGES.find((d: any) => d.stageKey === plain.stageKey);
     return {
+      ...plain,
       slNo: plain.slNo || def?.slNo || idx + 1,
       stageKey: plain.stageKey || def?.stageKey || `STAGE_${idx + 1}`,
       stageName: plain.stageName || def?.stageName || `Stage ${idx + 1}`,

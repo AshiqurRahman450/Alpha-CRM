@@ -802,6 +802,8 @@ export const api = {
   // Installation Programme Stages
   getInstallationStages: (projectId: string) =>
     fetchWithAuth(`/api/projects/${projectId}/installation-stages`),
+  getPendingInstallationStageApprovals: () =>
+    fetchWithAuth('/api/projects/installation-stages/pending-approvals'),
   updateInstallationStage: (
     projectId: string,
     data: {
@@ -809,12 +811,37 @@ export const api = {
       startDate?: string;
       completeDate?: string;
       status?: string;
-      reason?: 'HOLIDAY' | 'TECHNICAL_ISSUE' | 'COMPLETED' | null;
+      reason?: 'HOLIDAY' | 'TECHNICAL_ISSUE' | 'COMPLETED' | 'PHOTO_UPLOAD' | null;
       notes?: string;
       sendWhatsApp?: boolean;
+      imageBase64?: string;
+      imagesBase64?: Array<string | { dataUrl: string; fileName?: string }>;
+      replaceImages?: boolean;
     }
   ) =>
     fetchWithAuth(`/api/projects/${projectId}/installation-stages/update-stage`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  approveInstallationStage: (
+    projectId: string,
+    data: {
+      stageKey: string;
+      notes?: string;
+    }
+  ) =>
+    fetchWithAuth(`/api/projects/${projectId}/installation-stages/approve`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  rejectInstallationStage: (
+    projectId: string,
+    data: {
+      stageKey: string;
+      reason?: string;
+    }
+  ) =>
+    fetchWithAuth(`/api/projects/${projectId}/installation-stages/reject`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),

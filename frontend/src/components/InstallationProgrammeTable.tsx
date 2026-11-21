@@ -17,9 +17,14 @@ import {
   Edit2,
   CalendarCheck2,
   X,
+  Camera,
+  Upload,
+  Eye,
+  Trash2,
+  XCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { api } from '../lib/api';
+import { api, getApiBaseUrl } from '../lib/api';
 import {
   formatDateDisplay,
   formatDateISO,
@@ -42,6 +47,62 @@ export interface InstallationStageItem {
   durationWorkingDays?: number;
   delayReason?: 'HOLIDAY' | 'TECHNICAL_ISSUE' | null;
   delayNotes?: string;
+  imageUrl?: string;
+  images?: string[];
+  approvalStatus?: 'NONE' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
+  submittedBy?: string;
+  submittedByRole?: string;
+  submittedAt?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  rejectionReason?: string;
+  whatsappSent?: boolean;
+  whatsappSentAt?: string;
+}
+
+export function resolveStageImageUrl(url?: string): string {
+  if (!url) return '';
+  if (url.startsWith('data:image/') || url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  const base = getApiBaseUrl();
+  return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
+}
+
+async function compressFileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      if (!dataUrl) return reject(new Error('Failed to read image file'));
+      const img = new window.Image();
+      img.onload = () => {
+        const MAX_DIM = 1400;
+        let width = img.width;
+        let height = img.height;
+        if (width > MAX_DIM || height > MAX_DIM) {
+          if (width > height) {
+            height = Math.round((height * MAX_DIM) / width);
+            width = MAX_DIM;
+          } else {
+            width = Math.round((width * MAX_DIM) / height);
+            height = MAX_DIM;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return resolve(dataUrl);
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.84));
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    };
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
 }
 
 interface InstallationProgrammeTableProps {
@@ -87,6 +148,22 @@ export default function InstallationProgrammeTable({
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [completingStageKey, setCompletingStageKey] = useState<string | null>(null);
 
+  // Stage Photo Upload & Completion Modal State
+  const [photoModalStage, setPhotoModalStage] = useState<InstallationStageItem | null>(null);
+  const [stagedPhotoDataUrls, setStagedPhotoDataUrls] = useState<string[]>([]);
+  const [isProcessingPhotoFiles, setIsProcessingPhotoFiles] = useState<boolean>(false);
+  const [isSubmittingPhotoStage, setIsSubmittingPhotoStage] = useState<boolean>(false);
+
+  // Photo Lightbox Preview Modal State
+  const [previewStage, setPreviewStage] = useState<InstallationStageItem | null>(null);
+  const [previewImageIdx, setPreviewImageIdx] = useState<number>(0);
+
+  // Technical Manager (Kishore) Approval / Rejection State
+  const [approvingStageKey, setApprovingStageKey] = useState<string | null>(null);
+  const [rejectModalStage, setRejectModalStage] = useState<InstallationStageItem | null>(null);
+  const [rejectReasonInput, setRejectReasonInput] = useState<string>('');
+  const [isRejectingStage, setIsRejectingStage] = useState<boolean>(false);
+
   const canEdit =
     currentUserRole === 'TECHNICAL_LEAD' ||
     currentUserRole === 'TECHNICAL_MANAGER' ||
@@ -94,6 +171,9 @@ export default function InstallationProgrammeTable({
     currentUserRole === 'CRM' ||
     currentUserRole === 'MANAGER' ||
     currentUserRole === 'LOGISTICS_TL';
+
+  const isKishoreOrAdmin =
+    currentUserRole === 'TECHNICAL_MANAGER' || currentUserRole === 'ADMIN';
 
   // Load project installation stages
   const fetchStages = async () => {
@@ -286,20 +366,78 @@ export default function InstallationProgrammeTable({
     }
   };
 
-  // Handle Mark Stage Done button click
-  const handleMarkStageDone = async (stage: InstallationStageItem) => {
-    if (stage.status === 'COMPLETED') return;
+  // Helper: Get array of image URLs for a stage
+  const getStageImages = (stage: InstallationStageItem): string[] => {
+    if (Array.isArray(stage.images) && stage.images.length > 0) {
+      return stage.images;
+    }
+    if (stage.imageUrl) {
+      return [stage.imageUrl];
+    }
+    return [];
+  };
+
+  // Open Stage Photo Upload & Completion Modal
+  const handleOpenPhotoModal = (stage: InstallationStageItem) => {
+    setPhotoModalStage(stage);
+    setStagedPhotoDataUrls(getStageImages(stage));
+  };
+
+  // Handle selecting image files in the upload modal
+  const handleSelectPhotoFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
     try {
-      setCompletingStageKey(stage.stageKey);
-      const toastId = toast.loading(`Marking "${stage.stageName}" as completed & sending WhatsApp update...`);
+      setIsProcessingPhotoFiles(true);
+      const compressedList: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (!file.type.startsWith('image/')) continue;
+        const dataUrl = await compressFileToDataUrl(file);
+        compressedList.push(dataUrl);
+      }
+      if (compressedList.length > 0) {
+        setStagedPhotoDataUrls((prev) => [...prev, ...compressedList]);
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Could not process selected photo');
+    } finally {
+      setIsProcessingPhotoFiles(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleRemoveStagedPhoto = (indexToRemove: number) => {
+    setStagedPhotoDataUrls((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
+  // Save uploaded photos (and optionally mark stage Done -> Pending Kishore Approval)
+  const handleSubmitPhotoAndStage = async (markAsDone: boolean) => {
+    if (!photoModalStage) return;
+
+    if (stagedPhotoDataUrls.length === 0) {
+      toast.error(`Please select/upload at least one photo for Stage ${photoModalStage.slNo} ("${photoModalStage.stageName}")`);
+      return;
+    }
+
+    try {
+      setIsSubmittingPhotoStage(true);
+      const toastId = toast.loading(
+        markAsDone
+          ? `Uploading stage photo & routing "${photoModalStage.stageName}" to Kishore for approval...`
+          : `Uploading photo for "${photoModalStage.stageName}"...`
+      );
 
       const res = await api.updateInstallationStage(projectId, {
-        stageKey: stage.stageKey,
-        startDate: stage.startDate,
-        completeDate: stage.completeDate,
-        status: 'COMPLETED',
-        sendWhatsApp: true,
+        stageKey: photoModalStage.stageKey,
+        startDate: photoModalStage.startDate,
+        completeDate: photoModalStage.completeDate,
+        status: markAsDone ? 'COMPLETED' : undefined,
+        reason: markAsDone ? 'COMPLETED' : 'PHOTO_UPLOAD',
+        imagesBase64: stagedPhotoDataUrls,
+        replaceImages: true,
+        sendWhatsApp: false, // Never send to WhatsApp group on TL Done — only after Kishore approves!
       });
 
       if (res.data) {
@@ -311,14 +449,127 @@ export default function InstallationProgrammeTable({
       }
 
       toast.success(
-        `Stage "${stage.stageName}" marked as completed! WhatsApp update posted to group.`,
-        { id: toastId, duration: 5000 }
+        markAsDone
+          ? `Photo uploaded & Stage ${photoModalStage.slNo} marked Done! Routed to Technical Manager (Kishore) for approval (WhatsApp group message will be sent after approval).`
+          : `Photo saved for Stage ${photoModalStage.slNo} ("${photoModalStage.stageName}").`,
+        { id: toastId, duration: 5500 }
+      );
+      setPhotoModalStage(null);
+      setStagedPhotoDataUrls([]);
+    } catch (err: any) {
+      console.error('Failed to submit stage photo:', err);
+      toast.error(err.message || 'Failed to upload stage photo');
+    } finally {
+      setIsSubmittingPhotoStage(false);
+    }
+  };
+
+  // Handle Mark Stage Done button click on row
+  const handleMarkStageDone = async (stage: InstallationStageItem) => {
+    if (stage.approvalStatus === 'APPROVED') return;
+
+    const existingPhotos = getStageImages(stage);
+    // If no photo uploaded yet, open the Photo Upload & Mark Done Modal
+    if (existingPhotos.length === 0) {
+      handleOpenPhotoModal(stage);
+      return;
+    }
+
+    // If photo is already uploaded on this stage, submit Done -> Pending Kishore Approval (NO WhatsApp group send)
+    try {
+      setCompletingStageKey(stage.stageKey);
+      const toastId = toast.loading(`Marking "${stage.stageName}" as Done & routing to Kishore for approval...`);
+
+      const res = await api.updateInstallationStage(projectId, {
+        stageKey: stage.stageKey,
+        startDate: stage.startDate,
+        completeDate: stage.completeDate,
+        status: 'COMPLETED',
+        reason: 'COMPLETED',
+        sendWhatsApp: false,
+      });
+
+      if (res.data) {
+        setStages(res.data);
+        const handover = res.data.find((s: any) => s.stageKey === 'HANDOVER');
+        if (handover && onHandoverDateChanged) {
+          onHandoverDateChanged(handover.completeDate);
+        }
+      }
+
+      toast.success(
+        `Stage "${stage.stageName}" marked Done! Routed to Technical Manager (Kishore) for approval before sending with photo to WhatsApp group.`,
+        { id: toastId, duration: 5500 }
       );
     } catch (err: any) {
       console.error('Failed to complete stage:', err);
       toast.error(err.message || 'Failed to complete stage');
     } finally {
       setCompletingStageKey(null);
+    }
+  };
+
+  // Technical Manager (Kishore) approves stage & dispatches message WITH image to WhatsApp group
+  const handleKishoreApproveStage = async (stage: InstallationStageItem) => {
+    try {
+      setApprovingStageKey(stage.stageKey);
+      const toastId = toast.loading(
+        `Approving Stage ${stage.slNo} ("${stage.stageName}") & sending completion message with photo to WhatsApp group...`
+      );
+
+      const res = await api.approveInstallationStage(projectId, {
+        stageKey: stage.stageKey,
+      });
+
+      if (res.data) {
+        setStages(res.data);
+        if (previewStage?.stageKey === stage.stageKey) {
+          const updatedPreview = res.data.find((s: any) => s.stageKey === stage.stageKey);
+          if (updatedPreview) setPreviewStage(updatedPreview);
+        }
+      }
+
+      toast.success(
+        res.message || `Stage ${stage.slNo} approved! Completion message with photo sent to customer WhatsApp group.`,
+        { id: toastId, duration: 6000 }
+      );
+    } catch (err: any) {
+      console.error('Approve stage error:', err);
+      toast.error(err.message || 'Failed to approve stage');
+    } finally {
+      setApprovingStageKey(null);
+    }
+  };
+
+  // Technical Manager (Kishore) rejects stage photo / requests revision
+  const handleConfirmRejectStage = async () => {
+    if (!rejectModalStage) return;
+    try {
+      setIsRejectingStage(true);
+      const toastId = toast.loading(`Requesting photo revision for Stage ${rejectModalStage.slNo}...`);
+
+      const res = await api.rejectInstallationStage(projectId, {
+        stageKey: rejectModalStage.stageKey,
+        reason: rejectReasonInput.trim() || 'Please upload a clearer stage completion photo.',
+      });
+
+      if (res.data) {
+        setStages(res.data);
+      }
+
+      toast.success(
+        res.message || `Stage ${rejectModalStage.slNo} returned to Team Lead for photo revision.`,
+        { id: toastId, duration: 5000 }
+      );
+      setRejectModalStage(null);
+      setRejectReasonInput('');
+      if (previewStage?.stageKey === rejectModalStage.stageKey) {
+        setPreviewStage(null);
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to reject stage');
+    } finally {
+      setIsRejectingStage(false);
     }
   };
 
@@ -401,19 +652,24 @@ export default function InstallationProgrammeTable({
           <thead>
             <tr className="bg-[#B9D5F2] text-[#0A2540] border-b border-slate-300 font-extrabold uppercase text-[11px]">
               <th className="py-3 px-4 text-center w-16 border-r border-slate-300/80">SL NO</th>
-              <th className="py-3 px-5 border-r border-slate-300/80 min-w-[280px]">
+              <th className="py-3 px-5 border-r border-slate-300/80 min-w-[260px]">
                 Stage Iinstallation Programme
               </th>
-              <th className="py-3 px-4 text-center w-36 border-r border-slate-300/80">Start</th>
-              <th className="py-3 px-4 text-center w-36 border-r border-slate-300/80">Complete</th>
-              <th className="py-3 px-4 text-center w-36 border-r border-slate-300/80">Status</th>
-              {canEdit && <th className="py-3 px-4 text-center min-w-[220px]">Reason & Actions</th>}
+              <th className="py-3 px-4 text-center w-32 border-r border-slate-300/80">Start</th>
+              <th className="py-3 px-4 text-center w-32 border-r border-slate-300/80">Complete</th>
+              <th className="py-3 px-4 text-center w-44 border-r border-slate-300/80">Stage Photo</th>
+              <th className="py-3 px-4 text-center w-44 border-r border-slate-300/80">Status & Approval</th>
+              {canEdit && <th className="py-3 px-4 text-center min-w-[260px]">Reason & Actions</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 font-medium">
             {stages.map((stage) => {
               const isHandover = stage.stageKey === 'HANDOVER' || stage.slNo === 11;
               const hasDelay = stage.delayReason != null;
+              const stageImages = getStageImages(stage);
+              const isPendingKishore = stage.approvalStatus === 'PENDING_APPROVAL';
+              const isApprovedByKishore = stage.approvalStatus === 'APPROVED';
+              const isRejectedByKishore = stage.approvalStatus === 'REJECTED';
 
               return (
                 <tr
@@ -421,6 +677,8 @@ export default function InstallationProgrammeTable({
                   className={`transition-colors ${
                     isHandover
                       ? 'bg-[#FFFF00] font-bold text-slate-950 hover:bg-[#FFF500]'
+                      : isPendingKishore
+                      ? 'bg-amber-50/70 hover:bg-amber-100/50'
                       : stage.slNo % 2 === 0
                       ? 'bg-slate-50/60 hover:bg-sky-50/50'
                       : 'bg-white hover:bg-sky-50/50'
@@ -460,6 +718,11 @@ export default function InstallationProgrammeTable({
                         Note: {stage.delayNotes}
                       </div>
                     )}
+                    {isRejectedByKishore && stage.rejectionReason && (
+                      <div className="text-[11px] text-rose-700 font-bold bg-rose-50 border border-rose-200 rounded-lg px-2 py-1 mt-1">
+                        ⚠️ Kishore Feedback: {stage.rejectionReason}
+                      </div>
+                    )}
                   </td>
 
                   {/* Start Date */}
@@ -494,54 +757,192 @@ export default function InstallationProgrammeTable({
                     </div>
                   </td>
 
-                  {/* Status */}
-                  <td className="py-3.5 px-4 text-center border-r border-slate-200">
-                    <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
-                        stage.status === 'COMPLETED'
-                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                          : stage.status === 'IN_PROGRESS'
-                          ? 'bg-sky-100 text-sky-800 border-sky-300'
-                          : stage.status === 'DELAYED'
-                          ? 'bg-rose-100 text-rose-800 border-rose-300'
-                          : 'bg-slate-100 text-slate-700 border-slate-300'
-                      }`}
-                    >
-                      {stage.status || 'PENDING'}
-                    </span>
+                  {/* Stage Photo Column */}
+                  <td className="py-2.5 px-3 text-center border-r border-slate-200">
+                    <div className="flex flex-col items-center justify-center gap-1.5">
+                      {stageImages.length > 0 ? (
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPreviewStage(stage);
+                              setPreviewImageIdx(0);
+                            }}
+                            className="relative group/img rounded-xl overflow-hidden border-2 border-sky-400 shadow-xs w-12 h-12 bg-slate-100 shrink-0 cursor-pointer"
+                            title="Click to view full-size stage photo(s)"
+                          >
+                            <img
+                              src={resolveStageImageUrl(stageImages[0])}
+                              alt={`Stage ${stage.slNo}`}
+                              className="w-full h-full object-cover group-hover/img:scale-110 transition-transform"
+                            />
+                            <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center">
+                              <Eye className="w-4 h-4 text-white" />
+                            </div>
+                            {stageImages.length > 1 && (
+                              <span className="absolute bottom-0.5 right-0.5 bg-slate-900/85 text-white text-[9px] font-extrabold px-1 rounded">
+                                +{stageImages.length - 1}
+                              </span>
+                            )}
+                          </button>
+
+                          {canEdit && !isApprovedByKishore && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenPhotoModal(stage)}
+                              className="px-2 py-1 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer"
+                              title="Upload or change stage photo"
+                            >
+                              <Camera className="w-3 h-3 text-sky-600" />
+                              <span>Edit</span>
+                            </button>
+                          )}
+                        </div>
+                      ) : canEdit ? (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenPhotoModal(stage)}
+                          className="px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-dashed border-sky-400 rounded-xl text-[11px] font-bold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow-2xs"
+                          title={`Upload photo for Stage ${stage.slNo}: ${stage.stageName}`}
+                        >
+                          <Camera className="w-3.5 h-3.5 text-sky-600" />
+                          <span>Upload Img</span>
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-slate-400 italic">No photo</span>
+                      )}
+                    </div>
+                  </td>
+
+                  {/* Status & Approval */}
+                  <td className="py-3.5 px-3 text-center border-r border-slate-200">
+                    <div className="flex flex-col items-center justify-center gap-1">
+                      {isPendingKishore ? (
+                        <>
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-900 border border-amber-400 shadow-2xs animate-pulse">
+                            <Clock className="w-3 h-3 text-amber-700" />
+                            <span>Awaiting Kishore Approval</span>
+                          </span>
+                          {stage.submittedBy && (
+                            <span className="text-[9px] text-slate-500 font-semibold">
+                              By: {stage.submittedBy}
+                            </span>
+                          )}
+                        </>
+                      ) : isApprovedByKishore ? (
+                        <>
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-900 border border-emerald-400 shadow-2xs">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-700" />
+                            <span>Approved & Sent ✅</span>
+                          </span>
+                          <span className="text-[9px] text-emerald-700 font-semibold">
+                            WhatsApp Group Sent
+                          </span>
+                        </>
+                      ) : isRejectedByKishore ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-900 border border-rose-300">
+                          <XCircle className="w-3 h-3 text-rose-700" />
+                          <span>Rejected (Re-upload)</span>
+                        </span>
+                      ) : (
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                            stage.status === 'COMPLETED'
+                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                              : stage.status === 'IN_PROGRESS'
+                              ? 'bg-sky-100 text-sky-800 border-sky-300'
+                              : stage.status === 'DELAYED'
+                              ? 'bg-rose-100 text-rose-800 border-rose-300'
+                              : 'bg-slate-100 text-slate-700 border-slate-300'
+                          }`}
+                        >
+                          {stage.status || 'PENDING'}
+                        </span>
+                      )}
+                    </div>
                   </td>
 
                   {/* Actions / Reason Buttons */}
                   {canEdit && (
                     <td className="py-2.5 px-4 text-center">
                       <div className="flex flex-wrap items-center justify-center gap-1.5">
-                        {/* ✅ Done Button */}
-                        <button
-                          type="button"
-                          disabled={stage.status === 'COMPLETED' || completingStageKey === stage.stageKey}
-                          onClick={() => handleMarkStageDone(stage)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all active:scale-95 shadow-2xs flex items-center gap-1 ${
-                            stage.status === 'COMPLETED'
-                              ? 'bg-emerald-600 text-white cursor-default opacity-90'
-                              : completingStageKey === stage.stageKey
-                              ? 'bg-emerald-400 text-white cursor-wait animate-pulse'
-                              : 'bg-emerald-500 hover:bg-emerald-600 text-white hover:shadow-xs active:bg-emerald-700'
-                          }`}
-                          title={
-                            stage.status === 'COMPLETED'
-                              ? 'Stage is already completed'
-                              : `Mark "${stage.stageName}" as completed and send announcement to WhatsApp group`
-                          }
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>{stage.status === 'COMPLETED' ? 'Completed' : 'Done'}</span>
-                        </button>
+                        {/* KISHORE (TECHNICAL_MANAGER) / ADMIN APPROVE & REJECT BUTTONS */}
+                        {isKishoreOrAdmin && isPendingKishore && (
+                          <>
+                            <button
+                              type="button"
+                              disabled={approvingStageKey === stage.stageKey}
+                              onClick={() => handleKishoreApproveStage(stage)}
+                              className="px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-sm transition-all active:scale-95 flex items-center gap-1 cursor-pointer"
+                              title="Approve stage photo & send completion message with photo to customer WhatsApp group"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>
+                                {approvingStageKey === stage.stageKey
+                                  ? 'Approving & Sending...'
+                                  : 'Approve & Send Group'}
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRejectModalStage(stage);
+                                setRejectReasonInput('');
+                              }}
+                              className="px-2 py-1.5 rounded-lg text-[11px] font-bold bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-300 transition-all active:scale-95 flex items-center gap-1 cursor-pointer"
+                              title="Reject photo and ask TL to re-upload"
+                            >
+                              <XCircle className="w-3.5 h-3.5" />
+                              <span>Reject</span>
+                            </button>
+                          </>
+                        )}
+
+                        {/* ✅ Upload Photo & Done Button (For TLs & Editors) */}
+                        {!isPendingKishore && (
+                          <button
+                            type="button"
+                            disabled={isApprovedByKishore || completingStageKey === stage.stageKey}
+                            onClick={() => handleMarkStageDone(stage)}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all active:scale-95 shadow-2xs flex items-center gap-1 cursor-pointer ${
+                              isApprovedByKishore
+                                ? 'bg-emerald-600 text-white cursor-default opacity-90'
+                                : completingStageKey === stage.stageKey
+                                ? 'bg-emerald-400 text-white cursor-wait animate-pulse'
+                                : 'bg-emerald-500 hover:bg-emerald-600 text-white hover:shadow-xs active:bg-emerald-700'
+                            }`}
+                            title={
+                              isApprovedByKishore
+                                ? 'Stage is approved and sent to WhatsApp group'
+                                : stageImages.length === 0
+                                ? `Upload photo for "${stage.stageName}" & mark Done (Routes to Kishore for approval)`
+                                : `Mark "${stage.stageName}" as Done (Routes to Kishore for approval before WhatsApp group send)`
+                            }
+                          >
+                            {isApprovedByKishore ? (
+                              <>
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Approved</span>
+                              </>
+                            ) : stageImages.length === 0 ? (
+                              <>
+                                <Camera className="w-3.5 h-3.5" />
+                                <span>Upload & Done</span>
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Done</span>
+                              </>
+                            )}
+                          </button>
+                        )}
 
                         {/* 🌴 Holiday Button */}
                         <button
                           type="button"
                           onClick={() => handleOpenReasonModal(stage, 'HOLIDAY')}
-                          className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-[11px] font-bold transition-all active:scale-95 shadow-2xs flex items-center gap-1"
+                          className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-[11px] font-bold transition-all active:scale-95 shadow-2xs flex items-center gap-1 cursor-pointer"
                           title="Record Holiday and cascade schedule"
                         >
                           <span>🌴</span>
@@ -552,7 +953,7 @@ export default function InstallationProgrammeTable({
                         <button
                           type="button"
                           onClick={() => handleOpenReasonModal(stage, 'TECHNICAL_ISSUE')}
-                          className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-900 border border-rose-300 rounded-lg text-[11px] font-bold transition-all active:scale-95 shadow-2xs flex items-center gap-1"
+                          className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-900 border border-rose-300 rounded-lg text-[11px] font-bold transition-all active:scale-95 shadow-2xs flex items-center gap-1 cursor-pointer"
                           title="Record Technical Issue and cascade schedule"
                         >
                           <span>⚙️</span>
@@ -563,7 +964,7 @@ export default function InstallationProgrammeTable({
                         <button
                           type="button"
                           onClick={() => handleOpenChangeDateModal(stage)}
-                          className="p-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg text-[11px] font-semibold transition-all"
+                          className="p-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg text-[11px] font-semibold transition-all cursor-pointer"
                           title="Change Dates manually"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
@@ -936,6 +1337,321 @@ export default function InstallationProgrammeTable({
               >
                 <CalendarCheck2 className="w-4 h-4 text-slate-950" />
                 <span>{initializingSchedule ? 'Applying Schedule...' : 'Apply Initial Dates to Project'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* STAGE PHOTO UPLOAD & MARK DONE MODAL (FOR TLs & EDITORS) */}
+      {/* ============================================================== */}
+      {photoModalStage && (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="p-5 bg-gradient-to-r from-[#0F2744] to-[#1E4B82] text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-sky-500/20 border border-sky-400/30 flex items-center justify-center">
+                  <Camera className="w-5 h-5 text-sky-300" />
+                </div>
+                <div>
+                  <div className="text-[11px] font-bold text-sky-300 uppercase tracking-wider">
+                    Stage {photoModalStage.slNo} of 11 • Photo Upload
+                  </div>
+                  <h3 className="text-base font-bold font-poppins">{photoModalStage.stageName}</h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPhotoModalStage(null)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center font-bold text-xs cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4 overflow-y-auto">
+              {/* Approval Workflow Notice */}
+              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-950 flex items-start gap-2.5">
+                <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <strong>Technical Manager Approval Workflow:</strong> Uploading a stage photo and clicking{' '}
+                  <strong>Upload & Mark Done</strong> will <em>not</em> send the message to the WhatsApp group immediately.
+                  It will route to <strong>Kishore (Technical Manager)</strong> for approval, and upon his approval the
+                  completion message <strong>with this photo</strong> will be sent to the customer WhatsApp group.
+                </div>
+              </div>
+
+              {/* File Upload Picker */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-2">
+                  Select Stage Completion Photo(s):
+                </label>
+                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-sky-300 hover:border-sky-500 bg-sky-50/40 hover:bg-sky-50 rounded-2xl cursor-pointer transition-all p-4 text-center">
+                  <Upload className="w-6 h-6 text-sky-600 mb-1.5" />
+                  <span className="text-xs font-bold text-sky-900">
+                    {isProcessingPhotoFiles ? 'Processing photo(s)...' : 'Click to Upload Stage Photo(s)'}
+                  </span>
+                  <span className="text-[11px] text-slate-500 mt-0.5">
+                    Supports JPG, PNG, WEBP (Camera or Gallery)
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleSelectPhotoFiles}
+                    disabled={isProcessingPhotoFiles || isSubmittingPhotoStage}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+
+              {/* Staged Photo Thumbnails */}
+              {stagedPhotoDataUrls.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-700">
+                      Uploaded Photo(s) ({stagedPhotoDataUrls.length}):
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setStagedPhotoDataUrls([])}
+                      className="text-[11px] font-bold text-rose-600 hover:underline cursor-pointer"
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
+                    {stagedPhotoDataUrls.map((imgUrl, idx) => (
+                      <div
+                        key={idx}
+                        className="relative group rounded-xl overflow-hidden border border-slate-300 aspect-square bg-slate-100 shadow-xs"
+                      >
+                        <img
+                          src={resolveStageImageUrl(imgUrl)}
+                          alt={`Stage upload ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveStagedPhoto(idx)}
+                          className="absolute top-1 right-1 w-6 h-6 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-md hover:bg-rose-700 transition-colors cursor-pointer"
+                          title="Remove photo"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPhotoModalStage(null)}
+                disabled={isSubmittingPhotoStage}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSubmitPhotoAndStage(false)}
+                disabled={isSubmittingPhotoStage || stagedPhotoDataUrls.length === 0}
+                className="px-4 py-2 bg-sky-100 hover:bg-sky-200 text-sky-900 border border-sky-300 rounded-xl text-xs font-bold transition-all disabled:opacity-50 cursor-pointer"
+              >
+                Save Photo Only
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSubmitPhotoAndStage(true)}
+                disabled={isSubmittingPhotoStage || stagedPhotoDataUrls.length === 0}
+                className="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>
+                  {isSubmittingPhotoStage ? 'Uploading & Submitting...' : 'Upload Photo & Mark Done'}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* PHOTO LIGHTBOX PREVIEW & KISHORE APPROVAL MODAL */}
+      {/* ============================================================== */}
+      {previewStage && (
+        <div
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-fade-in"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setPreviewStage(null);
+          }}
+        >
+          <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-[#0F2744] to-[#1E4B82] text-white flex items-center justify-between">
+              <div>
+                <div className="text-[11px] font-bold text-sky-300 uppercase tracking-wider">
+                  Stage {previewStage.slNo} of 11 • {projectCode} ({projectName})
+                </div>
+                <h3 className="text-base font-bold font-poppins">{previewStage.stageName}</h3>
+                {previewStage.submittedBy && (
+                  <p className="text-[11px] text-slate-300 mt-0.5">
+                    Uploaded by: <strong>{previewStage.submittedBy}</strong>
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewStage(null)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center font-bold text-xs cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 bg-slate-900 flex-1 flex flex-col items-center justify-center overflow-y-auto min-h-[300px]">
+              {(() => {
+                const imgs = getStageImages(previewStage);
+                const activeUrl = imgs[previewImageIdx] || imgs[0];
+                if (!activeUrl) {
+                  return <div className="text-slate-400 text-xs">No photo available</div>;
+                }
+                return (
+                  <>
+                    <img
+                      src={resolveStageImageUrl(activeUrl)}
+                      alt={`Stage ${previewStage.slNo}`}
+                      className="max-h-[58vh] w-auto object-contain rounded-xl shadow-lg border border-slate-700"
+                    />
+                    {imgs.length > 1 && (
+                      <div className="flex items-center gap-2 mt-4">
+                        {imgs.map((u, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => setPreviewImageIdx(idx)}
+                            className={`w-12 h-12 rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${
+                              idx === previewImageIdx ? 'border-amber-400 scale-105' : 'border-slate-600 opacity-60'
+                            }`}
+                          >
+                            <img src={resolveStageImageUrl(u)} alt="" className="w-full h-full object-cover" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+              <div className="text-xs">
+                {previewStage.approvalStatus === 'PENDING_APPROVAL' ? (
+                  <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300 font-bold text-[11px]">
+                    ⏳ Awaiting Technical Manager (Kishore) Approval
+                  </span>
+                ) : previewStage.approvalStatus === 'APPROVED' ? (
+                  <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold text-[11px]">
+                    ✅ Approved by {previewStage.approvedBy || 'Kishore'} & Sent to WhatsApp Group
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="flex items-center gap-2">
+                {isKishoreOrAdmin && previewStage.approvalStatus === 'PENDING_APPROVAL' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRejectModalStage(previewStage);
+                        setRejectReasonInput('');
+                      }}
+                      className="px-3.5 py-2 bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      ✕ Reject Photo
+                    </button>
+                    <button
+                      type="button"
+                      disabled={approvingStageKey === previewStage.stageKey}
+                      onClick={() => handleKishoreApproveStage(previewStage)}
+                      className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-extrabold shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>
+                        {approvingStageKey === previewStage.stageKey
+                          ? 'Approving & Sending...'
+                          : 'Approve & Send with Image to WhatsApp Group'}
+                      </span>
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setPreviewStage(null)}
+                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* KISHORE REJECT STAGE PHOTO MODAL */}
+      {/* ============================================================== */}
+      {rejectModalStage && (
+        <div className="fixed inset-0 z-[100000] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="p-5 bg-gradient-to-r from-rose-700 to-rose-900 text-white flex items-center justify-between">
+              <div>
+                <div className="text-[11px] font-bold text-rose-200 uppercase tracking-wider">
+                  Stage {rejectModalStage.slNo} of 11 • Request Photo Revision
+                </div>
+                <h3 className="text-base font-bold font-poppins">{rejectModalStage.stageName}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRejectModalStage(null)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center font-bold text-xs cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-5 space-y-3">
+              <label className="block text-xs font-bold text-slate-700">
+                Reason / Feedback for Team Lead:
+              </label>
+              <textarea
+                rows={3}
+                value={rejectReasonInput}
+                onChange={(e) => setRejectReasonInput(e.target.value)}
+                placeholder="e.g. Photo is blurry, please upload a clear photo showing the completed alignment."
+                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500"
+              />
+            </div>
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setRejectModalStage(null)}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-bold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isRejectingStage}
+                onClick={handleConfirmRejectStage}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-sm cursor-pointer"
+              >
+                {isRejectingStage ? 'Rejecting...' : 'Confirm Reject'}
               </button>
             </div>
           </div>

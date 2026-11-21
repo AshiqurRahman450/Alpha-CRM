@@ -2560,6 +2560,135 @@ projectRouter.delete('/:id/request-payment', authorize('ADMIN', 'CRM', 'MANAGER'
 });
 
 /**
+ * Helper: Saves a base64 image dataUrl to disk in the uploads directory
+ */
+function saveBase64StageImageToDisk(
+  projectCodeOrId: string,
+  stageKey: string,
+  dataUrlOrBase64: string,
+  idx = 0
+): string | null {
+  try {
+    if (!dataUrlOrBase64 || typeof dataUrlOrBase64 !== 'string') return null;
+    // If already an uploaded URL path, return as-is
+    if (dataUrlOrBase64.startsWith('/uploads/') || dataUrlOrBase64.startsWith('/api/uploads/') || dataUrlOrBase64.startsWith('http')) {
+      return dataUrlOrBase64;
+    }
+
+    let ext = '.jpg';
+    let base64Data = dataUrlOrBase64;
+    const match = dataUrlOrBase64.match(/^data:image\/([a-zA-Z0-9+.-]+);base64,(.+)$/);
+    if (match) {
+      const subtype = match[1].toLowerCase();
+      if (subtype.includes('png')) ext = '.png';
+      else if (subtype.includes('webp')) ext = '.webp';
+      else ext = '.jpg';
+      base64Data = match[2];
+    } else if (dataUrlOrBase64.includes(',')) {
+      base64Data = dataUrlOrBase64.split(',')[1];
+    }
+
+    const buffer = Buffer.from(base64Data, 'base64');
+    if (!buffer || buffer.length === 0) return null;
+
+    const safeProj = String(projectCodeOrId).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const safeStage = String(stageKey).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const filename = `stage-${safeProj}-${safeStage}-${Date.now()}-${idx}${ext}`;
+    const targetDir = ensureUploadsDir();
+    const fullPath = path.join(targetDir, filename);
+    fs.writeFileSync(fullPath, buffer);
+
+    return `/api/uploads/${filename}`;
+  } catch (err: any) {
+    console.error('[StageImageSave] Error saving stage image:', err.message);
+    return null;
+  }
+}
+
+/**
+ * Helper: Resolves an uploaded stage image URL (/api/uploads/... or /uploads/... or data:image/...) to an existing file path on disk
+ */
+function resolveStageImageDiskPath(imageUrl: string, projectCodeOrId: string, stageKey: string): string | null {
+  try {
+    if (!imageUrl) return null;
+    if (imageUrl.startsWith('data:image/')) {
+      const savedUrl = saveBase64StageImageToDisk(projectCodeOrId, stageKey, imageUrl, 0);
+      if (!savedUrl) return null;
+      imageUrl = savedUrl;
+    }
+
+    const fileName = path.basename(imageUrl.split('?')[0]);
+    const candidateDirs = [
+      ensureUploadsDir(),
+      path.resolve(__dirname, '../../uploads'),
+      path.resolve(__dirname, '../uploads'),
+      path.resolve(process.cwd(), 'backend/uploads'),
+      path.resolve(process.cwd(), 'uploads'),
+    ];
+
+    for (const dir of candidateDirs) {
+      const candidatePath = path.join(dir, fileName);
+      if (fs.existsSync(candidatePath)) {
+        return candidatePath;
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * GET /api/projects/installation-stages/pending-approvals
+ * Returns all projects that have installation stages awaiting Technical Manager (Kishore) approval
+ */
+projectRouter.get(
+  '/installation-stages/pending-approvals',
+  authorize('TECHNICAL_MANAGER', 'ADMIN', 'CRM', 'MANAGER', 'TECHNICAL_LEAD', 'LOGISTICS_TL'),
+  async (_req: AuthRequest, res: Response) => {
+    try {
+      const projects = await Project.find({
+        'installationStages.approvalStatus': 'PENDING_APPROVAL',
+      })
+        .populate('customerId', 'fullName phoneNumber whatsappNumber city customerId')
+        .sort({ updatedAt: -1 })
+        .lean();
+
+      const pendingItems: any[] = [];
+      for (const proj of projects) {
+        const cust: any = proj.customerId || {};
+        for (const st of proj.installationStages || []) {
+          if (st.approvalStatus === 'PENDING_APPROVAL') {
+            pendingItems.push({
+              projectId: proj._id,
+              projectCode: proj.projectId,
+              projectName: proj.projectName,
+              siteAddress: proj.siteAddress,
+              liftModel: proj.liftModel,
+              assignedTl: proj.assignedTl || cust.assignedTl || '',
+              customerName: cust.fullName || 'Client',
+              customerCity: cust.city || '',
+              customerCode: cust.customerId || proj.customerCode || '',
+              whatsappGroupName: proj.whatsappGroupName || proj.whatsapp?.groupName || '',
+              hasWhatsAppGroup: Boolean(proj.whatsapp?.inviteLink || proj.whatsapp?.groupId || proj.whatsappGroupId),
+              stage: st,
+            });
+          }
+        }
+      }
+
+      return res.json({
+        success: true,
+        count: pendingItems.length,
+        data: pendingItems,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  }
+);
+
+/**
  * GET /api/projects/:id/installation-stages
  * Returns the 11-stage installation programme for a project (auto-initialized if empty)
  */
@@ -2588,14 +2717,26 @@ projectRouter.get('/:id/installation-stages', async (req: AuthRequest, res: Resp
 /**
  * POST /api/projects/:id/installation-stages/update-stage
  * Updates a stage date, handles reason (Holiday / Technical Issue),
- * cascades all subsequent stages (skipping weekends), and sends WhatsApp update.
+ * uploads stage completion photo(s), and routes completed stages to Technical Manager (Kishore) for approval
+ * BEFORE dispatching any completion message to the customer's WhatsApp group.
  */
 projectRouter.post(
   '/:id/installation-stages/update-stage',
-  authorize('ADMIN', 'CRM', 'MANAGER', 'TECHNICAL_LEAD', 'LOGISTICS_TL'),
+  authorize('ADMIN', 'CRM', 'MANAGER', 'TECHNICAL_LEAD', 'TECHNICAL_MANAGER', 'LOGISTICS_TL'),
   async (req: AuthRequest, res: Response) => {
     try {
-      const { stageKey, startDate, completeDate, status, reason, notes, sendWhatsApp } = req.body;
+      const {
+        stageKey,
+        startDate,
+        completeDate,
+        status,
+        reason,
+        notes,
+        sendWhatsApp,
+        imageBase64,
+        imagesBase64,
+        replaceImages,
+      } = req.body;
       const project = await Project.findById(req.params.id).populate('customerId');
       if (!project) return res.status(404).json({ success: false, message: 'Project not found' });
 
@@ -2613,28 +2754,94 @@ projectRouter.post(
       }
 
       const oldStage = stages.find((s: any) => s.stageKey === stageKey);
+      if (!oldStage) {
+        return res.status(404).json({ success: false, message: `Stage "${stageKey}" not found` });
+      }
       const oldCompleteDate = oldStage?.completeDate || '';
 
-      // Run working days cascade update (Saturdays and Sundays automatically neglected)
-      const updatedStages = cascadeScheduleUpdates(
-        stages as any,
-        stageKey,
-        startDate,
-        completeDate,
-        reason,
-        notes
-      );
+      // Process any newly uploaded stage photos
+      const incomingBase64List: string[] = [];
+      if (Array.isArray(imagesBase64)) {
+        for (const item of imagesBase64) {
+          if (typeof item === 'string' && item.trim()) incomingBase64List.push(item.trim());
+          else if (item && typeof item.dataUrl === 'string' && item.dataUrl.trim()) incomingBase64List.push(item.dataUrl.trim());
+        }
+      }
+      if (typeof imageBase64 === 'string' && imageBase64.trim()) {
+        incomingBase64List.push(imageBase64.trim());
+      }
 
-      // Status update if provided
-      if (status) {
-        const st = updatedStages.find((s) => s.stageKey === stageKey);
-        if (st) st.status = status;
+      const savedNewUrls: string[] = [];
+      incomingBase64List.forEach((b64, idx) => {
+        const url = saveBase64StageImageToDisk(project.projectId || String(project._id), stageKey, b64, idx);
+        if (url) savedNewUrls.push(url);
+      });
+
+      const isPhotoOnlyUpdate = reason === 'PHOTO_UPLOAD';
+
+      // Run working days cascade update if dates were changed (Saturdays and Sundays automatically neglected)
+      let updatedStages: any[];
+      if (isPhotoOnlyUpdate && !status) {
+        updatedStages = stages;
+      } else {
+        updatedStages = cascadeScheduleUpdates(
+          stages as any,
+          stageKey,
+          startDate || oldStage.startDate,
+          completeDate || oldStage.completeDate,
+          reason === 'HOLIDAY' || reason === 'TECHNICAL_ISSUE' ? reason : undefined,
+          notes
+        );
+      }
+
+      const st = updatedStages.find((s: any) => s.stageKey === stageKey);
+      if (st) {
+        const existingImages: string[] = Array.isArray(st.images)
+          ? [...st.images]
+          : st.imageUrl
+          ? [st.imageUrl]
+          : [];
+
+        if (savedNewUrls.length > 0) {
+          const merged = replaceImages ? savedNewUrls : Array.from(new Set([...existingImages, ...savedNewUrls]));
+          st.images = merged;
+          st.imageUrl = merged[0] || '';
+        } else if (existingImages.length > 0) {
+          st.images = existingImages;
+          st.imageUrl = existingImages[0];
+        }
+
+        st.lastUpdatedBy = req.user?.name || 'Team Lead';
+        st.lastUpdatedAt = new Date();
+      }
+
+      // If marking stage as COMPLETED (Done): require stage photo and route for Kishore approval (NO WhatsApp group message yet)
+      const isMarkingCompleted = status === 'COMPLETED';
+      if (isMarkingCompleted && st) {
+        const hasUploadedPhoto = Boolean(st.imageUrl || (Array.isArray(st.images) && st.images.length > 0));
+        if (!hasUploadedPhoto) {
+          return res.status(400).json({
+            success: false,
+            message: `Please upload a photo for Stage ${st.slNo} ("${st.stageName}") before marking it as Done.`,
+          });
+        }
+
+        st.status = 'COMPLETED';
+        st.approvalStatus = 'PENDING_APPROVAL';
+        st.submittedBy = req.user?.name || 'Team Lead';
+        st.submittedByRole = req.user?.role || 'LOGISTICS_TL';
+        st.submittedAt = new Date();
+        st.rejectionReason = '';
+        st.whatsappSent = false;
+      } else if (status && st) {
+        st.status = status;
       }
 
       project.installationStages = updatedStages as any;
+      project.markModified('installationStages');
 
       // Synchronize overall Handover date in project stageDates
-      const handoverStage = updatedStages.find((s) => s.stageKey === 'HANDOVER');
+      const handoverStage = updatedStages.find((s: any) => s.stageKey === 'HANDOVER');
       if (handoverStage) {
         if (!project.stageDates) project.stageDates = new Map();
         const existingTesting = project.stageDates.get('TESTING') || {};
@@ -2657,10 +2864,76 @@ projectRouter.post(
 
       await project.save();
 
-      const updatedStage = updatedStages.find((s) => s.stageKey === stageKey);
+      const updatedStage = updatedStages.find((s: any) => s.stageKey === stageKey);
       const customer = project.customerId as any;
 
-      // Activity log
+      // If marked COMPLETED (Done with photo), log activity and alert Kishore via 1-to-1 WhatsApp, DO NOT send to customer WhatsApp group!
+      if (isMarkingCompleted && updatedStage) {
+        await logProjectActivity({
+          projectId: project._id,
+          projectCode: project.projectId,
+          type: 'CUSTOMER_UPDATE',
+          description: `Installation Stage ${updatedStage.slNo}/11 "${updatedStage.stageName}" photo uploaded and marked Done by ${req.user?.name || 'Team Lead'}. Routed to Technical Manager (Kishore) for approval before WhatsApp group dispatch.`,
+          userId: req.user?._id,
+          userName: req.user?.name,
+        });
+
+        // Alert Technical Manager (Kishore) via 1-to-1 WhatsApp message
+        try {
+          const techManager = await User.findOne({ role: 'TECHNICAL_MANAGER', isActive: true });
+          const techManagerPhone = techManager?.phone || '+91 93848 20214';
+          const botStatus = whatsAppWebBot.getStatus();
+          if (botStatus.isConnected) {
+            const alertText =
+              `🔔 *ALPHA ELEVATORS — INSTALLATION STAGE APPROVAL REQUIRED*\n\n` +
+              `Hello Kishore,\n\n` +
+              `A new installation stage completion photo has been uploaded and awaits your approval:\n\n` +
+              `*Project:* ${project.projectName} (${project.projectId})\n` +
+              `*Customer:* ${customer?.fullName || 'Client'} (${customer?.city || project.siteAddress || 'Tamil Nadu'})\n` +
+              `*Stage ${updatedStage.slNo}/11:* ${updatedStage.stageName}\n` +
+              `*Submitted By:* ${req.user?.name || 'Team Lead'} (${req.user?.role || 'TL'})\n` +
+              `*Photos Uploaded:* ${updatedStage.images?.length || 1}\n\n` +
+              `👉 Please review the uploaded photo and click *Approve* in the CRM so the stage update + photo is dispatched to the customer WhatsApp group.`;
+
+            whatsAppWebBot.sendDirectMessage(techManagerPhone, alertText).catch((err) => {
+              console.warn('[StageApproval] Notice alerting Kishore via WhatsApp:', err.message);
+            });
+          }
+        } catch (alertErr: any) {
+          console.warn('[StageApproval] Notice preparing Kishore alert:', alertErr.message);
+        }
+
+        return res.json({
+          success: true,
+          message: `Stage ${updatedStage.slNo} ("${updatedStage.stageName}") photo uploaded & marked Done! Routed to Technical Manager (Kishore) for approval. WhatsApp group message will be sent with photo once Kishore approves.`,
+          data: updatedStages,
+          pendingApproval: true,
+          whatsappResult: {
+            sent: false,
+            pendingApproval: true,
+            message: 'Awaiting Technical Manager (Kishore) approval before sending to WhatsApp group.',
+          },
+        });
+      }
+
+      if (isPhotoOnlyUpdate && updatedStage) {
+        await logProjectActivity({
+          projectId: project._id,
+          projectCode: project.projectId,
+          type: 'DOCUMENT_UPLOAD',
+          description: `Uploaded ${savedNewUrls.length || 1} photo(s) for Installation Stage ${updatedStage.slNo}/11 "${updatedStage.stageName}" by ${req.user?.name || 'Team Lead'}.`,
+          userId: req.user?._id,
+          userName: req.user?.name,
+        });
+
+        return res.json({
+          success: true,
+          message: `Photo uploaded for Stage ${updatedStage.slNo} ("${updatedStage.stageName}").`,
+          data: updatedStages,
+        });
+      }
+
+      // Activity log for schedule / delay update
       await logProjectActivity({
         projectId: project._id,
         projectCode: project.projectId,
@@ -2672,50 +2945,17 @@ projectRouter.post(
 
       let whatsappResult = null;
 
-      // WhatsApp Notification to customer group
-      if (sendWhatsApp) {
-        const isStageCompleted = status === 'COMPLETED' || reason === 'COMPLETED' || updatedStage?.status === 'COMPLETED';
+      // WhatsApp Notification to customer group ONLY for schedule changes / delays (Holiday / Technical Issue)
+      if (sendWhatsApp && !isMarkingCompleted) {
+        const reasonText =
+          reason === 'HOLIDAY'
+            ? '🌴 Holiday / Official Non-Working Day'
+            : reason === 'TECHNICAL_ISSUE'
+              ? '⚙️ Technical Issue / On-Site Alignment Delay'
+              : 'Operational Schedule Adjustment';
 
-        let whatsappMessage: string;
-        let templateNameToRecord = 'STAGE_SCHEDULE_UPDATE';
-
-        if (isStageCompleted) {
-          templateNameToRecord = 'INSTALLATION_STAGE_COMPLETED';
-          const nextStage = updatedStages.find((s: any) => s.slNo === (updatedStage?.slNo || 0) + 1);
-          const isHandover = updatedStage?.slNo === 11 || updatedStage?.stageKey === 'HANDOVER';
-
-          whatsappMessage =
-            `✅ *ALPHA ELEVATORS — INSTALLATION STAGE COMPLETED*
-
-Dear Sir/Madam,
-
-*Project:* ${project.projectName} (${project.projectId})
-*Customer:* ${customer?.fullName || 'Client'} (${customer?.city || project.siteAddress || 'Tamil Nadu'})
-
-🎉 *Stage Completed:*
-*Stage ${updatedStage?.slNo}/11:* ${updatedStage?.stageName}
-*Status:* COMPLETED ✅
-*Completion Date:* ${formatDateDisplay(parseDateString(updatedStage?.completeDate || formatDateISO(new Date())))}
-
-${isHandover
-              ? '🏆 *Elevator Installation & Final Testing Successfully Completed! Ready for Handover Formalities.*'
-              : nextStage
-                ? `➡️ *Next Upcoming Stage:* Stage ${nextStage.slNo} — ${nextStage.stageName}\n*Scheduled Start:* ${formatDateDisplay(parseDateString(nextStage.startDate))}\n`
-                : ''}
-🗓️ *Target Handover Date:* ${handoverStage ? formatDateDisplay(parseDateString(handoverStage.completeDate)) : 'Scheduled'}
-
-Regards,
-Alpha Elevators Team`;
-        } else {
-          const reasonText =
-            reason === 'HOLIDAY'
-              ? '🌴 Holiday / Official Non-Working Day'
-              : reason === 'TECHNICAL_ISSUE'
-                ? '⚙️ Technical Issue / On-Site Alignment Delay'
-                : 'Operational Schedule Adjustment';
-
-          whatsappMessage =
-            `🔔 *ALPHA ELEVATORS — INSTALLATION SCHEDULE UPDATE*
+        const whatsappMessage =
+          `🔔 *ALPHA ELEVATORS — INSTALLATION SCHEDULE UPDATE*
 
 Dear Sir/Madam,
 
@@ -2733,7 +2973,6 @@ ${notes ? `*Technical Notes:* ${notes}\n` : ''}
 
 Regards,
 Alpha Elevators Team`;
-        }
 
         try {
           const targetGroup = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
@@ -2773,7 +3012,7 @@ Alpha Elevators Team`;
               customerId: customer?._id,
               customerName: customer?.fullName || 'Client',
               groupId: targetGroup,
-              templateName: templateNameToRecord,
+              templateName: 'STAGE_SCHEDULE_UPDATE',
               messageType: 'text',
               recipientType: 'group',
               direction: 'OUTGOING',
@@ -2807,33 +3046,302 @@ Alpha Elevators Team`;
 );
 
 /**
+ * POST /api/projects/:id/installation-stages/approve
+ * Technical Manager (Kishore) or Admin approves a completed installation stage and dispatches
+ * the stage completion message WITH the uploaded image(s) to the customer's WhatsApp group.
+ */
+projectRouter.post(
+  '/:id/installation-stages/approve',
+  authorize('TECHNICAL_MANAGER', 'ADMIN'),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { stageKey, notes } = req.body;
+      const project = await Project.findById(req.params.id).populate('customerId');
+      if (!project) return res.status(404).json({ success: false, message: 'Project not found' });
+
+      if (!project.installationStages || project.installationStages.length === 0) {
+        return res.status(400).json({ success: false, message: 'No installation stages found on this project' });
+      }
+
+      const stages: any[] = project.installationStages.map((s: any) =>
+        typeof s.toObject === 'function' ? s.toObject() : s._doc ? { ...s._doc } : { ...s }
+      );
+
+      const targetStage = stages.find((s: any) => s.stageKey === stageKey);
+      if (!targetStage) {
+        return res.status(404).json({ success: false, message: `Stage "${stageKey}" not found` });
+      }
+
+      targetStage.status = 'COMPLETED';
+      targetStage.approvalStatus = 'APPROVED';
+      targetStage.approvedBy = req.user?.name || 'Kishore (Technical Manager)';
+      targetStage.approvedAt = new Date();
+      targetStage.rejectionReason = '';
+
+      const customer = project.customerId as any;
+      const handoverStage = stages.find((s: any) => s.stageKey === 'HANDOVER');
+      const nextStage = stages.find((s: any) => s.slNo === (targetStage.slNo || 0) + 1);
+      const isHandover = targetStage.slNo === 11 || targetStage.stageKey === 'HANDOVER';
+
+      const whatsappMessage =
+        `✅ *ALPHA ELEVATORS — INSTALLATION STAGE COMPLETED*
+
+Dear Sir/Madam,
+
+*Project:* ${project.projectName} (${project.projectId})
+*Customer:* ${customer?.fullName || 'Client'} (${customer?.city || project.siteAddress || 'Tamil Nadu'})
+
+🎉 *Stage Completed & Approved:*
+*Stage ${targetStage.slNo}/11:* ${targetStage.stageName}
+*Status:* COMPLETED ✅
+*Completion Date:* ${formatDateDisplay(parseDateString(targetStage.completeDate || formatDateISO(new Date())))}
+${notes ? `*Technical Manager Notes:* ${notes}\n` : ''}
+${isHandover
+          ? '🏆 *Elevator Installation & Final Testing Successfully Completed! Ready for Handover Formalities.*'
+          : nextStage
+            ? `➡️ *Next Upcoming Stage:* Stage ${nextStage.slNo} — ${nextStage.stageName}\n*Scheduled Start:* ${formatDateDisplay(parseDateString(nextStage.startDate))}\n`
+            : ''}
+🗓️ *Target Handover Date:* ${handoverStage ? formatDateDisplay(parseDateString(handoverStage.completeDate)) : 'Scheduled'}
+
+Regards,
+Alpha Elevators Team`;
+
+      let whatsappResult: any = { sent: false, imageSent: false };
+      const targetGroup = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
+
+      if (targetGroup) {
+        try {
+          const botStatus = whatsAppWebBot.getStatus();
+          let sentViaBot = false;
+          let imageSentViaBot = false;
+          let providerMsgId = `STAGE_APPR_${Date.now()}`;
+
+          const imageUrls: string[] = Array.isArray(targetStage.images) && targetStage.images.length > 0
+            ? targetStage.images
+            : targetStage.imageUrl
+            ? [targetStage.imageUrl]
+            : [];
+
+          const diskPaths: string[] = [];
+          for (const imgUrl of imageUrls) {
+            const p = resolveStageImageDiskPath(imgUrl, project.projectId || String(project._id), stageKey);
+            if (p && fs.existsSync(p)) {
+              diskPaths.push(p);
+            }
+          }
+
+          if (config.wati.dryRun) {
+            sentViaBot = true;
+            imageSentViaBot = diskPaths.length > 0;
+            providerMsgId = `DRY_STAGE_APPR_${Date.now()}`;
+          } else if (botStatus.isConnected) {
+            if (diskPaths.length > 0) {
+              // Send first image WITH the full stage completion message as caption!
+              for (let i = 0; i < diskPaths.length; i++) {
+                const imgPath = diskPaths[i];
+                const fName = path.basename(imgPath);
+                const caption =
+                  i === 0
+                    ? whatsappMessage
+                    : `📸 *${project.projectName} (${project.projectId})* — Stage ${targetStage.slNo}/11: ${targetStage.stageName} (Photo ${i + 1})`;
+
+                const docRes = await whatsAppWebBot.sendDocumentToGroup(targetGroup, imgPath, fName, caption);
+                if (docRes.success) {
+                  sentViaBot = true;
+                  imageSentViaBot = true;
+                  providerMsgId = docRes.messageId || providerMsgId;
+                }
+              }
+
+              // Fallback if image dispatch failed for any reason
+              if (!sentViaBot) {
+                const textRes = await whatsAppWebBot.sendMessageToGroup(targetGroup, whatsappMessage);
+                if (textRes.success) {
+                  sentViaBot = true;
+                  providerMsgId = textRes.messageId || providerMsgId;
+                }
+              }
+            } else {
+              // No disk image found, send text message
+              const textRes = await whatsAppWebBot.sendMessageToGroup(targetGroup, whatsappMessage);
+              if (textRes.success) {
+                sentViaBot = true;
+                providerMsgId = textRes.messageId || providerMsgId;
+              }
+            }
+          }
+
+          targetStage.whatsappSent = sentViaBot;
+          targetStage.whatsappSentAt = new Date();
+
+          await WhatsAppMessageLog.create({
+            projectId: project._id,
+            groupId: targetGroup,
+            messageText: imageSentViaBot ? `[STAGE PHOTO + MESSAGE]: ${whatsappMessage}` : whatsappMessage,
+            messageType: imageSentViaBot ? 'image' : 'text',
+            scheduledAt: new Date(),
+            attemptedAt: new Date(),
+            sentAt: sentViaBot ? new Date() : undefined,
+            providerMessageId: providerMsgId,
+            status: sentViaBot ? 'SENT' : 'AWAITING_PROVIDER_CAPABILITY',
+            attemptCount: 1,
+            isDryRun: config.wati.dryRun,
+          });
+
+          await WhatsAppMessage.create({
+            projectId: project._id,
+            projectCode: project.projectId,
+            customerId: customer?._id,
+            customerName: customer?.fullName || 'Client',
+            groupId: targetGroup,
+            templateName: 'INSTALLATION_STAGE_COMPLETED',
+            messageType: 'text',
+            recipientType: 'group',
+            direction: 'OUTGOING',
+            messageContent: imageSentViaBot ? `📸 [Stage Photo Attached]\n\n${whatsappMessage}` : whatsappMessage,
+            status: sentViaBot ? 'SENT' : 'AWAITING_PROVIDER_CAPABILITY',
+            sentAt: new Date(),
+            isAutomated: false,
+          });
+
+          whatsappResult = {
+            sent: sentViaBot,
+            imageSent: imageSentViaBot,
+            message: sentViaBot
+              ? 'Stage approved! Completion message with photo sent to customer WhatsApp group.'
+              : 'Stage approved! (WhatsApp bot disconnected — message logged for delivery).',
+          };
+        } catch (wErr: any) {
+          console.warn('[StageApproval WhatsApp Error]:', wErr);
+          whatsappResult = { sent: false, error: wErr.message };
+        }
+      } else {
+        whatsappResult = { sent: false, message: 'Stage approved! (No WhatsApp group linked to this project)' };
+      }
+
+      project.installationStages = stages as any;
+      project.markModified('installationStages');
+      await project.save();
+
+      await logProjectActivity({
+        projectId: project._id,
+        projectCode: project.projectId,
+        type: 'WHATSAPP_SENT',
+        description: `Technical Manager (${req.user?.name || 'Kishore'}) approved Stage ${targetStage.slNo}/11 "${targetStage.stageName}" and dispatched completion message with stage photo to WhatsApp group.`,
+        userId: req.user?._id,
+        userName: req.user?.name,
+      });
+
+      return res.json({
+        success: true,
+        message: whatsappResult.message || `Stage ${targetStage.slNo} approved and sent to WhatsApp group with photo!`,
+        data: stages,
+        whatsappResult,
+      });
+    } catch (err: any) {
+      console.error('[Approve Installation Stage Error]:', err);
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  }
+);
+
+/**
+ * POST /api/projects/:id/installation-stages/reject
+ * Technical Manager (Kishore) or Admin rejects a submitted installation stage photo/completion
+ */
+projectRouter.post(
+  '/:id/installation-stages/reject',
+  authorize('TECHNICAL_MANAGER', 'ADMIN'),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { stageKey, reason } = req.body;
+      const project = await Project.findById(req.params.id);
+      if (!project) return res.status(404).json({ success: false, message: 'Project not found' });
+
+      const stages: any[] = (project.installationStages || []).map((s: any) =>
+        typeof s.toObject === 'function' ? s.toObject() : s._doc ? { ...s._doc } : { ...s }
+      );
+
+      const targetStage = stages.find((s: any) => s.stageKey === stageKey);
+      if (!targetStage) {
+        return res.status(404).json({ success: false, message: `Stage "${stageKey}" not found` });
+      }
+
+      targetStage.approvalStatus = 'REJECTED';
+      targetStage.status = 'IN_PROGRESS';
+      targetStage.rejectionReason = reason || 'Rejected by Technical Manager — please upload a clearer stage photo.';
+
+      project.installationStages = stages as any;
+      project.markModified('installationStages');
+      await project.save();
+
+      await logProjectActivity({
+        projectId: project._id,
+        projectCode: project.projectId,
+        type: 'CUSTOMER_UPDATE',
+        description: `Technical Manager (${req.user?.name || 'Kishore'}) requested photo revision for Stage ${targetStage.slNo}/11 "${targetStage.stageName}". Reason: ${targetStage.rejectionReason}`,
+        userId: req.user?._id,
+        userName: req.user?.name,
+      });
+
+      return res.json({
+        success: true,
+        message: `Stage ${targetStage.slNo} marked for revision. Team Lead can upload a new photo and resubmit.`,
+        data: stages,
+      });
+    } catch (err: any) {
+      console.error('[Reject Installation Stage Error]:', err);
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  }
+);
+
+/**
  * POST /api/projects/:id/installation-stages/initialize
  * Re-initializes all 11 stages from a specified Installation Start Date
  */
 projectRouter.post(
   '/:id/installation-stages/initialize',
-  authorize('ADMIN', 'CRM', 'MANAGER', 'TECHNICAL_LEAD', 'LOGISTICS_TL'),
+  authorize('ADMIN', 'CRM', 'MANAGER', 'TECHNICAL_LEAD', 'TECHNICAL_MANAGER', 'LOGISTICS_TL'),
   async (req: AuthRequest, res: Response) => {
     try {
       const { installationStartDate, stage1CompleteDate, customStages } = req.body;
       const project = await Project.findById(req.params.id);
       if (!project) return res.status(404).json({ success: false, message: 'Project not found' });
 
+      const existingMap = new Map<string, any>();
+      (project.installationStages || []).forEach((s: any) => {
+        const plain = typeof s.toObject === 'function' ? s.toObject() : s._doc ? { ...s._doc } : { ...s };
+        if (plain.stageKey) existingMap.set(plain.stageKey, plain);
+      });
+
       let stages: any[] = [];
       if (Array.isArray(customStages) && customStages.length > 0) {
-        stages = customStages.map((s: any, idx: number) => ({
-          slNo: s.slNo || idx + 1,
-          stageKey: s.stageKey || DEFAULT_INSTALLATION_STAGES[idx]?.stageKey || `STAGE_${idx + 1}`,
-          stageName: s.stageName || DEFAULT_INSTALLATION_STAGES[idx]?.stageName || `Stage ${idx + 1}`,
-          startDate: formatDateISO(toWorkingDay(parseDateString(s.startDate))),
-          completeDate: formatDateISO(toWorkingDay(parseDateString(s.completeDate))),
-          status: s.status || (idx === 0 ? 'IN_PROGRESS' : 'PENDING'),
-          delayReason: s.delayReason || null,
-          delayNotes: s.delayNotes || '',
-        }));
+        stages = customStages.map((s: any, idx: number) => {
+          const sKey = s.stageKey || DEFAULT_INSTALLATION_STAGES[idx]?.stageKey || `STAGE_${idx + 1}`;
+          const prev = existingMap.get(sKey) || {};
+          return {
+            ...prev,
+            slNo: s.slNo || idx + 1,
+            stageKey: sKey,
+            stageName: s.stageName || DEFAULT_INSTALLATION_STAGES[idx]?.stageName || `Stage ${idx + 1}`,
+            startDate: formatDateISO(toWorkingDay(parseDateString(s.startDate))),
+            completeDate: formatDateISO(toWorkingDay(parseDateString(s.completeDate))),
+            status: s.status || prev.status || (idx === 0 ? 'IN_PROGRESS' : 'PENDING'),
+            delayReason: s.delayReason ?? prev.delayReason ?? null,
+            delayNotes: s.delayNotes ?? prev.delayNotes ?? '',
+          };
+        });
       } else {
         const startDate = installationStartDate || project.installationDate || new Date();
-        stages = generateInitialSchedule(startDate, DEFAULT_INSTALLATION_STAGES);
+        stages = generateInitialSchedule(startDate, DEFAULT_INSTALLATION_STAGES).map((gen: any) => {
+          const prev = existingMap.get(gen.stageKey) || {};
+          return {
+            ...prev,
+            ...gen,
+            status: prev.status || gen.status,
+          };
+        });
 
         if (stage1CompleteDate) {
           stages = cascadeScheduleUpdates(
@@ -2846,6 +3354,7 @@ projectRouter.post(
       }
 
       project.installationStages = stages as any;
+      project.markModified('installationStages');
 
       // Also set project stageDates
       if (!project.stageDates) project.stageDates = new Map();

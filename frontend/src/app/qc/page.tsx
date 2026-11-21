@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import QCInspectionForm from '../../components/QCInspectionForm';
+import { resolveStageImageUrl } from '../../components/InstallationProgrammeTable';
 import { api, getStoredUser } from '../../lib/api';
 import {
   ClipboardCheck,
@@ -25,6 +27,7 @@ import {
   Layers,
   ArrowRight,
   Sparkles,
+  Camera,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -35,6 +38,10 @@ export default function QCPage() {
   const [loadingReports, setLoadingReports] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
+
+  // 11-Stage Installation Photo Approvals State (for Technical Manager Kishore)
+  const [pendingStageItems, setPendingStageItems] = useState<any[]>([]);
+  const [approvingStageId, setApprovingStageId] = useState<string | null>(null);
 
   // Approval Modal State
   const [approvalModalReport, setApprovalModalReport] = useState<any | null>(null);
@@ -57,15 +64,63 @@ export default function QCPage() {
   const fetchReports = async () => {
     try {
       setLoadingReports(true);
-      const res = await api.getQCReports({
-        search: searchQuery,
-        approvalStatus: statusFilter === 'ALL' ? undefined : statusFilter,
-      });
+      const [res, stageRes] = await Promise.all([
+        api.getQCReports({
+          search: searchQuery,
+          approvalStatus: statusFilter === 'ALL' ? undefined : statusFilter,
+        }).catch(() => ({ data: [] })),
+        api.getPendingInstallationStageApprovals().catch(() => ({ data: [] })),
+      ]);
       setPastReports(res.data || []);
+      setPendingStageItems(stageRes.data || []);
     } catch (err: any) {
       console.warn('Failed to load QC reports:', err.message);
     } finally {
       setLoadingReports(false);
+    }
+  };
+
+  const handleApprove11StageItem = async (item: any) => {
+    const uniqueKey = `${item.projectId}_${item.stage.stageKey}`;
+    try {
+      setApprovingStageId(uniqueKey);
+      const toastId = toast.loading(
+        `Approving Stage ${item.stage.slNo} ("${item.stage.stageName}") & sending with photo to WhatsApp group...`
+      );
+      const res = await api.approveInstallationStage(item.projectId, {
+        stageKey: item.stage.stageKey,
+      });
+      toast.success(
+        res.message || 'Stage approved and dispatched with photo to customer WhatsApp group!',
+        { id: toastId, duration: 6000 }
+      );
+      await fetchReports();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to approve stage');
+    } finally {
+      setApprovingStageId(null);
+    }
+  };
+
+  const handleReject11StageItem = async (item: any) => {
+    const reason = window.prompt(
+      `Enter rejection reason for Stage ${item.stage.slNo} (${item.stage.stageName}):`,
+      'Please upload a clearer stage completion photo.'
+    );
+    if (reason === null) return;
+    const uniqueKey = `${item.projectId}_${item.stage.stageKey}`;
+    try {
+      setApprovingStageId(uniqueKey);
+      const res = await api.rejectInstallationStage(item.projectId, {
+        stageKey: item.stage.stageKey,
+        reason: reason || 'Please upload a clearer stage completion photo.',
+      });
+      toast.success(res.message || 'Stage returned to Team Lead for photo revision.');
+      await fetchReports();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to reject stage');
+    } finally {
+      setApprovingStageId(null);
     }
   };
 
@@ -160,7 +215,7 @@ export default function QCPage() {
           >
             <ShieldCheck className="w-4 h-4 text-amber-300" />
             <span>Technical Manager Approvals</span>
-            {pendingReports.length > 0 && (
+            {(pendingReports.length + pendingStageItems.length) > 0 && (
               <span
                 className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
                   activeTab === 'approvals'
@@ -168,7 +223,7 @@ export default function QCPage() {
                     : 'bg-amber-100 text-amber-900 border border-amber-300'
                 }`}
               >
-                {pendingReports.length} Pending
+                {pendingReports.length + pendingStageItems.length} Pending
               </span>
             )}
           </button>
@@ -245,7 +300,7 @@ export default function QCPage() {
 
               <div className="p-4 bg-white/10 backdrop-blur-md rounded-2xl border border-white/15 text-center shrink-0 min-w-[140px]">
                 <div className="text-3xl font-black text-amber-300 font-mono">
-                  {pendingReports.length}
+                  {pendingReports.length + pendingStageItems.length}
                 </div>
                 <div className="text-[11px] font-bold uppercase tracking-wider text-slate-300 mt-0.5">
                   Pending Review
@@ -253,6 +308,115 @@ export default function QCPage() {
               </div>
             </div>
           </div>
+
+          {/* Pending 11-Stage Installation Photo Approvals Section */}
+          {pendingStageItems.length > 0 && (
+            <div className="bg-white rounded-3xl p-6 border-2 border-amber-300 shadow-md space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center">
+                    <Camera className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-slate-900">
+                      11-Stage Installation Photo Approvals ({pendingStageItems.length})
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Team Leads uploaded stage completion photos. Approve to dispatch message + photo to the customer WhatsApp group.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {pendingStageItems.map((item) => {
+                  const uniqueKey = `${item.projectId}_${item.stage.stageKey}`;
+                  const imgs: string[] =
+                    Array.isArray(item.stage.images) && item.stage.images.length > 0
+                      ? item.stage.images
+                      : item.stage.imageUrl
+                      ? [item.stage.imageUrl]
+                      : [];
+                  const isBusy = approvingStageId === uniqueKey;
+
+                  return (
+                    <div
+                      key={uniqueKey}
+                      className="p-4 rounded-2xl border border-slate-200 bg-slate-50/70 flex flex-col justify-between gap-3"
+                    >
+                      <div className="flex items-start gap-3">
+                        {imgs[0] && (
+                          <a
+                            href={resolveStageImageUrl(imgs[0])}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="w-20 h-20 rounded-xl overflow-hidden border-2 border-sky-400 shrink-0 bg-slate-200 block"
+                            title="Click to view full image"
+                          >
+                            <img
+                              src={resolveStageImageUrl(imgs[0])}
+                              alt={item.stage.stageName}
+                              className="w-full h-full object-cover"
+                            />
+                          </a>
+                        )}
+                        <div className="space-y-1 flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-100 text-indigo-900">
+                              {item.projectCode}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300">
+                              Stage {item.stage.slNo}/11
+                            </span>
+                          </div>
+                          <h4 className="text-sm font-extrabold text-slate-900 truncate">
+                            {item.stage.stageName}
+                          </h4>
+                          <p className="text-xs text-slate-600">
+                            Project: <strong>{item.projectName}</strong> • Client: <strong>{item.customerName}</strong>
+                          </p>
+                          <p className="text-[11px] text-slate-500">
+                            Submitted by: <strong>{item.stage.submittedBy || item.assignedTl || 'Team Lead'}</strong>
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-200/80 gap-2">
+                        <Link
+                          href={`/projects/${item.projectId}`}
+                          className="text-xs font-bold text-sky-700 hover:underline flex items-center gap-1"
+                        >
+                          <span>View Project</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </Link>
+                        {isTechnicalManagerOrAdmin && (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => handleReject11StageItem(item)}
+                              className="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-300 rounded-xl text-xs font-bold cursor-pointer"
+                            >
+                              ✕ Reject
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => handleApprove11StageItem(item)}
+                              className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-extrabold shadow-sm flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>{isBusy ? 'Approving...' : 'Approve & Send to Group'}</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Pending Reports List */}
           {pendingReports.length === 0 ? (

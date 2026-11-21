@@ -138,6 +138,9 @@ export default function CustomerDetailPage() {
       setError(null);
       const res = await api.getCustomerById(customerId);
       setData(res.data);
+      if (res.data?.projects?.length > 0 && !expandedProjectId) {
+        setExpandedProjectId(res.data.projects[0]._id);
+      }
       
       try {
         const userRes = await api.getCurrentUser();
