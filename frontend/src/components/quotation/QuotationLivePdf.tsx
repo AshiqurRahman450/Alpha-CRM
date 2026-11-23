@@ -663,6 +663,18 @@ export default function QuotationLivePdf({
         } else {
           updated = updated.replace(/Rs\.4,00,000\s*\+\s*18%\s*GST/g, shaftSimple);
         }
+      } else {
+        const shaftNone = `<!-- SHAFT_PRICE_BOX_START --><div class="t c25 shaft-price-box" style="position:absolute;left:320.51px;top:649px;height:24px;min-height:24px;line-height:24px;white-space:nowrap;z-index:878;color:#000000 !important;font-size:12px;font-weight:bold;font-family:'f3',sans-serif;">` +
+          `None` +
+        `</div><!-- SHAFT_PRICE_BOX_END -->`;
+        const shaftRegex = /<div class="t c25" style="z-index:878;transform:matrix\(1,0,0,1,325\.09,655\.24\)">[\s\S]*?<\/div>/;
+        if (shaftCustomRegex.test(updated)) {
+          updated = updated.replace(shaftCustomRegex, shaftNone);
+        } else if (shaftRegex.test(updated)) {
+          updated = updated.replace(shaftRegex, shaftNone);
+        } else {
+          updated = updated.replace(/Rs\.4,00,000\s*\+\s*18%\s*GST/g, shaftNone);
+        }
       }
 
       // Revert any previously shifted rows back to their native table coordinates
@@ -1170,7 +1182,7 @@ export default function QuotationLivePdf({
               baseHtml = renderExactPdfPage(1, data);
             } else if (pageNum === 3 && (!isEditing || !baseHtml || !baseHtml.includes('page3-civil-spec-table') || baseHtml.includes('page3-compact-civil-cabin-wrapper') || baseHtml.includes('490.24,806.2') || !baseHtml.includes('color:#000000'))) {
               baseHtml = renderExactPdfPage(2, data);
-            } else if (pageNum === 5 && (!isEditing || !baseHtml || !baseHtml.includes('Elevator Price:') || !baseHtml.includes('Shaft Price:') || baseHtml.includes('Rs. 16,00,,000') || !baseHtml.includes('warranty-term-box'))) {
+            } else if (pageNum === 5 && (!isEditing || !baseHtml || !baseHtml.includes('Elevator Price:') || !baseHtml.includes('SHAFT_PRICE_BOX_START') || baseHtml.includes('Rs. 16,00,,000') || !baseHtml.includes('warranty-term-box'))) {
               baseHtml = renderExactPdfPage(4, data);
             } else if (pageNum === 6 && !isEditing) {
               baseHtml = renderExactPdfPage(5, data);

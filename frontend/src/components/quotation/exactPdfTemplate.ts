@@ -214,6 +214,18 @@ export function sanitizeProposalParagraphs(html: string, pageNum: number, data?:
       } else {
         updated = updated.replace(/Rs\.4,00,000\s*\+\s*18%\s*GST/g, shaftSimple);
       }
+    } else {
+      const shaftNone = `<!-- SHAFT_PRICE_BOX_START --><div class="t c25 shaft-price-box" style="position:absolute;left:320.51px;top:649px;height:24px;min-height:24px;line-height:24px;white-space:nowrap;z-index:878;color:#000000 !important;font-size:12px;font-weight:bold;font-family:'f3',sans-serif;">` +
+        `None` +
+      `</div><!-- SHAFT_PRICE_BOX_END -->`;
+      const shaftRegex = /<div class="t c25" style="z-index:878;transform:matrix\(1,0,0,1,325\.09,655\.24\)">[\s\S]*?<\/div>/;
+      if (shaftCustomRegex.test(updated)) {
+        updated = updated.replace(shaftCustomRegex, shaftNone);
+      } else if (shaftRegex.test(updated)) {
+        updated = updated.replace(shaftRegex, shaftNone);
+      } else {
+        updated = updated.replace(/Rs\.4,00,000\s*\+\s*18%\s*GST/g, shaftNone);
+      }
     }
   }
 
@@ -1431,6 +1443,18 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
         html = html.replace(shaftRegex, shaftSimple);
       } else {
         html = html.replace(/Rs\.4,00,000\s*\+\s*18%\s*GST/g, shaftSimple);
+      }
+    } else {
+      const shaftNone = `<!-- SHAFT_PRICE_BOX_START --><div class="t c25 shaft-price-box" style="position:absolute;left:320.51px;top:649px;height:24px;min-height:24px;line-height:24px;white-space:nowrap;z-index:878;color:#000000 !important;font-size:12px;font-weight:bold;font-family:'f3',sans-serif;">` +
+        `None` +
+      `</div><!-- SHAFT_PRICE_BOX_END -->`;
+      const shaftRegex = /<div class="t c25" style="z-index:878;transform:matrix\(1,0,0,1,325\.09,655\.24\)">[\s\S]*?<\/div>/;
+      if (shaftCustomRegex.test(html)) {
+        html = html.replace(shaftCustomRegex, shaftNone);
+      } else if (shaftRegex.test(html)) {
+        html = html.replace(shaftRegex, shaftNone);
+      } else {
+        html = html.replace(/Rs\.4,00,000\s*\+\s*18%\s*GST/g, shaftNone);
       }
     }
 
