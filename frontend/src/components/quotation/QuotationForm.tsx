@@ -2383,7 +2383,7 @@ export default function QuotationForm({
                   </span>
                   <span>GST @ {data.gstRate || 18}%</span>
                 </div>
-                <div className="grid grid-cols-3 gap-2 pt-1 border-t border-white/10 text-center">
+                <div className={`grid ${shaftPrice > 0 ? 'grid-cols-3' : 'grid-cols-2'} gap-2 pt-1 border-t border-white/10 text-center`}>
                   <div>
                     <div className="text-[10px] text-slate-400">Elevator Total</div>
                     {elevatorDiscountPrice > 0 ? (
@@ -2399,21 +2399,23 @@ export default function QuotationForm({
                       </div>
                     )}
                   </div>
-                  <div>
-                    <div className="text-[10px] text-slate-400">Shaft Package</div>
-                    {shaftDiscountPrice > 0 ? (
-                      <div>
-                        <div className="text-[11px] text-slate-400 line-through">₹{shaftMRPTotalWithGst.toLocaleString('en-IN')}</div>
-                        <div className="text-sm font-bold text-emerald-400">₹{shaftTotalWithGst.toLocaleString('en-IN')}</div>
-                        <div className="text-[10px] text-slate-300 font-normal">Base: ₹{netShaftPrice.toLocaleString('en-IN')}</div>
-                      </div>
-                    ) : (
-                      <div>
-                        <div className="text-sm font-bold">₹{shaftTotalWithGst.toLocaleString('en-IN')}</div>
-                        <div className="text-[10px] text-slate-300 font-normal">Base: ₹{netShaftPrice.toLocaleString('en-IN')}</div>
-                      </div>
-                    )}
-                  </div>
+                  {shaftPrice > 0 && (
+                    <div>
+                      <div className="text-[10px] text-slate-400">Shaft Package</div>
+                      {shaftDiscountPrice > 0 ? (
+                        <div>
+                          <div className="text-[11px] text-slate-400 line-through">₹{shaftMRPTotalWithGst.toLocaleString('en-IN')}</div>
+                          <div className="text-sm font-bold text-emerald-400">₹{shaftTotalWithGst.toLocaleString('en-IN')}</div>
+                          <div className="text-[10px] text-slate-300 font-normal">Base: ₹{netShaftPrice.toLocaleString('en-IN')}</div>
+                        </div>
+                      ) : (
+                        <div>
+                          <div className="text-sm font-bold">₹{shaftTotalWithGst.toLocaleString('en-IN')}</div>
+                          <div className="text-[10px] text-slate-300 font-normal">Base: ₹{netShaftPrice.toLocaleString('en-IN')}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div>
                     <div className="text-[10px] text-teal-400 font-bold">Total (Inc. GST)</div>
                     <div className="text-sm font-black text-amber-300">₹{grandTotal.toLocaleString('en-IN')}</div>
@@ -2486,25 +2488,41 @@ export default function QuotationForm({
                       <IndianRupee className="w-3.5 h-3.5 text-teal-600" />
                       Shaft Pricing
                     </span>
-                    <span className="text-[10px] font-bold text-slate-400">Base & Discount</span>
+                    {shaftPrice <= 0 ? (
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full">
+                        Hidden on PDF (₹0)
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold text-slate-400">Base & Discount</span>
+                    )}
                   </div>
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Shaft Price (₹): <span className="text-rose-500">*</span>
+                      Shaft Price (₹):
                     </label>
                     <div className="relative">
                       <span className="absolute left-3 top-2 text-slate-400 text-xs">₹</span>
                       <input
                         type="number"
+                        min={0}
                         value={data.shaftPrice}
-                        onChange={(e) => updateField('shaftPrice', Number(e.target.value))}
-                        placeholder="e.g. 400000"
+                        onChange={(e) => {
+                          const nextVal = e.target.value === '' ? 0 : Number(e.target.value);
+                          onChange({
+                            ...data,
+                            shaftPrice: nextVal,
+                            ...(nextVal <= 0 ? { shaftDiscountPrice: undefined } : {}),
+                          });
+                        }}
+                        placeholder="e.g. 400000 (0 to hide on PDF)"
                         className="w-full text-xs pl-7 pr-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-bold text-slate-800 bg-white"
                       />
                     </div>
                     <span className="text-[10px] text-slate-400 mt-0.5 block">
-                      Standard MRP / Base Shaft Price
+                      {shaftPrice <= 0
+                        ? 'Shaft Price is ₹0 — hidden from the PDF proposal preview'
+                        : 'Standard MRP / Base Shaft Price (Set to 0 to hide on PDF)'}
                     </span>
                   </div>
 
