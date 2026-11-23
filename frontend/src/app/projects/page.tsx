@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import {
   Building2,
@@ -138,7 +138,6 @@ export default function ProjectsPage() {
       const activeUser = overrideUser || currentUser || (typeof window !== 'undefined' ? getStoredUser() : null);
       const [projRes, custRes] = await Promise.all([
         api.getProjects({
-          search: search || undefined,
           status: statusFilter || undefined,
           paymentStatus: paymentFilter || undefined,
           excludeHandover: !statusFilter,
@@ -173,8 +172,36 @@ export default function ProjectsPage() {
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    fetchProjects();
   };
+
+  const filteredProjects = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return projects;
+    return projects.filter((p) => {
+      const customer = p.customerId || {};
+      const customerName = String(customer.fullName || customer.name || p.customerName || '').toLowerCase();
+      const customerCode = String(customer.customerId || p.customerCode || '').toLowerCase();
+      const customerPhone = String(customer.phoneNumber || customer.whatsappNumber || '').toLowerCase();
+      const projectName = String(p.projectName || '').toLowerCase();
+      const projectCode = String(p.projectId || '').toLowerCase();
+      const siteAddress = String(p.siteAddress || customer.address || customer.city || '').toLowerCase();
+      const liftModel = String(p.liftModel || '').toLowerCase();
+      const tracking = String(p.vrlLrNumber || p.trackingNumber || '').toLowerCase();
+      const whatsappGroup = String(p.whatsappGroupId || p.whatsappGroupName || '').toLowerCase();
+
+      return (
+        customerName.includes(q) ||
+        projectName.includes(q) ||
+        projectCode.includes(q) ||
+        customerCode.includes(q) ||
+        customerPhone.includes(q) ||
+        siteAddress.includes(q) ||
+        liftModel.includes(q) ||
+        tracking.includes(q) ||
+        whatsappGroup.includes(q)
+      );
+    });
+  }, [projects, search]);
 
   const calcTotalAmount = (liftWithGst: string | number, shaftWithGst: string | number, shaftModel: string) => {
     const lift = Number(liftWithGst || 0);
@@ -256,7 +283,7 @@ export default function ProjectsPage() {
         <div>
           <h2 className="text-xl font-black text-slate-900 tracking-tight">Active Elevator Projects</h2>
           <p className="text-xs text-slate-500">
-            Monitoring {projects.length} installation projects and Meta WhatsApp communication groups
+            Monitoring {filteredProjects.length} installation projects and Meta WhatsApp communication groups
           </p>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
@@ -321,14 +348,24 @@ export default function ProjectsPage() {
       {/* Filter and Search Bar */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-3">
         <form onSubmit={handleSearchSubmit} className="flex-1 relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
           <input
             type="text"
-            placeholder="Search by project name, code (ALP-001), site address..."
+            placeholder="Search by customer name, project name, code (ALP-001), phone, site address..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
+            className="w-full pl-9 pr-8 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
           />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+              title="Clear search"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </form>
 
         <div className="flex items-center gap-2">
@@ -362,7 +399,7 @@ export default function ProjectsPage() {
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         {loading ? (
           <div className="p-12 text-center text-xs text-slate-500">Loading projects...</div>
-        ) : projects.length === 0 ? (
+        ) : filteredProjects.length === 0 ? (
           <div className="p-12 text-center space-y-2">
             <Building2 className="w-8 h-8 text-slate-300 mx-auto" />
             <p className="text-xs font-bold text-slate-700">No matching projects found</p>
@@ -388,7 +425,7 @@ export default function ProjectsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {projects.map((p) => {
+                {filteredProjects.map((p) => {
                   const customer = p.customerId || {};
                   return (
                     <tr key={p._id} className="hover:bg-slate-50/70 transition-colors">

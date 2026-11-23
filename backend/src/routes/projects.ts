@@ -642,13 +642,28 @@ projectRouter.get('/', async (req: AuthRequest, res: Response) => {
     }
 
     if (search && typeof search === 'string' && search.trim()) {
-      const searchRegex = new RegExp(search.trim(), 'i');
+      const escapedSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const searchRegex = new RegExp(escapedSearch, 'i');
+      const matchingSearchCustomers = await Customer.find({
+        $or: [
+          { fullName: searchRegex },
+          { customerId: searchRegex },
+          { phoneNumber: searchRegex },
+          { whatsappNumber: searchRegex },
+          { email: searchRegex },
+        ],
+      })
+        .select('_id')
+        .lean();
+      const matchingSearchCustomerIds = matchingSearchCustomers.map((c) => c._id);
+
       andConditions.push({
         $or: [
           { projectName: searchRegex },
           { projectId: searchRegex },
           { liftModel: searchRegex },
           { siteAddress: searchRegex },
+          ...(matchingSearchCustomerIds.length > 0 ? [{ customerId: { $in: matchingSearchCustomerIds } }] : []),
         ],
       });
     }
@@ -921,13 +936,28 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
     }
 
     if (search && typeof search === 'string' && search.trim()) {
-      const searchRegex = new RegExp(search.trim(), 'i');
+      const escapedSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const searchRegex = new RegExp(escapedSearch, 'i');
+      const matchingSearchCustomers = await Customer.find({
+        $or: [
+          { fullName: searchRegex },
+          { customerId: searchRegex },
+          { phoneNumber: searchRegex },
+          { whatsappNumber: searchRegex },
+          { email: searchRegex },
+        ],
+      })
+        .select('_id')
+        .lean();
+      const matchingSearchCustomerIds = matchingSearchCustomers.map((c) => c._id);
+
       andConditions.push({
         $or: [
           { projectName: searchRegex },
           { projectId: searchRegex },
           { liftModel: searchRegex },
           { siteAddress: searchRegex },
+          ...(matchingSearchCustomerIds.length > 0 ? [{ customerId: { $in: matchingSearchCustomerIds } }] : []),
         ],
       });
     }
