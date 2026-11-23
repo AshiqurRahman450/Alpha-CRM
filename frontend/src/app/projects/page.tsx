@@ -19,6 +19,8 @@ import {
   Handshake,
   Edit2,
   Upload,
+  ChevronDown,
+  Check,
 } from 'lucide-react';
 import { api, getStoredUser } from '../../lib/api';
 import { formatProjectStatus, STAGES_ORDER } from '../../components/Timeline';
@@ -74,6 +76,31 @@ export default function ProjectsPage() {
 
   // Add Project Modal State
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
+  const customerDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (customerDropdownRef.current && !customerDropdownRef.current.contains(e.target as Node)) {
+        setIsCustomerDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredModalCustomers = useMemo(() => {
+    const q = customerSearch.trim().toLowerCase();
+    if (!q) return customers;
+    return customers.filter((c) => {
+      const name = String(c.fullName || c.name || '').toLowerCase();
+      const code = String(c.customerId || '').toLowerCase();
+      const phone = String(c.phoneNumber || c.whatsappNumber || '').toLowerCase();
+      const address = String(c.address || c.city || '').toLowerCase();
+      return name.includes(q) || code.includes(q) || phone.includes(q) || address.includes(q);
+    });
+  }, [customers, customerSearch]);
   const [newProject, setNewProject] = useState({
     customerId: '',
     projectName: '',
@@ -561,31 +588,101 @@ export default function ProjectsPage() {
             <form onSubmit={handleCreateProject} className="p-6 space-y-4 text-xs overflow-y-auto">
               {/* Customer & Project Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
+                <div ref={customerDropdownRef} className="relative">
                   <label className="block text-[11px] font-bold text-slate-700 mb-1">
                     Select Customer: *
                   </label>
-                  <select
+                  {/* Hidden input for native required form validation */}
+                  <input
+                    type="text"
                     required
                     value={newProject.customerId}
-                    onChange={(e) => {
-                      const selectedId = e.target.value;
-                      const selectedCustomer = customers.find(c => c._id === selectedId);
-                      setNewProject({
-                        ...newProject,
-                        customerId: selectedId,
-                        siteAddress: selectedCustomer ? selectedCustomer.address : newProject.siteAddress,
-                      });
-                    }}
-                    className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                    onChange={() => {}}
+                    className="sr-only"
+                    tabIndex={-1}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomerDropdownOpen((prev) => !prev)}
+                    className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none bg-white flex items-center justify-between text-left"
                   >
-                    <option value="">-- Choose Customer --</option>
-                    {customers.map((c) => (
-                      <option key={c._id} value={c._id}>
-                        {c.fullName} ({c.customerId}) - {c.phoneNumber}
-                      </option>
-                    ))}
-                  </select>
+                    {(() => {
+                      const selectedCustomer = customers.find((c) => c._id === newProject.customerId);
+                      if (selectedCustomer) {
+                        return (
+                          <span className="font-semibold text-slate-800 truncate">
+                            {selectedCustomer.fullName} ({selectedCustomer.customerId}) - {selectedCustomer.phoneNumber}
+                          </span>
+                        );
+                      }
+                      return <span className="text-slate-500">-- Choose Customer --</span>;
+                    })()}
+                    <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 ml-2 transition-transform ${isCustomerDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {isCustomerDropdownOpen && (
+                    <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
+                      <div className="p-2 border-b border-slate-100 bg-slate-50/70">
+                        <div className="relative">
+                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                          <input
+                            type="text"
+                            autoFocus
+                            placeholder="Search customer by name, code (CUST-001), phone..."
+                            value={customerSearch}
+                            onChange={(e) => setCustomerSearch(e.target.value)}
+                            className="w-full pl-8 pr-7 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                          />
+                          {customerSearch && (
+                            <button
+                              type="button"
+                              onClick={() => setCustomerSearch('')}
+                              className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="max-h-56 overflow-y-auto divide-y divide-slate-50">
+                        {filteredModalCustomers.length === 0 ? (
+                          <div className="p-3 text-center text-xs text-slate-400">
+                            No matching customers found
+                          </div>
+                        ) : (
+                          filteredModalCustomers.map((c) => {
+                            const isSelected = c._id === newProject.customerId;
+                            return (
+                              <button
+                                type="button"
+                                key={c._id}
+                                onClick={() => {
+                                  setNewProject({
+                                    ...newProject,
+                                    customerId: c._id,
+                                    siteAddress: c.address ? c.address : newProject.siteAddress,
+                                  });
+                                  setIsCustomerDropdownOpen(false);
+                                  setCustomerSearch('');
+                                }}
+                                className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between hover:bg-sky-50 transition-colors ${
+                                  isSelected ? 'bg-sky-50/80 font-bold text-sky-900' : 'text-slate-700'
+                                }`}
+                              >
+                                <div className="truncate pr-2">
+                                  <span className="font-semibold text-slate-900">{c.fullName}</span>{' '}
+                                  <span className="text-sky-700 font-mono text-[11px]">({c.customerId})</span>{' '}
+                                  <span className="text-slate-500">- {c.phoneNumber}</span>
+                                </div>
+                                {isSelected && <Check className="w-3.5 h-3.5 text-sky-600 shrink-0" />}
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div>
