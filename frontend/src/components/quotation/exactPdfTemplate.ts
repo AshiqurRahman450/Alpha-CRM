@@ -135,14 +135,8 @@ export function sanitizeProposalParagraphs(html: string, pageNum: number, data?:
 
     // 4. Terms of Sale - Price Row & Elevator Price Header
     const formatINR = (val: number) => Number(val || 0).toLocaleString('en-IN');
-    const shaftDiscountAmountP5 = Number(safeData.shaftDiscountPrice || 0);
-    const hasShaftDiscountP5 = Boolean(shaftDiscountAmountP5 > 0);
-    const shaftBasePriceP5 = Number(safeData.shaftPrice || 0);
-    const hasShaftPriceP5 = shaftBasePriceP5 > 0;
-    const priceLabelYP5 = hasShaftPriceP5 ? '613.01' : '635';
-
-    updated = updated.replace(/<div class="t c21" style="z-index:81[57];transform:matrix\(1,0,0,1,47\.46,(?:611\.2|613\.01|635)\)[^"]*">(?:PRICE|Elevator Price)<\/div>/g, `<div class="t c21" style="z-index:815;transform:matrix(1,0,0,1,47.46,${priceLabelYP5});font-weight:bold;color:#000000 !important;">Elevator Price</div>`);
-    updated = updated.replace(/<div[^>]*47\.46,(?:611\.2|613\.01|635)[^>]*>(?:PRICE|Elevator Price)<\/div>/g, `<div class="t c21" style="z-index:815;transform:matrix(1,0,0,1,47.46,${priceLabelYP5});font-weight:bold;color:#000000 !important;">Elevator Price</div>`);
+    updated = updated.replace(/<div class="t c21" style="z-index:815;transform:matrix\(1,0,0,1,47\.46,613\.01\)">PRICE<\/div>/g, '<div class="t c21" style="z-index:815;transform:matrix(1,0,0,1,47.46,613.01);font-weight:bold;color:#000000 !important;">Elevator Price</div>');
+    updated = updated.replace(/<div[^>]*47\.46,613\.01[^>]*>PRICE<\/div>/g, '<div class="t c21" style="z-index:815;transform:matrix(1,0,0,1,47.46,613.01);font-weight:bold;color:#000000 !important;">Elevator Price</div>');
 
     // Remove MRP column labels on Page 5
     updated = updated.replace(/<div class="t c24" style="z-index:822;transform:matrix\(1,0,0,1,252\.25,613\.01\)">MRP<\/div>/g, '<div class="t c24" style="z-index:822;transform:matrix(1,0,0,1,252.25,613.01)">&nbsp;</div>');
@@ -155,11 +149,10 @@ export function sanitizeProposalParagraphs(html: string, pageNum: number, data?:
     const netElevatorPriceP5 = Math.max(0, elvBasePriceP5 - elvDiscountAmountP5);
     const elvTotalWithGstP5 = Math.round(netElevatorPriceP5 * (1 + gstRateP5 / 100));
 
-    const elvCustomRegex = /(?:<!-- ELV_PRICE_BOX_START -->)?<div class="t c21[^"]*elv-price-box[^"]*"[\s\S]*?<!-- ELV_PRICE_BOX_END -->|<div class="t c21"[^>]*style="position:absolute;left:320\.51px;top:(?:592|605|616|625)px;[^"]*"[\s\S]*?(?:<!-- ELV_PRICE_BOX_END -->|<\/div>(?=\s*<\/p>|\s*<\/td>))/;
+    const elvCustomRegex = /(?:<!-- ELV_PRICE_BOX_START -->)?<div class="t c21[^"]*elv-price-box[^"]*"[\s\S]*?<!-- ELV_PRICE_BOX_END -->|<div class="t c21"[^>]*style="position:absolute;left:320\.51px;top:(?:592|605)px;[^"]*"[\s\S]*?(?:<!-- ELV_PRICE_BOX_END -->|<\/div>(?=\s*<\/p>|\s*<\/td>))/;
 
     if (hasElvDiscountP5 && elvBasePriceP5) {
-      const elvTopP5 = hasShaftPriceP5 ? 592 : 616;
-      const elvReplacement = `<!-- ELV_PRICE_BOX_START --><div class="t c21 elv-price-box" style="position:absolute;left:320.51px;top:${elvTopP5}px;height:42px;min-height:42px;line-height:14px;white-space:nowrap;z-index:825;color:#000000 !important;font-size:11px;font-family:'f3',sans-serif;">` +
+      const elvReplacement = `<!-- ELV_PRICE_BOX_START --><div class="t c21 elv-price-box" style="position:absolute;left:320.51px;top:592px;height:42px;min-height:42px;line-height:14px;white-space:nowrap;z-index:825;color:#000000 !important;font-size:11px;font-family:'f3',sans-serif;">` +
         `<div style="font-size:11px;line-height:14px;color:#000000;">Elevator Price: Rs. ${formatINR(elvBasePriceP5)}</div>` +
         `<div style="font-size:11px;line-height:14px;color:#000000;">Discount Price: - Rs. ${formatINR(elvDiscountAmountP5)}</div>` +
         `<div style="font-size:11.5px;line-height:14px;font-weight:bold;color:#000000;">Total: Rs. ${formatINR(netElevatorPriceP5)} + ${gstRateP5}% GST (Rs. ${formatINR(elvTotalWithGstP5)})</div>` +
@@ -173,8 +166,7 @@ export function sanitizeProposalParagraphs(html: string, pageNum: number, data?:
         updated = updated.replace(/Rs\.\s*16,00,,000\s*\+\s*18%\s*GST/g, elvReplacement);
       }
     } else if (elvBasePriceP5) {
-      const elvTopP5 = hasShaftPriceP5 ? 605 : 625;
-      const elvSimple = `<!-- ELV_PRICE_BOX_START --><div class="t c21 elv-price-box" style="position:absolute;left:320.51px;top:${elvTopP5}px;height:24px;min-height:24px;line-height:24px;white-space:nowrap;z-index:825;color:#000000 !important;font-size:12px;font-weight:bold;font-family:'f3',sans-serif;">` +
+      const elvSimple = `<!-- ELV_PRICE_BOX_START --><div class="t c21 elv-price-box" style="position:absolute;left:320.51px;top:605px;height:24px;min-height:24px;line-height:24px;white-space:nowrap;z-index:825;color:#000000 !important;font-size:12px;font-weight:bold;font-family:'f3',sans-serif;">` +
         `Elevator Price: Rs. ${formatINR(elvBasePriceP5)} + ${gstRateP5}% GST (Rs. ${formatINR(elvTotalWithGstP5)})` +
       `</div><!-- ELV_PRICE_BOX_END -->`;
       const elvRegex = /<div class="t c21" style="z-index:825;transform:matrix\(1,0,0,1,320\.51,611\.2\)">[\s\S]*?<\/div>/;
@@ -187,26 +179,22 @@ export function sanitizeProposalParagraphs(html: string, pageNum: number, data?:
       }
     }
 
-    // Shaft Price - Hide row completely if shaftBasePriceP5 <= 0
+    // Shaft Price
+    const shaftDiscountAmountP5 = Number(safeData.shaftDiscountPrice || 0);
+    const hasShaftDiscountP5 = Boolean(shaftDiscountAmountP5 > 0);
+    const shaftBasePriceP5 = Number(safeData.shaftPrice || 0);
     const netShaftPriceP5 = Math.max(0, shaftBasePriceP5 - shaftDiscountAmountP5);
     const shaftTotalWithGstP5 = Math.round(netShaftPriceP5 * (1 + gstRateP5 / 100));
 
-    const shaftLabelRegexP5 = /<div class="t c21" style="z-index:849;transform:matrix\(1,0,0,1,47\.46,655\.24\)[^"]*">Shaft price\s*<\/div>/g;
-    if (hasShaftPriceP5) {
-      updated = updated.replace(shaftLabelRegexP5, '<div class="t c21" style="z-index:849;transform:matrix(1,0,0,1,47.46,655.24);font-weight:bold;color:#000000 !important;">Shaft price  </div>');
-    } else {
-      updated = updated.replace(shaftLabelRegexP5, '<div class="t c21" style="z-index:849;transform:matrix(1,0,0,1,47.46,655.24);display:none;">Shaft price  </div>');
-    }
-
     const shaftCustomRegex = /(?:<!-- SHAFT_PRICE_BOX_START -->)?<div class="t c25[^"]*shaft-price-box[^"]*"[\s\S]*?<!-- SHAFT_PRICE_BOX_END -->|<div class="t c25"[^>]*style="position:absolute;left:320\.51px;top:(?:636|649)px;[^"]*"[\s\S]*?(?:<!-- SHAFT_PRICE_BOX_END -->|<\/div>(?=\s*<\/p>|\s*<\/td>))/;
-    const shaftRegex = /<div class="t c25" style="z-index:878;transform:matrix\(1,0,0,1,325\.09,655\.24\)">[\s\S]*?<\/div>/;
 
-    if (hasShaftDiscountP5 && hasShaftPriceP5) {
+    if (hasShaftDiscountP5 && shaftBasePriceP5) {
       const shaftReplacement = `<!-- SHAFT_PRICE_BOX_START --><div class="t c25 shaft-price-box" style="position:absolute;left:320.51px;top:636px;height:42px;min-height:42px;line-height:14px;white-space:nowrap;z-index:878;color:#000000 !important;font-size:11px;font-family:'f3',sans-serif;">` +
         `<div style="font-size:11px;line-height:14px;color:#000000;">Shaft Price: Rs. ${formatINR(shaftBasePriceP5)}</div>` +
         `<div style="font-size:11px;line-height:14px;color:#000000;">Discount Price: - Rs. ${formatINR(shaftDiscountAmountP5)}</div>` +
         `<div style="font-size:11.5px;line-height:14px;font-weight:bold;color:#000000;">Total: Rs. ${formatINR(netShaftPriceP5)} + ${gstRateP5}% GST (Rs. ${formatINR(shaftTotalWithGstP5)})</div>` +
       `</div><!-- SHAFT_PRICE_BOX_END -->`;
+      const shaftRegex = /<div class="t c25" style="z-index:878;transform:matrix\(1,0,0,1,325\.09,655\.24\)">[\s\S]*?<\/div>/;
       if (shaftCustomRegex.test(updated)) {
         updated = updated.replace(shaftCustomRegex, shaftReplacement);
       } else if (shaftRegex.test(updated)) {
@@ -214,28 +202,17 @@ export function sanitizeProposalParagraphs(html: string, pageNum: number, data?:
       } else {
         updated = updated.replace(/Rs\.4,00,000\s*\+\s*18%\s*GST/g, shaftReplacement);
       }
-    } else if (hasShaftPriceP5) {
+    } else if (shaftBasePriceP5) {
       const shaftSimple = `<!-- SHAFT_PRICE_BOX_START --><div class="t c25 shaft-price-box" style="position:absolute;left:320.51px;top:649px;height:24px;min-height:24px;line-height:24px;white-space:nowrap;z-index:878;color:#000000 !important;font-size:12px;font-weight:bold;font-family:'f3',sans-serif;">` +
         `Shaft Price: Rs. ${formatINR(shaftBasePriceP5)} + ${gstRateP5}% GST (Rs. ${formatINR(shaftTotalWithGstP5)})` +
       `</div><!-- SHAFT_PRICE_BOX_END -->`;
+      const shaftRegex = /<div class="t c25" style="z-index:878;transform:matrix\(1,0,0,1,325\.09,655\.24\)">[\s\S]*?<\/div>/;
       if (shaftCustomRegex.test(updated)) {
         updated = updated.replace(shaftCustomRegex, shaftSimple);
       } else if (shaftRegex.test(updated)) {
         updated = updated.replace(shaftRegex, shaftSimple);
       } else {
         updated = updated.replace(/Rs\.4,00,000\s*\+\s*18%\s*GST/g, shaftSimple);
-      }
-    } else {
-      const shaftHidden = `<!-- SHAFT_PRICE_BOX_START --><div class="t c25 shaft-price-box" data-shaft-hidden="true" style="position:absolute;left:0;top:0;width:0;height:0;overflow:visible;z-index:878;pointer-events:none;">` +
-        `<div style="position:absolute;left:47.6px;top:641px;width:199.8px;height:4px;background:#ffffff;"></div>` +
-        `<div style="position:absolute;left:249.3px;top:641px;width:482.2px;height:4px;background:#ffffff;"></div>` +
-      `</div><!-- SHAFT_PRICE_BOX_END -->`;
-      if (shaftCustomRegex.test(updated)) {
-        updated = updated.replace(shaftCustomRegex, shaftHidden);
-      } else if (shaftRegex.test(updated)) {
-        updated = updated.replace(shaftRegex, shaftHidden);
-      } else {
-        updated = updated.replace(/Rs\.4,00,000\s*\+\s*18%\s*GST/g, shaftHidden);
       }
     }
   }
@@ -1375,14 +1352,8 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
       html = html.replace(ulRegex, accessoriesHtml);
     }
     // Update left column PRICE to Elevator Price
-    const shaftDiscountAmount = Number(safeData.shaftDiscountPrice || 0);
-    const hasShaftDiscount = Boolean(shaftDiscountAmount > 0);
-    const shaftBasePrice = Number(safeData.shaftPrice || 0);
-    const hasShaftPrice = shaftBasePrice > 0;
-    const priceLabelY = hasShaftPrice ? '613.01' : '635';
-
-    html = html.replace(/<div class="t c21" style="z-index:81[57];transform:matrix\(1,0,0,1,47\.46,(?:611\.2|613\.01|635)\)[^"]*">(?:PRICE|Elevator Price)<\/div>/g, `<div class="t c21" style="z-index:815;transform:matrix(1,0,0,1,47.46,${priceLabelY});font-weight:bold;color:#000000 !important;">Elevator Price</div>`);
-    html = html.replace(/<div[^>]*47\.46,(?:611\.2|613\.01|635)[^>]*>(?:PRICE|Elevator Price)<\/div>/g, `<div class="t c21" style="z-index:815;transform:matrix(1,0,0,1,47.46,${priceLabelY});font-weight:bold;color:#000000 !important;">Elevator Price</div>`);
+    html = html.replace(/<div class="t c21" style="z-index:815;transform:matrix\(1,0,0,1,47\.46,613\.01\)">PRICE<\/div>/g, '<div class="t c21" style="z-index:815;transform:matrix(1,0,0,1,47.46,613.01);font-weight:bold;color:#000000 !important;">Elevator Price</div>');
+    html = html.replace(/<div[^>]*47\.46,613\.01[^>]*>PRICE<\/div>/g, '<div class="t c21" style="z-index:815;transform:matrix(1,0,0,1,47.46,613.01);font-weight:bold;color:#000000 !important;">Elevator Price</div>');
 
     // Remove MRP column labels on Page 5
     html = html.replace(/<div class="t c24" style="z-index:822;transform:matrix\(1,0,0,1,252\.25,613\.01\)">MRP<\/div>/g, '<div class="t c24" style="z-index:822;transform:matrix(1,0,0,1,252.25,613.01)">&nbsp;</div>');
@@ -1396,11 +1367,10 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
     const netElevatorPrice = Math.max(0, elvBasePrice - elvDiscountAmount);
     const elvTotalWithGst = Math.round(netElevatorPrice * (1 + gstRate / 100));
 
-    const elvCustomRegex = /(?:<!-- ELV_PRICE_BOX_START -->)?<div class="t c21[^"]*elv-price-box[^"]*"[\s\S]*?<!-- ELV_PRICE_BOX_END -->|<div class="t c21"[^>]*style="position:absolute;left:320\.51px;top:(?:592|605|616|625)px;[^"]*"[\s\S]*?(?:<!-- ELV_PRICE_BOX_END -->|<\/div>(?=\s*<\/p>|\s*<\/td>))/;
+    const elvCustomRegex = /(?:<!-- ELV_PRICE_BOX_START -->)?<div class="t c21[^"]*elv-price-box[^"]*"[\s\S]*?<!-- ELV_PRICE_BOX_END -->|<div class="t c21"[^>]*style="position:absolute;left:320\.51px;top:(?:592|605)px;[^"]*"[\s\S]*?(?:<!-- ELV_PRICE_BOX_END -->|<\/div>(?=\s*<\/p>|\s*<\/td>))/;
 
     if (hasElvDiscount && elvBasePrice) {
-      const elvTop = hasShaftPrice ? 592 : 616;
-      const elvReplacement = `<!-- ELV_PRICE_BOX_START --><div class="t c21 elv-price-box" style="position:absolute;left:320.51px;top:${elvTop}px;height:42px;min-height:42px;line-height:14px;white-space:nowrap;z-index:825;color:#000000 !important;font-size:11px;font-family:'f3',sans-serif;">` +
+      const elvReplacement = `<!-- ELV_PRICE_BOX_START --><div class="t c21 elv-price-box" style="position:absolute;left:320.51px;top:592px;height:42px;min-height:42px;line-height:14px;white-space:nowrap;z-index:825;color:#000000 !important;font-size:11px;font-family:'f3',sans-serif;">` +
         `<div style="font-size:11px;line-height:14px;color:#000000;">Elevator Price: Rs. ${formatINR(elvBasePrice)}</div>` +
         `<div style="font-size:11px;line-height:14px;color:#000000;">Discount Price: - Rs. ${formatINR(elvDiscountAmount)}</div>` +
         `<div style="font-size:11.5px;line-height:14px;font-weight:bold;color:#000000;">Total: Rs. ${formatINR(netElevatorPrice)} + ${gstRate}% GST (Rs. ${formatINR(elvTotalWithGst)})</div>` +
@@ -1414,8 +1384,7 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
         html = html.replace(/Rs\.\s*16,00,,000\s*\+\s*18%\s*GST/g, elvReplacement);
       }
     } else if (elvBasePrice) {
-      const elvTop = hasShaftPrice ? 605 : 625;
-      const elvSimple = `<!-- ELV_PRICE_BOX_START --><div class="t c21 elv-price-box" style="position:absolute;left:320.51px;top:${elvTop}px;height:24px;min-height:24px;line-height:24px;white-space:nowrap;z-index:825;color:#000000 !important;font-size:12px;font-weight:bold;font-family:'f3',sans-serif;">` +
+      const elvSimple = `<!-- ELV_PRICE_BOX_START --><div class="t c21 elv-price-box" style="position:absolute;left:320.51px;top:605px;height:24px;min-height:24px;line-height:24px;white-space:nowrap;z-index:825;color:#000000 !important;font-size:12px;font-weight:bold;font-family:'f3',sans-serif;">` +
         `Elevator Price: Rs. ${formatINR(elvBasePrice)} + ${gstRate}% GST (Rs. ${formatINR(elvTotalWithGst)})` +
       `</div><!-- ELV_PRICE_BOX_END -->`;
       const elvRegex = /<div class="t c21" style="z-index:825;transform:matrix\(1,0,0,1,320\.51,611\.2\)">[\s\S]*?<\/div>/;
@@ -1428,26 +1397,22 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
       }
     }
 
-    // Shaft Price - Hide row completely if shaftBasePrice <= 0
+    // Shaft Price - Matching exact height and styling as Elevator Price box
+    const shaftDiscountAmount = Number(safeData.shaftDiscountPrice || 0);
+    const hasShaftDiscount = Boolean(shaftDiscountAmount > 0);
+    const shaftBasePrice = Number(safeData.shaftPrice || 0);
     const netShaftPrice = Math.max(0, shaftBasePrice - shaftDiscountAmount);
     const shaftTotalWithGst = Math.round(netShaftPrice * (1 + gstRate / 100));
 
-    const shaftLabelRegex = /<div class="t c21" style="z-index:849;transform:matrix\(1,0,0,1,47\.46,655\.24\)[^"]*">Shaft price\s*<\/div>/g;
-    if (hasShaftPrice) {
-      html = html.replace(shaftLabelRegex, '<div class="t c21" style="z-index:849;transform:matrix(1,0,0,1,47.46,655.24);font-weight:bold;color:#000000 !important;">Shaft price  </div>');
-    } else {
-      html = html.replace(shaftLabelRegex, '<div class="t c21" style="z-index:849;transform:matrix(1,0,0,1,47.46,655.24);display:none;">Shaft price  </div>');
-    }
-
     const shaftCustomRegex = /(?:<!-- SHAFT_PRICE_BOX_START -->)?<div class="t c25[^"]*shaft-price-box[^"]*"[\s\S]*?<!-- SHAFT_PRICE_BOX_END -->|<div class="t c25"[^>]*style="position:absolute;left:320\.51px;top:(?:636|649)px;[^"]*"[\s\S]*?(?:<!-- SHAFT_PRICE_BOX_END -->|<\/div>(?=\s*<\/p>|\s*<\/td>))/;
-    const shaftRegex = /<div class="t c25" style="z-index:878;transform:matrix\(1,0,0,1,325\.09,655\.24\)">[\s\S]*?<\/div>/;
 
-    if (hasShaftDiscount && hasShaftPrice) {
+    if (hasShaftDiscount && shaftBasePrice) {
       const shaftReplacement = `<!-- SHAFT_PRICE_BOX_START --><div class="t c25 shaft-price-box" style="position:absolute;left:320.51px;top:636px;height:42px;min-height:42px;line-height:14px;white-space:nowrap;z-index:878;color:#000000 !important;font-size:11px;font-family:'f3',sans-serif;">` +
         `<div style="font-size:11px;line-height:14px;color:#000000;">Shaft Price: Rs. ${formatINR(shaftBasePrice)}</div>` +
         `<div style="font-size:11px;line-height:14px;color:#000000;">Discount Price: - Rs. ${formatINR(shaftDiscountAmount)}</div>` +
         `<div style="font-size:11.5px;line-height:14px;font-weight:bold;color:#000000;">Total: Rs. ${formatINR(netShaftPrice)} + ${gstRate}% GST (Rs. ${formatINR(shaftTotalWithGst)})</div>` +
       `</div><!-- SHAFT_PRICE_BOX_END -->`;
+      const shaftRegex = /<div class="t c25" style="z-index:878;transform:matrix\(1,0,0,1,325\.09,655\.24\)">[\s\S]*?<\/div>/;
       if (shaftCustomRegex.test(html)) {
         html = html.replace(shaftCustomRegex, shaftReplacement);
       } else if (shaftRegex.test(html)) {
@@ -1455,28 +1420,17 @@ export function renderExactPdfPage(pageIdx: number, data?: QuotationData): strin
       } else {
         html = html.replace(/Rs\.4,00,000\s*\+\s*18%\s*GST/g, shaftReplacement);
       }
-    } else if (hasShaftPrice) {
+    } else if (shaftBasePrice) {
       const shaftSimple = `<!-- SHAFT_PRICE_BOX_START --><div class="t c25 shaft-price-box" style="position:absolute;left:320.51px;top:649px;height:24px;min-height:24px;line-height:24px;white-space:nowrap;z-index:878;color:#000000 !important;font-size:12px;font-weight:bold;font-family:'f3',sans-serif;">` +
         `Shaft Price: Rs. ${formatINR(shaftBasePrice)} + ${gstRate}% GST (Rs. ${formatINR(shaftTotalWithGst)})` +
       `</div><!-- SHAFT_PRICE_BOX_END -->`;
+      const shaftRegex = /<div class="t c25" style="z-index:878;transform:matrix\(1,0,0,1,325\.09,655\.24\)">[\s\S]*?<\/div>/;
       if (shaftCustomRegex.test(html)) {
         html = html.replace(shaftCustomRegex, shaftSimple);
       } else if (shaftRegex.test(html)) {
         html = html.replace(shaftRegex, shaftSimple);
       } else {
         html = html.replace(/Rs\.4,00,000\s*\+\s*18%\s*GST/g, shaftSimple);
-      }
-    } else {
-      const shaftHidden = `<!-- SHAFT_PRICE_BOX_START --><div class="t c25 shaft-price-box" data-shaft-hidden="true" style="position:absolute;left:0;top:0;width:0;height:0;overflow:visible;z-index:878;pointer-events:none;">` +
-        `<div style="position:absolute;left:47.6px;top:641px;width:199.8px;height:4px;background:#ffffff;"></div>` +
-        `<div style="position:absolute;left:249.3px;top:641px;width:482.2px;height:4px;background:#ffffff;"></div>` +
-      `</div><!-- SHAFT_PRICE_BOX_END -->`;
-      if (shaftCustomRegex.test(html)) {
-        html = html.replace(shaftCustomRegex, shaftHidden);
-      } else if (shaftRegex.test(html)) {
-        html = html.replace(shaftRegex, shaftHidden);
-      } else {
-        html = html.replace(/Rs\.4,00,000\s*\+\s*18%\s*GST/g, shaftHidden);
       }
     }
 
