@@ -2074,12 +2074,39 @@ projectRouter.patch('/:id/stage-dates', authorize('ADMIN', 'CRM', 'MANAGER', 'BD
     }
 
     project.stageDates.set(stageKey, currentDates);
+
+    // If Schedule Site Visit (SITE_MEASUREMENT scheduleDate) is filled while project is at PAYMENT_RECEIVED (pending site visit),
+    // automatically move the project stage to SITE_MEASUREMENT
+    let autoMovedToSiteVisit = false;
+    if (
+      stageKey === 'SITE_MEASUREMENT' &&
+      scheduleDate &&
+      (!project.projectStatus || project.projectStatus === 'PAYMENT_RECEIVED')
+    ) {
+      project.projectStatus = 'SITE_MEASUREMENT';
+      autoMovedToSiteVisit = true;
+    }
+
     autoFillExecutedDatesForCompletedStages(project);
     await project.save();
 
+    if (autoMovedToSiteVisit) {
+      await logProjectActivity({
+        projectId: project._id,
+        projectCode: project.projectId,
+        type: 'STATUS_CHANGE',
+        description: `Site visit schedule date set (${new Date(scheduleDate).toLocaleDateString('en-IN')}${currentDates.scheduleTime ? ' at ' + currentDates.scheduleTime : ''}). Project stage automatically changed to Site Visit (SITE_MEASUREMENT).`,
+        userId: req.user?._id,
+        userName: req.user?.name,
+        metadata: { previousStatus: 'PAYMENT_RECEIVED', newStatus: 'SITE_MEASUREMENT' },
+      });
+    }
+
     let groupMessageDispatched = false;
     let groupMessageError: string | null = null;
-    let resultMessage = 'Stage dates updated successfully';
+    let resultMessage = autoMovedToSiteVisit
+      ? 'Site visit scheduled and project stage automatically updated to Site Visit!'
+      : 'Stage dates updated successfully';
 
     if (stageKey === 'PAYMENT_RECEIVED' && executedDate) {
       await triggerAdvancePaymentReminderForCRM(project._id);
@@ -2088,7 +2115,7 @@ projectRouter.patch('/:id/stage-dates', authorize('ADMIN', 'CRM', 'MANAGER', 'BD
       const schedRes = await dispatchSiteVisitScheduledMessage(project, scheduleDate, time || currentDates.scheduleTime, req.user);
       if (schedRes?.success) {
         groupMessageDispatched = schedRes.sentViaBot;
-        resultMessage = `Site visit scheduled for ${schedRes.formattedDate} at ${schedRes.formattedTime} and WhatsApp notification sent to group!`;
+        resultMessage = `Site visit scheduled for ${schedRes.formattedDate} at ${schedRes.formattedTime}, stage updated to Site Visit, and WhatsApp notification sent to group!`;
       } else if (schedRes?.error) {
         groupMessageError = schedRes.error;
       }
@@ -2172,12 +2199,19 @@ projectRouter.patch('/:id/stage-dates-bulk', authorize('ADMIN', 'CRM', 'MANAGER'
       project.stageDates.set(stageKey, currentDates);
     }
 
-    autoFillExecutedDatesForCompletedStages(project);
-    await project.save();
-
     const hasPaymentExecuted = updates.some((u: any) => u.stageKey === 'PAYMENT_RECEIVED' && u.executedDate);
     const hasSiteVisitScheduled = updates.some((u: any) => u.stageKey === 'SITE_MEASUREMENT' && u.scheduleDate);
     const hasSiteVisitExecuted = updates.some((u: any) => u.stageKey === 'SITE_MEASUREMENT' && u.executedDate);
+
+    if (
+      hasSiteVisitScheduled &&
+      (!project.projectStatus || project.projectStatus === 'PAYMENT_RECEIVED')
+    ) {
+      project.projectStatus = 'SITE_MEASUREMENT';
+    }
+
+    autoFillExecutedDatesForCompletedStages(project);
+    await project.save();
 
     if (hasPaymentExecuted) {
       await triggerAdvancePaymentReminderForCRM(project._id);

@@ -162,7 +162,7 @@ export default function QCPage() {
       setIsApproving(true);
       const res = await api.approveQCReport(approvalModalReport._id, approvalNotes);
       toast.success(
-        res.message || 'Report approved! Project stage updated to Site Visit and WhatsApp group notified.',
+        res.message || 'Report approved! Site Visit marked Done, project stage moved to Drawing and Cabin, and WhatsApp group notified.',
         { duration: 6000 }
       );
       setApprovalModalReport(null);
@@ -290,11 +290,11 @@ export default function QCPage() {
                   Pre-Production Site Inspection Approvals
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-                  Review submitted millimeter site measurements & wall specs. Upon your approval, the project
-                  stage advances from <strong className="text-amber-300">Advance Payment Received</strong> to{' '}
-                  <strong className="text-emerald-300">Site Visit (SITE_MEASUREMENT)</strong>, the executed date
-                  is recorded, and the official report PDF with completion notification is posted to the
-                  customer's WhatsApp group.
+                  Review submitted millimeter site measurements & wall specs. Upon your approval,{' '}
+                  <strong className="text-emerald-300">Site Visit (SITE_MEASUREMENT)</strong> is marked Done with its
+                  executed date recorded, the project stage moves to{' '}
+                  <strong className="text-amber-300">Drawing and Cabin (DESIGN)</strong>, and the official report PDF
+                  with completion notification is posted to the customer's WhatsApp group.
                 </p>
               </div>
 
@@ -832,8 +832,8 @@ export default function QCPage() {
                     <div className="flex items-start gap-2.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 mt-1.5 shrink-0"></span>
                       <span>
-                        Project stage advances from <strong>Advance Payment Received</strong> to{' '}
-                        <strong>Site Visit (SITE_MEASUREMENT)</strong>.
+                        <strong>Site Visit (SITE_MEASUREMENT)</strong> is marked <strong>Done</strong> and project stage moves to{' '}
+                        <strong>Drawing and Cabin (DESIGN)</strong>.
                       </span>
                     </div>
                     <div className="flex items-start gap-2.5">

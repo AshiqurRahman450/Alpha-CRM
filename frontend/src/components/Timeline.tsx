@@ -963,7 +963,7 @@ export default function Timeline({
 
               {/* Informational context */}
               <p className="text-xs text-slate-600 leading-relaxed">
-                Schedule the site visit for technical measurement and inspection. The approved WhatsApp notification with the scheduled date and time will be automatically dispatched to the client group.
+                Schedule the site visit for technical measurement and inspection. Confirming the schedule automatically moves the project stage to <strong className="text-slate-800">Site Visit</strong> and dispatches the approved WhatsApp notification with the scheduled date and time to the client group.
               </p>
 
               {/* Date & Time Inputs */}

@@ -125,7 +125,7 @@ qcRouter.post('/reports', async (req: AuthRequest, res: Response) => {
       const techManagerPhone = '+919384820214';
       const botStatus = whatsAppWebBot.getStatus();
       if (botStatus.isConnected) {
-        const alertText = `🔔 *Alpha CRM - Technical Manager Approval Request*\n\nA new Pre-Production Site Visit Report has been submitted by QC Inspector (${req.user?.name || 'QC'}).\n\n• *Project / Job No:* ${formData.jobNo}\n• *Client:* ${formData.clientName}\n• *Region:* ${formData.region}\n• *Date:* ${formData.reportDate}\n\nPlease review and approve the report in Alpha CRM to change the stage to Site Visit and dispatch the report PDF to the client group.`;
+        const alertText = `🔔 *Alpha CRM - Technical Manager Approval Request*\n\nA new Pre-Production Site Visit Report has been submitted by QC Inspector (${req.user?.name || 'QC'}).\n\n• *Project / Job No:* ${formData.jobNo}\n• *Client:* ${formData.clientName}\n• *Region:* ${formData.region}\n• *Date:* ${formData.reportDate}\n\nPlease review and approve the report in Alpha CRM to mark Site Visit as Done, move the stage to Drawing and Cabin, and dispatch the report PDF to the client group.`;
         whatsAppWebBot.sendDirectMessage(techManagerPhone, alertText).catch((err) => {
           console.warn('[QC] Notice alerting Kishore via WhatsApp:', err.message);
         });
@@ -197,8 +197,8 @@ qcRouter.get('/reports/:id', async (req: AuthRequest, res: Response) => {
  * Technical Manager (Kishore) or Admin approves the Pre-Production Site Visit Report.
  * Actions:
  * 1. Sets report.approvalStatus = 'APPROVED'
- * 2. Changes project stage from Advance Payment Received (PAYMENT_RECEIVED) to Site Visit (SITE_MEASUREMENT)
- * 3. Records executedDate in project.stageDates for SITE_MEASUREMENT with inspection/approval date
+ * 2. Marks Site Visit (SITE_MEASUREMENT) as Done by recording executedDate in project.stageDates
+ * 3. Advances project stage to Drawing and Cabin (DESIGN)
  * 4. Dispatches time-based greeting message to the project's WhatsApp group
  * 5. Sends the official Pre-Production Site Report PDF directly to the WhatsApp group
  */
@@ -232,17 +232,23 @@ qcRouter.post('/:id/approve', authorize('TECHNICAL_MANAGER', 'ADMIN'), async (re
     let pdfSent = false;
 
     if (project) {
-      // 1. Stage change to Site Visit (SITE_MEASUREMENT)
-      project.projectStatus = 'SITE_MEASUREMENT';
-
-      // 2. Set executedDate on SITE_MEASUREMENT stage
+      // 1. Mark Site Visit (SITE_MEASUREMENT) as Done by recording executedDate
       if (!project.stageDates) {
         project.stageDates = new Map();
       }
       const siteVisitStage = project.stageDates.get('SITE_MEASUREMENT') || {};
       const inspectionDate = report.reportDate ? new Date(report.reportDate) : new Date();
-      siteVisitStage.executedDate = isNaN(inspectionDate.getTime()) ? new Date() : inspectionDate;
+      const resolvedExecDate = isNaN(inspectionDate.getTime()) ? new Date() : inspectionDate;
+      siteVisitStage.executedDate = resolvedExecDate;
+      if (!siteVisitStage.scheduleDate) {
+        siteVisitStage.scheduleDate = resolvedExecDate;
+      }
       project.stageDates.set('SITE_MEASUREMENT', siteVisitStage);
+
+      // 2. Move project stage from Site Visit (SITE_MEASUREMENT) to Drawing and Cabin (DESIGN)
+      if (!project.projectStatus || project.projectStatus === 'PAYMENT_RECEIVED' || project.projectStatus === 'SITE_MEASUREMENT') {
+        project.projectStatus = 'DESIGN';
+      }
 
       autoFillExecutedDatesForCompletedStages(project);
       await project.save();
@@ -252,7 +258,7 @@ qcRouter.post('/:id/approve', authorize('TECHNICAL_MANAGER', 'ADMIN'), async (re
         projectId: project._id,
         projectCode: project.projectId,
         type: 'STATUS_CHANGE',
-        description: `Technical Manager (${req.user?.name || 'Kishore'}) approved Pre-Production Site Visit Report. Project stage moved to Site Visit (SITE_MEASUREMENT) with executed date recorded.`,
+        description: `Technical Manager (${req.user?.name || 'Kishore'}) approved Pre-Production Site Visit Report. Site Visit (SITE_MEASUREMENT) marked Done and project stage moved to Drawing and Cabin (DESIGN).`,
         userId: req.user?._id,
         userName: req.user?.name,
       });
@@ -379,7 +385,7 @@ Alpha Elevators Team`;
 
     return res.json({
       success: true,
-      message: 'Report approved by Technical Manager! Project stage set to Site Visit, executed date recorded, and WhatsApp group update + PDF sent.',
+      message: 'Report approved by Technical Manager! Site Visit marked Done, project stage moved to Drawing and Cabin, and WhatsApp group update + PDF sent.',
       data: {
         report,
         projectStatus: project?.projectStatus,
