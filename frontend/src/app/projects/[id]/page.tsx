@@ -180,7 +180,11 @@ export default function ProjectDetailPage() {
       const res = await api.updateProjectStageDates(projectId, stageKey, scheduleDate, executedDate, time);
       
       if (stageKey === 'SITE_MEASUREMENT' && scheduleDate) {
-        toast.success(res?.message || 'Site visit scheduled and notification dispatched to WhatsApp group!');
+        const curStatus = res?.data?.projectStatus || projectData?.project?.projectStatus;
+        if (!curStatus || curStatus === 'PAYMENT_RECEIVED') {
+          await api.updateProjectStatus(projectId, 'SITE_MEASUREMENT', 'Auto-advanced to Site Visit upon scheduling site visit date');
+        }
+        toast.success(res?.message || 'Site visit scheduled, stage updated to Site Visit, and notification dispatched to WhatsApp group!');
       }
 
       // Auto-advance to next stage if executed date is provided

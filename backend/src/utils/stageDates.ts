@@ -48,9 +48,41 @@ export function autoFillExecutedDatesForCompletedStages(project: any): boolean {
     project.stageDates = new Map();
   }
 
+  let modified = false;
+
+  // Auto-advance projectStatus based on SITE_MEASUREMENT scheduleDate / executedDate
+  let siteVisitStageObj: any = null;
+  if (typeof project.stageDates.get === 'function') {
+    siteVisitStageObj = project.stageDates.get('SITE_MEASUREMENT');
+  } else {
+    siteVisitStageObj = project.stageDates['SITE_MEASUREMENT'];
+  }
+
+  const hasValidSiteVisitExec =
+    siteVisitStageObj?.executedDate &&
+    !isNaN(new Date(siteVisitStageObj.executedDate).getTime());
+  const hasValidSiteVisitSched =
+    siteVisitStageObj?.scheduleDate &&
+    !isNaN(new Date(siteVisitStageObj.scheduleDate).getTime());
+
+  if (
+    hasValidSiteVisitExec &&
+    (!project.projectStatus ||
+      project.projectStatus === 'PAYMENT_RECEIVED' ||
+      project.projectStatus === 'SITE_MEASUREMENT')
+  ) {
+    project.projectStatus = 'DESIGN';
+    modified = true;
+  } else if (
+    hasValidSiteVisitSched &&
+    (!project.projectStatus || project.projectStatus === 'PAYMENT_RECEIVED')
+  ) {
+    project.projectStatus = 'SITE_MEASUREMENT';
+    modified = true;
+  }
+
   const currentKey = normalizeStageKey(project.projectStatus);
   const currentIdx = currentKey ? ORDERED_STAGE_KEYS.indexOf(currentKey as any) : -1;
-  let modified = false;
   const now = new Date();
 
   // Set of stages that are completed and must have an executed date

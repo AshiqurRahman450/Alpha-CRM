@@ -677,6 +677,13 @@ projectRouter.get('/', async (req: AuthRequest, res: Response) => {
     if (isTlUser(req.user)) {
       projects = projects.filter((p) => isProjectAccessibleByTl(p, req.user));
     }
+
+    for (const p of projects) {
+      if (autoFillExecutedDatesForCompletedStages(p)) {
+        await p.save();
+      }
+    }
+
     return res.json({ success: true, count: projects.length, data: projects });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
