@@ -418,6 +418,9 @@ reminderRouter.patch('/:id/dismiss', async (req: AuthRequest, res: Response) => 
     }
 
     reminder.status = 'DISMISSED';
+    if (!reminder.notes?.includes('[REJECTED_BY_ADMIN]')) {
+      reminder.notes = `${reminder.notes || ''} [REJECTED_BY_ADMIN]`.trim();
+    }
     await reminder.save();
 
     // If dismissing a quotation approval reminder, dismiss all copies across users
@@ -518,9 +521,13 @@ reminderRouter.post('/delivery-approval', async (req: AuthRequest, res: Response
         { $or: [{ offerNo: offerCode }, { _id: quotationId }] },
         {
           $set: {
+            'data.deliveryDays': 120,
+            'data.deliveryTime': '120 days post confirmation on drawings and finishes.',
             'data.deliveryApprovalStatus': 'PENDING',
             'data.deliveryApprovalDays': requestedDays,
             'data.deliveryApprovalRequestedAt': new Date().toISOString(),
+            'data.deliveryApprovedForOfferNo': offerCode,
+            'data.deliveryApprovedForClientName': clientName,
             'data.requestedByUserId': req.user?._id,
             'data.requestedByUserName': req.user?.name || 'BDM',
             'data.requestedByUserPhone': req.user?.phone,
@@ -564,42 +571,74 @@ reminderRouter.post('/delivery-approval', async (req: AuthRequest, res: Response
 
 /**
  * GET /api/reminders/delivery-approval/status
- * Check if expedited delivery approval has been granted by Nithesh Babu for a quotation offer
+ * Check if expedited delivery approval has been granted by Nithesh Babu for a specific quotation offer AND customer name
  */
 reminderRouter.get('/delivery-approval/status', async (req: AuthRequest, res: Response) => {
   try {
     const offerNo = String(req.query.offerNo || '').trim();
+    const rawCustomerName = String(req.query.customerName || '').replace(/^Dear\s*/i, '').trim();
+    const requestedDaysParam = req.query.requestedDays ? Number(req.query.requestedDays) : undefined;
+
     if (!offerNo) {
       return res.json({ success: true, status: 'NOT_REQUESTED' });
     }
 
-    const baseOfferNo = offerNo.replace(/-[123]$/, '').trim();
+    const baseOfferNo = offerNo.replace(/-[1234]$/, '').trim();
+    const escapedBase = baseOfferNo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const normalizeName = (s?: string) => String(s || '').replace(/^Dear\s*/i, '').trim().toLowerCase();
+    const targetNameNorm = normalizeName(rawCustomerName);
+
     const quote = await Quotation.findOne({
       $or: [
         { offerNo },
-        { offerNo: new RegExp(`^${baseOfferNo}(-[123])?$`, 'i') },
+        { offerNo: new RegExp(`^${escapedBase}(-[1234])?$`, 'i') },
       ],
-    }).select('offerNo status data').lean();
+    }).select('offerNo customerName status data').lean();
 
-    if (quote?.data?.deliveryApprovalStatus === 'APPROVED') {
-      const days = Number(quote.data.deliveryDays || quote.data.deliveryApprovalDays || 60);
-      return res.json({
-        success: true,
-        status: 'APPROVED',
-        deliveryDays: days,
-        deliveryTime: quote.data.deliveryTime || `${days} days post confirmation on drawings and finishes.`,
-        approvedBy: quote.data.deliveryApprovalBy || 'Nithesh Babu (Admin)',
-        approvedAt: quote.data.deliveryApprovalAt,
-      });
+    const quoteNameNorm = normalizeName(
+      quote?.data?.deliveryApprovedForClientName || quote?.data?.clientName || quote?.customerName
+    );
+    const quoteNameMatches = !targetNameNorm || !quoteNameNorm || quoteNameNorm === targetNameNorm;
+
+    if (quote?.data?.deliveryApprovalStatus === 'APPROVED' && quoteNameMatches) {
+      const days = Number(quote.data.deliveryApprovalDays || quote.data.deliveryDays || 60);
+      if (!requestedDaysParam || days === requestedDaysParam) {
+        return res.json({
+          success: true,
+          status: 'APPROVED',
+          deliveryDays: days,
+          deliveryTime: quote.data.deliveryTime || `${days} days post confirmation on drawings and finishes.`,
+          approvedBy: quote.data.deliveryApprovalBy || 'Nithesh Babu (Admin)',
+          approvedAt: quote.data.deliveryApprovalAt,
+          offerNo: quote.offerNo,
+          customerName: quote.data.deliveryApprovedForClientName || quote.data.clientName || quote.customerName,
+        });
+      }
     }
 
-    const reminder = await Reminder.findOne({
-      relatedQuotationOfferNo: new RegExp(`^${baseOfferNo}`, 'i'),
+    const reminderQuery: any = {
+      relatedQuotationOfferNo: new RegExp(`^${escapedBase}(-[1234])?$`, 'i'),
       type: 'DELIVERY_APPROVAL',
-    }).sort({ updatedAt: -1 }).lean();
+    };
+    if (requestedDaysParam) {
+      reminderQuery.requestedDeliveryDays = requestedDaysParam;
+    }
+
+    const reminders = await Reminder.find(reminderQuery).sort({ updatedAt: -1 }).lean();
+    const reminder = reminders.find((r: any) => {
+      if (!targetNameNorm) return true;
+      return normalizeName(r.customerName) === targetNameNorm;
+    });
 
     if (reminder) {
       if (reminder.status === 'DISMISSED') {
+        if (reminder.notes?.includes('[REJECTED_BY_ADMIN]')) {
+          return res.json({
+            success: true,
+            status: 'REJECTED',
+            deliveryDays: 120,
+          });
+        }
         const days = Number(reminder.requestedDeliveryDays || 60);
         return res.json({
           success: true,
@@ -608,6 +647,8 @@ reminderRouter.get('/delivery-approval/status', async (req: AuthRequest, res: Re
           deliveryTime: `${days} days post confirmation on drawings and finishes.`,
           approvedBy: 'Nithesh Babu (Admin)',
           approvedAt: reminder.updatedAt,
+          offerNo: reminder.relatedQuotationOfferNo,
+          customerName: reminder.customerName,
         });
       } else if (reminder.status === 'PENDING') {
         return res.json({
@@ -620,8 +661,8 @@ reminderRouter.get('/delivery-approval/status', async (req: AuthRequest, res: Re
 
     return res.json({
       success: true,
-      status: quote?.data?.deliveryApprovalStatus || 'NOT_REQUESTED',
-      deliveryDays: quote?.data?.deliveryDays || 120,
+      status: 'NOT_REQUESTED',
+      deliveryDays: 120,
     });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
@@ -645,6 +686,9 @@ reminderRouter.post('/delivery-approval/:id/approve', async (req: AuthRequest, r
     }
 
     reminder.status = 'DISMISSED';
+    if (!reminder.notes?.includes('[APPROVED_BY_ADMIN]')) {
+      reminder.notes = `${reminder.notes || ''} [APPROVED_BY_ADMIN]`.trim();
+    }
     await reminder.save();
 
     const approvedDays = reminder.requestedDeliveryDays || 60;
@@ -662,6 +706,8 @@ reminderRouter.post('/delivery-approval/:id/approve', async (req: AuthRequest, r
             'data.deliveryApprovalDays': approvedDays,
             'data.deliveryApprovalBy': req.user?.name || 'Nithesh Babu (Admin)',
             'data.deliveryApprovalAt': new Date().toISOString(),
+            'data.deliveryApprovedForOfferNo': offerCode,
+            'data.deliveryApprovedForClientName': reminder.customerName,
           }
         }
       ).catch(() => {});
@@ -726,6 +772,9 @@ reminderRouter.post('/delivery-approval/:id/reject', async (req: AuthRequest, re
     }
 
     reminder.status = 'DISMISSED';
+    if (!reminder.notes?.includes('[REJECTED_BY_ADMIN]')) {
+      reminder.notes = `${reminder.notes || ''} [REJECTED_BY_ADMIN]`.trim();
+    }
     await reminder.save();
 
     const offerCode = reminder.relatedQuotationOfferNo;

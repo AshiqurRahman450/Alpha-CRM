@@ -559,7 +559,7 @@ export default function QuotationCreatorPage() {
             setWhatsAppPhone(parsed.customerPhone);
           }
           if (parsed.offerNo && parsed.deliveryApprovalStatus === 'PENDING') {
-            api.checkDeliveryApprovalStatus(parsed.offerNo)
+            api.checkDeliveryApprovalStatus(parsed.offerNo, parsed.clientName, Number(parsed.deliveryApprovalDays) || undefined)
               .then((statusRes: any) => {
                 if (statusRes?.status === 'APPROVED') {
                   const days = Number(statusRes.deliveryDays) || 60;
@@ -572,6 +572,8 @@ export default function QuotationCreatorPage() {
                       deliveryApprovalDays: days,
                       deliveryApprovalBy: statusRes.approvedBy || 'Nithesh Babu (Admin)',
                       deliveryApprovalAt: statusRes.approvedAt || new Date().toISOString(),
+                      deliveryApprovedForOfferNo: parsed.offerNo,
+                      deliveryApprovedForClientName: parsed.clientName,
                     };
                     try {
                       localStorage.setItem('alpha_quotation_draft', JSON.stringify(updated));
@@ -614,11 +616,46 @@ export default function QuotationCreatorPage() {
       });
   }, []);
 
-  // Save to localStorage on change
+  const normalizeClientIdentity = (raw?: string) => (raw || '').replace(/^Dear\s*/i, '').trim().toLowerCase();
+  const normalizeBaseOfferIdentity = (raw?: string) => getBaseOfferNo(raw || '').toLowerCase();
+
+  // Save to localStorage on change (and reset 60/90-day delivery approval whenever Offer No or Customer Name changes)
   const handleDataChange = (newData: QuotationData) => {
-    setData(newData);
+    let resolvedData = newData;
+    const offerChanged = normalizeBaseOfferIdentity(newData.offerNo) !== normalizeBaseOfferIdentity(data.offerNo);
+    const clientChanged = normalizeClientIdentity(newData.clientName) !== normalizeClientIdentity(data.clientName);
+    const approvedOfferMismatch =
+      Boolean(newData.deliveryApprovedForOfferNo) &&
+      normalizeBaseOfferIdentity(newData.deliveryApprovedForOfferNo) !== normalizeBaseOfferIdentity(newData.offerNo);
+    const approvedClientMismatch =
+      Boolean(newData.deliveryApprovedForClientName) &&
+      normalizeClientIdentity(newData.deliveryApprovedForClientName) !== normalizeClientIdentity(newData.clientName);
+
+    if (offerChanged || clientChanged || approvedOfferMismatch || approvedClientMismatch) {
+      const hasNonStandardDelivery =
+        Number(newData.deliveryDays || 120) !== 120 ||
+        (newData.deliveryApprovalStatus && newData.deliveryApprovalStatus !== 'NOT_REQUESTED') ||
+        Boolean(newData.deliveryApprovalDays);
+
+      if (hasNonStandardDelivery) {
+        resolvedData = {
+          ...newData,
+          deliveryDays: 120,
+          deliveryTime: '120 days post confirmation on drawings and finishes.',
+          deliveryApprovalStatus: 'NOT_REQUESTED',
+          deliveryApprovalDays: undefined,
+          deliveryApprovalBy: undefined,
+          deliveryApprovalAt: undefined,
+          deliveryApprovalRequestedAt: undefined,
+          deliveryApprovedForOfferNo: undefined,
+          deliveryApprovedForClientName: undefined,
+        };
+      }
+    }
+
+    setData(resolvedData);
     try {
-      localStorage.setItem('alpha_quotation_draft', JSON.stringify(newData));
+      localStorage.setItem('alpha_quotation_draft', JSON.stringify(resolvedData));
     } catch (e) {
       // ignore
     }
@@ -633,16 +670,36 @@ export default function QuotationCreatorPage() {
     }
     const custName = customer.fullName || customer.name || data.clientName;
     const cleanSalutation = custName ? custName.replace(/^Dear\s*/i, '').trim() : 'Client';
-    setData((prev) => ({
-      ...prev,
-      clientName: custName,
-      projectCity: customer.city || prev.projectCity,
-      customerPhone: phone || prev.customerPhone,
-      siteAddress: customer.address || prev.siteAddress,
-      salutation: `Dear ${cleanSalutation}`,
-      clientSignatoryName: custName,
-      existingCustomerId: customer.customerId || customer._id,
-    }));
+    setData((prev) => {
+      const isDifferentCustomer = normalizeClientIdentity(custName) !== normalizeClientIdentity(prev.clientName);
+      const updated: QuotationData = {
+        ...prev,
+        clientName: custName,
+        projectCity: customer.city || prev.projectCity,
+        customerPhone: phone || prev.customerPhone,
+        siteAddress: customer.address || prev.siteAddress,
+        salutation: `Dear ${cleanSalutation}`,
+        clientSignatoryName: custName,
+        existingCustomerId: customer.customerId || customer._id,
+        ...(isDifferentCustomer
+          ? {
+              deliveryDays: 120,
+              deliveryTime: '120 days post confirmation on drawings and finishes.',
+              deliveryApprovalStatus: 'NOT_REQUESTED',
+              deliveryApprovalDays: undefined,
+              deliveryApprovalBy: undefined,
+              deliveryApprovalAt: undefined,
+              deliveryApprovalRequestedAt: undefined,
+              deliveryApprovedForOfferNo: undefined,
+              deliveryApprovedForClientName: undefined,
+            }
+          : {}),
+      };
+      try {
+        localStorage.setItem('alpha_quotation_draft', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
     toast.success(`Loaded details for customer: ${custName} (${customer.customerId || ''})`);
   };
 

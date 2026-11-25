@@ -86,6 +86,8 @@ export interface QuotationData {
   deliveryApprovalBy?: string;
   deliveryApprovalAt?: string;
   deliveryApprovalRequestedAt?: string;
+  deliveryApprovedForOfferNo?: string;
+  deliveryApprovedForClientName?: string;
   paymentTerms: {
     booking: string;
     production: string;

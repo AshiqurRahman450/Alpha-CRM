@@ -107,10 +107,27 @@ export default function QuotationForm({
   const [approvalReason, setApprovalReason] = useState('');
   const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
 
+  const getBaseOfferCode = (raw?: string) => (raw || '').replace(/-[1234]$/, '').trim().toLowerCase();
+  const getNormalizedClientName = (raw?: string) => (raw || '').replace(/^Dear\s*/i, '').trim().toLowerCase();
+
   const isDeliveryApproved = (days: number) => {
     if (days === 120) return true;
-    if (isAdmin) return true;
-    return data.deliveryApprovalStatus === 'APPROVED' && Number(data.deliveryApprovalDays) === days;
+    if (data.deliveryApprovalStatus !== 'APPROVED' || Number(data.deliveryApprovalDays) !== days) {
+      return false;
+    }
+    if (
+      data.deliveryApprovedForOfferNo &&
+      getBaseOfferCode(data.deliveryApprovedForOfferNo) !== getBaseOfferCode(data.offerNo)
+    ) {
+      return false;
+    }
+    if (
+      data.deliveryApprovedForClientName &&
+      getNormalizedClientName(data.deliveryApprovedForClientName) !== getNormalizedClientName(data.clientName)
+    ) {
+      return false;
+    }
+    return true;
   };
 
   const handleSelectDeliveryDays = (days: number) => {
@@ -156,12 +173,16 @@ export default function QuotationForm({
         window.open(`https://wa.me/91${phone}?text=${encodeURIComponent(waText)}`, '_blank');
       }
 
-      // 3. Update local quotation data state
+      // 3. Update local quotation data state (keep deliveryDays at 120 until Nithesh approves)
       onChange({
         ...data,
+        deliveryDays: 120,
+        deliveryTime: '120 days post confirmation on drawings and finishes.',
         deliveryApprovalStatus: 'PENDING',
         deliveryApprovalDays: selectedDaysForApproval,
         deliveryApprovalRequestedAt: new Date().toISOString(),
+        deliveryApprovedForOfferNo: offerCode,
+        deliveryApprovedForClientName: clientName,
       });
 
       toast.success(
@@ -185,7 +206,11 @@ export default function QuotationForm({
     let isMounted = true;
     const interval = setInterval(async () => {
       try {
-        const res = await api.checkDeliveryApprovalStatus(data.offerNo);
+        const res = await api.checkDeliveryApprovalStatus(
+          data.offerNo,
+          data.clientName,
+          Number(data.deliveryApprovalDays) || undefined
+        );
         if (isMounted && res?.status === 'APPROVED') {
           const approvedDays = Number(res.deliveryDays) || 60;
           onChange({
@@ -196,11 +221,20 @@ export default function QuotationForm({
             deliveryApprovalDays: approvedDays,
             deliveryApprovalBy: res.approvedBy || 'Nithesh Babu (Admin)',
             deliveryApprovalAt: res.approvedAt || new Date().toISOString(),
+            deliveryApprovedForOfferNo: data.offerNo,
+            deliveryApprovedForClientName: data.clientName,
           });
           toast.success(
             `🎉 Nithesh Babu (Admin) has APPROVED expedited delivery of ${approvedDays} Days! Automatically applied to Form and PDF.`,
-            { duration: 9000, id: `approved-delivery-${data.offerNo}`, icon: '⚡' }
+            { duration: 9000, id: `approved-delivery-${data.offerNo}-${data.clientName}`, icon: '⚡' }
           );
+        } else if (isMounted && res?.status === 'REJECTED') {
+          onChange({
+            ...data,
+            deliveryDays: 120,
+            deliveryTime: '120 days post confirmation on drawings and finishes.',
+            deliveryApprovalStatus: 'REJECTED',
+          });
         }
       } catch (err) {
         // silent fail during background poll
@@ -211,12 +245,16 @@ export default function QuotationForm({
       isMounted = false;
       clearInterval(interval);
     };
-  }, [data.deliveryApprovalStatus, data.offerNo, data, onChange]);
+  }, [data.deliveryApprovalStatus, data.offerNo, data.clientName, data, onChange]);
 
   const handleCheckApprovalStatusManual = async () => {
     if (!data.offerNo) return;
     try {
-      const res = await api.checkDeliveryApprovalStatus(data.offerNo);
+      const res = await api.checkDeliveryApprovalStatus(
+        data.offerNo,
+        data.clientName,
+        Number(data.deliveryApprovalDays) || undefined
+      );
       if (res?.status === 'APPROVED') {
         const approvedDays = Number(res.deliveryDays) || 60;
         onChange({
@@ -227,11 +265,21 @@ export default function QuotationForm({
           deliveryApprovalDays: approvedDays,
           deliveryApprovalBy: res.approvedBy || 'Nithesh Babu (Admin)',
           deliveryApprovalAt: res.approvedAt || new Date().toISOString(),
+          deliveryApprovedForOfferNo: data.offerNo,
+          deliveryApprovedForClientName: data.clientName,
         });
         toast.success(
           `🎉 Nithesh Babu (Admin) has APPROVED expedited delivery of ${approvedDays} Days! Automatically applied to Form and PDF.`,
-          { duration: 9000, id: `approved-delivery-${data.offerNo}`, icon: '⚡' }
+          { duration: 9000, id: `approved-delivery-${data.offerNo}-${data.clientName}`, icon: '⚡' }
         );
+      } else if (res?.status === 'REJECTED') {
+        onChange({
+          ...data,
+          deliveryDays: 120,
+          deliveryTime: '120 days post confirmation on drawings and finishes.',
+          deliveryApprovalStatus: 'REJECTED',
+        });
+        toast.error('Expedited delivery request was rejected by Nithesh Babu (Admin). Standard 120 Days applied.');
       } else {
         toast('Approval is still pending with Nithesh Babu (Admin). You will be notified immediately once approved.', {
           icon: '⏳',
@@ -366,10 +414,27 @@ export default function QuotationForm({
     });
   };
 
+  const resetDeliveryApprovalProps = {
+    deliveryDays: 120,
+    deliveryTime: '120 days post confirmation on drawings and finishes.',
+    deliveryApprovalStatus: 'NOT_REQUESTED' as const,
+    deliveryApprovalDays: undefined,
+    deliveryApprovalBy: undefined,
+    deliveryApprovalAt: undefined,
+    deliveryApprovalRequestedAt: undefined,
+    deliveryApprovedForOfferNo: undefined,
+    deliveryApprovedForClientName: undefined,
+  };
+
   const updateField = (field: keyof QuotationData, value: any) => {
+    const isIdentityChange =
+      (field === 'offerNo' && getBaseOfferCode(String(value)) !== getBaseOfferCode(data.offerNo)) ||
+      (field === 'clientName' && getNormalizedClientName(String(value)) !== getNormalizedClientName(data.clientName));
+
     onChange({
       ...data,
       [field]: value,
+      ...(isIdentityChange ? resetDeliveryApprovalProps : {}),
     });
   };
 
@@ -762,6 +827,7 @@ export default function QuotationForm({
                   onChange={(e) => {
                     const newName = e.target.value;
                     const cleanName = newName.replace(/^Dear\s*/i, '').trim();
+                    const nameChanged = getNormalizedClientName(newName) !== getNormalizedClientName(data.clientName);
                     onChange({
                       ...data,
                       clientName: newName,
@@ -770,6 +836,7 @@ export default function QuotationForm({
                         !data.clientSignatoryName || data.clientSignatoryName === data.clientName
                           ? newName
                           : data.clientSignatoryName,
+                      ...(nameChanged ? resetDeliveryApprovalProps : {}),
                     });
                   }}
                   placeholder="e.g. Mr. Rathish Rajakumar"
@@ -2712,6 +2779,10 @@ export default function QuotationForm({
                       onChange={(e) => {
                         const val = e.target.value;
                         const d = parseDeliveryDays(val);
+                        if ((d === 60 || d === 90) && !isDeliveryApproved(d)) {
+                          handleSelectDeliveryDays(d);
+                          return;
+                        }
                         onChange({
                           ...data,
                           deliveryTime: val,
@@ -2790,12 +2861,10 @@ export default function QuotationForm({
                   </div>
                 )}
 
-                {isAdmin && (
-                  <div className="flex items-center gap-1.5 text-[11px] font-bold text-teal-800 bg-teal-50 px-2.5 py-1 rounded-lg border border-teal-200">
-                    <ShieldCheck className="w-3.5 h-3.5 text-teal-600 flex-shrink-0" />
-                    <span>Admin Mode (Nithesh Babu): Direct permission to select and approve expedited 60/90 days.</span>
-                  </div>
-                )}
+                <div className="flex items-center gap-1.5 text-[11px] font-bold text-teal-800 bg-teal-50 px-2.5 py-1 rounded-lg border border-teal-200">
+                  <ShieldCheck className="w-3.5 h-3.5 text-teal-600 flex-shrink-0" />
+                  <span>Expedited 60 / 90 Days requires Nithesh Babu (Admin) approval for every customer &amp; quotation number.</span>
+                </div>
               </div>
 
               {/* Payment Terms */}

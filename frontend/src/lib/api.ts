@@ -758,8 +758,12 @@ export const api = {
     fetchWithAuth(`/api/reminders/delivery-approval/${id}/approve`, { method: 'POST' }),
   rejectDeliveryApproval: (id: string) =>
     fetchWithAuth(`/api/reminders/delivery-approval/${id}/reject`, { method: 'POST' }),
-  checkDeliveryApprovalStatus: (offerNo: string) =>
-    fetchWithAuth(`/api/reminders/delivery-approval/status?offerNo=${encodeURIComponent(offerNo)}`),
+  checkDeliveryApprovalStatus: (offerNo: string, customerName?: string, requestedDays?: number) => {
+    const q = new URLSearchParams({ offerNo });
+    if (customerName) q.append('customerName', customerName);
+    if (requestedDays) q.append('requestedDays', String(requestedDays));
+    return fetchWithAuth(`/api/reminders/delivery-approval/status?${q.toString()}`);
+  },
 
   // QC Pre-Production Site Inspection
   generateQCPdf: async (data: any): Promise<Blob> => {
