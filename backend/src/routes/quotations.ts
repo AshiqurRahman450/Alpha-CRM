@@ -276,12 +276,22 @@ quotationRouter.get('/bdm-stage-wise', async (req: any, res: Response) => {
       if (q.createdProjectCode) group.createdProjectCode = q.createdProjectCode;
 
       const elevatorPrice = Number(q.data?.elevatorPrice || 0);
+      const specialElevatorPrice = q.data?.specialElevatorPrice && Number(q.data.specialElevatorPrice) > 0 ? Number(q.data.specialElevatorPrice) : undefined;
       const elevatorDiscountPrice = q.data?.elevatorDiscountPrice && Number(q.data.elevatorDiscountPrice) > 0 ? Number(q.data.elevatorDiscountPrice) : undefined;
-      const effectiveElevatorPrice = elevatorDiscountPrice !== undefined ? Math.max(0, elevatorPrice - elevatorDiscountPrice) : elevatorPrice;
+      const effectiveElevatorPrice = specialElevatorPrice !== undefined
+        ? specialElevatorPrice
+        : elevatorDiscountPrice !== undefined
+        ? Math.max(0, elevatorPrice - elevatorDiscountPrice)
+        : elevatorPrice;
 
       const shaftPrice = Number(q.data?.shaftPrice || 0);
+      const specialShaftPrice = q.data?.specialShaftPrice && Number(q.data.specialShaftPrice) > 0 ? Number(q.data.specialShaftPrice) : undefined;
       const shaftDiscountPrice = q.data?.shaftDiscountPrice && Number(q.data.shaftDiscountPrice) > 0 ? Number(q.data.shaftDiscountPrice) : undefined;
-      const effectiveShaftPrice = shaftDiscountPrice !== undefined ? Math.max(0, shaftPrice - shaftDiscountPrice) : shaftPrice;
+      const effectiveShaftPrice = specialShaftPrice !== undefined
+        ? specialShaftPrice
+        : shaftDiscountPrice !== undefined
+        ? Math.max(0, shaftPrice - shaftDiscountPrice)
+        : shaftPrice;
 
       const basicTotal = effectiveElevatorPrice + effectiveShaftPrice;
       const grandTotal = Math.round(basicTotal * 1.18);
@@ -650,8 +660,20 @@ quotationRouter.post('/whatsapp-send', async (req: Request, res: Response) => {
 
     const stageLabel = stageNum === 1 ? 'Initial Proposal' : stageNum === 2 ? 'Negotiation Revision' : 'Final Commercial Proposal';
     const clientName = customerName || activeData?.clientName || 'Valued Customer';
-    const effectiveElevator = Number((activeData?.elevatorDiscountPrice && Number(activeData.elevatorDiscountPrice) > 0) ? Math.max(0, (activeData.elevatorPrice || 0) - Number(activeData.elevatorDiscountPrice)) : (activeData?.elevatorPrice || 0));
-    const effectiveShaft = Number((activeData?.shaftDiscountPrice && Number(activeData.shaftDiscountPrice) > 0) ? Math.max(0, (activeData.shaftPrice || 0) - Number(activeData.shaftDiscountPrice)) : (activeData?.shaftPrice || 0));
+    const effectiveElevator = Number(
+      activeData?.specialElevatorPrice && Number(activeData.specialElevatorPrice) > 0
+        ? Number(activeData.specialElevatorPrice)
+        : activeData?.elevatorDiscountPrice && Number(activeData.elevatorDiscountPrice) > 0
+        ? Math.max(0, (activeData.elevatorPrice || 0) - Number(activeData.elevatorDiscountPrice))
+        : (activeData?.elevatorPrice || 0)
+    );
+    const effectiveShaft = Number(
+      activeData?.specialShaftPrice && Number(activeData.specialShaftPrice) > 0
+        ? Number(activeData.specialShaftPrice)
+        : activeData?.shaftDiscountPrice && Number(activeData.shaftDiscountPrice) > 0
+        ? Math.max(0, (activeData.shaftPrice || 0) - Number(activeData.shaftDiscountPrice))
+        : (activeData?.shaftPrice || 0)
+    );
     const totalContractVal = Math.round((effectiveElevator + effectiveShaft) * 1.18);
 
     const caption = `📄 *Alpha Elevators - Official Quotation Proposal (${stageLabel})*
@@ -811,9 +833,21 @@ quotationRouter.post('/request-approval', async (req: any, res: Response) => {
 
     const qData = quotation.data || {};
     const elevatorPrice = Number(qData.elevatorPrice || 0);
-    const effectiveElevatorPrice = Number((qData.elevatorDiscountPrice && Number(qData.elevatorDiscountPrice) > 0) ? Math.max(0, elevatorPrice - Number(qData.elevatorDiscountPrice)) : elevatorPrice);
+    const effectiveElevatorPrice = Number(
+      qData.specialElevatorPrice && Number(qData.specialElevatorPrice) > 0
+        ? Number(qData.specialElevatorPrice)
+        : qData.elevatorDiscountPrice && Number(qData.elevatorDiscountPrice) > 0
+        ? Math.max(0, elevatorPrice - Number(qData.elevatorDiscountPrice))
+        : elevatorPrice
+    );
     const shaftPrice = Number(qData.shaftPrice || 0);
-    const effectiveShaftPrice = Number((qData.shaftDiscountPrice && Number(qData.shaftDiscountPrice) > 0) ? Math.max(0, shaftPrice - Number(qData.shaftDiscountPrice)) : shaftPrice);
+    const effectiveShaftPrice = Number(
+      qData.specialShaftPrice && Number(qData.specialShaftPrice) > 0
+        ? Number(qData.specialShaftPrice)
+        : qData.shaftDiscountPrice && Number(qData.shaftDiscountPrice) > 0
+        ? Math.max(0, shaftPrice - Number(qData.shaftDiscountPrice))
+        : shaftPrice
+    );
     const gstRate = Number(qData.gstRate || 18);
     const subtotal = effectiveElevatorPrice + effectiveShaftPrice;
     const orderValue = subtotal + Math.round((subtotal * gstRate) / 100);
@@ -938,9 +972,21 @@ quotationRouter.post('/crm-approve', async (req: any, res: Response) => {
 
     const qData = quotation.data || {};
     const elevatorPrice = Number(qData.elevatorPrice || 0);
-    const effectiveElevatorPrice = Number((qData.elevatorDiscountPrice && Number(qData.elevatorDiscountPrice) > 0) ? Math.max(0, elevatorPrice - Number(qData.elevatorDiscountPrice)) : elevatorPrice);
+    const effectiveElevatorPrice = Number(
+      qData.specialElevatorPrice && Number(qData.specialElevatorPrice) > 0
+        ? Number(qData.specialElevatorPrice)
+        : qData.elevatorDiscountPrice && Number(qData.elevatorDiscountPrice) > 0
+        ? Math.max(0, elevatorPrice - Number(qData.elevatorDiscountPrice))
+        : elevatorPrice
+    );
     const shaftPrice = Number(qData.shaftPrice || 0);
-    const effectiveShaftPrice = Number((qData.shaftDiscountPrice && Number(qData.shaftDiscountPrice) > 0) ? Math.max(0, shaftPrice - Number(qData.shaftDiscountPrice)) : shaftPrice);
+    const effectiveShaftPrice = Number(
+      qData.specialShaftPrice && Number(qData.specialShaftPrice) > 0
+        ? Number(qData.specialShaftPrice)
+        : qData.shaftDiscountPrice && Number(qData.shaftDiscountPrice) > 0
+        ? Math.max(0, shaftPrice - Number(qData.shaftDiscountPrice))
+        : shaftPrice
+    );
     const gstRate = Number(qData.gstRate || 18);
     const subtotal = effectiveElevatorPrice + effectiveShaftPrice;
     const gstAmount = Math.round((subtotal * gstRate) / 100);
@@ -1291,10 +1337,16 @@ quotationRouter.get('/export-excel/:offerNo', async (req: Request, res: Response
 
     const getStageEffectiveElv = (stg?: any) => {
       if (!stg?.data) return 0;
+      if (stg.data.specialElevatorPrice && Number(stg.data.specialElevatorPrice) > 0) {
+        return Number(stg.data.specialElevatorPrice);
+      }
       return Number((stg.data.elevatorDiscountPrice && Number(stg.data.elevatorDiscountPrice) > 0) ? Math.max(0, (stg.data.elevatorPrice || 0) - Number(stg.data.elevatorDiscountPrice)) : (stg.data.elevatorPrice || 0));
     };
     const getStageEffectiveShaft = (stg?: any) => {
       if (!stg?.data) return 0;
+      if (stg.data.specialShaftPrice && Number(stg.data.specialShaftPrice) > 0) {
+        return Number(stg.data.specialShaftPrice);
+      }
       return Number((stg.data.shaftDiscountPrice && Number(stg.data.shaftDiscountPrice) > 0) ? Math.max(0, (stg.data.shaftPrice || 0) - Number(stg.data.shaftDiscountPrice)) : (stg.data.shaftPrice || 0));
     };
 

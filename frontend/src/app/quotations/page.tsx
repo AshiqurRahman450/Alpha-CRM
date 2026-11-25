@@ -42,7 +42,16 @@ import {
   Briefcase,
 } from 'lucide-react';
 import { api, getStoredUser } from '../../lib/api';
-import { QuotationData, DEFAULT_QUOTATION_DATA } from '../../types/quotation';
+import {
+  QuotationData,
+  DEFAULT_QUOTATION_DATA,
+  formatAutomatedOfferNo,
+  getCurrentQuotationCount,
+  incrementQuotationCount,
+  getTodayDateParts,
+  getEffectiveElevatorPrice,
+  getEffectiveShaftPrice,
+} from '../../types/quotation';
 import QuotationLivePdf from '../../components/quotation/QuotationLivePdf';
 import UploadedPdfLiveView from '../../components/quotation/UploadedPdfLiveView';
 import QuotationForm from '../../components/quotation/QuotationForm';
@@ -130,7 +139,7 @@ export default function QuotationCreatorPage() {
   const [excelOfferNo, setExcelOfferNo] = useState<string>('');
 
   const getBaseOfferNo = (raw: string): string => {
-    if (!raw) return 'AE/QTN/AE-261026-131';
+    if (!raw) return formatAutomatedOfferNo(getCurrentQuotationCount(), 1).replace(/-[1234]$/, '');
     return raw.replace(/-[1234]$/, '').trim();
   };
 
@@ -244,8 +253,16 @@ export default function QuotationCreatorPage() {
       });
 
       if (res?.success) {
+        const nextCount = incrementQuotationCount(finalOfferNo);
+        const nextOfferNo = formatAutomatedOfferNo(nextCount, currentStage);
+        const nextData = { ...updatedData, offerNo: nextOfferNo };
+        setData(nextData);
+        try {
+          localStorage.setItem('alpha_quotation_draft', JSON.stringify(nextData));
+        } catch {}
+
         toast.success(
-          `Stage ${currentStage} Finalized! Offer No updated: ${finalOfferNo}. Data submitted for CRM review.`,
+          `Stage ${currentStage} Finalized (${finalOfferNo})! Next Quotation No auto-incremented to ${nextOfferNo}.`,
           { duration: 5000 }
         );
         api.quotations.getStageHistory(finalOfferNo).then((hRes: any) => {
@@ -386,7 +403,35 @@ export default function QuotationCreatorPage() {
     try {
       const targetStage = currentStage === 4 ? 4 : 3;
       const finalOfferNo = getSuffixedOfferNo(data.offerNo, targetStage);
+      const updatedSnapshot = { ...data, offerNo: finalOfferNo };
       const isBdm = currentUser?.role === 'BDM';
+
+      // Ensure current stage snapshot is saved before submitting CRM approval request
+      await api.quotations
+        .saveStage({
+          baseOfferNo: getBaseOfferNo(finalOfferNo),
+          offerNo: finalOfferNo,
+          stage: targetStage,
+          data: updatedSnapshot,
+          customerName: data.clientName || 'Valued Customer',
+          customerPhone: whatsAppPhone || data.customerPhone || data.representativePhone || '',
+          customerCity: data.projectCity || '',
+          status: 'FINALIZED',
+        })
+        .catch(() => {});
+
+      const incrementOfferAfterCrmSubmit = () => {
+        const nextCount = incrementQuotationCount(finalOfferNo);
+        const nextOfferNo = formatAutomatedOfferNo(nextCount, currentStage);
+        setData((prev) => {
+          const nextData = { ...prev, offerNo: nextOfferNo };
+          try {
+            localStorage.setItem('alpha_quotation_draft', JSON.stringify(nextData));
+          } catch {}
+          return nextData;
+        });
+        return nextOfferNo;
+      };
 
       if (isBdm) {
         const res = await api.quotations.requestApproval({
@@ -398,8 +443,9 @@ export default function QuotationCreatorPage() {
 
         if (res?.success) {
           setApprovalRequested(true);
+          const nextOfferNo = incrementOfferAfterCrmSubmit();
           toast.success(
-            `Stage ${targetStage} Approval Request sent to CRM & Admin! The Customer and Project will be auto-created once approved on Reminders.`,
+            `Stage ${targetStage} Approval Request sent to CRM & Admin (${finalOfferNo})! Next Quotation No auto-incremented to ${nextOfferNo}.`,
             { duration: 6000 }
           );
         } else {
@@ -411,13 +457,14 @@ export default function QuotationCreatorPage() {
         });
 
         if (res?.success) {
+          const nextOfferNo = incrementOfferAfterCrmSubmit();
           if (res.requestSent) {
             setApprovalRequested(true);
-            toast.success('Approval request sent to CRM & Admin on Reminders!');
+            toast.success(`Approval request sent to CRM & Admin (${finalOfferNo})! Next Quotation No: ${nextOfferNo}`);
           } else {
             setCrmApproveResult(res);
             setShowCrmApproveModal(true);
-            toast.success(`Stage ${targetStage} Approved! New Customer and Project successfully created in CRM.`);
+            toast.success(`Stage ${targetStage} Approved! Customer and Project created in CRM. Next Quotation No: ${nextOfferNo}`);
           }
         } else {
           toast.error(res?.message || 'Failed to approve quotation on CRM');
@@ -545,16 +592,30 @@ export default function QuotationCreatorPage() {
 
     if (!loadedFromQuery) {
       // Check localStorage for saved draft
+      const hasCountSeq = Boolean(localStorage.getItem('alpha_quotation_count_seq_v1'));
       const saved = localStorage.getItem('alpha_quotation_draft');
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          setData(parsed);
+          let resolvedStage: 1 | 2 | 3 | 4 = 1;
           if (parsed.offerNo) {
-            if (parsed.offerNo.endsWith('-2')) setCurrentStage(2);
-            else if (parsed.offerNo.endsWith('-3')) setCurrentStage(3);
-            else setCurrentStage(1);
+            if (parsed.offerNo.endsWith('-4')) resolvedStage = 4;
+            else if (parsed.offerNo.endsWith('-3')) resolvedStage = 3;
+            else if (parsed.offerNo.endsWith('-2')) resolvedStage = 2;
+            else resolvedStage = 1;
           }
+          setCurrentStage(resolvedStage);
+
+          if (!hasCountSeq || !parsed.offerNo || parsed.offerNo.includes('261026-131')) {
+            const initCount = getCurrentQuotationCount();
+            parsed.offerNo = formatAutomatedOfferNo(initCount, resolvedStage);
+            parsed.offerDate = getTodayDateParts().formattedDate;
+            try {
+              localStorage.setItem('alpha_quotation_draft', JSON.stringify(parsed));
+            } catch {}
+          }
+
+          setData(parsed);
           if (parsed.customerPhone) {
             setWhatsAppPhone(parsed.customerPhone);
           }
@@ -592,11 +653,13 @@ export default function QuotationCreatorPage() {
           // use default
         }
       } else {
-        // Default initial offer with -1 suffix
-        const initialOffer = getSuffixedOfferNo(DEFAULT_QUOTATION_DATA.offerNo, 1);
+        // Default initial offer starting from count 1 with -1 stage suffix
+        const initCount = getCurrentQuotationCount();
+        const initialOffer = formatAutomatedOfferNo(initCount, 1);
         setData((prev) => ({
           ...prev,
           offerNo: initialOffer,
+          offerDate: getTodayDateParts().formattedDate,
           representativeName: user?.name || prev.representativeName,
           alphaSignatoryName: user?.name ? `For Alpha Elevators (${user.name})` : prev.alphaSignatoryName,
         }));
@@ -672,9 +735,13 @@ export default function QuotationCreatorPage() {
     const cleanSalutation = custName ? custName.replace(/^Dear\s*/i, '').trim() : 'Client';
     setData((prev) => {
       const isDifferentCustomer = normalizeClientIdentity(custName) !== normalizeClientIdentity(prev.clientName);
+      const nextOfferNo = isDifferentCustomer
+        ? formatAutomatedOfferNo(incrementQuotationCount(prev.offerNo), currentStage)
+        : prev.offerNo;
       const updated: QuotationData = {
         ...prev,
         clientName: custName,
+        offerNo: nextOfferNo,
         projectCity: customer.city || prev.projectCity,
         customerPhone: phone || prev.customerPhone,
         siteAddress: customer.address || prev.siteAddress,
@@ -2167,7 +2234,7 @@ export default function QuotationCreatorPage() {
                 <div className="flex justify-between text-[11px]">
                   <span>Total Order Value:</span>
                   <span className="font-bold text-slate-900">
-                    ₹{((Number((data.elevatorDiscountPrice && Number(data.elevatorDiscountPrice) > 0 ? data.elevatorDiscountPrice : data.elevatorPrice) || 0) + Number((data.shaftDiscountPrice && Number(data.shaftDiscountPrice) > 0 ? data.shaftDiscountPrice : data.shaftPrice) || 0)) * 1.18).toLocaleString('en-IN')}
+                    ₹{Math.round((getEffectiveElevatorPrice(data) + getEffectiveShaftPrice(data)) * (1 + Number(data.gstRate ?? 18) / 100)).toLocaleString('en-IN')}
                   </span>
                 </div>
               </div>

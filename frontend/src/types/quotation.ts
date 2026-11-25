@@ -71,8 +71,10 @@ export interface QuotationData {
 
   // Terms of Sale / Commercials (Page 5)
   elevatorPrice: number;
+  specialElevatorPrice?: number;
   elevatorDiscountPrice?: number;
   shaftPrice: number;
+  specialShaftPrice?: number;
   shaftDiscountPrice?: number;
   gstRate: number; // percentage (e.g. 18)
   warranty: string;
@@ -111,14 +113,150 @@ export interface QuotationData {
   alphaSignature?: string;
 }
 
+export function getTodayDateParts(date: Date = new Date()): {
+  dd: string;
+  mm: string;
+  yy: string;
+  yyyy: string;
+  ddmmyy: string;
+  formattedDate: string;
+} {
+  const dd = String(date.getDate()).padStart(2, '0');
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const yyyy = String(date.getFullYear());
+  const yy = yyyy.slice(-2);
+  return {
+    dd,
+    mm,
+    yy,
+    yyyy,
+    ddmmyy: `${dd}${mm}${yy}`,
+    formattedDate: `${dd}/${mm}/${yyyy}`,
+  };
+}
+
+export function formatAutomatedOfferNo(
+  count: number = 1,
+  stage: number = 1,
+  date: Date = new Date()
+): string {
+  const { ddmmyy } = getTodayDateParts(date);
+  const validCount = Math.max(1, Math.floor(Number(count) || 1));
+  const validStage = [1, 2, 3, 4].includes(Number(stage)) ? Number(stage) : 1;
+  return `AE/QTN/ AE-${ddmmyy}-${validCount}-${validStage}`;
+}
+
+export function parseOfferNoParts(offerNo?: string): {
+  ddmmyy: string;
+  count: number;
+  stage: 1 | 2 | 3 | 4;
+} {
+  const { ddmmyy: todayDdmmyy } = getTodayDateParts();
+  if (!offerNo) {
+    return { ddmmyy: todayDdmmyy, count: 1, stage: 1 };
+  }
+  const trimmed = offerNo.trim();
+  const match = trimmed.match(/AE-(\d{6})-(\d+)(?:-([1234]))?$/i);
+  if (match) {
+    const s = match[3] ? parseInt(match[3], 10) : 1;
+    const stage = (s === 2 ? 2 : s === 3 ? 3 : s === 4 ? 4 : 1) as 1 | 2 | 3 | 4;
+    return {
+      ddmmyy: match[1],
+      count: Math.max(1, parseInt(match[2], 10) || 1),
+      stage,
+    };
+  }
+  const stageMatch = trimmed.match(/-([1234])$/);
+  const fallbackStage = (stageMatch ? parseInt(stageMatch[1], 10) : 1) as 1 | 2 | 3 | 4;
+  return { ddmmyy: todayDdmmyy, count: 1, stage: fallbackStage };
+}
+
+const QUOTATION_COUNT_STORAGE_KEY = 'alpha_quotation_count_seq_v1';
+
+export function getCurrentQuotationCount(): number {
+  if (typeof window === 'undefined') return 1;
+  try {
+    const raw = localStorage.getItem(QUOTATION_COUNT_STORAGE_KEY);
+    if (!raw) {
+      localStorage.setItem(QUOTATION_COUNT_STORAGE_KEY, '1');
+      return 1;
+    }
+    const parsed = parseInt(raw, 10);
+    if (isNaN(parsed) || parsed < 1) {
+      localStorage.setItem(QUOTATION_COUNT_STORAGE_KEY, '1');
+      return 1;
+    }
+    return parsed;
+  } catch {
+    return 1;
+  }
+}
+
+export function incrementQuotationCount(currentOfferNo?: string): number {
+  const stored = getCurrentQuotationCount();
+  let currentFromOffer = 0;
+  if (currentOfferNo && !currentOfferNo.includes('261026-131')) {
+    currentFromOffer = parseOfferNoParts(currentOfferNo).count;
+  }
+  const base = Math.max(1, stored, currentFromOffer);
+  const next = base + 1;
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(QUOTATION_COUNT_STORAGE_KEY, String(next));
+    } catch {}
+  }
+  return next;
+}
+
+export function getEffectiveSpecialElevatorPrice(data?: Partial<QuotationData>): number {
+  if (!data) return 0;
+  if (data.specialElevatorPrice !== undefined && data.specialElevatorPrice !== null) {
+    return Math.max(0, Number(data.specialElevatorPrice) || 0);
+  }
+  if (data.elevatorDiscountPrice !== undefined && data.elevatorDiscountPrice !== null && Number(data.elevatorDiscountPrice) > 0) {
+    return Math.max(0, Number(data.elevatorPrice || 0) - Number(data.elevatorDiscountPrice));
+  }
+  return 0;
+}
+
+export function getEffectiveElevatorPrice(data?: Partial<QuotationData>): number {
+  if (!data) return 0;
+  const special = getEffectiveSpecialElevatorPrice(data);
+  if (special > 0) return special;
+  return Math.max(0, Number(data.elevatorPrice || 0));
+}
+
+export function getEffectiveSpecialShaftPrice(data?: Partial<QuotationData>): number {
+  if (!data) return 0;
+  if (data.specialShaftPrice !== undefined && data.specialShaftPrice !== null) {
+    return Math.max(0, Number(data.specialShaftPrice) || 0);
+  }
+  if (
+    data.shaftDiscountPrice !== undefined &&
+    data.shaftDiscountPrice !== null &&
+    Number(data.shaftDiscountPrice) > 0 &&
+    Number(data.shaftPrice || 0) > 0
+  ) {
+    return Math.max(0, Number(data.shaftPrice || 0) - Number(data.shaftDiscountPrice));
+  }
+  return 0;
+}
+
+export function getEffectiveShaftPrice(data?: Partial<QuotationData>): number {
+  if (!data) return 0;
+  const special = getEffectiveSpecialShaftPrice(data);
+  if (special > 0) return special;
+  return Math.max(0, Number(data.shaftPrice || 0));
+}
+
 export const DEFAULT_QUOTATION_DATA: QuotationData = {
   templateType: 'standard',
   clientName: 'Mr. Rathish Rajakumar',
   projectCity: 'Chennai',
   model: 'AE 03 Gearless Belt Home series EV',
   seriesTitle: 'Alpha Home Series: AE 03 Gearless Belt Home series EV',
-  offerNo: 'AE/QTN/ AE-261026-131',
-  offerDate: '26/10/2026',
+  offerNo: formatAutomatedOfferNo(1, 1),
+  offerDate: getTodayDateParts().formattedDate,
   subject: 'Supply, Install, test and commission of one Belt Type Home Elevator EV',
   representativeName: 'Thirunavukarasu',
   representativePhone: '+91 80151 29224',

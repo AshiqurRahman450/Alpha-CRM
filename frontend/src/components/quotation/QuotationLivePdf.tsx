@@ -9,6 +9,7 @@ import {
   buildPage3TablesHtml,
   buildPage5WarrantyHtml,
   buildPage5PaymentTermsHtml,
+  buildPage5TermsTableHtml,
   getClientSignatureHtml,
 } from './exactPdfTemplate';
 import { renderCirclePdfPage, sanitizeCircleParagraphs } from './circlePdfTemplate';
@@ -269,53 +270,9 @@ export default function QuotationLivePdf({
       updated = updated.replace(/<div class="t c17" style="z-index:729;transform:matrix\(1,0,0,1,346\.53,364\.86\)[^"]*">/g, '<div class="t c17" style="z-index:729;transform:matrix(1,0,0,1,346.53,364.86);color:#000000 !important;">');
     }
 
-    // Fix Page 5 Warranty, Delivery, & Payment Terms in savedPages
-    if (pageNum === 5 || updated.includes('Lifetime- MOTOR WARRANTY') || updated.includes('Time of Material Delivery') || updated.includes('years service') || updated.includes('warranty-term-box') || updated.includes('payment-term-stage') || updated.includes('Warranty')) {
-      const page5WarrantyHtml = buildPage5WarrantyHtml(data.warranty);
-      const warrantyBoxRegex = /(?:<!-- START_WARRANTY_BOX -->)?<div class="t c26[^"]*warranty-term-box[^"]*"[\s\S]*?(?:<!-- END_WARRANTY_BOX -->|<\/div>(?=\s*<\/p>|\s*<\/td>|\s*<div class="t c21"[^>]*>Time of Material Delivery))/;
-      const warrantyCellRegex = /<div class="t c26[^"]*" style="z-index:907;transform:matrix\(1,0,0,1,252\.41,682\.01\)[^"]*">[\s\S]*?(?:years service\.<\/div>|<div class="t c26[^"]*" style="z-index:1048;transform:matrix\(1,0,0,1,249\.21,710\.81\)[^"]*">[\s\S]*?<\/div>)/;
-      const customWarrantyRegex = /<div class="t c26[^"]*" style="position:absolute;left:25[02]\.?\d*px;top:6[78]\d\.?\d*px;[\s\S]*?<\/div>/;
-      const emptyWarrantyCellRegex = /(<div class="t c21"[^>]*>Warranty<\/div>\s*<\/p>\s*<\/td>\s*<td role="cell"[^>]*>\s*<p[^>]*>)([\s\S]*?)(<\/p>\s*<\/td>)/;
-      const emptyWarrantyCellNoP = /(<div class="t c21"[^>]*>Warranty<\/div>\s*(?:<\/p>)?\s*<\/td>\s*<td role="cell"[^>]*>)([\s\S]*?)(<\/td>)/;
-
-      if (page5WarrantyHtml && warrantyBoxRegex.test(updated)) {
-        updated = updated.replace(warrantyBoxRegex, page5WarrantyHtml);
-      } else if (page5WarrantyHtml && warrantyCellRegex.test(updated)) {
-        updated = updated.replace(warrantyCellRegex, page5WarrantyHtml);
-      } else if (page5WarrantyHtml && customWarrantyRegex.test(updated)) {
-        updated = updated.replace(customWarrantyRegex, page5WarrantyHtml);
-      } else if (page5WarrantyHtml && emptyWarrantyCellRegex.test(updated)) {
-        updated = updated.replace(emptyWarrantyCellRegex, `$1${page5WarrantyHtml}$3`);
-      } else if (page5WarrantyHtml && emptyWarrantyCellNoP.test(updated)) {
-        updated = updated.replace(emptyWarrantyCellNoP, `$1<p style="display:contents">${page5WarrantyHtml}</p>$3`);
-      }
-      if (data.deliveryTime) {
-        updated = updated.replace(/\b\d+\s*days post confirmation on drawings and finishes\./, data.deliveryTime);
-      }
-      if (data.paymentTerms) {
-        const page5PaymentHtml = buildPage5PaymentTermsHtml(data.paymentTerms);
-        const paymentCellRegex = /<td role="cell" style="display:contents">\s*<p style="display:contents">\s*<div class="t c29[^"]*" style="[^"]*758\.84px[^"]*">[\s\S]*?<\/p>\s*<\/td>/;
-        if (paymentCellRegex.test(updated)) {
-          updated = updated.replace(paymentCellRegex, page5PaymentHtml);
-        } else {
-          if (data.paymentTerms.booking) {
-            const bText = data.paymentTerms.booking.replace(/^[0-9.]+\s*/, '');
-            updated = updated.replace(/\b1\.\s*Booking\s*[–-]\s*\d+%/i, `1. ${bText}`)
-                             .replace(/\.\s*Booking\s*[–-]\s*\d+%/i, `. ${bText}`)
-                             .replace(/Booking\s*[–-]\s*\d+%/i, bText);
-          }
-          if (data.paymentTerms.production) {
-            const pText = data.paymentTerms.production.replace(/^[0-9.]+\s*/, '');
-            updated = updated.replace(/\b2\.\s*Production\s*Amount\s*[–-]\s*\d+%/i, `2. ${pText}`)
-                             .replace(/Production\s*Amount\s*[–-]\s*\d+%/i, pText);
-          }
-          if (data.paymentTerms.readiness) {
-            const rText = data.paymentTerms.readiness.replace(/^[0-9.]+\s*/, '');
-            updated = updated.replace(/\b3\.\s*Readiness\s*notification\s*[–-]\s*\d+%/i, `3. ${rText}`)
-                             .replace(/Readiness\s*notification\s*[–-]\s*\d+%/i, rText);
-          }
-        }
-      }
+    // Fix Page 5 Terms of Sale Table (Price, Special Price, Shaft Price, Special Shaft Price, Warranty, Delivery, & Payment Terms) in savedPages
+    if (pageNum === 5 || updated.includes('id="p4"') || updated.includes('TERMS OF SALE')) {
+      updated = buildPage5TermsTableHtml(updated, data);
     }
 
     // Fix Clause 6 (Right to Use) on Page 8 if old broken fragmented divs exist
@@ -579,135 +536,9 @@ export default function QuotationLivePdf({
       updated = updated.replace(/<div class="client-signature-box"[\s\S]*?<\/div>/g, '');
     }
 
-    // Page 5 Price Row Sanitization: Remove MRP and apply discount / total format
+    // Page 5 Terms of Sale Table Sanitization (Price, Special Price, Shaft Price, Special Shaft Price, Warranty, Delivery, Payment Terms)
     if (pageNum === 5 && updated) {
-      const gstRate = data.gstRate !== undefined ? Number(data.gstRate) : 18;
-      const elvDiscountAmount = Number(data.elevatorDiscountPrice || 0);
-      const hasElvDiscount = Boolean(elvDiscountAmount > 0);
-      const elvBasePrice = Number(data.elevatorPrice || 0);
-      const netElevatorPrice = Math.max(0, elvBasePrice - elvDiscountAmount);
-      const elvTotalWithGst = Math.round(netElevatorPrice * (1 + gstRate / 100));
-
-      const formatINR = (val: number) => Number(val || 0).toLocaleString('en-IN');
-
-      // Update left column PRICE to Elevator Price
-      updated = updated.replace(/<div class="t c21" style="z-index:815;transform:matrix\(1,0,0,1,47\.46,613\.01\)">PRICE<\/div>/g, '<div class="t c21" style="z-index:815;transform:matrix(1,0,0,1,47.46,613.01);font-weight:bold;color:#000000 !important;">Elevator Price</div>');
-      updated = updated.replace(/<div[^>]*47\.46,613\.01[^>]*>PRICE<\/div>/g, '<div class="t c21" style="z-index:815;transform:matrix(1,0,0,1,47.46,613.01);font-weight:bold;color:#000000 !important;">Elevator Price</div>');
-
-      // Remove MRP column labels on Page 5
-      updated = updated.replace(/<div class="t c24" style="z-index:822;transform:matrix\(1,0,0,1,252\.25,613\.01\)">MRP<\/div>/g, '<div class="t c24" style="z-index:822;transform:matrix(1,0,0,1,252.25,613.01)">&nbsp;</div>');
-      updated = updated.replace(/<div class="t c25" style="z-index:862;transform:matrix\(1,0,0,1,252\.57,655\.24\)">MRP\s*<\/div>/g, '<div class="t c25" style="z-index:862;transform:matrix(1,0,0,1,252.57,655.24)">&nbsp;</div>');
-
-      const elvCustomRegex = /(?:<!-- ELV_PRICE_BOX_START -->)?<div class="t c21[^"]*elv-price-box[^"]*"[\s\S]*?<!-- ELV_PRICE_BOX_END -->|<div class="t c21"[^>]*style="position:absolute;left:320\.51px;top:(?:592|605)px;[^"]*"[\s\S]*?(?:<!-- ELV_PRICE_BOX_END -->|<\/div>(?=\s*<\/p>|\s*<\/td>))/;
-
-      if (hasElvDiscount && elvBasePrice) {
-        const elvReplacement = `<!-- ELV_PRICE_BOX_START --><div class="t c21 elv-price-box" style="position:absolute;left:320.51px;top:592px;height:42px;min-height:42px;line-height:14px;white-space:nowrap;z-index:825;color:#000000 !important;font-size:11px;font-family:'f3',sans-serif;">` +
-          `<div style="font-size:11px;line-height:14px;color:#000000;">Elevator Price: Rs. ${formatINR(elvBasePrice)}</div>` +
-          `<div style="font-size:11px;line-height:14px;color:#000000;">Discount Price: - Rs. ${formatINR(elvDiscountAmount)}</div>` +
-          `<div style="font-size:11.5px;line-height:14px;font-weight:bold;color:#000000;">Total: Rs. ${formatINR(netElevatorPrice)} + ${gstRate}% GST (Rs. ${formatINR(elvTotalWithGst)})</div>` +
-        `</div><!-- ELV_PRICE_BOX_END -->`;
-        const elvRegex = /<div class="t c21" style="z-index:825;transform:matrix\(1,0,0,1,320\.51,611\.2\)">[\s\S]*?<\/div>/;
-        if (elvCustomRegex.test(updated)) {
-          updated = updated.replace(elvCustomRegex, elvReplacement);
-        } else if (elvRegex.test(updated)) {
-          updated = updated.replace(elvRegex, elvReplacement);
-        } else {
-          updated = updated.replace(/Rs\.\s*16,00,,000\s*\+\s*18%\s*GST/g, elvReplacement);
-        }
-      } else if (elvBasePrice) {
-        const elvSimple = `<!-- ELV_PRICE_BOX_START --><div class="t c21 elv-price-box" style="position:absolute;left:320.51px;top:605px;height:24px;min-height:24px;line-height:24px;white-space:nowrap;z-index:825;color:#000000 !important;font-size:12px;font-weight:bold;font-family:'f3',sans-serif;">` +
-          `Elevator Price: Rs. ${formatINR(elvBasePrice)} + ${gstRate}% GST (Rs. ${formatINR(elvTotalWithGst)})` +
-        `</div><!-- ELV_PRICE_BOX_END -->`;
-        const elvRegex = /<div class="t c21" style="z-index:825;transform:matrix\(1,0,0,1,320\.51,611\.2\)">[\s\S]*?<\/div>/;
-        if (elvCustomRegex.test(updated)) {
-          updated = updated.replace(elvCustomRegex, elvSimple);
-        } else if (elvRegex.test(updated)) {
-          updated = updated.replace(elvRegex, elvSimple);
-        } else {
-          updated = updated.replace(/Rs\.\s*16,00,,000\s*\+\s*18%\s*GST/g, elvSimple);
-        }
-      }
-
-      // Shaft Price - Matching exact height and styling as Elevator Price box (42px with discount, 24px without)
-      const shaftDiscountAmount = Number(data.shaftDiscountPrice || 0);
-      const hasShaftDiscount = Boolean(shaftDiscountAmount > 0);
-      const shaftBasePrice = Number(data.shaftPrice || 0);
-      const netShaftPrice = Math.max(0, shaftBasePrice - shaftDiscountAmount);
-      const shaftTotalWithGst = Math.round(netShaftPrice * (1 + gstRate / 100));
-
-      const shaftCustomRegex = /(?:<!-- SHAFT_PRICE_BOX_START -->)?<div class="t c25[^"]*shaft-price-box[^"]*"[\s\S]*?<!-- SHAFT_PRICE_BOX_END -->|<div class="t c25"[^>]*style="position:absolute;left:320\.51px;top:(?:636|649)px;[^"]*"[\s\S]*?(?:<!-- SHAFT_PRICE_BOX_END -->|<\/div>(?=\s*<\/p>|\s*<\/td>))/;
-
-      if (hasShaftDiscount && shaftBasePrice) {
-        const shaftReplacement = `<!-- SHAFT_PRICE_BOX_START --><div class="t c25 shaft-price-box" style="position:absolute;left:320.51px;top:636px;height:42px;min-height:42px;line-height:14px;white-space:nowrap;z-index:878;color:#000000 !important;font-size:11px;font-family:'f3',sans-serif;">` +
-          `<div style="font-size:11px;line-height:14px;color:#000000;">Shaft Price: Rs. ${formatINR(shaftBasePrice)}</div>` +
-          `<div style="font-size:11px;line-height:14px;color:#000000;">Discount Price: - Rs. ${formatINR(shaftDiscountAmount)}</div>` +
-          `<div style="font-size:11.5px;line-height:14px;font-weight:bold;color:#000000;">Total: Rs. ${formatINR(netShaftPrice)} + ${gstRate}% GST (Rs. ${formatINR(shaftTotalWithGst)})</div>` +
-        `</div><!-- SHAFT_PRICE_BOX_END -->`;
-        const shaftRegex = /<div class="t c25" style="z-index:878;transform:matrix\(1,0,0,1,325\.09,655\.24\)">[\s\S]*?<\/div>/;
-        if (shaftCustomRegex.test(updated)) {
-          updated = updated.replace(shaftCustomRegex, shaftReplacement);
-        } else if (shaftRegex.test(updated)) {
-          updated = updated.replace(shaftRegex, shaftReplacement);
-        } else {
-          updated = updated.replace(/Rs\.4,00,000\s*\+\s*18%\s*GST/g, shaftReplacement);
-        }
-      } else if (shaftBasePrice) {
-        const shaftSimple = `<!-- SHAFT_PRICE_BOX_START --><div class="t c25 shaft-price-box" style="position:absolute;left:320.51px;top:649px;height:24px;min-height:24px;line-height:24px;white-space:nowrap;z-index:878;color:#000000 !important;font-size:12px;font-weight:bold;font-family:'f3',sans-serif;">` +
-          `Shaft Price: Rs. ${formatINR(shaftBasePrice)} + ${gstRate}% GST (Rs. ${formatINR(shaftTotalWithGst)})` +
-        `</div><!-- SHAFT_PRICE_BOX_END -->`;
-        const shaftRegex = /<div class="t c25" style="z-index:878;transform:matrix\(1,0,0,1,325\.09,655\.24\)">[\s\S]*?<\/div>/;
-        if (shaftCustomRegex.test(updated)) {
-          updated = updated.replace(shaftCustomRegex, shaftSimple);
-        } else if (shaftRegex.test(updated)) {
-          updated = updated.replace(shaftRegex, shaftSimple);
-        } else {
-          updated = updated.replace(/Rs\.4,00,000\s*\+\s*18%\s*GST/g, shaftSimple);
-        }
-      } else {
-        const shaftNone = `<!-- SHAFT_PRICE_BOX_START --><div class="t c25 shaft-price-box" style="position:absolute;left:320.51px;top:649px;height:24px;min-height:24px;line-height:24px;white-space:nowrap;z-index:878;color:#000000 !important;font-size:12px;font-weight:bold;font-family:'f3',sans-serif;">` +
-          `None` +
-        `</div><!-- SHAFT_PRICE_BOX_END -->`;
-        const shaftRegex = /<div class="t c25" style="z-index:878;transform:matrix\(1,0,0,1,325\.09,655\.24\)">[\s\S]*?<\/div>/;
-        if (shaftCustomRegex.test(updated)) {
-          updated = updated.replace(shaftCustomRegex, shaftNone);
-        } else if (shaftRegex.test(updated)) {
-          updated = updated.replace(shaftRegex, shaftNone);
-        } else {
-          updated = updated.replace(/Rs\.4,00,000\s*\+\s*18%\s*GST/g, shaftNone);
-        }
-      }
-
-      // Revert any previously shifted rows back to their native table coordinates
-      updated = updated.replace(/<div class="t c21" style="z-index:899;transform:matrix\(1,0,0,1,47\.46,716\)[^"]*">Warranty<\/div>/g, '<div class="t c21" style="z-index:899;transform:matrix(1,0,0,1,47.46,696.41);font-size:12px;font-weight:bold;color:#000000 !important;">Warranty</div>');
-      updated = updated.replace(/<div class="t c21" style="z-index:1062;transform:matrix\(1,0,0,1,47\.46,754\)[^"]*">Time of Material Delivery\s*<\/div>/g, '<div class="t c21" style="z-index:1062;transform:matrix(1,0,0,1,47.46,732.16);font-size:12px;font-weight:bold;color:#000000 !important;">Time of Material Delivery </div>');
-      updated = updated.replace(/<div class="t c27" style="z-index:1088;transform:matrix\(1,0,0,1,252\.25,754\)[^"]*">/g, '<div class="t c27" style="z-index:1088;transform:matrix(1,0,0,1,252.25,732.92);color:#000000 !important;">');
-      updated = updated.replace(/<div class="t c21" style="z-index:1140;transform:matrix\(1,0,0,1,47\.46,792\)[^"]*">PAYMENT TERMS<\/div>/g, '<div class="t c21" style="z-index:1140;transform:matrix(1,0,0,1,47.46,777.28);font-size:12px;font-weight:bold;color:#000000 !important;">PAYMENT TERMS</div>');
-
-      // Time of Material Delivery value: strictly at native 732.16 / 732.92
-      if (data.deliveryTime) {
-        updated = updated.replace(/(<div class="t c27" style="z-index:1088;transform:matrix\(1,0,0,1,252\.25,732\.92\)[^"]*">)[\s\S]*?(<\/div>)/g, `$1${data.deliveryTime}$2`);
-        updated = updated.replace(/\b\d+\s*days post confirmation on drawings and finishes\./g, data.deliveryTime);
-      }
-
-      // Ensure Warranty box is present and correctly populated on Page 5
-      const page5WarrantyHtml = buildPage5WarrantyHtml(data.warranty);
-      const warrantyBoxRegex = /(?:<!-- START_WARRANTY_BOX -->)?<div class="t c26[^"]*warranty-term-box[^"]*"[\s\S]*?(?:<!-- END_WARRANTY_BOX -->|<\/div>(?=\s*<\/p>|\s*<\/td>|\s*<div class="t c21"[^>]*>Time of Material Delivery))/;
-      const warrantyCellRegex = /<div class="t c26[^"]*" style="z-index:907;transform:matrix\(1,0,0,1,252\.41,682\.01\)[^"]*">[\s\S]*?(?:years service\.<\/div>|<div class="t c26[^"]*" style="z-index:1048;transform:matrix\(1,0,0,1,249\.21,710\.81\)[^"]*">[\s\S]*?<\/div>)/;
-      const customWarrantyRegex = /<div class="t c26[^"]*" style="position:absolute;left:25[02]\.?\d*px;top:6[78]\d\.?\d*px;[\s\S]*?<\/div>/;
-      const emptyWarrantyCellRegex = /(<div class="t c21"[^>]*>Warranty<\/div>\s*<\/p>\s*<\/td>\s*<td role="cell"[^>]*>\s*<p[^>]*>)([\s\S]*?)(<\/p>\s*<\/td>)/;
-      const emptyWarrantyCellNoP = /(<div class="t c21"[^>]*>Warranty<\/div>\s*(?:<\/p>)?\s*<\/td>\s*<td role="cell"[^>]*>)([\s\S]*?)(<\/td>)/;
-
-      if (page5WarrantyHtml && warrantyBoxRegex.test(updated)) {
-        updated = updated.replace(warrantyBoxRegex, page5WarrantyHtml);
-      } else if (page5WarrantyHtml && warrantyCellRegex.test(updated)) {
-        updated = updated.replace(warrantyCellRegex, page5WarrantyHtml);
-      } else if (page5WarrantyHtml && customWarrantyRegex.test(updated)) {
-        updated = updated.replace(customWarrantyRegex, page5WarrantyHtml);
-      } else if (page5WarrantyHtml && emptyWarrantyCellRegex.test(updated)) {
-        updated = updated.replace(emptyWarrantyCellRegex, `$1${page5WarrantyHtml}$3`);
-      } else if (page5WarrantyHtml && emptyWarrantyCellNoP.test(updated)) {
-        updated = updated.replace(emptyWarrantyCellNoP, `$1<p style="display:contents">${page5WarrantyHtml}</p>$3`);
-      }
+      updated = buildPage5TermsTableHtml(updated, data);
     }
 
         // Page 9 main acceptance digital signature injection / cleanup (centered inside the signature cell)
@@ -1182,7 +1013,7 @@ export default function QuotationLivePdf({
               baseHtml = renderExactPdfPage(1, data);
             } else if (pageNum === 3 && (!isEditing || !baseHtml || !baseHtml.includes('page3-civil-spec-table') || baseHtml.includes('page3-compact-civil-cabin-wrapper') || baseHtml.includes('490.24,806.2') || !baseHtml.includes('color:#000000'))) {
               baseHtml = renderExactPdfPage(2, data);
-            } else if (pageNum === 5 && (!isEditing || !baseHtml || !baseHtml.includes('Elevator Price:') || !baseHtml.includes('SHAFT_PRICE_BOX_START') || baseHtml.includes('Rs. 16,00,,000') || !baseHtml.includes('warranty-term-box'))) {
+            } else if (pageNum === 5 && (!isEditing || !baseHtml || !baseHtml.includes('page5-terms-spec-table') || !baseHtml.includes('Special Shaft Price'))) {
               baseHtml = renderExactPdfPage(4, data);
             } else if (pageNum === 6 && !isEditing) {
               baseHtml = renderExactPdfPage(5, data);
