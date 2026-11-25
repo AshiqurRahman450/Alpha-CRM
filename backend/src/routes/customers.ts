@@ -5,7 +5,26 @@ import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { PROJECT_STAGE_NEXT_WORK } from './reminders';
 import { getNextCustomerId, getNextOldCustomerId, splitSharedCustomerProjects, resequenceCustomerIds } from '../utils/idGenerators';
 import { parseAndImportExcel, generateImportTemplateBuffer } from '../services/import/excelImportService';
-import { getCustomerTlFilter, isCustomerAccessibleByTl, isTlUser, getTlRegexForUser } from '../utils/tlAuth';
+import { getCustomerTlFilter, isCustomerAccessibleByTl, isTlUser, getTlRegexForUser, normalizeCanonicalTlName, getSearchRegexForTlName } from '../utils/tlAuth';
+
+async function resolveTlAssignment(rawTl: any): Promise<{ tlName: string | null; tlUserId: any }> {
+  const canonicalName = normalizeCanonicalTlName(rawTl);
+  if (!canonicalName) {
+    return { tlName: null, tlUserId: null };
+  }
+  const searchRegex = getSearchRegexForTlName(canonicalName);
+  let tlUserId: any = null;
+  if (searchRegex) {
+    const matchedUser = await User.findOne({
+      role: { $ne: 'BDM' },
+      $or: [{ name: searchRegex }, { email: searchRegex }],
+    });
+    if (matchedUser) {
+      tlUserId = matchedUser._id;
+    }
+  }
+  return { tlName: canonicalName, tlUserId };
+}
 import { ensureUploadsDir } from './projects';
 import multer from 'multer';
 import path from 'path';
@@ -300,22 +319,6 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
       });
     }
 
-    if (isTlUser(req.user)) {
-      const tlRegex = getTlRegexForUser(req.user);
-      const projectConditions: any[] = [];
-      if (tlRegex) projectConditions.push({ assignedTl: tlRegex });
-      if (req.user?._id) projectConditions.push({ assignedTlId: req.user._id });
-
-      const matchingProjects = projectConditions.length > 0
-        ? await Project.find({ $or: projectConditions }).select('customerId').lean()
-        : [];
-      const projectCustIds = new Set(matchingProjects.map((p) => String(p.customerId)));
-
-      strictlyFiltered = strictlyFiltered.filter(
-        (c) => isCustomerAccessibleByTl(c, req.user) || projectCustIds.has(String(c._id))
-      );
-    }
-
     const custIds = strictlyFiltered.map((c) => c._id);
     const activeProjects = await Project.find({
       customerId: { $in: custIds },
@@ -328,6 +331,7 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
         const nextInfo = PROJECT_STAGE_NEXT_WORK[p.projectStatus];
         projectMap.set(String(p.customerId), {
           ...p,
+          assignedTl: normalizeCanonicalTlName(p.assignedTl) || p.assignedTl,
           nextWork: nextInfo?.nextWork || 'Next Stage Due',
           nextWorkDesc: nextInfo?.description || '',
           currentStageLabel: nextInfo?.currentLabel || p.projectStatus,
@@ -335,11 +339,40 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
       }
     });
 
-    const data = strictlyFiltered.map((c) => {
-      const cObj: any = c.toObject ? c.toObject() : c;
-      cObj.activeProject = projectMap.get(String(c._id)) || null;
+    let data = strictlyFiltered.map((c) => {
+      const cObj: any = c.toObject ? c.toObject() : { ...c };
+      const activeProj = projectMap.get(String(c._id)) || null;
+      const rawCustTl = (cObj.assignedTl === undefined && activeProj?.assignedTl) ? activeProj.assignedTl : cObj.assignedTl;
+      const canonicalTl = normalizeCanonicalTlName(rawCustTl) || rawCustTl || null;
+      cObj.assignedTl = canonicalTl;
+      if (cObj.assignedTl === undefined && !cObj.assignedTlId && activeProj?.assignedTlId) {
+        cObj.assignedTlId = activeProj.assignedTlId;
+      }
+      cObj.activeProject = activeProj
+        ? {
+            ...activeProj,
+            assignedTl: canonicalTl || activeProj.assignedTl,
+          }
+        : null;
       return cObj;
     });
+
+    if (isTlUser(req.user)) {
+      data = data.filter((c) => isCustomerAccessibleByTl(c, req.user));
+    } else if (assignedTl && typeof assignedTl === 'string' && assignedTl !== 'ALL' && assignedTl.trim()) {
+      const rawFilter = assignedTl.trim();
+      if (rawFilter.toLowerCase() === 'unassigned' || rawFilter.toLowerCase() === 'none') {
+        data = data.filter((c) => !c.assignedTl);
+      } else {
+        const filterRegex = getSearchRegexForTlName(rawFilter);
+        if (filterRegex) {
+          data = data.filter((c) => {
+            const cTl = normalizeCanonicalTlName(c.assignedTl || c.activeProject?.assignedTl);
+            return Boolean(cTl && filterRegex.test(cTl));
+          });
+        }
+      }
+    }
 
     return res.json({ success: true, count: data.length, data });
   } catch (err: any) {
@@ -441,19 +474,9 @@ customerRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM'), async (req
     let finalAssignedTl: string | undefined = undefined;
     let finalAssignedTlId: any = undefined;
     if (assignedTl && assignedTl !== 'UNASSIGNED' && assignedTl !== 'NONE') {
-      finalAssignedTl = String(assignedTl).trim();
-      const cleanKeyword = finalAssignedTl.replace(/[^a-zA-Z]/g, '');
-      const matchedTlUser = await User.findOne({
-        $or: [
-          { name: new RegExp(`^${finalAssignedTl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
-          { name: new RegExp(cleanKeyword, 'i') },
-          { email: new RegExp(cleanKeyword, 'i') },
-        ],
-      });
-      if (matchedTlUser) {
-        finalAssignedTlId = matchedTlUser._id;
-        finalAssignedTl = matchedTlUser.name;
-      }
+      const resolved = await resolveTlAssignment(assignedTl);
+      finalAssignedTl = resolved.tlName || undefined;
+      finalAssignedTlId = resolved.tlUserId || undefined;
     }
 
     const newCustomer = await Customer.create({
@@ -514,12 +537,25 @@ customerRouter.get('/:id', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ success: false, message: 'Customer not found' });
     }
 
+    // Fetch related projects
+    const projects = await Project.find({ customerId: customer._id }).sort({ createdAt: -1 });
+
+    // Normalize or backfill customer.assignedTl from projects if needed
+    if (customer.assignedTl) {
+      customer.assignedTl = normalizeCanonicalTlName(customer.assignedTl) || customer.assignedTl;
+    } else if (projects.length > 0) {
+      const projWithTl = projects.find((p: any) => p.assignedTl);
+      if (projWithTl?.assignedTl) {
+        customer.assignedTl = normalizeCanonicalTlName(projWithTl.assignedTl) || projWithTl.assignedTl;
+        if (!customer.assignedTlId && projWithTl.assignedTlId) {
+          customer.assignedTlId = projWithTl.assignedTlId;
+        }
+      }
+    }
+
     if (!isCustomerAccessibleByTl(customer, req.user)) {
       return res.status(403).json({ success: false, message: 'Access denied. This customer is assigned to another TL.' });
     }
-
-    // Fetch related projects
-    const projects = await Project.find({ customerId: customer._id }).sort({ createdAt: -1 });
 
     // Fetch related payments
     const payments = await Payment.find({ customerId: customer._id }).sort({ paymentDate: -1 });
@@ -628,7 +664,10 @@ customerRouter.delete('/:id/documents/:docId', authorize('ADMIN', 'CRM', 'MANAGE
 /**
  * PUT /api/customers/:id
  */
-customerRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'ACCOUNTANT'), async (req: AuthRequest, res: Response) => {
+customerRouter.put(
+  '/:id',
+  authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'ACCOUNTANT', 'TECHNICAL_LEAD', 'TECHNICAL_MANAGER', 'LOGISTICS', 'LOGISTICS_TL'),
+  async (req: AuthRequest, res: Response) => {
   try {
     const updateData = { ...req.body };
     if (updateData.googleMapsLink) {
@@ -638,40 +677,44 @@ customerRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'ACCOUNTA
       updateData.googleMapsLink = updateData.address.trim();
     }
 
-    if (updateData.assignedTl !== undefined) {
-      let tlName: string | undefined = undefined;
-      let tlUserId: any = undefined;
-      if (updateData.assignedTl && updateData.assignedTl !== 'UNASSIGNED' && updateData.assignedTl !== 'NONE') {
-        tlName = String(updateData.assignedTl).trim();
-        const cleanKeyword = tlName.replace(/[^a-zA-Z]/g, '');
-        const matchedUser = await User.findOne({
-          $or: [
-            { name: new RegExp(`^${tlName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
-            { name: new RegExp(cleanKeyword, 'i') },
-            { email: new RegExp(cleanKeyword, 'i') },
-          ],
-        });
-        if (matchedUser) {
-          tlUserId = matchedUser._id;
-          tlName = matchedUser.name;
-        }
-      }
+    const hasTlUpdate = Object.prototype.hasOwnProperty.call(updateData, 'assignedTl');
+    if (hasTlUpdate) {
+      const { tlName, tlUserId } = await resolveTlAssignment(updateData.assignedTl);
       updateData.assignedTl = tlName;
       updateData.assignedTlId = tlUserId;
     }
 
-    const updated = await Customer.findByIdAndUpdate(req.params.id, updateData, { new: true });
+    if (updateData.bdmId && String(updateData.bdmId).trim() !== '') {
+      const rawBdmId = String(updateData.bdmId).trim();
+      let bdmUser = null;
+      if (Types.ObjectId.isValid(rawBdmId)) {
+        bdmUser = await User.findById(rawBdmId);
+      } else {
+        bdmUser = await User.findOne({ $or: [{ email: rawBdmId.toLowerCase() }, { name: rawBdmId }] });
+      }
+      if (bdmUser) {
+        updateData.bdmId = bdmUser._id;
+        updateData.assignedEmployee = bdmUser.name;
+        if (!updateData.bdmPhone && bdmUser.phone) {
+          updateData.bdmPhone = bdmUser.phone;
+        }
+      } else {
+        delete updateData.bdmId;
+      }
+    }
+
+    const updated = await Customer.findByIdAndUpdate(req.params.id, updateData, { new: true }).populate('bdmId', 'name email phone');
     if (!updated) {
       return res.status(404).json({ success: false, message: 'Customer not found' });
     }
 
-    if (updateData.assignedTl !== undefined) {
+    if (hasTlUpdate) {
       await Project.updateMany(
         { customerId: updated._id },
         {
           $set: {
-            assignedTl: updated.assignedTl,
-            assignedTlId: updated.assignedTlId,
+            assignedTl: updated.assignedTl || null,
+            assignedTlId: updated.assignedTlId || null,
           },
         }
       );
@@ -687,7 +730,10 @@ customerRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'ACCOUNTA
  * PATCH /api/customers/:id/assign-tl
  * Assigns a customer and all their projects to a specific Team Lead (Srinivasan, Sundaram, Bala)
  */
-customerRouter.patch('/:id/assign-tl', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'TECHNICAL_LEAD', 'LOGISTICS', 'LOGISTICS_TL'), async (req: AuthRequest, res: Response) => {
+customerRouter.patch(
+  '/:id/assign-tl',
+  authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'ACCOUNTANT', 'TECHNICAL_LEAD', 'TECHNICAL_MANAGER', 'LOGISTICS', 'LOGISTICS_TL'),
+  async (req: AuthRequest, res: Response) => {
   try {
     const { assignedTl } = req.body;
     let customer: any = null;
@@ -701,24 +747,7 @@ customerRouter.patch('/:id/assign-tl', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM
       return res.status(404).json({ success: false, message: 'Customer not found' });
     }
 
-    let tlName: string | undefined = undefined;
-    let tlUserId: any = undefined;
-
-    if (assignedTl && assignedTl !== 'UNASSIGNED' && assignedTl !== 'NONE') {
-      tlName = String(assignedTl).trim();
-      const cleanKeyword = tlName.replace(/[^a-zA-Z]/g, '');
-      const matchedUser = await User.findOne({
-        $or: [
-          { name: new RegExp(`^${tlName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
-          { name: new RegExp(cleanKeyword, 'i') },
-          { email: new RegExp(cleanKeyword, 'i') },
-        ],
-      });
-      if (matchedUser) {
-        tlUserId = matchedUser._id;
-        tlName = matchedUser.name;
-      }
-    }
+    const { tlName, tlUserId } = await resolveTlAssignment(assignedTl);
 
     customer.assignedTl = tlName;
     customer.assignedTlId = tlUserId;
@@ -735,10 +764,12 @@ customerRouter.patch('/:id/assign-tl', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM
       }
     );
 
+    const populated = await Customer.findById(customer._id).populate('bdmId', 'name email phone');
+
     return res.json({
       success: true,
       message: tlName ? `Customer assigned to TL ${tlName} successfully` : 'Customer unassigned from TL',
-      data: customer,
+      data: populated || customer,
     });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });

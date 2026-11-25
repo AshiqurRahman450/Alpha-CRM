@@ -164,7 +164,7 @@ dashboardRouter.get('/', async (req: AuthRequest, res: Response) => {
       'CANCELLED',
     ];
     const statusDistributionRaw = await Project.aggregate([
-      ...(isBDM ? [{ $match: { bdmId: req.user?._id } }] : []),
+      ...(isBDM ? [{ $match: { bdmId: req.user?._id } }] : isLogisticsTL ? [{ $match: bdmFilter }] : []),
       { $group: { _id: '$projectStatus', count: { $sum: 1 } } },
     ]);
     const statusDistribution: Record<string, number> = {};

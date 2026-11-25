@@ -32,7 +32,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { api, getStoredUser } from '../../lib/api';
-import { DEFAULT_BDMS, getTlNameForUser, isCustomerAssignedToTlUser } from '../../lib/constants';
+import { DEFAULT_BDMS, getTlNameForUser, isCustomerAssignedToTlUser, normalizeTlValue, doesCustomerMatchTlFilter } from '../../lib/constants';
 import EditCustomerModal from '../../components/EditCustomerModal';
 import ExcelImportModal from '../../components/ExcelImportModal';
 
@@ -231,6 +231,8 @@ export default function CustomersPage() {
       let list = res.data || [];
       if (userTl) {
         list = list.filter((c: any) => isCustomerAssignedToTlUser(c, activeUser));
+      } else if (tlFilter) {
+        list = list.filter((c: any) => doesCustomerMatchTlFilter(c, tlFilter));
       }
       setCustomers(list);
     } catch (err: any) {
@@ -579,9 +581,9 @@ export default function CustomersPage() {
                             BDM: {c.bdmId?.name || (typeof c.bdmId === 'string' && bdms.find((b) => b._id === c.bdmId || b.id === c.bdmId || b.email === c.bdmId)?.name) || c.assignedEmployee || 'Assigned'} {c.bdmPhone || c.bdmId?.phone ? `(${c.bdmPhone || c.bdmId?.phone})` : ''}
                           </span>
                         )}
-                        {c.assignedTl && (
+                        {normalizeTlValue(c.assignedTl || c.activeProject?.assignedTl) && (
                           <span className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-md">
-                            TL: {c.assignedTl}
+                            TL: {normalizeTlValue(c.assignedTl || c.activeProject?.assignedTl)}
                           </span>
                         )}
                       </div>
@@ -1240,7 +1242,24 @@ export default function CustomersPage() {
             setEditingCustomer(null);
           }}
           customer={editingCustomer}
-          onCustomerUpdated={() => fetchCustomers()}
+          onCustomerUpdated={(updatedCust) => {
+            if (updatedCust) {
+              const userTl = getTlNameForUser(currentUser);
+              setCustomers((prev) => {
+                const nextList = prev.map((item) =>
+                  item._id === updatedCust._id ? { ...item, ...updatedCust } : item
+                );
+                if (userTl) {
+                  return nextList.filter((item) => isCustomerAssignedToTlUser(item, currentUser));
+                }
+                if (tlFilter) {
+                  return nextList.filter((item) => doesCustomerMatchTlFilter(item, tlFilter));
+                }
+                return nextList;
+              });
+            }
+            fetchCustomers();
+          }}
           bdms={bdms}
           currentUser={currentUser}
         />

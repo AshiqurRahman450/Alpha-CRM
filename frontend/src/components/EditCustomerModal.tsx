@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { api } from '../lib/api';
+import { normalizeTlValue } from '../lib/constants';
 import { DEFAULT_BDMS } from '../lib/constants';
 
 interface EditCustomerModalProps {
@@ -80,7 +81,7 @@ export default function EditCustomerModal({
         pincode: customer.pincode || '',
         bdmId: typeof customer.bdmId === 'object' && customer.bdmId !== null ? customer.bdmId._id : (customer.bdmId || ''),
         bdmPhone: customer.bdmPhone || (typeof customer.bdmId === 'object' && customer.bdmId !== null ? customer.bdmId.phone : ''),
-        assignedTl: customer.assignedTl || '',
+        assignedTl: normalizeTlValue(customer.assignedTl || customer.activeProject?.assignedTl),
         whatsappOptIn: customer.whatsappOptIn !== undefined ? customer.whatsappOptIn : true,
         notes: customer.notes || '',
       });
@@ -137,6 +138,7 @@ export default function EditCustomerModal({
 
     try {
       setSubmitting(true);
+      const normalizedTl = normalizeTlValue(formData.assignedTl);
       const payload: any = {
         fullName: formData.fullName.trim(),
         phoneNumber: formData.phoneNumber.trim(),
@@ -154,14 +156,20 @@ export default function EditCustomerModal({
         pincode: formData.pincode.trim(),
         bdmId: formData.bdmId || undefined,
         bdmPhone: formData.bdmPhone ? formData.bdmPhone.trim() : undefined,
-        assignedTl: formData.assignedTl ? formData.assignedTl.trim() : null,
+        assignedTl: normalizedTl ? normalizedTl : null,
         whatsappOptIn: formData.whatsappOptIn,
         notes: formData.notes.trim(),
       };
 
       const res = await api.updateCustomer(customer._id, payload);
       toast.success(`Customer ${customer.customerId || ''} updated successfully!`);
-      onCustomerUpdated(res?.data || { ...customer, ...payload });
+      const updatedCustomerData = {
+        ...customer,
+        ...(res?.data || {}),
+        ...payload,
+        assignedTl: normalizedTl ? normalizedTl : null,
+      };
+      onCustomerUpdated(updatedCustomerData);
       onClose();
     } catch (err: any) {
       toast.error(err.message || 'Failed to update customer');

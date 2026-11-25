@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { api } from '../../lib/api';
-import { DEFAULT_BDMS, getTlNameForUser, isCustomerAssignedToTlUser } from '../../lib/constants';
+import { DEFAULT_BDMS, getTlNameForUser, isCustomerAssignedToTlUser, normalizeTlValue, doesCustomerMatchTlFilter } from '../../lib/constants';
 import EditCustomerModal from '../../components/EditCustomerModal';
 
 interface MissingField {
@@ -46,6 +46,7 @@ export default function OldCustomersPage() {
   const [search, setSearch] = useState('');
   const [optInFilter, setOptInFilter] = useState('');
   const [bdmFilter, setBdmFilter] = useState('');
+  const [tlFilter, setTlFilter] = useState('');
 
   // BDM assignment support
   const [bdms, setBdms] = useState<any[]>(DEFAULT_BDMS);
@@ -153,11 +154,12 @@ export default function OldCustomersPage() {
       setLoading(true);
       const activeUser = overrideUser || currentUser;
       const userTl = getTlNameForUser(activeUser);
+      const effectiveTl = userTl || tlFilter || undefined;
       const res = await api.getCustomers({
         search: search || undefined,
         optIn: optInFilter || undefined,
         bdmId: bdmFilter || undefined,
-        assignedTl: userTl || undefined,
+        assignedTl: effectiveTl,
         isOldCustomer: 'true',
       });
       let list = (res.data || []).filter(
@@ -165,6 +167,8 @@ export default function OldCustomersPage() {
       );
       if (userTl) {
         list = list.filter((c: any) => isCustomerAssignedToTlUser(c, activeUser));
+      } else if (tlFilter) {
+        list = list.filter((c: any) => doesCustomerMatchTlFilter(c, tlFilter));
       }
       setCustomers(list);
     } catch (err: any) {
@@ -238,7 +242,7 @@ export default function OldCustomersPage() {
 
   useEffect(() => {
     fetchCustomers();
-  }, [optInFilter, bdmFilter]);
+  }, [optInFilter, bdmFilter, tlFilter]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -414,6 +418,25 @@ export default function OldCustomersPage() {
             </select>
           )}
 
+          {getTlNameForUser(currentUser) ? (
+            <div className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs font-semibold text-amber-800 shrink-0">
+              <User className="w-3.5 h-3.5 text-amber-600" />
+              <span>TL: {getTlNameForUser(currentUser)}</span>
+            </div>
+          ) : (
+            <select
+              value={tlFilter}
+              onChange={(e) => setTlFilter(e.target.value)}
+              className="px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none bg-white text-slate-700 font-semibold"
+            >
+              <option value="">All Team Leads (TL)</option>
+              <option value="Srinivasan (TL)">TL: Srinivasan (TL)</option>
+              <option value="Sundaram">TL: Sundaram</option>
+              <option value="Bala">TL: Bala</option>
+              <option value="unassigned">Unassigned TL</option>
+            </select>
+          )}
+
           <select
             value={optInFilter}
             onChange={(e) => setOptInFilter(e.target.value)}
@@ -464,7 +487,14 @@ export default function OldCustomersPage() {
                         <span className="font-extrabold text-slate-900 group-hover:text-indigo-600 block text-xs">
                           {c.fullName}
                         </span>
-                        <span className="text-[10px] text-slate-400">{c.customerType || 'Residential'}</span>
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          <span className="text-[10px] text-slate-400">{c.customerType || 'Residential'}</span>
+                          {normalizeTlValue(c.assignedTl || c.activeProject?.assignedTl) && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-md">
+                              TL: {normalizeTlValue(c.assignedTl || c.activeProject?.assignedTl)}
+                            </span>
+                          )}
+                        </div>
                       </Link>
                     </td>
 
@@ -803,7 +833,24 @@ export default function OldCustomersPage() {
             setEditingCustomer(null);
           }}
           customer={editingCustomer}
-          onCustomerUpdated={() => fetchCustomers()}
+          onCustomerUpdated={(updatedCust) => {
+            if (updatedCust) {
+              const userTl = getTlNameForUser(currentUser);
+              setCustomers((prev) => {
+                const nextList = prev.map((item) =>
+                  item._id === updatedCust._id ? { ...item, ...updatedCust } : item
+                );
+                if (userTl) {
+                  return nextList.filter((item) => isCustomerAssignedToTlUser(item, currentUser));
+                }
+                if (tlFilter) {
+                  return nextList.filter((item) => doesCustomerMatchTlFilter(item, tlFilter));
+                }
+                return nextList;
+              });
+            }
+            fetchCustomers();
+          }}
           bdms={bdms}
           currentUser={currentUser}
         />

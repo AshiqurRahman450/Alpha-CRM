@@ -69,19 +69,66 @@ export function getCustomerTlFilter(user: any): any | null {
   return { $or: conditions };
 }
 
+export function normalizeCanonicalTlName(rawTl?: string | null): string | null {
+  if (!rawTl) return null;
+  const trimmed = String(rawTl).trim();
+  if (!trimmed || ['UNASSIGNED', 'NONE', 'NULL'].includes(trimmed.toUpperCase())) {
+    return null;
+  }
+  if (/srinivasan|srini/i.test(trimmed)) {
+    return 'Srinivasan (TL)';
+  }
+  if (/sundaram|sundar/i.test(trimmed)) {
+    return 'Sundaram';
+  }
+  if (/\bbala\b/i.test(trimmed) && !/balaji/i.test(trimmed)) {
+    return 'Bala';
+  }
+  return trimmed;
+}
+
+export function getSearchRegexForTlName(rawTl?: string | null): RegExp | null {
+  const canonical = normalizeCanonicalTlName(rawTl);
+  if (!canonical) return null;
+  if (/srinivasan|srini/i.test(canonical)) {
+    return /srinivasan|srini/i;
+  }
+  if (/sundaram|sundar/i.test(canonical)) {
+    return /sundaram|sundar/i;
+  }
+  if (/\bbala\b/i.test(canonical)) {
+    return /\bbala\b/i;
+  }
+  const escaped = canonical.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(escaped, 'i');
+}
+
 /**
  * Checks if a specific customer is accessible by the logged-in TL user
  */
 export function isCustomerAccessibleByTl(customer: any, user: any): boolean {
   if (!user || !isTlUser(user)) return true;
+  if (!customer) return false;
   const regex = getTlRegexForUser(user);
   if (!regex) return true;
 
-  if (customer.assignedTl && regex.test(customer.assignedTl)) return true;
-  if (customer.assignedTlId && (String(customer.assignedTlId) === String(user._id) || String(customer.assignedTlId) === String(user.id))) return true;
+  // If customer has an explicit assignedTl string, it is the single source of truth
+  const custTl = normalizeCanonicalTlName(customer.assignedTl);
+  if (custTl) {
+    return regex.test(custTl);
+  }
+
+  // Next check activeProject's assignedTl if customer.assignedTl is empty
+  const projTl = normalizeCanonicalTlName(customer.activeProject?.assignedTl);
+  if (projTl) {
+    return regex.test(projTl);
+  }
+
+  const custTlId = String(customer.assignedTlId?._id || customer.assignedTlId || '');
+  if (custTlId && (custTlId === String(user._id) || custTlId === String(user.id))) return true;
   if (customer.activeProject) {
-    if (customer.activeProject.assignedTl && regex.test(customer.activeProject.assignedTl)) return true;
-    if (customer.activeProject.assignedTlId && (String(customer.activeProject.assignedTlId) === String(user._id) || String(customer.activeProject.assignedTlId) === String(user.id))) return true;
+    const projTlId = String(customer.activeProject.assignedTlId?._id || customer.activeProject.assignedTlId || '');
+    if (projTlId && (projTlId === String(user._id) || projTlId === String(user.id))) return true;
   }
   return false;
 }
@@ -91,15 +138,25 @@ export function isCustomerAccessibleByTl(customer: any, user: any): boolean {
  */
 export function isProjectAccessibleByTl(project: any, user: any): boolean {
   if (!user || !isTlUser(user)) return true;
+  if (!project) return false;
   const regex = getTlRegexForUser(user);
   if (!regex) return true;
 
-  if (project.assignedTl && regex.test(project.assignedTl)) return true;
-  if (project.assignedTlId && (String(project.assignedTlId) === String(user._id) || String(project.assignedTlId) === String(user.id))) return true;
-
   const cust = (project.customerId as any) || {};
-  if (cust.assignedTl && regex.test(cust.assignedTl)) return true;
-  if (cust.assignedTlId && (String(cust.assignedTlId) === String(user._id) || String(cust.assignedTlId) === String(user.id))) return true;
+  const custTl = normalizeCanonicalTlName(cust.assignedTl);
+  if (custTl) {
+    return regex.test(custTl);
+  }
+
+  const projTl = normalizeCanonicalTlName(project.assignedTl);
+  if (projTl) {
+    return regex.test(projTl);
+  }
+
+  const projTlId = String(project.assignedTlId?._id || project.assignedTlId || '');
+  if (projTlId && (projTlId === String(user._id) || projTlId === String(user.id))) return true;
+  const custTlId = String(cust.assignedTlId?._id || cust.assignedTlId || '');
+  if (custTlId && (custTlId === String(user._id) || custTlId === String(user.id))) return true;
 
   return false;
 }

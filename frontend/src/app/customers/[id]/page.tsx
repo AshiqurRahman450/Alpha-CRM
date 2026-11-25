@@ -37,7 +37,7 @@ const resolveUploadUrl = (url?: string) => {
 };
 import { formatProjectStatus } from '../../../components/Timeline';
 import InstallationProgrammeTable from '../../../components/InstallationProgrammeTable';
-import { DEFAULT_BDMS } from '../../../lib/constants';
+import { DEFAULT_BDMS, normalizeTlValue, getTlNameForUser, isCustomerAssignedToTlUser } from '../../../lib/constants';
 import EditCustomerModal from '../../../components/EditCustomerModal';
 
 const PROJECT_STAGE_NEXT_WORK: Record<
@@ -179,20 +179,38 @@ export default function CustomerDetailPage() {
 
   const [assigningTl, setAssigningTl] = useState(false);
 
-  const handleAssignTl = async (tlName: string) => {
+  const handleAssignTl = async (rawTlName: string) => {
     if (!data?.customer) return;
+    const tlName = normalizeTlValue(rawTlName);
     try {
       setAssigningTl(true);
+      setData((prev: any) =>
+        prev
+          ? {
+              ...prev,
+              customer: { ...prev.customer, assignedTl: tlName || null },
+              projects: (prev.projects || []).map((p: any) => ({
+                ...p,
+                assignedTl: tlName || null,
+              })),
+            }
+          : prev
+      );
       const res = await api.assignCustomerTL(data.customer._id, tlName || null);
       if (res?.success) {
         toast.success(tlName ? `Customer assigned to TL ${tlName}` : 'Customer unassigned from TL');
-        setData((prev: any) =>
-          prev ? { ...prev, customer: { ...prev.customer, assignedTl: tlName || undefined } } : prev
-        );
       }
-      await fetchCustomer();
+      if (
+        getTlNameForUser(currentUser) &&
+        !isCustomerAssignedToTlUser({ ...data.customer, assignedTl: tlName || null }, currentUser)
+      ) {
+        router.push(data.customer.isOldCustomer ? '/old-customers' : '/customers');
+        return;
+      }
+      await fetchCustomer(false);
     } catch (err: any) {
-      alert(`Error assigning TL: ${err.message}`);
+      toast.error(`Error assigning TL: ${err.message}`);
+      await fetchCustomer(false);
     } finally {
       setAssigningTl(false);
     }
@@ -396,7 +414,7 @@ export default function CustomerDetailPage() {
               <span className="text-cyan-900 block text-[11px] font-bold flex items-center gap-1">
                 <Users className="w-3.5 h-3.5 text-cyan-600" /> Assigned TL
               </span>
-              {customer.assignedTl ? (
+              {normalizeTlValue(customer.assignedTl || projects?.find((p: any) => p.assignedTl)?.assignedTl) ? (
                 <span className="px-2 py-0.5 bg-cyan-600 text-white text-[10px] font-bold rounded-full shadow-2xs">
                   Assigned
                 </span>
@@ -410,11 +428,13 @@ export default function CustomerDetailPage() {
             <div className="text-xs">
               <div className="font-black text-slate-900 flex items-center gap-1.5">
                 <UserCheck className="w-4 h-4 text-cyan-600 shrink-0" />
-                <span className="text-sm text-cyan-950 font-black">{customer.assignedTl || 'Not Assigned'}</span>
+                <span className="text-sm text-cyan-950 font-black">
+                  {normalizeTlValue(customer.assignedTl || projects?.find((p: any) => p.assignedTl)?.assignedTl) || 'Not Assigned'}
+                </span>
               </div>
               <p className="text-[10px] text-slate-500 mt-0.5">
-                {customer.assignedTl
-                  ? `Only visible to ${customer.assignedTl}`
+                {normalizeTlValue(customer.assignedTl || projects?.find((p: any) => p.assignedTl)?.assignedTl)
+                  ? `Only visible to ${normalizeTlValue(customer.assignedTl || projects?.find((p: any) => p.assignedTl)?.assignedTl)}`
                   : 'Customer visible to all team members'}
               </p>
             </div>
@@ -424,7 +444,7 @@ export default function CustomerDetailPage() {
                 Assign Customer to TL:
               </label>
               <select
-                value={customer.assignedTl || ''}
+                value={normalizeTlValue(customer.assignedTl || projects?.find((p: any) => p.assignedTl)?.assignedTl)}
                 onChange={(e) => handleAssignTl(e.target.value)}
                 disabled={assigningTl}
                 className="w-full py-1.5 px-2 bg-white border border-cyan-300 rounded-xl text-xs font-bold text-cyan-950 focus:outline-none focus:ring-2 focus:ring-cyan-500 cursor-pointer shadow-2xs disabled:opacity-50"
@@ -718,8 +738,39 @@ export default function CustomerDetailPage() {
         <EditCustomerModal
           isOpen={isEditOpen}
           onClose={() => setIsEditOpen(false)}
-          customer={data.customer}
-          onCustomerUpdated={() => fetchCustomer(true)}
+          customer={{
+            ...data.customer,
+            assignedTl: normalizeTlValue(data.customer.assignedTl || projects?.find((p: any) => p.assignedTl)?.assignedTl),
+          }}
+          onCustomerUpdated={(updatedCust) => {
+            if (updatedCust) {
+              const nextTl = normalizeTlValue(updatedCust.assignedTl);
+              setData((prev: any) =>
+                prev
+                  ? {
+                      ...prev,
+                      customer: {
+                        ...prev.customer,
+                        ...updatedCust,
+                        assignedTl: nextTl || null,
+                      },
+                      projects: (prev.projects || []).map((p: any) => ({
+                        ...p,
+                        assignedTl: nextTl || null,
+                      })),
+                    }
+                  : prev
+              );
+              if (
+                getTlNameForUser(currentUser) &&
+                !isCustomerAssignedToTlUser({ ...updatedCust, assignedTl: nextTl || null }, currentUser)
+              ) {
+                router.push(data.customer.isOldCustomer ? '/old-customers' : '/customers');
+                return;
+              }
+            }
+            fetchCustomer(false);
+          }}
           bdms={bdms}
           currentUser={currentUser}
         />

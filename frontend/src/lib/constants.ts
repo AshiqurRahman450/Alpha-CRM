@@ -44,51 +44,53 @@ export function getTlNameForUser(user: any): string | null {
   return null;
 }
 
+export function normalizeTlValue(raw?: string | null): string {
+  if (!raw) return '';
+  const val = String(raw).trim();
+  if (!val || ['UNASSIGNED', 'NONE', 'NULL'].includes(val.toUpperCase())) return '';
+  if (/srinivasan|srini/i.test(val)) return 'Srinivasan (TL)';
+  if (/sundaram|sundar/i.test(val)) return 'Sundaram';
+  if (/\bbala\b/i.test(val) && !/balaji/i.test(val)) return 'Bala';
+  return val;
+}
+
+export function doesCustomerMatchTlFilter(customer: any, tlFilter?: string | null): boolean {
+  if (!tlFilter || !String(tlFilter).trim()) return true;
+  const rawFilter = String(tlFilter).trim();
+  const custTl = normalizeTlValue(customer?.assignedTl || customer?.activeProject?.assignedTl);
+  if (rawFilter.toLowerCase() === 'unassigned' || rawFilter.toLowerCase() === 'none') {
+    return !custTl;
+  }
+  const targetTl = normalizeTlValue(rawFilter);
+  if (!targetTl) return true;
+  return custTl === targetTl;
+}
+
 export function isCustomerAssignedToTlUser(customer: any, user: any): boolean {
   if (!user || !customer) return true;
   const tlName = getTlNameForUser(user);
   if (!tlName) return true;
 
+  const targetTl = normalizeTlValue(tlName);
+  const custTl = normalizeTlValue(customer.assignedTl);
+
+  // If customer has an explicit assignedTl, it is authoritative
+  if (custTl) {
+    return custTl === targetTl;
+  }
+
+  // Next check activeProject's assignedTl if customer.assignedTl is empty
+  const projTl = normalizeTlValue(customer.activeProject?.assignedTl);
+  if (projTl) {
+    return projTl === targetTl;
+  }
+
   const userId = String(user._id || user.id || '');
   const custTlId = String(customer.assignedTlId?._id || customer.assignedTlId || '');
   if (userId && custTlId && userId === custTlId) return true;
 
-  const target = tlName.toLowerCase().replace(/[^a-z]/g, '');
-  const assigned = String(customer.assignedTl || '').toLowerCase().replace(/[^a-z]/g, '');
-
-  if (tlName === 'Bala') {
-    if (
-      (assigned.includes('bala') && !assigned.includes('balaji')) ||
-      (customer.assignedTl && /\bbala\b/i.test(customer.assignedTl))
-    ) return true;
-  } else if (target.includes('srini') || assigned.includes('srini')) {
-    if (assigned.includes('srini')) return true;
-  } else if (target.includes('sundar') || assigned.includes('sundar')) {
-    if (assigned.includes('sundar')) return true;
-  } else if (assigned && (assigned.includes(target) || target.includes(assigned))) {
-    return true;
-  }
-
-  // Also check if customer's activeProject is assigned to this TL
-  if (customer.activeProject) {
-    const proj = customer.activeProject;
-    const projTlId = String(proj.assignedTlId?._id || proj.assignedTlId || '');
-    if (userId && projTlId && userId === projTlId) return true;
-
-    const assignedProj = String(proj.assignedTl || '').toLowerCase().replace(/[^a-z]/g, '');
-    if (tlName === 'Bala') {
-      if (
-        (assignedProj.includes('bala') && !assignedProj.includes('balaji')) ||
-        (proj.assignedTl && /\bbala\b/i.test(proj.assignedTl))
-      ) return true;
-    } else if (target.includes('srini') || assignedProj.includes('srini')) {
-      if (assignedProj.includes('srini')) return true;
-    } else if (target.includes('sundar') || assignedProj.includes('sundar')) {
-      if (assignedProj.includes('sundar')) return true;
-    } else if (assignedProj && (assignedProj.includes(target) || target.includes(assignedProj))) {
-      return true;
-    }
-  }
+  const projTlId = String(customer.activeProject?.assignedTlId?._id || customer.activeProject?.assignedTlId || '');
+  if (userId && projTlId && userId === projTlId) return true;
 
   return false;
 }
@@ -98,31 +100,22 @@ export function isProjectAssignedToTlUser(project: any, user: any): boolean {
   const tlName = getTlNameForUser(user);
   if (!tlName) return true;
 
+  const targetTl = normalizeTlValue(tlName);
+  const custTl = normalizeTlValue(project.customerId?.assignedTl);
+  if (custTl) {
+    return custTl === targetTl;
+  }
+
+  const projTl = normalizeTlValue(project.assignedTl);
+  if (projTl) {
+    return projTl === targetTl;
+  }
+
   const userId = String(user._id || user.id || '');
   const projTlId = String(project.assignedTlId?._id || project.assignedTlId || '');
   const custTlId = String(project.customerId?.assignedTlId?._id || project.customerId?.assignedTlId || '');
 
   if (userId && (userId === projTlId || userId === custTlId)) return true;
 
-  const target = tlName.toLowerCase().replace(/[^a-z]/g, '');
-  const assignedProj = String(project.assignedTl || '').toLowerCase().replace(/[^a-z]/g, '');
-  const assignedCust = String(project.customerId?.assignedTl || '').toLowerCase().replace(/[^a-z]/g, '');
-
-  if (tlName === 'Bala') {
-    const projMatch = (assignedProj.includes('bala') && !assignedProj.includes('balaji')) || (project.assignedTl && /\bbala\b/i.test(project.assignedTl));
-    const custMatch = (assignedCust.includes('bala') && !assignedCust.includes('balaji')) || (project.customerId?.assignedTl && /\bbala\b/i.test(project.customerId.assignedTl));
-    return Boolean(projMatch || custMatch);
-  }
-
-  if (target.includes('srini')) {
-    if (assignedProj.includes('srini') || assignedCust.includes('srini')) return true;
-  }
-  if (target.includes('sundar')) {
-    if (assignedProj.includes('sundar') || assignedCust.includes('sundar')) return true;
-  }
-
-  return (
-    (!!assignedProj && (assignedProj.includes(target) || target.includes(assignedProj))) ||
-    (!!assignedCust && (assignedCust.includes(target) || target.includes(assignedCust)))
-  );
+  return false;
 }
