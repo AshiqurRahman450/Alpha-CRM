@@ -483,7 +483,7 @@ export default function QuotationLivePdf({
 <td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">${data.clearOpening || 'TBC*'}</td>
 </tr>
 <tr style="height:${rowH};">
-<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">Customer Specific requirements</td>
+<td style="width:175.25px;text-align:center;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">Customer requirements</td>
 <td style="width:480.25px;text-align:center;vertical-align:middle;font-family:'f3',sans-serif;font-size:${fontSize};color:#000000;padding:0;margin:0;">${data.customerSpecificRequirements || 'Nil'}</td>
 </tr>
 </tbody>
