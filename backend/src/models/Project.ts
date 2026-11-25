@@ -63,6 +63,9 @@ export interface IProject extends Document {
   bdmPhone?: string;
   notes?: string;
   drawingUrl?: string;
+  drawingData?: string;
+  drawingMimeType?: string;
+  drawingOriginalName?: string;
   vrlLrNumber?: string;
   trackingNumber?: string;
 
@@ -389,6 +392,16 @@ const ProjectSchema = new Schema<IProject>(
       type: String,
     },
     drawingUrl: {
+      type: String,
+    },
+    drawingData: {
+      type: String,
+      select: false,
+    },
+    drawingMimeType: {
+      type: String,
+    },
+    drawingOriginalName: {
       type: String,
     },
     vrlLrNumber: {

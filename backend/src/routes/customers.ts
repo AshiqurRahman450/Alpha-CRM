@@ -274,7 +274,7 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
       query.$and = andConditions;
     }
 
-    const customers = await Customer.find(query).populate('bdmId', 'name email phone').lean();
+    const customers = await Customer.find(query).select('-documents.data').populate('bdmId', 'name email phone').lean();
 
     // Natural numeric sorting: CUST-001, CUST-002, ..., CUST-025
     customers.sort((a, b) => {
@@ -566,9 +566,22 @@ customerRouter.post(
       customer.documents = [];
     }
 
+    let docData: string | undefined;
+    const docMimeType = req.file.mimetype || 'application/pdf';
+    try {
+      const uploadedPath = req.file.path || path.join(ensureUploadsDir(), req.file.filename);
+      if (fs.existsSync(uploadedPath)) {
+        docData = fs.readFileSync(uploadedPath).toString('base64');
+      }
+    } catch (encodeErr: any) {
+      console.warn('[CustomerDocUpload] Unable to store document base64 in MongoDB:', encodeErr.message);
+    }
+
     customer.documents.push({
       name: docName,
       url: docUrl,
+      data: docData,
+      mimeType: docMimeType,
       uploadedAt: new Date(),
     });
 

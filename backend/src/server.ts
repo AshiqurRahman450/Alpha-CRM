@@ -69,6 +69,156 @@ uploadDirs.forEach((dir) => {
   } catch {}
 });
 
+const getMimeTypeFromFilename = (filename: string, fallback = 'application/pdf'): string => {
+  const ext = path.extname(filename).toLowerCase();
+  if (ext === '.pdf') return 'application/pdf';
+  if (ext === '.png') return 'image/png';
+  if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg';
+  if (ext === '.webp') return 'image/webp';
+  if (ext === '.dwg') return 'application/acad';
+  return fallback;
+};
+
+const escapePdfText = (text: string): string =>
+  String(text || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/\(/g, '\\(')
+    .replace(/\)/g, '\\)')
+    .replace(/[^\x20-\x7E]/g, ' ');
+
+const buildProjectDrawingFallbackPdf = (project: any, filename: string): Buffer => {
+  const lines = [
+    'ALPHA ELEVATORS - DRAWING & CABIN DESIGN RECORD',
+    '----------------------------------------------------------------',
+    `Project ID       : ${project?.projectId || 'N/A'}`,
+    `Project Name     : ${project?.projectName || 'Elevator Project'}`,
+    `Lift Model       : ${project?.liftModel || 'Standard Elevator'}`,
+    `Floors / Stops   : ${project?.numberOfFloors ?? 'N/A'}`,
+    `Capacity         : ${project?.capacity || 'Standard'}`,
+    `Cabin Finish     : ${project?.cabinFinish || 'Standard'}`,
+    `Door Type        : ${project?.doorType || 'Automatic'}`,
+    `Site Address     : ${project?.siteAddress || 'N/A'}`,
+    `Current Stage    : ${project?.projectStatus || 'DESIGN'}`,
+    `Drawing File     : ${filename}`,
+    '----------------------------------------------------------------',
+    'Note: This drawing record was uploaded prior to cloud database',
+    'attachment sync. Re-upload the CAD/PDF file using "Upload New',
+    '& Send to Group" to replace this specification sheet with the',
+    'full drawing file.',
+  ];
+
+  const textOps = lines
+    .map((line, idx) => {
+      const y = 750 - idx * 24;
+      const font = idx === 0 ? '/F2 14 Tf' : '/F1 11 Tf';
+      return `BT ${font} 50 ${y} Td (${escapePdfText(line)}) Tj ET`;
+    })
+    .join('\n');
+
+  const objects: string[] = [
+    '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n',
+    '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n',
+    '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>\nendobj\n',
+    '4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n',
+    '5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>\nendobj\n',
+    `6 0 obj\n<< /Length ${Buffer.byteLength(textOps, 'utf8')} >>\nstream\n${textOps}\nendstream\nendobj\n`,
+  ];
+
+  let pdf = '%PDF-1.4\n';
+  const offsets: number[] = [0];
+  for (const obj of objects) {
+    offsets.push(Buffer.byteLength(pdf, 'utf8'));
+    pdf += obj;
+  }
+  const xrefStart = Buffer.byteLength(pdf, 'utf8');
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (let i = 1; i <= objects.length; i++) {
+    pdf += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
+  }
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF\n`;
+  return Buffer.from(pdf, 'utf8');
+};
+
+// MongoDB fallback route for /uploads/:filename and /api/uploads/:filename when container ephemeral disk is wiped
+app.get(['/uploads/:filename', '/api/uploads/:filename'], async (req: Request, res: Response) => {
+  try {
+    const safeFilename = path.basename(String(req.params.filename || ''));
+    if (!safeFilename) {
+      return res.status(404).json({ success: false, message: 'Filename is required' });
+    }
+
+    // 1. Check all local upload directories first
+    for (const dir of uploadDirs) {
+      const candidate = path.join(dir, safeFilename);
+      if (fs.existsSync(candidate)) {
+        return res.sendFile(candidate);
+      }
+    }
+
+    const escapedFilename = safeFilename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const fileRegex = new RegExp(`${escapedFilename}$`, 'i');
+    const prefixMatch = safeFilename.match(/^([a-f0-9]{24})-drawing-/i);
+
+    // 2. Check Project drawing stored in MongoDB
+    const projectOrConditions: any[] = [{ drawingUrl: fileRegex }];
+    if (prefixMatch && prefixMatch[1]) {
+      projectOrConditions.push({ _id: prefixMatch[1] });
+    }
+
+    const project = await Project.findOne({ $or: projectOrConditions }).select('+drawingData').lean();
+    if (project) {
+      if (project.drawingData) {
+        const buffer = Buffer.from(project.drawingData, 'base64');
+        const mimeType = getMimeTypeFromFilename(safeFilename, project.drawingMimeType || 'application/pdf');
+        try {
+          fs.writeFileSync(path.join(uploadDirs[0], safeFilename), buffer);
+        } catch {}
+        res.setHeader('Content-Type', mimeType);
+        res.setHeader(
+          'Content-Disposition',
+          `inline; filename="${encodeURIComponent(project.drawingOriginalName || safeFilename)}"`
+        );
+        return res.send(buffer);
+      }
+
+      // Legacy drawing uploaded before MongoDB base64 persistence whose ephemeral disk file was cleared
+      const fallbackPdf = buildProjectDrawingFallbackPdf(project, safeFilename);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(safeFilename)}"`);
+      return res.send(fallbackPdf);
+    }
+
+    // 3. Check Customer documents stored in MongoDB
+    const custPrefixMatch = safeFilename.match(/^([a-f0-9]{24})-/i);
+    const customerOrConditions: any[] = [{ 'documents.url': fileRegex }];
+    if (custPrefixMatch && custPrefixMatch[1]) {
+      customerOrConditions.push({ _id: custPrefixMatch[1] });
+    }
+    const customer = await Customer.findOne({ $or: customerOrConditions }).lean();
+    if (customer && Array.isArray(customer.documents)) {
+      const matchedDoc = customer.documents.find((d: any) => d?.url && fileRegex.test(d.url));
+      if (matchedDoc?.data) {
+        const buffer = Buffer.from(matchedDoc.data, 'base64');
+        const mimeType = getMimeTypeFromFilename(safeFilename, matchedDoc.mimeType || 'application/pdf');
+        try {
+          fs.writeFileSync(path.join(uploadDirs[0], safeFilename), buffer);
+        } catch {}
+        res.setHeader('Content-Type', mimeType);
+        res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(matchedDoc.name || safeFilename)}"`);
+        return res.send(buffer);
+      }
+    }
+
+    return res.status(404).json({
+      success: false,
+      message: `Uploaded file not found: ${safeFilename}`,
+    });
+  } catch (err: any) {
+    console.error('[UploadsFallback] Error serving uploaded file:', err);
+    return res.status(500).json({ success: false, message: 'Failed to load uploaded document' });
+  }
+});
+
 // WhatsApp Web Bot Public Diagnostic Route
 app.get('/api/health/whatsapp-bot', async (req: Request, res: Response) => {
   try {

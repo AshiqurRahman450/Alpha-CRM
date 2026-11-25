@@ -30,6 +30,8 @@ export interface ICustomer extends Document {
   documents?: {
     name: string;
     url: string;
+    data?: string;
+    mimeType?: string;
     uploadedAt: Date;
   }[];
   createdAt: Date;
@@ -158,6 +160,8 @@ const CustomerSchema = new Schema<ICustomer>(
       {
         name: { type: String, required: true },
         url: { type: String, required: true },
+        data: { type: String },
+        mimeType: { type: String },
         uploadedAt: { type: Date, default: Date.now },
       },
     ],

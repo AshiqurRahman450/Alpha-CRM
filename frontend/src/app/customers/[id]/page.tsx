@@ -25,7 +25,16 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { api } from '../../../lib/api';
+import { api, getApiBaseUrl } from '../../../lib/api';
+
+const resolveUploadUrl = (url?: string) => {
+  if (!url) return '#';
+  if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  const base = getApiBaseUrl().replace(/\/+$/, '');
+  return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
+};
 import { formatProjectStatus } from '../../../components/Timeline';
 import InstallationProgrammeTable from '../../../components/InstallationProgrammeTable';
 import { DEFAULT_BDMS } from '../../../lib/constants';
@@ -494,7 +503,7 @@ export default function CustomerDetailPage() {
                 className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white hover:border-sky-300 hover:shadow-sm transition-all group"
               >
                 <a
-                  href={`http://localhost:5000${doc.url}`}
+                  href={resolveUploadUrl(doc.url)}
                   target="_blank"
                   rel="noreferrer"
                   className="flex items-center gap-3 overflow-hidden flex-1"

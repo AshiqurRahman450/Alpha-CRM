@@ -184,11 +184,14 @@ async function sendBdmApprovalNotification(project: any, currentUserId?: any, cu
         usedProvider = 'WhatsApp Bot';
         console.log(`[BDMApproval] 1-to-1 message sent directly to BDM (+${bdmPhone}) via WhatsApp Web Bot! ID: ${botRes.messageId}`);
 
-        // If local drawing file exists, also send the actual drawing attachment directly to BDM!
+        // If local drawing file exists (or can be restored from MongoDB drawingData), also send the actual drawing attachment directly to BDM!
         if (project.drawingUrl) {
           try {
             const filename = path.basename(project.drawingUrl);
-            const candidatePath = path.resolve(__dirname, '../../uploads', filename);
+            const candidatePath = path.join(ensureUploadsDir(), filename);
+            if (!fs.existsSync(candidatePath) && project.drawingData) {
+              fs.writeFileSync(candidatePath, Buffer.from(project.drawingData, 'base64'));
+            }
             if (fs.existsSync(candidatePath)) {
               await whatsAppWebBot.sendDirectDocument(
                 bdmPhone,
@@ -672,7 +675,7 @@ projectRouter.get('/', async (req: AuthRequest, res: Response) => {
       query.$and = andConditions;
     }
 
-    let projects = await Project.find(query).populate('customerId').sort({ createdAt: -1 });
+    let projects = await Project.find(query).select('-drawingData').populate('customerId').sort({ createdAt: -1 });
 
     if (isTlUser(req.user)) {
       projects = projects.filter((p) => isProjectAccessibleByTl(p, req.user));
@@ -973,7 +976,7 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
       query.$and = andConditions;
     }
 
-    let projects = await Project.find(query).populate('customerId').sort({ createdAt: -1 });
+    let projects = await Project.find(query).select('-drawingData').populate('customerId').sort({ createdAt: -1 });
 
     if (isTlUser(req.user)) {
       projects = projects.filter((p) => isProjectAccessibleByTl(p, req.user));
@@ -2294,6 +2297,16 @@ projectRouter.post(
       if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
 
       project.drawingUrl = `/uploads/${req.file.filename}`;
+      try {
+        const uploadedPath = req.file.path || path.join(ensureUploadsDir(), req.file.filename);
+        if (fs.existsSync(uploadedPath)) {
+          project.drawingData = fs.readFileSync(uploadedPath).toString('base64');
+          project.drawingMimeType = req.file.mimetype || 'application/pdf';
+          project.drawingOriginalName = req.file.originalname || req.file.filename;
+        }
+      } catch (encodeErr: any) {
+        console.warn('[DrawingUpload] Unable to store drawing base64 in MongoDB:', encodeErr.message);
+      }
 
       // Automatically set DESIGN schedule & executed dates to today
       if (!project.stageDates) project.stageDates = new Map();
@@ -2386,9 +2399,12 @@ projectRouter.post(
       'Drawing and cabin design uploaded and ready for customer sign-off.'
     );
 
+    const responseObj = project.toObject();
+    delete responseObj.drawingData;
+
     return res.json({
       success: true,
-      data: project,
+      data: responseObj,
       documentSentToGroup,
       documentSendError,
       message: documentSentToGroup

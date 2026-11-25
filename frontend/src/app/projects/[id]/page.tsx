@@ -30,7 +30,16 @@ import {
   Truck,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { api, getStoredUser } from '../../../lib/api';
+import { api, getStoredUser, getApiBaseUrl } from '../../../lib/api';
+
+const resolveUploadUrl = (url?: string) => {
+  if (!url) return '#';
+  if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  const base = getApiBaseUrl().replace(/\/+$/, '');
+  return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
+};
 import Timeline, { formatProjectStatus, STAGES_ORDER } from '../../../components/Timeline';
 import SendUpdateModal from '../../../components/SendUpdateModal';
 import PostponeModal from '../../../components/PostponeModal';
@@ -652,7 +661,7 @@ export default function ProjectDetailPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <a href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}${project.drawingUrl}`} target="_blank" rel="noreferrer" className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm">
+                  <a href={resolveUploadUrl(project.drawingUrl)} target="_blank" rel="noreferrer" className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm">
                     <ExternalLink className="w-3.5 h-3.5" />
                     <span>View Drawing</span>
                   </a>
