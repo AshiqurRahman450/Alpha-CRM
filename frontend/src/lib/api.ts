@@ -870,6 +870,24 @@ export const api = {
     trackingData?: { vrlLrNumber?: string; trackingNumber?: string } | string,
     productionTimelineDays?: number
   ) => {
+    const NEXT_STAGE_AFTER_CLICK: Record<string, string> = {
+      PAYMENT_RECEIVED: 'SITE_MEASUREMENT',
+      SITE_MEASUREMENT: 'DESIGN',
+      DESIGN: 'CUSTOMER_APPROVAL',
+      CUSTOMER_APPROVAL: 'ENGINEERING',
+      ENGINEERING: 'MANUFACTURING',
+      MANUFACTURING: 'QUALITY_CHECK',
+      PRODUCTION_IN_PROGRESS: 'QUALITY_CHECK',
+      QUALITY_CHECK: 'DISPATCH',
+      DISPATCH: 'MATERIAL_IN_TRANSIT',
+      MATERIAL_DISPATCHED: 'MATERIAL_IN_TRANSIT',
+      MATERIAL_IN_TRANSIT: 'DELIVERY',
+      DELIVERY: 'MATERIAL_DELIVERY',
+      MATERIAL_DELIVERY: 'INSTALLATION',
+      INSTALLATION: 'TESTING',
+      TESTING: 'COMPLETED',
+      COMPLETED: 'COMPLETED',
+    };
     const payload: any = { status, notes };
     if (typeof trackingData === 'string') {
       payload.vrlLrNumber = trackingData;
@@ -881,26 +899,24 @@ export const api = {
     if (productionTimelineDays !== undefined) {
       payload.productionTimelineDays = productionTimelineDays;
     }
-    const targetEffectiveStatus = status === 'CUSTOMER_APPROVAL' ? 'ENGINEERING' : status;
+    const targetEffectiveStatus = NEXT_STAGE_AFTER_CLICK[status] || status;
     setProjectStatusOverride(id, targetEffectiveStatus);
+    const nowIso = new Date().toISOString();
     try {
       const res = await fetchWithAuth(`/api/projects/${id}/status`, {
         method: 'PATCH',
         body: JSON.stringify(payload),
       });
-      if (status === 'CUSTOMER_APPROVAL') {
-        const nowIso = new Date().toISOString();
-        await fetchWithAuth(`/api/projects/${id}/stage-dates`, {
-          method: 'PATCH',
-          body: JSON.stringify({ stageKey: 'CUSTOMER_APPROVAL', executedDate: nowIso }),
+      await fetchWithAuth(`/api/projects/${id}/stage-dates`, {
+        method: 'PATCH',
+        body: JSON.stringify({ stageKey: status, executedDate: nowIso }),
+      }).catch(() => {});
+      if (res?.data && res.data.projectStatus !== targetEffectiveStatus) {
+        await api.updateProject(id, {
+          projectStatus: targetEffectiveStatus,
+          ...(productionTimelineDays !== undefined ? { productionTimelineDays } : {}),
         }).catch(() => {});
-        if (res?.data && res.data.projectStatus === 'CUSTOMER_APPROVAL') {
-          await fetchWithAuth(`/api/projects/${id}`, {
-            method: 'PUT',
-            body: JSON.stringify({ projectStatus: 'ENGINEERING', productionTimelineDays }),
-          }).catch(() => {});
-          res.data.projectStatus = 'ENGINEERING';
-        }
+        res.data.projectStatus = targetEffectiveStatus;
       }
       if (res?.data) {
         setProjectStatusOverride(res.data._id || id, targetEffectiveStatus, res.data.projectId);
@@ -908,28 +924,27 @@ export const api = {
       }
       return res;
     } catch (err: any) {
-      const fallbackStatus = LEGACY_STAGE_ENUM_FALLBACK[status];
+      const fallbackStatus = LEGACY_STAGE_ENUM_FALLBACK[status] || LEGACY_STAGE_ENUM_FALLBACK[targetEffectiveStatus];
       if (fallbackStatus && /not a valid enum value|validation failed/i.test(String(err?.message || ''))) {
         const fallbackRes = await fetchWithAuth(`/api/projects/${id}/status`, {
           method: 'PATCH',
-          body: JSON.stringify({ ...payload, status: fallbackStatus }),
+          body: JSON.stringify({ ...payload, status: LEGACY_STAGE_ENUM_FALLBACK[status] || fallbackStatus }),
         });
-        fetchWithAuth(`/api/projects/${id}/stage-dates`, {
+        await fetchWithAuth(`/api/projects/${id}/stage-dates`, {
           method: 'PATCH',
-          body: JSON.stringify({ stageKey: status, executedDate: new Date().toISOString() }),
+          body: JSON.stringify({ stageKey: status, executedDate: nowIso }),
+        }).catch(() => {});
+        await api.updateProject(id, {
+          projectStatus: targetEffectiveStatus,
+          ...(productionTimelineDays !== undefined ? { productionTimelineDays } : {}),
         }).catch(() => {});
         if (fallbackRes?.data) {
-          setProjectStatusOverride(fallbackRes.data._id || id, status, fallbackRes.data.projectId);
-          fallbackRes.data = applyTlOverrideToProject({ ...fallbackRes.data, projectStatus: status });
+          setProjectStatusOverride(fallbackRes.data._id || id, targetEffectiveStatus, fallbackRes.data.projectId);
+          fallbackRes.data = applyTlOverrideToProject({ ...fallbackRes.data, projectStatus: targetEffectiveStatus });
         }
         return {
           ...fallbackRes,
-          message:
-            status === 'MATERIAL_DELIVERY'
-              ? 'Stage updated to Material Delivered!'
-              : status === 'MATERIAL_IN_TRANSIT'
-              ? 'Stage updated to Material in transit!'
-              : fallbackRes?.message || `Stage updated to ${status}.`,
+          message: fallbackRes?.message || `Stage ${status} marked Done and moved to ${targetEffectiveStatus}.`,
         };
       }
       throw err;
@@ -959,11 +974,19 @@ export const api = {
     }
     return res;
   },
-  updateProjectStageDates: (id: string, stageKey: string, scheduleDate?: string | null, executedDate?: string | null, time?: string | null) =>
-    fetchWithAuth(`/api/projects/${id}/stage-dates`, {
+  updateProjectStageDates: async (id: string, stageKey: string, scheduleDate?: string | null, executedDate?: string | null, time?: string | null) => {
+    if (stageKey === 'SITE_MEASUREMENT' && scheduleDate && time) {
+      setProjectStatusOverride(id, 'DESIGN');
+    }
+    const res = await fetchWithAuth(`/api/projects/${id}/stage-dates`, {
       method: 'PATCH',
       body: JSON.stringify({ stageKey, scheduleDate, executedDate, time }),
-    }),
+    });
+    if (res?.data && stageKey === 'SITE_MEASUREMENT' && scheduleDate && time) {
+      setProjectStatusOverride(res.data._id || id, 'DESIGN', res.data.projectId);
+    }
+    return res;
+  },
   updateProjectStageDatesBulk: (id: string, updates: { stageKey: string, scheduleDate?: string | null, executedDate?: string | null }[]) =>
     fetchWithAuth(`/api/projects/${id}/stage-dates-bulk`, {
       method: 'PATCH',

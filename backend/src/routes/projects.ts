@@ -26,6 +26,7 @@ import {
   STAGE_TEMPLATE_MAP,
   POST_PRODUCTION_PAYMENT_STAGES,
   handleDrawingAndCabinApprovedWorkflow,
+  handleSixStageProductionCompletedWorkflow,
 } from '../services/scheduler/schedulerService';
 import { whatsAppWebBot, watiService } from '../services/whatsapp';
 import {
@@ -1617,7 +1618,7 @@ projectRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT', 'BD
     }
 
     if (req.user?.role === 'LOGISTICS' || req.user?.role === 'LOGISTICS_TL') {
-      const LOGISTICS_ALLOWED_STAGES = ['DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY'];
+      const LOGISTICS_ALLOWED_STAGES = ['DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY', 'INSTALLATION'];
       if (req.body.projectStatus && !LOGISTICS_ALLOWED_STAGES.includes(req.body.projectStatus)) {
         return res.status(403).json({
           success: false,
@@ -1713,7 +1714,7 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
     }
 
     if (req.user?.role === 'LOGISTICS' || req.user?.role === 'LOGISTICS_TL') {
-      const LOGISTICS_ALLOWED_STAGES = ['DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY'];
+      const LOGISTICS_ALLOWED_STAGES = ['DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY', 'INSTALLATION'];
       if (!LOGISTICS_ALLOWED_STAGES.includes(status)) {
         return res.status(403).json({
           success: false,
@@ -1722,9 +1723,32 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
       }
     }
 
+    const NEXT_STAGE_MAP: Record<string, ProjectStatus> = {
+      PAYMENT_RECEIVED: 'SITE_MEASUREMENT',
+      SITE_MEASUREMENT: 'DESIGN',
+      DESIGN: 'CUSTOMER_APPROVAL',
+      CUSTOMER_APPROVAL: 'ENGINEERING',
+      ENGINEERING: 'MANUFACTURING',
+      MANUFACTURING: 'QUALITY_CHECK',
+      PRODUCTION_IN_PROGRESS: 'QUALITY_CHECK',
+      QUALITY_CHECK: 'DISPATCH',
+      DISPATCH: 'MATERIAL_IN_TRANSIT',
+      MATERIAL_DISPATCHED: 'MATERIAL_IN_TRANSIT',
+      MATERIAL_IN_TRANSIT: 'DELIVERY',
+      DELIVERY: 'MATERIAL_DELIVERY',
+      MATERIAL_DELIVERY: 'INSTALLATION',
+      INSTALLATION: 'TESTING',
+      TESTING: 'COMPLETED',
+      COMPLETED: 'COMPLETED',
+    };
+
     const prevStatus = project.projectStatus;
-    const isDrawingApprovalCompletion = status === 'CUSTOMER_APPROVAL';
-    const effectiveStatus: ProjectStatus = (isDrawingApprovalCompletion ? 'ENGINEERING' : status) as ProjectStatus;
+    const completedStage = status as ProjectStatus;
+    const shouldAdvance = req.body.advanceToNext !== false;
+    const isDrawingApprovalCompletion = completedStage === 'CUSTOMER_APPROVAL';
+    const effectiveStatus: ProjectStatus = (
+      shouldAdvance ? (NEXT_STAGE_MAP[completedStage] || completedStage) : completedStage
+    ) as ProjectStatus;
     project.projectStatus = effectiveStatus;
     if (notes) {
       project.notes = notes;
@@ -1735,20 +1759,22 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
       project.trackingNumber = tracking;
     }
 
+    // Mark the clicked/completed stage as Done with executedDate
+    if (!project.stageDates) {
+      project.stageDates = new Map();
+    }
+    const completedDates = project.stageDates.get(completedStage) || {};
+    if (!completedDates.executedDate) {
+      completedDates.executedDate = new Date();
+    }
+    if (!completedDates.scheduleDate) {
+      completedDates.scheduleDate = new Date();
+    }
+    project.stageDates.set(completedStage, completedDates);
+
     if (isDrawingApprovalCompletion) {
       const days = Number(productionTimelineDays) > 0 ? Number(productionTimelineDays) : (project.productionTimelineDays || 60);
       project.productionTimelineDays = days;
-      if (!project.stageDates) {
-        project.stageDates = new Map();
-      }
-      const approvalDates = project.stageDates.get('CUSTOMER_APPROVAL') || {};
-      if (!approvalDates.executedDate) {
-        approvalDates.executedDate = new Date();
-      }
-      if (!approvalDates.scheduleDate) {
-        approvalDates.scheduleDate = new Date();
-      }
-      project.stageDates.set('CUSTOMER_APPROVAL', approvalDates);
     }
 
     // Reset nextUpdateAt: production interval updates apply after Production Payment (in any post-production stage)
@@ -1783,7 +1809,7 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
       }
     }
 
-    if (['DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY', 'INSTALLATION', 'TESTING', 'COMPLETED'].includes(status)) {
+    if (['DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY', 'INSTALLATION', 'TESTING', 'COMPLETED'].includes(effectiveStatus)) {
       project.readinessPaymentReminderStopped = true;
       project.readinessPaymentReminderNextDueAt = undefined;
     }
@@ -1797,27 +1823,28 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
       type: 'STATUS_CHANGE',
       description: isDrawingApprovalCompletion
         ? `Drawing and Cabin Design Approval completed (Done) and project moved to Production Payment. Production timeline set to ${project.productionTimelineDays || 60} days. ${notes ? `Note: ${notes}` : ''}`
-        : (status === 'MANUFACTURING' || status === 'PRODUCTION_IN_PROGRESS')
-          ? `Project status updated to Production in progress. Stage 1 Production Update scheduled in ${intervalDays <= 0.003 ? '2 minutes' : intervalDays <= 0.025 ? '30 minutes' : intervalDays < 0.1 ? '1 hour' : intervalDays >= 1.24 && intervalDays <= 1.26 ? '30 hours' : `${intervalDays} days`}.`
-          : status === 'MATERIAL_IN_TRANSIT' && project.vrlLrNumber
-            ? `Project status updated to Material in transit. VRL Tracking No: ${project.vrlLrNumber}. ${notes ? `Note: ${notes}` : ''}`
-          : (status === 'DISPATCH' || status === 'MATERIAL_DISPATCHED') && project.vrlLrNumber
-            ? `Project status updated to Material ready to Dispatch. VRL Tracking No: ${project.vrlLrNumber}. ${notes ? `Note: ${notes}` : ''}`
-            : `Project status updated from ${prevStatus} to ${effectiveStatus}. ${notes ? `Note: ${notes}` : ''}`,
+        : (completedStage === 'MANUFACTURING' || completedStage === 'PRODUCTION_IN_PROGRESS')
+          ? `Production in progress completed (Done) and project moved to Readiness Payment.`
+          : completedStage === 'ENGINEERING'
+            ? `Production Payment completed (Done) and project moved to Production in progress. Stage 1 Production Update scheduled in ${intervalDays <= 0.003 ? '2 minutes' : intervalDays <= 0.025 ? '30 minutes' : intervalDays < 0.1 ? '1 hour' : intervalDays >= 1.24 && intervalDays <= 1.26 ? '30 hours' : `${intervalDays} days`}.`
+            : completedStage === 'MATERIAL_IN_TRANSIT' && project.vrlLrNumber
+              ? `Material in transit completed (Done) and moved to Pre Site Visit. VRL Tracking No: ${project.vrlLrNumber}. ${notes ? `Note: ${notes}` : ''}`
+            : (completedStage === 'DISPATCH' || completedStage === 'MATERIAL_DISPATCHED') && project.vrlLrNumber
+              ? `Material ready to Dispatch completed (Done) and moved to Material in transit. VRL Tracking No: ${project.vrlLrNumber}. ${notes ? `Note: ${notes}` : ''}`
+              : `Stage ${completedStage} marked Done and project moved from ${prevStatus} to ${effectiveStatus}. ${notes ? `Note: ${notes}` : ''}`,
       userId: req.user?._id,
       userName: req.user?.name,
-      metadata: { previousStatus: prevStatus, newStatus: effectiveStatus, intervalDays, vrlLrNumber: project.vrlLrNumber, productionTimelineDays: project.productionTimelineDays },
+      metadata: { previousStatus: prevStatus, completedStage, newStatus: effectiveStatus, intervalDays, vrlLrNumber: project.vrlLrNumber, productionTimelineDays: project.productionTimelineDays },
     });
 
     // Milestone update messages directly inside WhatsApp group via Web Bot!
-    // Note: Production in progress does not send immediate message because Stage 1 is sent after intervalDays
     let groupMessageDispatched = false;
     let groupMessageError: string | null = null;
     const inviteTarget = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
 
-    if (inviteTarget && status !== 'MANUFACTURING' && status !== 'PRODUCTION_IN_PROGRESS') {
+    if (inviteTarget) {
       try {
-        if (status === 'CUSTOMER_APPROVAL') {
+        if (isDrawingApprovalCompletion) {
           // Drawing and Cabin Approved special workflow:
           // Dispatches 2 sequential WhatsApp messages immediately + schedules 2-day payment follow-up
           const days = Number(productionTimelineDays) > 0 ? Number(productionTimelineDays) : (project.productionTimelineDays || 60);
@@ -1826,9 +1853,27 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
           if (!drawWorkflowRes.success) {
             groupMessageError = drawWorkflowRes.error || 'Failed to dispatch drawing approval messages';
           }
+        } else if (completedStage === 'MANUFACTURING' || completedStage === 'PRODUCTION_IN_PROGRESS') {
+          // Completing Production in progress advances to Readiness Payment (QUALITY_CHECK) and sends Day 1 Readiness Payment reminder
+          const sixStageRes = await handleSixStageProductionCompletedWorkflow(project, req.user?._id, req.user?.name);
+          groupMessageDispatched = sixStageRes.success;
+          if (!sixStageRes.success && sixStageRes.error) {
+            groupMessageError = sixStageRes.error;
+          }
         } else {
           const customer = await Customer.findById(project.customerId);
-          const messageText = generateProjectUpdateText(project, customer, notes ? `Stage updated: ${notes}` : undefined);
+          const completedTemplateKey =
+            completedStage === 'QUALITY_CHECK'
+              ? 'READINESS_PAYMENT_RECEIVED'
+              :completedStage === 'ENGINEERING'
+              ? 'PRODUCTION_PAYMENT_RECEIVED'
+              : STAGE_TEMPLATE_MAP[completedStage] || 'SITE_VISIT_COMPLETED';
+          const messageText = generateProjectUpdateText(
+            project,
+            customer,
+            notes ? `Stage updated: ${notes}` : undefined,
+            completedTemplateKey
+          );
           const botStatus = whatsAppWebBot.getStatus();
 
           if (config.wati.dryRun) {
@@ -2099,16 +2144,23 @@ projectRouter.patch('/:id/stage-dates', authorize('ADMIN', 'CRM', 'MANAGER', 'BD
 
     project.stageDates.set(stageKey, currentDates);
 
-    // If Schedule Site Visit (SITE_MEASUREMENT scheduleDate) is filled while project is at PAYMENT_RECEIVED (pending site visit),
-    // automatically move the project stage to SITE_MEASUREMENT
+    // If Schedule Site Visit (SITE_MEASUREMENT scheduleDate) is filled from the Schedule Site Visit popup (where time is provided),
+    // mark SITE_MEASUREMENT as Done (executedDate) and advance projectStatus to DESIGN (Drawing and Cabin).
     let autoMovedToSiteVisit = false;
-    if (
-      stageKey === 'SITE_MEASUREMENT' &&
-      scheduleDate &&
-      (!project.projectStatus || project.projectStatus === 'PAYMENT_RECEIVED')
-    ) {
-      project.projectStatus = 'SITE_MEASUREMENT';
-      autoMovedToSiteVisit = true;
+    if (stageKey === 'SITE_MEASUREMENT' && scheduleDate) {
+      if (time !== undefined) {
+        if (!currentDates.executedDate) {
+          currentDates.executedDate = new Date(scheduleDate);
+        }
+        project.stageDates.set(stageKey, currentDates);
+        if (!project.projectStatus || project.projectStatus === 'PAYMENT_RECEIVED' || project.projectStatus === 'SITE_MEASUREMENT') {
+          project.projectStatus = 'DESIGN';
+          autoMovedToSiteVisit = true;
+        }
+      } else if (!project.projectStatus || project.projectStatus === 'PAYMENT_RECEIVED') {
+        project.projectStatus = 'SITE_MEASUREMENT';
+        autoMovedToSiteVisit = true;
+      }
     }
 
     autoFillExecutedDatesForCompletedStages(project);

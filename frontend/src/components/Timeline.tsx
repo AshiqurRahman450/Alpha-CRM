@@ -98,7 +98,11 @@ export default function Timeline({
     : STAGES_ORDER;
 
   const currentIndex = STAGES_ORDER.findIndex((s) => s.key === currentStatus);
-  const visibleCurrentIndex = visibleStages.findIndex((s) => s.key === currentStatus);
+  const rawVisibleCurrentIndex = visibleStages.findIndex((s) => s.key === currentStatus);
+  const visibleCurrentIndex =
+    rawVisibleCurrentIndex === -1 && currentIndex >= visibleStages.length
+      ? visibleStages.length
+      : rawVisibleCurrentIndex;
   const [showInstallationTable, setShowInstallationTable] = React.useState<boolean>(
     Boolean(!isLogistics && (initiallyOpenInstallation || currentUserRole === 'TECHNICAL_LEAD' || currentUserRole === 'TECHNICAL_MANAGER' || isLogisticsTL))
   );
@@ -353,10 +357,16 @@ export default function Timeline({
                       return;
                     }
 
-                    if (stage.key !== currentStatus) {
-                      if (confirm(`Update project status to "${stage.label}"?`)) {
-                        onStatusChange(stage.key);
-                      }
+                    const fullStageIdx = STAGES_ORDER.findIndex((s) => s.key === stage.key);
+                    const nextStageObj =
+                      fullStageIdx !== -1 && fullStageIdx + 1 < STAGES_ORDER.length
+                        ? STAGES_ORDER[fullStageIdx + 1]
+                        : null;
+                    const confirmText = nextStageObj
+                      ? `Mark "${stage.label}" as Done and move to "${nextStageObj.label}"?`
+                      : `Mark "${stage.label}" as Done?`;
+                    if (confirm(confirmText)) {
+                      onStatusChange(stage.key);
                     }
                   }
                 }}

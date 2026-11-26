@@ -159,19 +159,30 @@ export default function ProjectDetailPage() {
   const handleStatusChange = async (newStatus: string, trackingNumber?: string, productionTimelineDays?: number) => {
     try {
       const res = await api.updateProjectStatus(projectId, newStatus, undefined, trackingNumber, productionTimelineDays);
+      const completedIdx = STAGES_ORDER.findIndex((s) => s.key === newStatus);
+      const nextStageLabel =
+        completedIdx !== -1 && completedIdx + 1 < STAGES_ORDER.length
+          ? STAGES_ORDER[completedIdx + 1].label
+          : formatProjectStatus(newStatus);
+      const completedLabel = formatProjectStatus(newStatus);
+
       if (newStatus === 'CUSTOMER_APPROVAL') {
         const days = productionTimelineDays || projectData?.project?.productionTimelineDays || 60;
-        toast.success(`Drawing and Cabin Approved (Done)! Stage moved to Production Payment & 2 WhatsApp messages dispatched to group (${days} days delivery timeline).`, { duration: 6000 });
+        toast.success(`Drawing and Cabin Approved (Done)! Stage moved to ${nextStageLabel} & 2 WhatsApp messages dispatched to group (${days} days delivery timeline).`, { duration: 6000 });
       } else if (res && res.groupMessageDispatched) {
         toast.success(
           trackingNumber
-            ? `Stage updated to ${formatProjectStatus(newStatus)}! VRL Tracking No (${trackingNumber}) attached and WhatsApp update dispatched.`
-            : `Stage updated to ${formatProjectStatus(newStatus)}! Automated WhatsApp update dispatched inside group.`
+            ? `${completedLabel} marked Done & moved to ${nextStageLabel}! VRL Tracking No (${trackingNumber}) attached and WhatsApp update dispatched.`
+            : `${completedLabel} marked Done & moved to ${nextStageLabel}! Automated WhatsApp update dispatched inside group.`
         );
       } else if (res && res.groupMessageError) {
-        toast(`Stage updated to ${formatProjectStatus(newStatus)}, but WhatsApp note: ${res.groupMessageError}`, { icon: '⚠️' });
+        toast(`${completedLabel} marked Done & moved to ${nextStageLabel}, but WhatsApp note: ${res.groupMessageError}`, { icon: '⚠️' });
       } else {
-        toast.success(`Stage updated to ${formatProjectStatus(newStatus)}.`);
+        toast.success(
+          completedLabel !== nextStageLabel
+            ? `${completedLabel} marked Done! Stage moved to ${nextStageLabel}.`
+            : `${completedLabel} marked Done!`
+        );
       }
       if (res && res.bdmNotified) {
         toast.success('1-to-1 Approval notification dispatched to assigned BDM via WhatsApp Bot!');
@@ -189,20 +200,23 @@ export default function ProjectDetailPage() {
       const res = await api.updateProjectStageDates(projectId, stageKey, scheduleDate, executedDate, time);
       
       if (stageKey === 'SITE_MEASUREMENT' && scheduleDate) {
-        const curStatus = res?.data?.projectStatus || projectData?.project?.projectStatus;
-        if (!curStatus || curStatus === 'PAYMENT_RECEIVED') {
-          await api.updateProjectStatus(projectId, 'SITE_MEASUREMENT', 'Auto-advanced to Site Visit upon scheduling site visit date');
+        if (time !== undefined) {
+          // Submitted from Site Visit popup: mark Site Visit Done and move to Drawing and Cabin (DESIGN)
+          await api.updateProjectStageDates(projectId, 'SITE_MEASUREMENT', scheduleDate, scheduleDate, time).catch(() => {});
+          await api.updateProject(projectId, { projectStatus: 'DESIGN' }).catch(() => {});
+          toast.success('Site Visit marked Done, stage moved to Drawing and Cabin, and notification dispatched to WhatsApp group!');
+        } else {
+          const curStatus = res?.data?.projectStatus || projectData?.project?.projectStatus;
+          if (!curStatus || curStatus === 'PAYMENT_RECEIVED') {
+            await api.updateProject(projectId, { projectStatus: 'SITE_MEASUREMENT' }).catch(() => {});
+          }
+          toast.success(res?.message || 'Site visit scheduled, stage updated to Site Visit, and notification dispatched to WhatsApp group!');
         }
-        toast.success(res?.message || 'Site visit scheduled, stage updated to Site Visit, and notification dispatched to WhatsApp group!');
       }
 
       // Auto-advance to next stage if executed date is provided
       if (type === 'executedDate' && date) {
-        const currentIndex = STAGES_ORDER.findIndex(s => s.key === stageKey);
-        if (currentIndex !== -1 && currentIndex + 1 < STAGES_ORDER.length) {
-          const nextStage = STAGES_ORDER[currentIndex + 1].key;
-          await api.updateProjectStatus(projectId, nextStage, `Auto-advanced after completing ${stageKey}`);
-        }
+        await api.updateProjectStatus(projectId, stageKey, `Auto-advanced after completing ${stageKey}`);
       }
 
       await fetchProject();
