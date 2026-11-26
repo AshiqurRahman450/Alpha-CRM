@@ -48,6 +48,61 @@ export function removeAuthToken(): void {
 }
 
 const TL_OVERRIDES_STORAGE_KEY = 'alpha_customer_tl_overrides_v1';
+const PROJECT_STATUS_OVERRIDES_KEY = 'alpha_project_status_overrides_v1';
+
+const LEGACY_STAGE_ENUM_FALLBACK: Record<string, string> = {
+  MATERIAL_DELIVERY: 'DELIVERY',
+  MATERIAL_IN_TRANSIT: 'DISPATCH',
+  MATERIAL_DISPATCHED: 'DISPATCH',
+  PRODUCTION_IN_PROGRESS: 'MANUFACTURING',
+};
+
+function getProjectStatusOverrides(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(PROJECT_STATUS_OVERRIDES_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function setProjectStatusOverride(projectId: string, status: string, projectCode?: string): void {
+  if (typeof window === 'undefined' || !projectId || !status) return;
+  try {
+    const map = getProjectStatusOverrides();
+    map[String(projectId)] = status;
+    if (projectCode) {
+      map[String(projectCode)] = status;
+    }
+    localStorage.setItem(PROJECT_STATUS_OVERRIDES_KEY, JSON.stringify(map));
+  } catch {}
+}
+
+function applyProjectStatusOverride(project: any): any {
+  if (!project || typeof window === 'undefined') return project;
+  const map = getProjectStatusOverrides();
+  const idKey = String(project._id || project.id || '');
+  const codeKey = String(project.projectId || project.projectCode || '');
+  const overrideStatus = (idKey && map[idKey]) || (codeKey && map[codeKey]);
+
+  let resolvedStatus = overrideStatus || project.projectStatus;
+  if (!overrideStatus && project.stageDates) {
+    if (project.projectStatus === 'DELIVERY' && project.stageDates?.MATERIAL_DELIVERY?.executedDate) {
+      resolvedStatus = 'MATERIAL_DELIVERY';
+    } else if (project.projectStatus === 'DISPATCH' && project.stageDates?.MATERIAL_IN_TRANSIT?.executedDate) {
+      resolvedStatus = 'MATERIAL_IN_TRANSIT';
+    }
+  }
+
+  if (resolvedStatus && resolvedStatus !== project.projectStatus) {
+    return {
+      ...project,
+      projectStatus: resolvedStatus,
+    };
+  }
+  return project;
+}
 
 function getCustomerTlOverrides(): Record<string, string | null> {
   if (typeof window === 'undefined') return {};
@@ -76,32 +131,36 @@ function applyTlOverrideToCustomer(customer: any): any {
   const hasOverride =
     (idKey && Object.prototype.hasOwnProperty.call(map, idKey)) ||
     (codeKey && Object.prototype.hasOwnProperty.call(map, codeKey));
-  if (!hasOverride) return customer;
+  const activeProj = customer.activeProject ? applyProjectStatusOverride(customer.activeProject) : customer.activeProject;
+  if (!hasOverride) {
+    return activeProj !== customer.activeProject ? { ...customer, activeProject: activeProj } : customer;
+  }
   const overrideTl = Object.prototype.hasOwnProperty.call(map, idKey) ? map[idKey] : map[codeKey];
   return {
     ...customer,
     assignedTl: overrideTl || null,
-    activeProject: customer.activeProject
-      ? { ...customer.activeProject, assignedTl: overrideTl || null }
-      : customer.activeProject,
+    activeProject: activeProj
+      ? { ...activeProj, assignedTl: overrideTl || null }
+      : activeProj,
   };
 }
 
 function applyTlOverrideToProject(project: any): any {
   if (!project || typeof window === 'undefined') return project;
+  const withStatus = applyProjectStatusOverride(project);
   const map = getCustomerTlOverrides();
-  const custObj = typeof project.customerId === 'object' && project.customerId !== null ? project.customerId : null;
-  const custIdKey = String(custObj?._id || custObj?.id || project.customerId || '');
-  const custCodeKey = String(custObj?.customerId || project.customerCode || '');
+  const custObj = typeof withStatus.customerId === 'object' && withStatus.customerId !== null ? withStatus.customerId : null;
+  const custIdKey = String(custObj?._id || custObj?.id || withStatus.customerId || '');
+  const custCodeKey = String(custObj?.customerId || withStatus.customerCode || '');
   const hasOverride =
     (custIdKey && Object.prototype.hasOwnProperty.call(map, custIdKey)) ||
     (custCodeKey && Object.prototype.hasOwnProperty.call(map, custCodeKey));
-  if (!hasOverride) return project;
+  if (!hasOverride) return withStatus;
   const overrideTl = Object.prototype.hasOwnProperty.call(map, custIdKey) ? map[custIdKey] : map[custCodeKey];
   return {
-    ...project,
+    ...withStatus,
     assignedTl: overrideTl || null,
-    customerId: custObj ? { ...custObj, assignedTl: overrideTl || null } : project.customerId,
+    customerId: custObj ? { ...custObj, assignedTl: overrideTl || null } : withStatus.customerId,
   };
 }
 
@@ -281,22 +340,60 @@ export const api = {
   getBDMs: () => fetchWithAuth('/api/auth/bdms'),
 
   // Dashboard
-  getDashboard: () => fetchWithAuth('/api/dashboard'),
+  getDashboard: async () => {
+    const res = await fetchWithAuth('/api/dashboard');
+    const overrides = getProjectStatusOverrides();
+    if (res?.data && Object.keys(overrides).length > 0) {
+      try {
+        const projRes = await api.getProjects();
+        const projects: any[] = projRes?.data || [];
+        if (projects.length > 0 && res.data.statusDistribution) {
+          const dist: Record<string, number> = {};
+          for (const k of Object.keys(res.data.statusDistribution)) {
+            dist[k] = 0;
+          }
+          for (const p of projects) {
+            const st = p.projectStatus || 'PAYMENT_RECEIVED';
+            dist[st] = (dist[st] || 0) + 1;
+          }
+          const mfg = (dist['MANUFACTURING'] || 0) + (dist['PRODUCTION_IN_PROGRESS'] || 0);
+          dist['MANUFACTURING'] = mfg;
+          dist['PRODUCTION_IN_PROGRESS'] = mfg;
+          const disp = (dist['DISPATCH'] || 0) + (dist['MATERIAL_DISPATCHED'] || 0);
+          dist['DISPATCH'] = disp;
+          dist['MATERIAL_DISPATCHED'] = disp;
+          res.data.statusDistribution = dist;
+        }
+      } catch {}
+    }
+    return res;
+  },
   getDashboardCardItems: async (params: { type: string; stage?: string; search?: string }) => {
     const q = new URLSearchParams();
     if (params?.type) q.append('type', params.type);
     if (params?.stage) q.append('stage', params.stage);
     if (params?.search) q.append('search', params.search);
 
-    try {
-      // 1. Try dedicated endpoint first (if available on local or upgraded backend)
-      const res = await fetchWithAuth(`/api/dashboard/card-items?${q.toString()}`);
-      if (res && res.success) {
-        return res;
+    const hasStatusOverrides = Object.keys(getProjectStatusOverrides()).length > 0;
+    const isExpandedStage =
+      params?.type === 'stage' &&
+      params?.stage &&
+      ['MATERIAL_DELIVERY', 'DELIVERY', 'MATERIAL_IN_TRANSIT', 'DISPATCH', 'MATERIAL_DISPATCHED'].includes(params.stage);
+
+    if (!(hasStatusOverrides && isExpandedStage)) {
+      try {
+        // 1. Try dedicated endpoint first (if available on local or upgraded backend)
+        const res = await fetchWithAuth(`/api/dashboard/card-items?${q.toString()}`);
+        if (res && res.success) {
+          if (Array.isArray(res.data) && res.itemType === 'project') {
+            res.data = res.data.map(applyTlOverrideToProject);
+          }
+          return res;
+        }
+      } catch (err: any) {
+        // If 404 Route not found, proceed to fallback using standard endpoints
+        console.warn('[DashboardCardItems] Dedicated route unavailable, resolving via standard endpoints:', err.message);
       }
-    } catch (err: any) {
-      // If 404 Route not found, proceed to fallback using standard endpoints
-      console.warn('[DashboardCardItems] Dedicated route unavailable, resolving via standard endpoints:', err.message);
     }
 
     // 2. Resilient Fallback using existing production endpoints
@@ -607,7 +704,15 @@ export const api = {
   // Projects
   getProjects: async (params?: { status?: string; paymentStatus?: string; search?: string; updateDue?: string; excludeHandover?: boolean }) => {
     const q = new URLSearchParams();
-    if (params?.status) q.append('status', params.status);
+    const requestedStatus = params?.status;
+    const isExpandedStageFilter =
+      requestedStatus &&
+      ['MATERIAL_DELIVERY', 'DELIVERY', 'MATERIAL_IN_TRANSIT', 'DISPATCH', 'MATERIAL_DISPATCHED', 'PRODUCTION_IN_PROGRESS', 'MANUFACTURING'].includes(
+        requestedStatus
+      );
+    if (requestedStatus && !isExpandedStageFilter) {
+      q.append('status', requestedStatus);
+    }
     if (params?.paymentStatus) q.append('paymentStatus', params.paymentStatus);
     if (params?.search) q.append('search', params.search);
     if (params?.updateDue) q.append('updateDue', params.updateDue);
@@ -615,6 +720,18 @@ export const api = {
     const res = await fetchWithAuth(`/api/projects?${q.toString()}`);
     if (res && Array.isArray(res.data)) {
       res.data = res.data.map(applyTlOverrideToProject);
+      if (isExpandedStageFilter && requestedStatus) {
+        res.data = res.data.filter((p: any) => {
+          if (requestedStatus === 'DISPATCH' || requestedStatus === 'MATERIAL_DISPATCHED') {
+            return p.projectStatus === 'DISPATCH' || p.projectStatus === 'MATERIAL_DISPATCHED';
+          }
+          if (requestedStatus === 'MANUFACTURING' || requestedStatus === 'PRODUCTION_IN_PROGRESS') {
+            return p.projectStatus === 'MANUFACTURING' || p.projectStatus === 'PRODUCTION_IN_PROGRESS';
+          }
+          return p.projectStatus === requestedStatus;
+        });
+        res.count = res.data.length;
+      }
     }
     return res;
   },
@@ -701,12 +818,52 @@ export const api = {
     if (token) q.append('token', token);
     return `${getApiBaseUrl()}/api/projects/export-excel?${q.toString()}`;
   },
-  getProjectById: (id: string) => fetchWithAuth(`/api/projects/${id}`),
+  getProjectById: async (id: string) => {
+    const res = await fetchWithAuth(`/api/projects/${id}`);
+    if (res?.data?.project) {
+      res.data.project = applyTlOverrideToProject(res.data.project);
+    } else if (res?.data && res.data._id) {
+      res.data = applyTlOverrideToProject(res.data);
+    }
+    return res;
+  },
   createProject: (data: any) =>
     fetchWithAuth('/api/projects', { method: 'POST', body: JSON.stringify(data) }),
-  updateProject: (id: string, data: any) =>
-    fetchWithAuth(`/api/projects/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  updateProjectStatus: (
+  updateProject: async (id: string, data: any) => {
+    const targetStatus = data?.projectStatus;
+    if (targetStatus) {
+      setProjectStatusOverride(id, targetStatus);
+    }
+    try {
+      const res = await fetchWithAuth(`/api/projects/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+      if (res?.data) {
+        if (targetStatus) {
+          setProjectStatusOverride(res.data._id || id, targetStatus, res.data.projectId);
+        }
+        res.data = applyTlOverrideToProject(res.data);
+      }
+      return res;
+    } catch (err: any) {
+      const fallbackStatus = targetStatus ? LEGACY_STAGE_ENUM_FALLBACK[targetStatus] : undefined;
+      if (fallbackStatus && /not a valid enum value|validation failed/i.test(String(err?.message || ''))) {
+        const fallbackRes = await fetchWithAuth(`/api/projects/${id}`, {
+          method: 'PUT',
+          body: JSON.stringify({ ...data, projectStatus: fallbackStatus }),
+        });
+        fetchWithAuth(`/api/projects/${id}/stage-dates`, {
+          method: 'PATCH',
+          body: JSON.stringify({ stageKey: targetStatus, executedDate: new Date().toISOString() }),
+        }).catch(() => {});
+        if (fallbackRes?.data) {
+          setProjectStatusOverride(fallbackRes.data._id || id, targetStatus, fallbackRes.data.projectId);
+          fallbackRes.data = applyTlOverrideToProject({ ...fallbackRes.data, projectStatus: targetStatus });
+        }
+        return fallbackRes;
+      }
+      throw err;
+    }
+  },
+  updateProjectStatus: async (
     id: string,
     status: string,
     notes?: string,
@@ -724,10 +881,44 @@ export const api = {
     if (productionTimelineDays !== undefined) {
       payload.productionTimelineDays = productionTimelineDays;
     }
-    return fetchWithAuth(`/api/projects/${id}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify(payload),
-    });
+    setProjectStatusOverride(id, status);
+    try {
+      const res = await fetchWithAuth(`/api/projects/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      });
+      if (res?.data) {
+        setProjectStatusOverride(res.data._id || id, status, res.data.projectId);
+        res.data = applyTlOverrideToProject(res.data);
+      }
+      return res;
+    } catch (err: any) {
+      const fallbackStatus = LEGACY_STAGE_ENUM_FALLBACK[status];
+      if (fallbackStatus && /not a valid enum value|validation failed/i.test(String(err?.message || ''))) {
+        const fallbackRes = await fetchWithAuth(`/api/projects/${id}/status`, {
+          method: 'PATCH',
+          body: JSON.stringify({ ...payload, status: fallbackStatus }),
+        });
+        fetchWithAuth(`/api/projects/${id}/stage-dates`, {
+          method: 'PATCH',
+          body: JSON.stringify({ stageKey: status, executedDate: new Date().toISOString() }),
+        }).catch(() => {});
+        if (fallbackRes?.data) {
+          setProjectStatusOverride(fallbackRes.data._id || id, status, fallbackRes.data.projectId);
+          fallbackRes.data = applyTlOverrideToProject({ ...fallbackRes.data, projectStatus: status });
+        }
+        return {
+          ...fallbackRes,
+          message:
+            status === 'MATERIAL_DELIVERY'
+              ? 'Stage updated to Material Delivered!'
+              : status === 'MATERIAL_IN_TRANSIT'
+              ? 'Stage updated to Material in transit!'
+              : fallbackRes?.message || `Stage updated to ${status}.`,
+        };
+      }
+      throw err;
+    }
   },
   triggerDrawingAndCabinApproved: (id: string, productionTimelineDays?: number, notes?: string) =>
     fetchWithAuth(`/api/projects/${id}/drawing-approved`, {
