@@ -81,6 +81,24 @@ export function autoFillExecutedDatesForCompletedStages(project: any): boolean {
     modified = true;
   }
 
+  let customerApprovalObj: any = null;
+  if (typeof project.stageDates.get === 'function') {
+    customerApprovalObj = project.stageDates.get('CUSTOMER_APPROVAL');
+  } else {
+    customerApprovalObj = project.stageDates['CUSTOMER_APPROVAL'];
+  }
+  const hasValidCustomerApprovalExec =
+    customerApprovalObj?.executedDate &&
+    !isNaN(new Date(customerApprovalObj.executedDate).getTime());
+
+  if (
+    hasValidCustomerApprovalExec &&
+    project.projectStatus === 'CUSTOMER_APPROVAL'
+  ) {
+    project.projectStatus = 'ENGINEERING';
+    modified = true;
+  }
+
   const currentKey = normalizeStageKey(project.projectStatus);
   const currentIdx = currentKey ? ORDERED_STAGE_KEYS.indexOf(currentKey as any) : -1;
   const now = new Date();

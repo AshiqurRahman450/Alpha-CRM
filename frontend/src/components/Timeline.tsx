@@ -739,7 +739,7 @@ export default function Timeline({
                     Drawing and Cabin Approved
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Set production timeline & dispatch WhatsApp notifications
+                    Marks Drawing &amp; Cabin Approval as Done, moves stage to Production Payment &amp; dispatches WhatsApp notifications
                   </p>
                 </div>
               </div>

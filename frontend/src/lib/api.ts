@@ -881,14 +881,29 @@ export const api = {
     if (productionTimelineDays !== undefined) {
       payload.productionTimelineDays = productionTimelineDays;
     }
-    setProjectStatusOverride(id, status);
+    const targetEffectiveStatus = status === 'CUSTOMER_APPROVAL' ? 'ENGINEERING' : status;
+    setProjectStatusOverride(id, targetEffectiveStatus);
     try {
       const res = await fetchWithAuth(`/api/projects/${id}/status`, {
         method: 'PATCH',
         body: JSON.stringify(payload),
       });
+      if (status === 'CUSTOMER_APPROVAL') {
+        const nowIso = new Date().toISOString();
+        await fetchWithAuth(`/api/projects/${id}/stage-dates`, {
+          method: 'PATCH',
+          body: JSON.stringify({ stageKey: 'CUSTOMER_APPROVAL', executedDate: nowIso }),
+        }).catch(() => {});
+        if (res?.data && res.data.projectStatus === 'CUSTOMER_APPROVAL') {
+          await fetchWithAuth(`/api/projects/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify({ projectStatus: 'ENGINEERING', productionTimelineDays }),
+          }).catch(() => {});
+          res.data.projectStatus = 'ENGINEERING';
+        }
+      }
       if (res?.data) {
-        setProjectStatusOverride(res.data._id || id, status, res.data.projectId);
+        setProjectStatusOverride(res.data._id || id, targetEffectiveStatus, res.data.projectId);
         res.data = applyTlOverrideToProject(res.data);
       }
       return res;
@@ -920,11 +935,30 @@ export const api = {
       throw err;
     }
   },
-  triggerDrawingAndCabinApproved: (id: string, productionTimelineDays?: number, notes?: string) =>
-    fetchWithAuth(`/api/projects/${id}/drawing-approved`, {
+  triggerDrawingAndCabinApproved: async (id: string, productionTimelineDays?: number, notes?: string) => {
+    setProjectStatusOverride(id, 'ENGINEERING');
+    const res = await fetchWithAuth(`/api/projects/${id}/drawing-approved`, {
       method: 'POST',
       body: JSON.stringify({ productionTimelineDays, notes }),
-    }),
+    });
+    const nowIso = new Date().toISOString();
+    await fetchWithAuth(`/api/projects/${id}/stage-dates`, {
+      method: 'PATCH',
+      body: JSON.stringify({ stageKey: 'CUSTOMER_APPROVAL', executedDate: nowIso }),
+    }).catch(() => {});
+    if (res?.data && res.data.projectStatus === 'CUSTOMER_APPROVAL') {
+      await fetchWithAuth(`/api/projects/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ projectStatus: 'ENGINEERING', productionTimelineDays }),
+      }).catch(() => {});
+      res.data.projectStatus = 'ENGINEERING';
+    }
+    if (res?.data) {
+      setProjectStatusOverride(res.data._id || id, 'ENGINEERING', res.data.projectId);
+      res.data = applyTlOverrideToProject(res.data);
+    }
+    return res;
+  },
   updateProjectStageDates: (id: string, stageKey: string, scheduleDate?: string | null, executedDate?: string | null, time?: string | null) =>
     fetchWithAuth(`/api/projects/${id}/stage-dates`, {
       method: 'PATCH',

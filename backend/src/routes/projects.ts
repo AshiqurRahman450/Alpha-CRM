@@ -1723,7 +1723,9 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
     }
 
     const prevStatus = project.projectStatus;
-    project.projectStatus = status as ProjectStatus;
+    const isDrawingApprovalCompletion = status === 'CUSTOMER_APPROVAL';
+    const effectiveStatus: ProjectStatus = (isDrawingApprovalCompletion ? 'ENGINEERING' : status) as ProjectStatus;
+    project.projectStatus = effectiveStatus;
     if (notes) {
       project.notes = notes;
     }
@@ -1733,14 +1735,25 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
       project.trackingNumber = tracking;
     }
 
-    if (status === 'CUSTOMER_APPROVAL') {
+    if (isDrawingApprovalCompletion) {
       const days = Number(productionTimelineDays) > 0 ? Number(productionTimelineDays) : (project.productionTimelineDays || 60);
       project.productionTimelineDays = days;
+      if (!project.stageDates) {
+        project.stageDates = new Map();
+      }
+      const approvalDates = project.stageDates.get('CUSTOMER_APPROVAL') || {};
+      if (!approvalDates.executedDate) {
+        approvalDates.executedDate = new Date();
+      }
+      if (!approvalDates.scheduleDate) {
+        approvalDates.scheduleDate = new Date();
+      }
+      project.stageDates.set('CUSTOMER_APPROVAL', approvalDates);
     }
 
     // Reset nextUpdateAt: production interval updates apply after Production Payment (in any post-production stage)
     const intervalDays = project.whatsapp?.intervalDays || project.updateFrequencyDays || 10;
-    const isPostProduction = POST_PRODUCTION_PAYMENT_STAGES.includes(status);
+    const isPostProduction = POST_PRODUCTION_PAYMENT_STAGES.includes(effectiveStatus);
 
     if (isPostProduction) {
       // Stop production payment reminders once in manufacturing or beyond
@@ -1782,18 +1795,18 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
       projectId: project._id,
       projectCode: project.projectId,
       type: 'STATUS_CHANGE',
-      description: status === 'CUSTOMER_APPROVAL'
-        ? `Project status updated to Drawing and Cabin Design Approval. Production timeline set to ${project.productionTimelineDays || 60} days. ${notes ? `Note: ${notes}` : ''}`
+      description: isDrawingApprovalCompletion
+        ? `Drawing and Cabin Design Approval completed (Done) and project moved to Production Payment. Production timeline set to ${project.productionTimelineDays || 60} days. ${notes ? `Note: ${notes}` : ''}`
         : (status === 'MANUFACTURING' || status === 'PRODUCTION_IN_PROGRESS')
           ? `Project status updated to Production in progress. Stage 1 Production Update scheduled in ${intervalDays <= 0.003 ? '2 minutes' : intervalDays <= 0.025 ? '30 minutes' : intervalDays < 0.1 ? '1 hour' : intervalDays >= 1.24 && intervalDays <= 1.26 ? '30 hours' : `${intervalDays} days`}.`
           : status === 'MATERIAL_IN_TRANSIT' && project.vrlLrNumber
             ? `Project status updated to Material in transit. VRL Tracking No: ${project.vrlLrNumber}. ${notes ? `Note: ${notes}` : ''}`
           : (status === 'DISPATCH' || status === 'MATERIAL_DISPATCHED') && project.vrlLrNumber
             ? `Project status updated to Material ready to Dispatch. VRL Tracking No: ${project.vrlLrNumber}. ${notes ? `Note: ${notes}` : ''}`
-            : `Project status updated from ${prevStatus} to ${status}. ${notes ? `Note: ${notes}` : ''}`,
+            : `Project status updated from ${prevStatus} to ${effectiveStatus}. ${notes ? `Note: ${notes}` : ''}`,
       userId: req.user?._id,
       userName: req.user?.name,
-      metadata: { previousStatus: prevStatus, newStatus: status, intervalDays, vrlLrNumber: project.vrlLrNumber, productionTimelineDays: project.productionTimelineDays },
+      metadata: { previousStatus: prevStatus, newStatus: effectiveStatus, intervalDays, vrlLrNumber: project.vrlLrNumber, productionTimelineDays: project.productionTimelineDays },
     });
 
     // Milestone update messages directly inside WhatsApp group via Web Bot!
@@ -1938,10 +1951,10 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
       bdmNotificationResult = bdmNotifyRes;
     }
 
-    let resultMsg = `Stage updated to ${status}.`;
-    if (status === 'CUSTOMER_APPROVAL') {
+    let resultMsg = `Stage updated to ${effectiveStatus}.`;
+    if (isDrawingApprovalCompletion) {
       const days = project.productionTimelineDays || 60;
-      resultMsg = `Drawing & Cabin Approved! 2 WhatsApp messages sent to group (${days} days delivery timeline) and follow-up scheduled for 2 days later.`;
+      resultMsg = `Drawing & Cabin Approved (Done)! Stage moved to Production Payment, 2 WhatsApp messages sent to group (${days} days delivery timeline), and follow-up scheduled for 2 days later.`;
     } else if (status === 'MANUFACTURING' || status === 'PRODUCTION_IN_PROGRESS') {
       resultMsg = `Stage updated to Production in progress. Automated Stage 1 Production Update scheduled in ${intervalDays <= 0.003 ? '2 minutes' : intervalDays <= 0.025 ? '30 minutes' : intervalDays < 0.1 ? '1 hour' : intervalDays >= 1.24 && intervalDays <= 1.26 ? '30 hours' : `${intervalDays} days`}.`;
     } else if (status === 'MATERIAL_IN_TRANSIT' && project.vrlLrNumber && groupMessageDispatched) {
@@ -1989,7 +2002,7 @@ projectRouter.post('/:id/drawing-approved', authorize('ADMIN', 'CRM', 'MANAGER',
     }
 
     const prevStatus = project.projectStatus;
-    project.projectStatus = 'CUSTOMER_APPROVAL';
+    project.projectStatus = 'ENGINEERING';
     if (notes) project.notes = notes;
     const days = Number(productionTimelineDays) > 0 ? Number(productionTimelineDays) : 60;
     project.productionTimelineDays = days;
@@ -1998,6 +2011,7 @@ projectRouter.post('/:id/drawing-approved', authorize('ADMIN', 'CRM', 'MANAGER',
     if (!project.stageDates) project.stageDates = new Map();
     const currentDates = project.stageDates.get('CUSTOMER_APPROVAL') || {};
     if (!currentDates.executedDate) currentDates.executedDate = new Date();
+    if (!currentDates.scheduleDate) currentDates.scheduleDate = new Date();
     project.stageDates.set('CUSTOMER_APPROVAL', currentDates);
 
     autoFillExecutedDatesForCompletedStages(project);
@@ -2007,10 +2021,10 @@ projectRouter.post('/:id/drawing-approved', authorize('ADMIN', 'CRM', 'MANAGER',
       projectId: project._id,
       projectCode: project.projectId,
       type: 'STATUS_CHANGE',
-      description: `Drawing and Cabin Approved confirmed with ${days} days production timeline.`,
+      description: `Drawing and Cabin Approved confirmed (Done) and moved to Production Payment with ${days} days production timeline.`,
       userId: req.user?._id,
       userName: req.user?.name,
-      metadata: { previousStatus: prevStatus, newStatus: 'CUSTOMER_APPROVAL', productionTimelineDays: days },
+      metadata: { previousStatus: prevStatus, newStatus: 'ENGINEERING', productionTimelineDays: days },
     });
 
     const workflowRes = await handleDrawingAndCabinApprovedWorkflow(project, days, req.user?._id, req.user?.name);
@@ -2021,7 +2035,7 @@ projectRouter.post('/:id/drawing-approved', authorize('ADMIN', 'CRM', 'MANAGER',
       data: project,
       workflow: workflowRes,
       bdmNotification: bdmNotifyRes,
-      message: `Drawing and Cabin Approved! 2 WhatsApp messages dispatched to group (${days} days delivery timeline) and follow-up scheduled for 2 days later.`,
+      message: `Drawing and Cabin Approved (Done)! Stage moved to Production Payment, 2 WhatsApp messages dispatched to group (${days} days delivery timeline), and follow-up scheduled for 2 days later.`,
     });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });

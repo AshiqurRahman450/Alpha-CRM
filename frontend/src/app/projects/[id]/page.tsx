@@ -161,7 +161,7 @@ export default function ProjectDetailPage() {
       const res = await api.updateProjectStatus(projectId, newStatus, undefined, trackingNumber, productionTimelineDays);
       if (newStatus === 'CUSTOMER_APPROVAL') {
         const days = productionTimelineDays || projectData?.project?.productionTimelineDays || 60;
-        toast.success(`Drawing and Cabin Approved! 2 WhatsApp messages dispatched to group (${days} days delivery timeline) and follow-up scheduled for 2 days later.`, { duration: 6000 });
+        toast.success(`Drawing and Cabin Approved (Done)! Stage moved to Production Payment & 2 WhatsApp messages dispatched to group (${days} days delivery timeline).`, { duration: 6000 });
       } else if (res && res.groupMessageDispatched) {
         toast.success(
           trackingNumber
