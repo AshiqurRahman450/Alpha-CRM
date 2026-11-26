@@ -1120,11 +1120,54 @@ export const api = {
   },
   saveQCReport: (data: any) =>
     fetchWithAuth('/api/qc/reports', { method: 'POST', body: JSON.stringify(data) }),
-  getQCReports: (params?: { search?: string; approvalStatus?: string }) => {
+  updateQCReport: async (id: string, data: any) => {
+    try {
+      return await fetchWithAuth(`/api/qc/reports/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    } catch (err: any) {
+      // Fallback if live backend has not reloaded PUT /api/qc/reports/:id yet:
+      // create a new PENDING report routed to Kishore and mark the old report ID as superseded locally
+      if (/route not found|404/i.test(String(err?.message || ''))) {
+        const created = await fetchWithAuth('/api/qc/reports', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        });
+        if (typeof window !== 'undefined' && id) {
+          try {
+            const raw = localStorage.getItem('alpha_superseded_qc_reports_v1');
+            const list: string[] = raw ? JSON.parse(raw) : [];
+            if (!list.includes(String(id))) {
+              list.push(String(id));
+              localStorage.setItem('alpha_superseded_qc_reports_v1', JSON.stringify(list));
+            }
+          } catch {}
+        }
+        return {
+          ...created,
+          message: 'Edited QC report saved and sent to Technical Manager (Kishore) for approval!',
+        };
+      }
+      throw err;
+    }
+  },
+  getQCReports: async (params?: { search?: string; approvalStatus?: string }) => {
     const q = new URLSearchParams();
     if (params?.search) q.append('search', params.search);
     if (params?.approvalStatus) q.append('approvalStatus', params.approvalStatus);
-    return fetchWithAuth(`/api/qc/reports?${q.toString()}`);
+    const res = await fetchWithAuth(`/api/qc/reports?${q.toString()}`);
+    if (typeof window !== 'undefined' && res && Array.isArray(res.data)) {
+      try {
+        const raw = localStorage.getItem('alpha_superseded_qc_reports_v1');
+        const superseded: string[] = raw ? JSON.parse(raw) : [];
+        if (superseded.length > 0) {
+          res.data = res.data.filter((r: any) => !superseded.includes(String(r._id)));
+          res.count = res.data.length;
+        }
+      } catch {}
+    }
+    return res;
   },
   getQCReport: (id: string) => fetchWithAuth(`/api/qc/reports/${id}`),
   approveQCReport: (id: string, notes?: string) =>

@@ -193,6 +193,91 @@ qcRouter.get('/reports/:id', async (req: AuthRequest, res: Response) => {
 });
 
 /**
+ * PUT /api/qc/reports/:id
+ * Updates an existing QC Site Inspection Report, regenerates the official PDF,
+ * resets approvalStatus to PENDING, and routes the edited report to Technical Manager (Kishore) for approval.
+ */
+qcRouter.put('/reports/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const existing = await QCReport.findById(req.params.id);
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Site inspection report not found' });
+    }
+
+    const formData = req.body;
+    if (!formData.clientName || !formData.jobNo) {
+      return res.status(400).json({ success: false, message: 'Job No and Client Name are required.' });
+    }
+
+    const reportId = existing.reportId || `QCR-${Date.now().toString().slice(-6)}`;
+
+    // Regenerate official PDF with edited fields
+    const { filePath, relativeUrl } = await generateQCReportPdf({
+      ...formData,
+      reportId,
+    });
+
+    // Match associated project
+    let matchedProject = null;
+    if (formData.projectId) {
+      matchedProject = await Project.findById(formData.projectId);
+    }
+    if (!matchedProject && formData.jobNo) {
+      matchedProject = await Project.findOne({
+        projectId: new RegExp(`^${formData.jobNo.trim()}$`, 'i'),
+      });
+    }
+
+    const updatePayload: any = {
+      ...formData,
+      reportId,
+      pdfUrl: relativeUrl,
+      pdfFilePath: filePath,
+      projectId: matchedProject?._id || formData.projectId || existing.projectId,
+      customerId: matchedProject?.customerId || formData.customerId || existing.customerId,
+      status: 'SUBMITTED',
+      approvalStatus: 'PENDING',
+      rejectionReason: undefined,
+      approvedAt: undefined,
+      approvedBy: undefined,
+    };
+    delete updatePayload._id;
+    delete updatePayload.createdAt;
+    delete updatePayload.updatedAt;
+
+    Object.assign(existing, updatePayload);
+    existing.approvalStatus = 'PENDING';
+    existing.rejectionReason = undefined;
+    existing.approvedAt = undefined;
+    existing.approvedBy = undefined;
+    await existing.save();
+
+    // Alert Technical Manager (Kishore) via direct WhatsApp
+    try {
+      const techManagerPhone = '+919384820214';
+      const botStatus = whatsAppWebBot.getStatus();
+      if (botStatus.isConnected) {
+        const alertText = `🔔 *Alpha CRM - Edited QC Report Resubmitted for Approval*\n\nAn updated Pre-Production Site Visit Report (${reportId}) has been edited and submitted by ${req.user?.name || 'QC'} for your approval.\n\n• *Project / Job No:* ${formData.jobNo}\n• *Client:* ${formData.clientName}\n• *Region:* ${formData.region}\n• *Date:* ${formData.reportDate}\n\nPlease review and approve the updated report in Alpha CRM.`;
+        whatsAppWebBot.sendDirectMessage(techManagerPhone, alertText).catch((err) => {
+          console.warn('[QC] Notice alerting Kishore via WhatsApp:', err.message);
+        });
+      }
+    } catch {
+      // Non-blocking notification
+    }
+
+    return res.json({
+      success: true,
+      message: 'Edited QC report saved and sent to Technical Manager (Kishore) for approval!',
+      data: existing,
+    });
+  } catch (err: any) {
+    console.error('[QC] Update Report Error:', err);
+    return res.status(500).json({ success: false, message: err.message || 'Failed to update QC report' });
+  }
+});
+
+/**
  * POST /api/qc/reports/:id/approve
  * Technical Manager (Kishore) or Admin approves the Pre-Production Site Visit Report.
  * Actions:

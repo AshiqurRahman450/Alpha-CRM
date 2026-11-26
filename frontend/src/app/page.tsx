@@ -33,7 +33,7 @@ import { formatProjectStatus } from '../components/Timeline';
 import SendUpdateModal from '../components/SendUpdateModal';
 import PostponeModal from '../components/PostponeModal';
 import RecordPaymentModal from '../components/RecordPaymentModal';
-import QCInspectionForm from '../components/QCInspectionForm';
+import QCPage from './qc/page';
 import SiteProblemsView from '../components/SiteProblemsView';
 import { isSundaramUser } from '../lib/constants';
 
@@ -105,7 +105,7 @@ export default function DashboardPage() {
   };
 
   if (user?.role === 'QC') {
-    return <QCInspectionForm />;
+    return <QCPage />;
   }
 
   if (user?.role === 'SITE_INSPECTOR') {

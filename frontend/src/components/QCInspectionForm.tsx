@@ -138,12 +138,13 @@ const HINGE_OPTIONS = ['LH (Left Hand)', 'RH (Right Hand)', 'Centre', 'Not appli
 interface QCInspectionFormProps {
   initialReport?: any;
   onSaved?: () => void;
+  onCancelEdit?: () => void;
 }
 
 let cachedCrmCustomers: any[] | null = null;
 let cachedCrmProjects: any[] | null = null;
 
-export default function QCInspectionForm({ initialReport, onSaved }: QCInspectionFormProps) {
+export default function QCInspectionForm({ initialReport, onSaved, onCancelEdit }: QCInspectionFormProps) {
   // Form State
   const [reportDate, setReportDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [region, setRegion] = useState<string>('');
@@ -281,6 +282,78 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
   useEffect(() => {
     fetchCrmData();
   }, []);
+
+  // Populate form fields whenever initialReport is provided for editing
+  useEffect(() => {
+    if (!initialReport) return;
+    setReportDate(initialReport.reportDate || new Date().toISOString().slice(0, 10));
+    setRegion(initialReport.region || '');
+    setJobNo(initialReport.jobNo || '');
+    setClientName(initialReport.clientName || '');
+    setClientPhone(initialReport.clientPhone || '');
+    setVisitCount(String(initialReport.visitCount || '1'));
+    setTechnician(initialReport.technician || 'Dinesh Kumar S (8232)');
+    setTechnicianEmail(initialReport.technicianEmail || 'technician@alphaelevators.com');
+    setQuotationNo(initialReport.quotationNo || initialReport.automationCode || '');
+
+    setPropertyStage(initialReport.propertyStage || 'Under-Construction');
+    setInstallationArea(initialReport.installationArea || 'Indoor');
+    setProduct(initialReport.product || 'AE 01 - Hydralic Home Series');
+    setFloorConfig(Number(initialReport.floorConfig) || 3);
+    setDoorClosing(initialReport.doorClosing || 'LH (Left Hand)');
+    setClientSignatureType(initialReport.clientSignatureType || 'Confirmed');
+
+    setShaftG(initialReport.shaftG !== undefined && initialReport.shaftG !== null ? String(initialReport.shaftG) : '1850');
+    setShaftA(initialReport.shaftA !== undefined && initialReport.shaftA !== null ? String(initialReport.shaftA) : '1700');
+    setShaftB(initialReport.shaftB !== undefined && initialReport.shaftB !== null ? String(initialReport.shaftB) : '');
+    setShaftC(initialReport.shaftC !== undefined && initialReport.shaftC !== null ? String(initialReport.shaftC) : '');
+    setShaftAccuracy(initialReport.shaftAccuracy || 'Approximate');
+    setPlasterStatus(initialReport.plasterStatus || 'Without plaster');
+
+    if (initialReport.floorMeasurements && typeof initialReport.floorMeasurements === 'object') {
+      setFloorMeasurements((prev) => ({ ...prev, ...initialReport.floorMeasurements }));
+    }
+    if (initialReport.totalTravel !== undefined && initialReport.totalTravel !== null) {
+      setTotalTravel(String(initialReport.totalTravel));
+    }
+    if (initialReport.totalShaft !== undefined && initialReport.totalShaft !== null) {
+      setTotalShaft(String(initialReport.totalShaft));
+    }
+    if (initialReport.pitClient !== undefined && initialReport.pitClient !== null) {
+      setPitClient(String(initialReport.pitClient));
+    }
+
+    const existingWallSpecs = initialReport.wallSpecifications || initialReport.wallSpecs;
+    if (existingWallSpecs && typeof existingWallSpecs === 'object') {
+      setWallSpecs(existingWallSpecs);
+    }
+
+    if (Array.isArray(initialReport.attendees) && initialReport.attendees.length > 0) {
+      setAttendees(initialReport.attendees);
+    }
+
+    setClientRepName(initialReport.clientRepName || initialReport.clientName || '');
+    setClientRepPhone(initialReport.clientRepPhone || initialReport.clientPhone || '');
+    setTimeIn(initialReport.timeIn || '10:00');
+    setTimeOut(initialReport.timeOut || '12:30');
+    setTechnicianSignature(initialReport.technicianSignature || 'Dinesh Kumar S');
+    setClientSign(initialReport.clientSign || '');
+    setRemarks(initialReport.remarks || '');
+
+    if (initialReport.photos && typeof initialReport.photos === 'object') {
+      setPhotos(initialReport.photos);
+    } else {
+      setPhotos({});
+    }
+
+    if (Array.isArray(initialReport.supportPhotos)) {
+      setSupportPhotos(initialReport.supportPhotos);
+      setSupportFiles(initialReport.supportPhotos.map((p: any) => p.name || 'Attachment'));
+    } else {
+      setSupportPhotos([]);
+      setSupportFiles([]);
+    }
+  }, [initialReport]);
 
   // Set default wall specs on stops change
   useEffect(() => {
@@ -663,13 +736,26 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
       a.click();
       document.body.removeChild(a);
 
-      toast.success('Pre-Production PDF generated! Report saved & routed to Technical Manager (Kishore) for approval.', {
-        id: 'pdf-toast',
-        duration: 6000,
-      });
+      toast.success(
+        initialReport?._id
+          ? 'Updated Pre-Production PDF generated! Edited report sent to Technical Manager (Kishore) for approval.'
+          : 'Pre-Production PDF generated! Report saved & routed to Technical Manager (Kishore) for approval.',
+        {
+          id: 'pdf-toast',
+          duration: 6000,
+        }
+      );
 
-      // Also auto-save report to CRM database in background
-      api.saveQCReport(data).catch(() => {});
+      // Also auto-save / update report in CRM database and route for Kishore's approval
+      if (initialReport?._id) {
+        api.updateQCReport(initialReport._id, data).then(() => {
+          if (onSaved) onSaved();
+        }).catch(() => {});
+      } else {
+        api.saveQCReport(data).then(() => {
+          if (onSaved) onSaved();
+        }).catch(() => {});
+      }
     } catch (err: any) {
       console.error('PDF Generation Error:', err);
       toast.error(`PDF generation error: ${err.message || 'Please try again'}`, { id: 'pdf-toast' });
@@ -679,13 +765,21 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
     }
   };
 
-  // Save report to database
+  // Save report to database (or update existing report and resend to Kishore for approval)
   const handleSaveReport = async () => {
     try {
       setSavingReport(true);
       const data = getFormData();
-      const res = await api.saveQCReport(data);
-      toast.success(res.message || 'QC Report submitted & routed to Technical Manager (Kishore) for approval!', { duration: 6000 });
+      const res = initialReport?._id
+        ? await api.updateQCReport(initialReport._id, data)
+        : await api.saveQCReport(data);
+      toast.success(
+        res.message ||
+          (initialReport?._id
+            ? 'Edited QC Report updated & sent to Technical Manager (Kishore) for approval!'
+            : 'QC Report submitted & routed to Technical Manager (Kishore) for approval!'),
+        { duration: 6000 }
+      );
       if (onSaved) onSaved();
     } catch (err: any) {
       toast.error(err.message || 'Failed to save report');
@@ -737,6 +831,39 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 pb-28 text-slate-900 font-sans antialiased">
+      {/* Editing Existing QC Report Banner */}
+      {initialReport?._id && (
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 font-bold">
+              ✎
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs sm:text-sm font-extrabold text-amber-950">
+                  Editing QC Report: {initialReport.reportId || initialReport.jobNo}
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200 text-amber-900">
+                  Client: {initialReport.clientName} ({initialReport.jobNo})
+                </span>
+              </div>
+              <p className="text-xs text-amber-800 mt-0.5">
+                Modify any measurements or details below and click <strong>Update &amp; Send for Approval (Kishore)</strong> to resubmit for Technical Manager approval.
+              </p>
+            </div>
+          </div>
+          {onCancelEdit && (
+            <button
+              type="button"
+              onClick={onCancelEdit}
+              className="px-3.5 py-2 bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold transition-colors shrink-0 cursor-pointer"
+            >
+              Cancel Edit / New Report
+            </button>
+          )}
+        </div>
+      )}
+
       {/* ============================================================== */}
       {/* TOP HEADER: Alpha Elevators Pre-Production Site Report */}
       {/* ============================================================== */}
@@ -2076,10 +2203,16 @@ export default function QCInspectionForm({ initialReport, onSaved }: QCInspectio
               type="button"
               onClick={handleSaveReport}
               disabled={savingReport}
-              className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold transition-all shadow-sm active:scale-95 disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
             >
-              <Check className="w-3.5 h-3.5 text-emerald-400" />
-              <span>{savingReport ? 'Saving...' : 'Save to CRM'}</span>
+              <Check className="w-3.5 h-3.5 text-white" />
+              <span>
+                {savingReport
+                  ? 'Sending for Approval...'
+                  : initialReport?._id
+                  ? 'Update & Send for Approval (Kishore)'
+                  : 'Save & Send for Approval (Kishore)'}
+              </span>
             </button>
 
             <button
