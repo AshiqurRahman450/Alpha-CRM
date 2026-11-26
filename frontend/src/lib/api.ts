@@ -959,4 +959,34 @@ export const api = {
       return fetchWithAuth(`/api/quotations/bdm-stage-wise${queryStr}`);
     },
   },
+
+  // Site Problems (Site Inspector -> Sundaram role workflow)
+  getSiteProblems: (params?: { status?: string; search?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.status) q.append('status', params.status);
+    if (params?.search) q.append('search', params.search);
+    const queryStr = q.toString() ? `?${q.toString()}` : '';
+    return fetchWithAuth(`/api/site-problems${queryStr}`);
+  },
+  createSiteProblem: (data: {
+    customerId?: string;
+    customerName: string;
+    projectId?: string;
+    projectName?: string;
+    problemDescription: string;
+    images: string[];
+  }) =>
+    fetchWithAuth('/api/site-problems', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  finishSiteProblem: (id: string, data?: { status?: 'FINISHED' | 'ASSIGNED'; resolutionNotes?: string }) =>
+    fetchWithAuth(`/api/site-problems/${id}/finish`, {
+      method: 'PATCH',
+      body: JSON.stringify(data || { status: 'FINISHED' }),
+    }),
+  deleteSiteProblem: (id: string) =>
+    fetchWithAuth(`/api/site-problems/${id}`, {
+      method: 'DELETE',
+    }),
 };

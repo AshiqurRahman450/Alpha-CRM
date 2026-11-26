@@ -29,7 +29,7 @@ export default function LoginPage() {
 
   const [bdmSelect, setBdmSelect] = useState('');
 
-  const handleQuickFill = (userType: 'admin' | 'nithesh' | 'abeal' | 'crm' | 'accountant' | 'qc' | 'techlead' | 'techmanager' | 'bdm' | 'bilal' | 'srinivasan' | 'sundaram' | 'bala', bdmEmail?: string) => {
+  const handleQuickFill = (userType: 'admin' | 'nithesh' | 'abeal' | 'crm' | 'accountant' | 'qc' | 'techlead' | 'techmanager' | 'bdm' | 'bilal' | 'srinivasan' | 'sundaram' | 'bala' | 'siteinspector', bdmEmail?: string) => {
     setError(null);
     if (userType === 'admin') {
       setEmail('admin@alphaelevators.com');
@@ -67,6 +67,9 @@ export default function LoginPage() {
     } else if (userType === 'bala') {
       setEmail('bala@alphaelevators.com');
       setPassword('bala123');
+    } else if (userType === 'siteinspector') {
+      setEmail('siteinspector@alphaelevators.com');
+      setPassword('site123');
     } else if (userType === 'bdm') {
       setEmail(bdmEmail || 'gopinath@alpha.com');
       setPassword('password123');
@@ -243,6 +246,14 @@ export default function LoginPage() {
               >
                 <span>Bala</span>
                 <span className="text-[9px] text-cyan-400/70 font-mono">bala123</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickFill('siteinspector')}
+                className="col-span-2 px-2.5 py-1.5 bg-amber-950/80 hover:bg-amber-900 text-amber-300 rounded-lg border border-amber-500/50 transition-colors font-semibold text-left truncate flex items-center justify-between shadow-sm"
+              >
+                <span>Site Inspector (Site Issue Upload → Sundaram)</span>
+                <span className="text-[9px] text-amber-300/80 font-mono">site123</span>
               </button>
             </div>
           </div>

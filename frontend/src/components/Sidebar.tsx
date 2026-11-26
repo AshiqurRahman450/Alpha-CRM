@@ -88,7 +88,7 @@ export default function Sidebar() {
       </div>
 
       {/* Pilot Pilot Tracker Callout */}
-      {!(user?.role === 'LOGISTICS' || user?.role === 'LOGISTICS_TL') && (
+      {!(user?.role === 'LOGISTICS' || user?.role === 'LOGISTICS_TL' || user?.role === 'SITE_INSPECTOR') && (
         <div className="mx-4 my-3 p-3 bg-gradient-to-r from-emerald-950/40 to-slate-900 border border-emerald-500/30 rounded-xl">
           <div className="flex items-center justify-between text-xs mb-1">
             <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
@@ -107,6 +107,9 @@ export default function Sidebar() {
       <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto">
         {navItems
           .filter((item) => {
+            if (user?.role === 'SITE_INSPECTOR') {
+              return ['Dashboard', 'Customers', 'Projects'].includes(item.name);
+            }
             if (user?.role === 'QC') {
               return ['QC Site Report', 'Customers', 'Projects'].includes(item.name);
             }
@@ -175,6 +178,8 @@ export default function Sidebar() {
                 <ShieldCheck className="w-3 h-3" />
                 {user?.role === 'QC'
                   ? 'QC INSPECTOR'
+                  : user?.role === 'SITE_INSPECTOR'
+                  ? 'SITE INSPECTOR'
                   : user?.role === 'TECHNICAL_LEAD'
                   ? 'TECHNICAL LEAD'
                   : user?.role === 'TECHNICAL_MANAGER'

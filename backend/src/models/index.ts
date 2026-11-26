@@ -12,3 +12,4 @@ export * from './Reminder';
 export * from './WhatsAppMessageLog';
 export * from './QCReport';
 export * from './Quotation';
+export * from './SiteProblem';

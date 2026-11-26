@@ -22,6 +22,7 @@ import { webhookRouter } from './routes/webhooks';
 import { reminderRouter } from './routes/reminders';
 import { qcRouter } from './routes/qc';
 import { quotationRouter } from './routes/quotations';
+import { siteProblemRouter } from './routes/siteProblems';
 import { splitSharedCustomerProjects, resequenceCustomerIds } from './utils/idGenerators';
 import bcrypt from 'bcryptjs';
 
@@ -259,6 +260,7 @@ app.use('/api/webhooks', webhookRouter);
 app.use('/api/reminders', reminderRouter);
 app.use('/api/qc', qcRouter);
 app.use('/api/quotations', quotationRouter);
+app.use('/api/site-problems', siteProblemRouter);
 
 app.get('/', (req, res) => {
   res.send('Hello, backend is running CRM Server!');
@@ -444,6 +446,7 @@ export async function startServer() {
           { name: 'Srinivasan (TL)', email: 'srinivasan@alphaelevators.com', pass: 'srini123', role: 'LOGISTICS_TL' as const, phone: '+91 98401 77882', altRegex: /srinivasan/i },
           { name: 'Sundaram', email: 'sundaram@alphaelevators.com', pass: 'sundaram123', role: 'LOGISTICS_TL' as const, phone: '+91 98401 77883', altRegex: /sundaram/i },
           { name: 'Bala', email: 'bala@alphaelevators.com', pass: 'bala123', role: 'LOGISTICS_TL' as const, phone: '+91 98401 77884', altRegex: /bala/i },
+          { name: 'Site Inspector', email: 'siteinspector@alphaelevators.com', pass: 'site123', role: 'SITE_INSPECTOR' as const, phone: '+91 98401 77885', altRegex: /siteinspector/i },
         ];
 
         for (const lu of logisticsUsers) {

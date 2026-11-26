@@ -34,6 +34,8 @@ import SendUpdateModal from '../components/SendUpdateModal';
 import PostponeModal from '../components/PostponeModal';
 import RecordPaymentModal from '../components/RecordPaymentModal';
 import QCInspectionForm from '../components/QCInspectionForm';
+import SiteProblemsView from '../components/SiteProblemsView';
+import { isSundaramUser } from '../lib/constants';
 
 const STAGES_CONFIG = [
   { key: 'PAYMENT_RECEIVED', step: 1, label: 'Advance Payment Received', icon: CheckCircle2, bg: 'bg-emerald-50/70', border: 'border-emerald-200', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-800' },
@@ -80,7 +82,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const stored = getStoredUser();
     setUser(stored);
-    if (stored?.role === 'QC') {
+    if (stored?.role === 'QC' || stored?.role === 'SITE_INSPECTOR') {
       setLoading(false);
     } else {
       fetchDashboard();
@@ -104,6 +106,10 @@ export default function DashboardPage() {
 
   if (user?.role === 'QC') {
     return <QCInspectionForm />;
+  }
+
+  if (user?.role === 'SITE_INSPECTOR') {
+    return <SiteProblemsView mode="inspector" />;
   }
 
   if (loading) {
@@ -667,12 +673,22 @@ export default function DashboardPage() {
             </Link>
             <Link href="/qc" className="block group">
               <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-purple-300 hover:shadow-md transition-all">
-                <div className="text-xs text-slate-500 font-medium">QC Site Reports</div>
-                <div className="text-3xl font-black text-purple-600 mt-1">Inspection Ready</div>
-                <div className="text-[11px] text-purple-600 font-semibold mt-1">View & submit site quality reports →</div>
+                <div className="text-xs text-slate-500 font-medium">
+                  {isSundaramUser(user) ? 'Site Problems & QC Reports' : 'QC Site Reports'}
+                </div>
+                <div className="text-3xl font-black text-purple-600 mt-1">
+                  {isSundaramUser(user) ? 'Site Issues' : 'Inspection Ready'}
+                </div>
+                <div className="text-[11px] text-purple-600 font-semibold mt-1">
+                  {isSundaramUser(user)
+                    ? 'View site problems & photos assigned to Sundaram →'
+                    : 'View & submit site quality reports →'}
+                </div>
               </div>
             </Link>
           </div>
+
+          {isSundaramUser(user) && <SiteProblemsView mode="sundaram" />}
         </div>
       ) : (
         <React.Fragment>

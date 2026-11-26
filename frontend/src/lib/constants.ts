@@ -26,8 +26,8 @@ export function getTlNameForUser(user: any): string | null {
   const name = String(user.name || '');
   const email = String(user.email || '');
 
-  // Never match BDMs (e.g. Balaji)
-  if (role === 'BDM') return null;
+  // Never match BDMs (e.g. Balaji) or SITE_INSPECTOR
+  if (role === 'BDM' || role === 'SITE_INSPECTOR') return null;
 
   if (/srinivasan|srini/i.test(role) || /srinivasan|srini/i.test(name) || /srinivasan|srini/i.test(email)) {
     return 'Srinivasan (TL)';
@@ -42,6 +42,16 @@ export function getTlNameForUser(user: any): string | null {
     return name;
   }
   return null;
+}
+
+export function isSundaramUser(user: any): boolean {
+  if (!user) return false;
+  return getTlNameForUser(user) === 'Sundaram';
+}
+
+export function isSiteInspectorUser(user: any): boolean {
+  if (!user) return false;
+  return String(user.role || '').toUpperCase() === 'SITE_INSPECTOR';
 }
 
 export function normalizeTlValue(raw?: string | null): string {

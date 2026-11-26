@@ -3,8 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import QCInspectionForm from '../../components/QCInspectionForm';
+import SiteProblemsView from '../../components/SiteProblemsView';
 import { resolveStageImageUrl } from '../../components/InstallationProgrammeTable';
 import { api, getStoredUser } from '../../lib/api';
+import { isSundaramUser } from '../../lib/constants';
 import {
   ClipboardCheck,
   History,
@@ -42,6 +44,11 @@ export default function QCPage() {
   // 11-Stage Installation Photo Approvals State (for Technical Manager Kishore)
   const [pendingStageItems, setPendingStageItems] = useState<any[]>([]);
   const [approvingStageId, setApprovingStageId] = useState<string | null>(null);
+  const [sundaramProblemStats, setSundaramProblemStats] = useState<{ total: number; assigned: number; finished: number }>({
+    total: 0,
+    assigned: 0,
+    finished: 0,
+  });
 
   // Approval Modal State
   const [approvalModalReport, setApprovalModalReport] = useState<any | null>(null);
@@ -56,7 +63,7 @@ export default function QCPage() {
   useEffect(() => {
     const user = getStoredUser();
     setCurrentUser(user);
-    if (user?.role === 'TECHNICAL_MANAGER') {
+    if (user?.role === 'TECHNICAL_MANAGER' || isSundaramUser(user)) {
       setActiveTab('approvals');
     }
   }, []);
@@ -197,36 +204,63 @@ export default function QCPage() {
 
   const isTechnicalManagerOrAdmin =
     currentUser?.role === 'TECHNICAL_MANAGER' || currentUser?.role === 'ADMIN';
+  const isSundaram = isSundaramUser(currentUser);
 
   return (
     <div className="space-y-6">
       {/* Subnav Tabs */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-3">
         <div className="flex flex-wrap items-center gap-2">
-          {/* Technical Approvals Tab */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('approvals')}
-            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 relative ${
-              activeTab === 'approvals'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-900/30'
-                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-            }`}
-          >
-            <ShieldCheck className="w-4 h-4 text-amber-300" />
-            <span>Technical Manager Approvals</span>
-            {(pendingReports.length + pendingStageItems.length) > 0 && (
-              <span
-                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
-                  activeTab === 'approvals'
-                    ? 'bg-amber-400 text-slate-900'
-                    : 'bg-amber-100 text-amber-900 border border-amber-300'
-                }`}
-              >
-                {pendingReports.length + pendingStageItems.length} Pending
-              </span>
-            )}
-          </button>
+          {/* For Sundaram: show Site Problems tab instead of Technical Manager Approvals */}
+          {isSundaram ? (
+            <button
+              type="button"
+              onClick={() => setActiveTab('approvals')}
+              className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 relative ${
+                activeTab === 'approvals'
+                  ? 'bg-amber-600 text-white shadow-md shadow-amber-900/30'
+                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+              }`}
+            >
+              <AlertCircle className="w-4 h-4 text-amber-200" />
+              <span>Site Problems & Issues (Sundaram)</span>
+              {sundaramProblemStats.assigned > 0 && (
+                <span
+                  className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                    activeTab === 'approvals'
+                      ? 'bg-white text-amber-900'
+                      : 'bg-amber-100 text-amber-900 border border-amber-300'
+                  }`}
+                >
+                  {sundaramProblemStats.assigned} Assigned
+                </span>
+              )}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setActiveTab('approvals')}
+              className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 relative ${
+                activeTab === 'approvals'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-900/30'
+                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+              }`}
+            >
+              <ShieldCheck className="w-4 h-4 text-amber-300" />
+              <span>Technical Manager Approvals</span>
+              {(pendingReports.length + pendingStageItems.length) > 0 && (
+                <span
+                  className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                    activeTab === 'approvals'
+                      ? 'bg-amber-400 text-slate-900'
+                      : 'bg-amber-100 text-amber-900 border border-amber-300'
+                  }`}
+                >
+                  {pendingReports.length + pendingStageItems.length} Pending
+                </span>
+              )}
+            </button>
+          )}
 
           {/* Form Tab */}
           <button
@@ -270,9 +304,12 @@ export default function QCPage() {
       </div>
 
       {/* ============================================================== */}
-      {/* TAB 1: TECHNICAL MANAGER APPROVALS (KISHORE) */}
+      {/* TAB 1: SUNDARAM SITE PROBLEMS (for Sundaram role ONLY) OR TECHNICAL MANAGER APPROVALS */}
       {/* ============================================================== */}
-      {activeTab === 'approvals' && (
+      {activeTab === 'approvals' && isSundaram && (
+        <SiteProblemsView mode="sundaram" onStatsChange={(s) => setSundaramProblemStats(s)} />
+      )}
+      {activeTab === 'approvals' && !isSundaram && (
         <div className="space-y-6">
           {/* Header Banner */}
           <div className="bg-gradient-to-r from-indigo-950 via-slate-900 to-sky-950 rounded-3xl p-6 border border-indigo-800/40 text-white shadow-xl relative overflow-hidden">
