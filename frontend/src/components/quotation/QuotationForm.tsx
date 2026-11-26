@@ -16,6 +16,7 @@ import {
   getEffectiveSpecialShaftPrice,
   getEffectiveElevatorPrice,
   getEffectiveShaftPrice,
+  isCustomerScopeShaft,
 } from '../../types/quotation';
 import {
   User,
@@ -559,6 +560,7 @@ export default function QuotationForm({
   };
 
   // Calculations
+  const isCustomerScope = isCustomerScopeShaft(data);
   const elevatorPrice = Number(data.elevatorPrice || 0);
   const specialElevatorPrice = getEffectiveSpecialElevatorPrice(data);
   const netElevatorPrice = getEffectiveElevatorPrice(data);
@@ -567,9 +569,9 @@ export default function QuotationForm({
     ? elevatorPrice - specialElevatorPrice
     : 0;
 
-  const shaftPrice = Number(data.shaftPrice || 0);
-  const specialShaftPrice = getEffectiveSpecialShaftPrice(data);
-  const netShaftPrice = getEffectiveShaftPrice(data);
+  const shaftPrice = isCustomerScope ? 0 : Number(data.shaftPrice || 0);
+  const specialShaftPrice = isCustomerScope ? 0 : getEffectiveSpecialShaftPrice(data);
+  const netShaftPrice = isCustomerScope ? 0 : getEffectiveShaftPrice(data);
   const effectiveShaftPrice = netShaftPrice;
   const shaftDiscountPrice = specialShaftPrice > 0 && shaftPrice > specialShaftPrice
     ? shaftPrice - specialShaftPrice
@@ -2491,7 +2493,7 @@ export default function QuotationForm({
                   </span>
                   <span>GST @ {data.gstRate || 18}%</span>
                 </div>
-                <div className="grid grid-cols-3 gap-2 pt-1 border-t border-white/10 text-center">
+                <div className={`grid ${isCustomerScope ? 'grid-cols-2' : 'grid-cols-3'} gap-2 pt-1 border-t border-white/10 text-center`}>
                   <div>
                     <div className="text-[10px] text-slate-400">Elevator Total</div>
                     {specialElevatorPrice > 0 ? (
@@ -2509,28 +2511,30 @@ export default function QuotationForm({
                       </div>
                     )}
                   </div>
-                  <div>
-                    <div className="text-[10px] text-slate-400">Shaft Package</div>
-                    {shaftPrice <= 0 && specialShaftPrice <= 0 ? (
-                      <div>
-                        <div className="text-sm font-bold text-slate-300">None</div>
-                        <div className="text-[10px] text-slate-400 font-normal">Base: ₹0</div>
-                      </div>
-                    ) : specialShaftPrice > 0 ? (
-                      <div>
-                        {shaftPrice > specialShaftPrice && (
-                          <div className="text-[11px] text-slate-400 line-through">₹{shaftMRPTotalWithGst.toLocaleString('en-IN')}</div>
-                        )}
-                        <div className="text-sm font-bold text-emerald-400">₹{shaftTotalWithGst.toLocaleString('en-IN')}</div>
-                        <div className="text-[10px] text-slate-300 font-normal">Special: ₹{netShaftPrice.toLocaleString('en-IN')}</div>
-                      </div>
-                    ) : (
-                      <div>
-                        <div className="text-sm font-bold">₹{shaftTotalWithGst.toLocaleString('en-IN')}</div>
-                        <div className="text-[10px] text-slate-300 font-normal">Base: ₹{netShaftPrice.toLocaleString('en-IN')}</div>
-                      </div>
-                    )}
-                  </div>
+                  {!isCustomerScope && (
+                    <div>
+                      <div className="text-[10px] text-slate-400">Shaft Package</div>
+                      {shaftPrice <= 0 && specialShaftPrice <= 0 ? (
+                        <div>
+                          <div className="text-sm font-bold text-slate-300">None</div>
+                          <div className="text-[10px] text-slate-400 font-normal">Base: ₹0</div>
+                        </div>
+                      ) : specialShaftPrice > 0 ? (
+                        <div>
+                          {shaftPrice > specialShaftPrice && (
+                            <div className="text-[11px] text-slate-400 line-through">₹{shaftMRPTotalWithGst.toLocaleString('en-IN')}</div>
+                          )}
+                          <div className="text-sm font-bold text-emerald-400">₹{shaftTotalWithGst.toLocaleString('en-IN')}</div>
+                          <div className="text-[10px] text-slate-300 font-normal">Special: ₹{netShaftPrice.toLocaleString('en-IN')}</div>
+                        </div>
+                      ) : (
+                        <div>
+                          <div className="text-sm font-bold">₹{shaftTotalWithGst.toLocaleString('en-IN')}</div>
+                          <div className="text-[10px] text-slate-300 font-normal">Base: ₹{netShaftPrice.toLocaleString('en-IN')}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div>
                     <div className="text-[10px] text-teal-400 font-bold">Total (Inc. GST)</div>
                     <div className="text-sm font-black text-amber-300">₹{grandTotal.toLocaleString('en-IN')}</div>
@@ -2541,7 +2545,7 @@ export default function QuotationForm({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className={`grid grid-cols-1 ${isCustomerScope ? '' : 'sm:grid-cols-2'} gap-4`}>
                 {/* Elevator Pricing Card */}
                 <div className="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-3">
                   <div className="flex items-center justify-between">
@@ -2613,7 +2617,8 @@ export default function QuotationForm({
                   </div>
                 </div>
 
-                {/* Shaft Pricing Card */}
+                {/* Shaft Pricing Card (Hidden when Customer scope is selected) */}
+                {!isCustomerScope && (
                 <div className="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
@@ -2699,6 +2704,7 @@ export default function QuotationForm({
                     </span>
                   </div>
                 </div>
+                )}
               </div>
 
               {/* Warranty Term Section */}

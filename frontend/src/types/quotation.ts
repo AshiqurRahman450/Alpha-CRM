@@ -226,8 +226,15 @@ export function getEffectiveElevatorPrice(data?: Partial<QuotationData>): number
   return Math.max(0, Number(data.elevatorPrice || 0));
 }
 
+export function isCustomerScopeShaft(data?: Partial<QuotationData>): boolean {
+  if (!data) return false;
+  const scope = String(data.shaftScope || '').trim();
+  const type = String(data.shaftType || '').trim();
+  return /^customer\s*scope/i.test(scope) || /^customer\s*scope/i.test(type);
+}
+
 export function getEffectiveSpecialShaftPrice(data?: Partial<QuotationData>): number {
-  if (!data) return 0;
+  if (!data || isCustomerScopeShaft(data)) return 0;
   if (data.specialShaftPrice !== undefined && data.specialShaftPrice !== null) {
     return Math.max(0, Number(data.specialShaftPrice) || 0);
   }
@@ -243,7 +250,7 @@ export function getEffectiveSpecialShaftPrice(data?: Partial<QuotationData>): nu
 }
 
 export function getEffectiveShaftPrice(data?: Partial<QuotationData>): number {
-  if (!data) return 0;
+  if (!data || isCustomerScopeShaft(data)) return 0;
   const special = getEffectiveSpecialShaftPrice(data);
   if (special > 0) return special;
   return Math.max(0, Number(data.shaftPrice || 0));

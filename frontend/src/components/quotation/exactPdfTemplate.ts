@@ -9,6 +9,7 @@ import {
   formatSubjectLine,
   getEffectiveSpecialElevatorPrice,
   getEffectiveSpecialShaftPrice,
+  isCustomerScopeShaft,
 } from '../../types/quotation';
 
 export function sanitizeProposalParagraphs(html: string, pageNum: number, data?: QuotationData): string {
@@ -1118,38 +1119,45 @@ export function buildPage5TermsTableHtml(html: string, data?: QuotationData): st
   const pTerm = terms?.production ? (terms.production.startsWith('2.') ? terms.production : `2. ${terms.production.replace(/^[0-9.]+\s*/, '')}`) : '2. Production Amount - 40%';
   const rTerm = terms?.readiness ? (terms.readiness.startsWith('3.') ? terms.readiness : `3. ${terms.readiness.replace(/^[0-9.]+\s*/, '')}`) : '3. Readiness notification-30%';
 
+  const isCustomerScope = isCustomerScopeShaft(safeData);
+  const singleRowH = '31px';
+  const multiRowH = '49px';
+
   const labelCellStyle = "width:202px;text-align:left;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:11.5px;font-weight:bold;color:#000000;padding:0 10px;margin:0;";
   const valueCellStyle = "width:484px;text-align:left;vertical-align:middle;font-family:'f3',sans-serif;font-size:11.5px;font-weight:bold;color:#000000;padding:0 12px;margin:0;";
+
+  const shaftRowsHtml = isCustomerScope
+    ? ''
+    : `<tr style="height:${singleRowH};border-bottom:1px solid #000000;">
+<td style="${labelCellStyle}">Shaft Price</td>
+<td style="${valueCellStyle}">${shaftPriceDisplay}</td>
+</tr>
+<tr style="height:${singleRowH};border-bottom:1px solid #000000;">
+<td style="${labelCellStyle}">Special Shaft Price</td>
+<td style="${valueCellStyle}">${specialShaftDisplay}</td>
+</tr>`;
 
   const termsTableBlock = `<!-- START_PAGE5_TERMS_TABLE -->
 <div class="page5-table-mask" style="position:absolute;left:35px;top:584px;width:725px;height:262px;background:#ffffff;z-index:40;pointer-events:none;"></div>
 <table class="page5-terms-spec-table" style="position:absolute;left:46.5px;top:586px;width:686px;border-collapse:collapse;background:#ffffff;z-index:50;border:1px solid #000000;box-sizing:border-box;">
 <tbody>
-<tr style="height:31px;border-bottom:1px solid #000000;">
+<tr style="height:${singleRowH};border-bottom:1px solid #000000;">
 <td style="${labelCellStyle}">Price</td>
 <td style="${valueCellStyle}">${elvPriceDisplay}</td>
 </tr>
-<tr style="height:31px;border-bottom:1px solid #000000;">
+<tr style="height:${singleRowH};border-bottom:1px solid #000000;">
 <td style="${labelCellStyle}">Special Price</td>
 <td style="${valueCellStyle}">${specialElvDisplay}</td>
 </tr>
-<tr style="height:31px;border-bottom:1px solid #000000;">
-<td style="${labelCellStyle}">Shaft Price</td>
-<td style="${valueCellStyle}">${shaftPriceDisplay}</td>
-</tr>
-<tr style="height:31px;border-bottom:1px solid #000000;">
-<td style="${labelCellStyle}">Special Shaft Price</td>
-<td style="${valueCellStyle}">${specialShaftDisplay}</td>
-</tr>
-<tr style="height:49px;border-bottom:1px solid #000000;">
+${shaftRowsHtml}<tr style="height:${multiRowH};border-bottom:1px solid #000000;">
 <td style="${labelCellStyle}">Warranty</td>
 <td style="width:484px;text-align:left;vertical-align:middle;font-family:'f3','Segoe UI',Arial,sans-serif;font-size:10.8px;font-weight:600;color:#000000;padding:2px 12px;margin:0;">${warrantyInnerHtml}</td>
 </tr>
-<tr style="height:31px;border-bottom:1px solid #000000;">
+<tr style="height:${singleRowH};border-bottom:1px solid #000000;">
 <td style="${labelCellStyle}">Time of Material Delivery</td>
 <td style="width:484px;text-align:left;vertical-align:middle;font-family:'f3',sans-serif;font-size:11.2px;font-weight:600;color:#000000;padding:0 12px;margin:0;">${deliveryDisplay}</td>
 </tr>
-<tr style="height:49px;">
+<tr style="height:${multiRowH};">
 <td style="${labelCellStyle}">PAYMENT TERMS</td>
 <td style="width:484px;text-align:left;vertical-align:middle;font-family:'f1',sans-serif;font-size:10.2px;font-weight:bold;color:#000000;padding:2px 12px;margin:0;line-height:13.5px;">
 <div style="white-space:nowrap;">${bTerm}</div>
