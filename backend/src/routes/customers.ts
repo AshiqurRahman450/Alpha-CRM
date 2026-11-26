@@ -727,13 +727,10 @@ customerRouter.put(
 });
 
 /**
- * PATCH /api/customers/:id/assign-tl
+ * PATCH / PUT / POST /api/customers/:id/assign-tl
  * Assigns a customer and all their projects to a specific Team Lead (Srinivasan, Sundaram, Bala)
  */
-customerRouter.patch(
-  '/:id/assign-tl',
-  authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'ACCOUNTANT', 'TECHNICAL_LEAD', 'TECHNICAL_MANAGER', 'LOGISTICS', 'LOGISTICS_TL'),
-  async (req: AuthRequest, res: Response) => {
+const handleAssignCustomerTl = async (req: AuthRequest, res: Response) => {
   try {
     const { assignedTl } = req.body;
     let customer: any = null;
@@ -774,7 +771,12 @@ customerRouter.patch(
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
   }
-});
+};
+
+const assignTlAuth = authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', 'ACCOUNTANT', 'TECHNICAL_LEAD', 'TECHNICAL_MANAGER', 'LOGISTICS', 'LOGISTICS_TL');
+customerRouter.patch('/:id/assign-tl', assignTlAuth, handleAssignCustomerTl);
+customerRouter.put('/:id/assign-tl', assignTlAuth, handleAssignCustomerTl);
+customerRouter.post('/:id/assign-tl', assignTlAuth, handleAssignCustomerTl);
 
 /**
  * PATCH /api/customers/:id/opt-in

@@ -1585,10 +1585,11 @@ export default function QuotationForm({
                     }
                     onChange={(e) => {
                       const val = e.target.value;
-                      updateField('shaftScope', val);
-                      if (data.shaftType === 'Customer scope') {
-                        updateField('shaftType', 'Glass Shaft');
-                      }
+                      onChange({
+                        ...data,
+                        shaftScope: val,
+                        ...(data.shaftType === 'Customer scope' ? { shaftType: 'Glass Shaft' } : {}),
+                      });
                     }}
                     className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
                   >
@@ -2232,10 +2233,11 @@ export default function QuotationForm({
                 }
                 onChange={(e) => {
                   const val = e.target.value;
-                  updateField('shaftScope', val);
-                  if (data.shaftType === 'Customer scope') {
-                    updateField('shaftType', 'Glass Shaft');
-                  }
+                  onChange({
+                    ...data,
+                    shaftScope: val,
+                    ...(data.shaftType === 'Customer scope' ? { shaftType: 'Glass Shaft' } : {}),
+                  });
                 }}
                 className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-semibold bg-white text-slate-800"
               >
@@ -2545,7 +2547,7 @@ export default function QuotationForm({
                 </div>
               </div>
 
-              <div className={`grid grid-cols-1 ${isCustomerScope ? '' : 'sm:grid-cols-2'} gap-4`}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Elevator Pricing Card */}
                 <div className="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-3">
                   <div className="flex items-center justify-between">
@@ -2617,8 +2619,41 @@ export default function QuotationForm({
                   </div>
                 </div>
 
-                {/* Shaft Pricing Card (Hidden when Customer scope is selected) */}
-                {!isCustomerScope && (
+                {/* Shaft Pricing Card (Hidden on PDF when Customer scope is selected) */}
+                {isCustomerScope ? (
+                  <div className="p-3.5 bg-amber-50/70 rounded-2xl border border-amber-200 flex flex-col justify-between space-y-3">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-amber-950 uppercase tracking-wide flex items-center gap-1.5">
+                          <IndianRupee className="w-3.5 h-3.5 text-amber-600" />
+                          Shaft Pricing
+                        </span>
+                        <span className="text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full">
+                          Customer Scope (Hidden on PDF)
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-amber-900 leading-relaxed">
+                        <strong>Customer scope</strong> is selected for Shaft. <strong>Shaft Price</strong> and <strong>Special Shaft Price</strong> are hidden on Page 5 of the PDF without affecting the balance fields.
+                      </p>
+                    </div>
+                    <div className="pt-2 border-t border-amber-200/80 flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-bold text-amber-800">Want to enter Shaft Price &amp; Special Shaft Price?</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onChange({
+                            ...data,
+                            shaftScope: 'Alpha Elevators scope',
+                            ...(data.shaftType === 'Customer scope' ? { shaftType: 'Glass Shaft' } : {}),
+                          })
+                        }
+                        className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-[11px] font-bold transition-colors cursor-pointer shrink-0 shadow-xs"
+                      >
+                        Switch to Alpha Elevators Scope
+                      </button>
+                    </div>
+                  </div>
+                ) : (
                 <div className="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">

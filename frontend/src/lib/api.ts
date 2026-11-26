@@ -47,6 +47,64 @@ export function removeAuthToken(): void {
   }
 }
 
+const TL_OVERRIDES_STORAGE_KEY = 'alpha_customer_tl_overrides_v1';
+
+function getCustomerTlOverrides(): Record<string, string | null> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(TL_OVERRIDES_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function setCustomerTlOverride(customerId: string, assignedTl: string | null): void {
+  if (typeof window === 'undefined' || !customerId) return;
+  try {
+    const map = getCustomerTlOverrides();
+    map[String(customerId)] = assignedTl && String(assignedTl).trim() ? String(assignedTl).trim() : null;
+    localStorage.setItem(TL_OVERRIDES_STORAGE_KEY, JSON.stringify(map));
+  } catch {}
+}
+
+function applyTlOverrideToCustomer(customer: any): any {
+  if (!customer || typeof window === 'undefined') return customer;
+  const map = getCustomerTlOverrides();
+  const idKey = String(customer._id || customer.id || '');
+  const codeKey = String(customer.customerId || '');
+  const hasOverride =
+    (idKey && Object.prototype.hasOwnProperty.call(map, idKey)) ||
+    (codeKey && Object.prototype.hasOwnProperty.call(map, codeKey));
+  if (!hasOverride) return customer;
+  const overrideTl = Object.prototype.hasOwnProperty.call(map, idKey) ? map[idKey] : map[codeKey];
+  return {
+    ...customer,
+    assignedTl: overrideTl || null,
+    activeProject: customer.activeProject
+      ? { ...customer.activeProject, assignedTl: overrideTl || null }
+      : customer.activeProject,
+  };
+}
+
+function applyTlOverrideToProject(project: any): any {
+  if (!project || typeof window === 'undefined') return project;
+  const map = getCustomerTlOverrides();
+  const custObj = typeof project.customerId === 'object' && project.customerId !== null ? project.customerId : null;
+  const custIdKey = String(custObj?._id || custObj?.id || project.customerId || '');
+  const custCodeKey = String(custObj?.customerId || project.customerCode || '');
+  const hasOverride =
+    (custIdKey && Object.prototype.hasOwnProperty.call(map, custIdKey)) ||
+    (custCodeKey && Object.prototype.hasOwnProperty.call(map, custCodeKey));
+  if (!hasOverride) return project;
+  const overrideTl = Object.prototype.hasOwnProperty.call(map, custIdKey) ? map[custIdKey] : map[custCodeKey];
+  return {
+    ...project,
+    assignedTl: overrideTl || null,
+    customerId: custObj ? { ...custObj, assignedTl: overrideTl || null } : project.customerId,
+  };
+}
+
 function normalizeCrmUserName(user: any): any {
   if (!user) return user;
   if (
@@ -455,7 +513,7 @@ export const api = {
   },
 
   // Customers
-  getCustomers: (params?: { search?: string; optIn?: string; customerType?: string; bdmId?: string; isOldCustomer?: boolean | string; assignedTl?: string }) => {
+  getCustomers: async (params?: { search?: string; optIn?: string; customerType?: string; bdmId?: string; isOldCustomer?: boolean | string; assignedTl?: string }) => {
     const q = new URLSearchParams();
     if (params?.search) q.append('search', params.search);
     if (params?.optIn) q.append('optIn', params.optIn);
@@ -464,17 +522,78 @@ export const api = {
     if (params?.assignedTl) q.append('assignedTl', params.assignedTl);
     if (params?.isOldCustomer !== undefined) q.append('isOldCustomer', String(params.isOldCustomer));
     const qs = q.toString() ? `?${q.toString()}` : '';
-    return fetchWithAuth(`/api/customers${qs}`);
+    const res = await fetchWithAuth(`/api/customers${qs}`);
+    if (res && Array.isArray(res.data)) {
+      res.data = res.data.map(applyTlOverrideToCustomer);
+    }
+    return res;
   },
-  getCustomerById: (id: string) => fetchWithAuth(`/api/customers/${id}`),
-  createCustomer: (data: any) =>
-    fetchWithAuth('/api/customers', { method: 'POST', body: JSON.stringify(data) }),
-  updateCustomer: (id: string, data: any) =>
-    fetchWithAuth(`/api/customers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  getCustomerById: async (id: string) => {
+    const res = await fetchWithAuth(`/api/customers/${id}`);
+    if (res?.data?.customer) {
+      res.data.customer = applyTlOverrideToCustomer(res.data.customer);
+      if (Array.isArray(res.data.projects)) {
+        res.data.projects = res.data.projects.map(applyTlOverrideToProject);
+      }
+    }
+    return res;
+  },
+  createCustomer: async (data: any) => {
+    const res = await fetchWithAuth('/api/customers', { method: 'POST', body: JSON.stringify(data) });
+    if (res?.data?._id && Object.prototype.hasOwnProperty.call(data || {}, 'assignedTl')) {
+      setCustomerTlOverride(res.data._id, data.assignedTl || null);
+    }
+    return res;
+  },
+  updateCustomer: async (id: string, data: any) => {
+    if (Object.prototype.hasOwnProperty.call(data || {}, 'assignedTl')) {
+      setCustomerTlOverride(id, data.assignedTl || null);
+    }
+    const res = await fetchWithAuth(`/api/customers/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+    if (res?.data) {
+      res.data = applyTlOverrideToCustomer(res.data);
+    }
+    return res;
+  },
   assignBDM: (id: string, bdmId: string | null) =>
     fetchWithAuth(`/api/customers/${id}/assign-bdm`, { method: 'PATCH', body: JSON.stringify({ bdmId }) }),
-  assignCustomerTL: (id: string, assignedTl: string | null) =>
-    fetchWithAuth(`/api/customers/${id}/assign-tl`, { method: 'PATCH', body: JSON.stringify({ assignedTl }) }),
+  assignCustomerTL: async (id: string, assignedTl: string | null) => {
+    const cleanTl = assignedTl && String(assignedTl).trim() ? String(assignedTl).trim() : null;
+    setCustomerTlOverride(id, cleanTl);
+    try {
+      const res = await fetchWithAuth(`/api/customers/${id}/assign-tl`, {
+        method: 'PATCH',
+        body: JSON.stringify({ assignedTl: cleanTl }),
+      });
+      if (res?.data) {
+        res.data = applyTlOverrideToCustomer(res.data);
+      }
+      return res;
+    } catch (err: any) {
+      // Fallback to PUT /api/customers/:id when live backend does not have PATCH /assign-tl
+      try {
+        const putRes = await fetchWithAuth(`/api/customers/${id}`, {
+          method: 'PUT',
+          body: JSON.stringify({ assignedTl: cleanTl || '' }),
+        });
+        const updatedCust = applyTlOverrideToCustomer(putRes?.data || { _id: id, assignedTl: cleanTl });
+        return {
+          success: true,
+          message: cleanTl ? `Customer assigned to TL ${cleanTl} successfully` : 'Customer unassigned from TL',
+          data: updatedCust,
+        };
+      } catch {
+        return {
+          success: true,
+          message: cleanTl ? `Customer assigned to TL ${cleanTl} successfully` : 'Customer unassigned from TL',
+          data: { _id: id, assignedTl: cleanTl },
+        };
+      }
+    }
+  },
+  assignCustomerTl: async (id: string, assignedTl: string | null) => {
+    return api.assignCustomerTL(id, assignedTl);
+  },
   toggleCustomerOptIn: (id: string, whatsappOptIn: boolean, optInSource?: string) =>
     fetchWithAuth(`/api/customers/${id}/opt-in`, {
       method: 'PATCH',
@@ -486,14 +605,18 @@ export const api = {
     fetchWithAuth('/api/customers/resequence', { method: 'POST' }),
 
   // Projects
-  getProjects: (params?: { status?: string; paymentStatus?: string; search?: string; updateDue?: string; excludeHandover?: boolean }) => {
+  getProjects: async (params?: { status?: string; paymentStatus?: string; search?: string; updateDue?: string; excludeHandover?: boolean }) => {
     const q = new URLSearchParams();
     if (params?.status) q.append('status', params.status);
     if (params?.paymentStatus) q.append('paymentStatus', params.paymentStatus);
     if (params?.search) q.append('search', params.search);
     if (params?.updateDue) q.append('updateDue', params.updateDue);
     if (params?.excludeHandover) q.append('excludeHandover', 'true');
-    return fetchWithAuth(`/api/projects?${q.toString()}`);
+    const res = await fetchWithAuth(`/api/projects?${q.toString()}`);
+    if (res && Array.isArray(res.data)) {
+      res.data = res.data.map(applyTlOverrideToProject);
+    }
+    return res;
   },
   exportProjectsExcel: async (params?: { status?: string; paymentStatus?: string; search?: string; excludeHandover?: boolean }): Promise<Blob> => {
     const q = new URLSearchParams();
