@@ -45,14 +45,22 @@ authRouter.post('/login', async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
-    await User.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date() } });
+    const resolvedName =
+      /sneha\s*roy/i.test(user.name || '') || (user.role === 'CRM' && user.email === 'crm@alphaelevators.com')
+        ? 'Dimple Sharma'
+        : user.name;
+
+    await User.updateOne(
+      { _id: user._id },
+      { $set: { lastLoginAt: new Date(), ...(resolvedName !== user.name ? { name: resolvedName } : {}) } }
+    );
 
     const token = jwt.sign(
       {
         id: user._id,
         email: user.email,
         role: user.role,
-        name: user.name,
+        name: resolvedName,
       },
       config.jwtSecret,
       { expiresIn: '7d' }
@@ -63,7 +71,7 @@ authRouter.post('/login', async (req: Request, res: Response) => {
       token,
       user: {
         id: user._id,
-        name: user.name,
+        name: resolvedName,
         email: user.email,
         role: user.role,
       },
@@ -81,11 +89,16 @@ authRouter.get('/me', authenticate, (req: AuthRequest, res: Response) => {
     return res.status(401).json({ success: false, message: 'Not authenticated' });
   }
 
+  const resolvedMeName =
+    /sneha\s*roy/i.test(req.user.name || '') || (req.user.role === 'CRM' && req.user.email === 'crm@alphaelevators.com')
+      ? 'Dimple Sharma'
+      : req.user.name;
+
   return res.json({
     success: true,
     user: {
       id: req.user._id,
-      name: req.user.name,
+      name: resolvedMeName,
       email: req.user.email,
       role: req.user.role,
       phone: req.user.phone,

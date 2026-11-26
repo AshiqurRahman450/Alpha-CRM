@@ -383,7 +383,7 @@ export async function seed() {
   });
 
   const crmUser = await User.create({
-    name: 'Sneha Roy (CRM Specialist)',
+    name: 'Dimple Sharma',
     email: 'crm@alphaelevators.com',
     passwordHash: crmPasswordHash,
     role: 'CRM',
@@ -701,7 +701,7 @@ export async function seed() {
       projectCode: projId,
       type: 'STATUS_CHANGE',
       description: `Project initialized at stage ${data.status}. WhatsApp group ${data.groupId} linked.`,
-      userName: 'Sneha Roy (CRM)',
+      userName: 'Dimple Sharma (CRM)',
     });
   }
 

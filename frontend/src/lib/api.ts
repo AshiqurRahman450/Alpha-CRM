@@ -47,15 +47,36 @@ export function removeAuthToken(): void {
   }
 }
 
+function normalizeCrmUserName(user: any): any {
+  if (!user) return user;
+  if (
+    /sneha\s*roy/i.test(String(user.name || '')) ||
+    (user.role === 'CRM' && String(user.email || '').toLowerCase() === 'crm@alphaelevators.com')
+  ) {
+    return { ...user, name: 'Dimple Sharma' };
+  }
+  return user;
+}
+
 export function getStoredUser(): any | null {
   if (typeof window === 'undefined') return null;
   const userStr = localStorage.getItem('alpha_crm_user');
-  return userStr ? JSON.parse(userStr) : null;
+  if (!userStr) return null;
+  try {
+    const parsed = JSON.parse(userStr);
+    const normalized = normalizeCrmUserName(parsed);
+    if (normalized?.name !== parsed?.name) {
+      localStorage.setItem('alpha_crm_user', JSON.stringify(normalized));
+    }
+    return normalized;
+  } catch {
+    return null;
+  }
 }
 
 export function setStoredUser(user: any): void {
   if (typeof window !== 'undefined') {
-    localStorage.setItem('alpha_crm_user', JSON.stringify(user));
+    localStorage.setItem('alpha_crm_user', JSON.stringify(normalizeCrmUserName(user)));
   }
 }
 

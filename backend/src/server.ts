@@ -302,6 +302,33 @@ export async function startServer() {
         await autoSyncTimelineTemplates();
       }
 
+      // Ensure CRM user name is Dimple Sharma (migrating any legacy Sneha Roy record)
+      try {
+        const crmHash = await bcrypt.hash('crm123', 10);
+        const existingCrm = await User.findOne({
+          $or: [{ email: 'crm@alphaelevators.com' }, { name: /sneha\s*roy/i }, { role: 'CRM' }],
+        });
+        if (!existingCrm) {
+          await User.create({
+            name: 'Dimple Sharma',
+            email: 'crm@alphaelevators.com',
+            passwordHash: crmHash,
+            role: 'CRM',
+            phone: '+91 93848 20316',
+            isActive: true,
+          });
+          console.log('[Server] Created CRM user: Dimple Sharma (crm@alphaelevators.com / crm123)');
+        } else if (/sneha\s*roy/i.test(existingCrm.name) || existingCrm.email === 'crm@alphaelevators.com') {
+          await User.updateOne(
+            { _id: existingCrm._id },
+            { $set: { name: 'Dimple Sharma', role: 'CRM', isActive: true } }
+          );
+          console.log('[Server] Updated CRM user name to Dimple Sharma');
+        }
+      } catch (crmInitErr: any) {
+        console.warn('[Server] Notice updating CRM user Dimple Sharma:', crmInitErr.message);
+      }
+
       // Ensure default QC inspector exists
       const qcUser = await User.findOne({ email: 'qc@alphaelevators.com' });
       if (!qcUser) {
