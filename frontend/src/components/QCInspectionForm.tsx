@@ -124,7 +124,6 @@ const WALL_OPTIONS = [
 const ATTENDEE_ROLES = [
   'End Client (Owner)',
   'Architect',
-  'Electrician',
   'Fabricator / Civil Person',
   'Client Representative',
   'Sales Person',
@@ -329,7 +328,7 @@ export default function QCInspectionForm({ initialReport, onSaved, onCancelEdit 
     }
 
     if (Array.isArray(initialReport.attendees) && initialReport.attendees.length > 0) {
-      setAttendees(initialReport.attendees);
+      setAttendees(initialReport.attendees.filter((a: any) => a?.role !== 'Electrician'));
     }
 
     setClientRepName(initialReport.clientRepName || initialReport.clientName || '');
@@ -645,8 +644,15 @@ export default function QCInspectionForm({ initialReport, onSaved, onCancelEdit 
     }
   };
 
+  const getCurrentTimeString = () => {
+    const now = new Date();
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    return `${hours}:${minutes}`;
+  };
+
   // Prepare full form payload
-  const getFormData = () => {
+  const getFormData = (overrideTimeOut?: string) => {
     return {
       reportDate,
       region,
@@ -684,7 +690,7 @@ export default function QCInspectionForm({ initialReport, onSaved, onCancelEdit 
       clientRepName,
       clientRepPhone,
       timeIn,
-      timeOut,
+      timeOut: overrideTimeOut ?? timeOut,
       technicianSignature,
       clientSign,
       remarks,
@@ -719,7 +725,9 @@ export default function QCInspectionForm({ initialReport, onSaved, onCancelEdit 
 
     try {
       setGeneratingPdf(true);
-      const data = getFormData();
+      const nowTimeOut = getCurrentTimeString();
+      setTimeOut(nowTimeOut);
+      const data = getFormData(nowTimeOut);
 
       toast.loading('Compiling inspection report & generating PDF...', { id: 'pdf-toast' });
       const blob = await api.generateQCPdf(data);
@@ -769,7 +777,9 @@ export default function QCInspectionForm({ initialReport, onSaved, onCancelEdit 
   const handleSaveReport = async () => {
     try {
       setSavingReport(true);
-      const data = getFormData();
+      const nowTimeOut = getCurrentTimeString();
+      setTimeOut(nowTimeOut);
+      const data = getFormData(nowTimeOut);
       const res = initialReport?._id
         ? await api.updateQCReport(initialReport._id, data)
         : await api.saveQCReport(data);
@@ -893,7 +903,7 @@ export default function QCInspectionForm({ initialReport, onSaved, onCancelEdit 
                 Pre-Production Site Visit Report
               </h1>
               <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl font-normal leading-relaxed">
-                Elevator site inspection • Shaft millimeter measurements • Wall specifications • Client confirmation
+                Elevator site inspection • Shaft millimeter measurements • Wall specifications
               </p>
             </div>
           </div>
@@ -1344,20 +1354,6 @@ export default function QCInspectionForm({ initialReport, onSaved, onCancelEdit 
               <option value="Not confirmed">Not confirmed</option>
             </select>
           </div>
-
-          {/* Client Confirmation */}
-          <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1.5">Client Confirmation</label>
-            <select
-              value={clientSignatureType}
-              onChange={(e) => setClientSignatureType(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-            >
-              <option value="Confirmed">Confirmed</option>
-              <option value="Pending">Pending</option>
-              <option value="Online signature">Online signature</option>
-            </select>
-          </div>
         </div>
       </section>
 
@@ -1426,7 +1422,7 @@ export default function QCInspectionForm({ initialReport, onSaved, onCancelEdit 
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">Shaft D-Side (Left) (mm)</label>
+            <label className="block text-[11px] font-bold text-slate-700 mb-1">Shaft G-Side (Left) (mm)</label>
             <input
               type="number"
               min="0"

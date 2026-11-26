@@ -167,10 +167,13 @@ export async function generateQCReportPdf(
       doc.fillColor(navy).font(fontBold).fontSize(9.5).text('1. JOB & CLIENT DETAILS', 44, currentY + 4);
       currentY += 22;
 
-      // Info Grid (2 Columns, 5 Rows)
+      // Info Grid (2 Columns)
       const col1X = 40;
-      const col2X = 300;
-      const rowH = 14;
+      const col2X = 302;
+      const rowH = 15;
+      const labelW = 90;
+      const valOffset = 94;
+      const valW = 160;
 
       const detailsLeft = [
         ['Report Date', data.reportDate || 'N/A'],
@@ -181,33 +184,63 @@ export async function generateQCReportPdf(
 
       const detailsRight = [
         ['Quotation Number', data.quotationNo || data.automationCode || 'N/A'],
-        ['Region / Location', data.region || 'Tamil Nadu'],
+        ['Region / Location', String(data.region || 'Tamil Nadu').replace(/—/g, '-')],
         ['Site Visit Count', data.visitCount ? `Visit #${data.visitCount}` : '1st Visit'],
         ['Technician Name', data.technician || 'Not Specified'],
         ['Technician Email', data.technicianEmail || 'N/A'],
       ];
 
       doc.fontSize(8.5);
-      detailsLeft.forEach(([label, val], idx) => {
-        const y = currentY + idx * rowH;
-        doc.font(fontBold).fillColor(slate).text(`${label}:`, col1X, y, { width: 95 });
-        doc.font(fontRegular).fillColor(darkSlate).text(String(val), col1X + 100, y, { width: 150 });
-      });
+      const maxDetailsRows = Math.max(detailsLeft.length, detailsRight.length);
+      for (let idx = 0; idx < maxDetailsRows; idx++) {
+        let leftH = rowH;
+        let rightH = rowH;
 
-      detailsRight.forEach(([label, val], idx) => {
-        const y = currentY + idx * rowH;
-        doc.font(fontBold).fillColor(slate).text(`${label}:`, col2X, y, { width: 95 });
-        doc.font(fontRegular).fillColor(darkSlate).text(String(val), col2X + 100, y, { width: 150 });
-      });
+        if (detailsLeft[idx]) {
+          const [label, val] = detailsLeft[idx];
+          const valStr = String(val);
+          doc.font(fontBold).fillColor(slate).text(`${label}:`, col1X, currentY, { width: labelW });
+          doc.font(fontRegular).fillColor(darkSlate).text(valStr, col1X + valOffset, currentY, { width: valW });
+          leftH = Math.max(rowH, doc.heightOfString(valStr, { width: valW }) + 3);
+        }
 
-      currentY += Math.max(detailsLeft.length, detailsRight.length) * rowH + 8;
+        if (detailsRight[idx]) {
+          const [label, val] = detailsRight[idx];
+          const valStr = String(val);
+          doc.font(fontBold).fillColor(slate).text(`${label}:`, col2X, currentY, { width: labelW });
+          doc.font(fontRegular).fillColor(darkSlate).text(valStr, col2X + valOffset, currentY, { width: valW });
+          rightH = Math.max(rowH, doc.heightOfString(valStr, { width: valW }) + 3);
+        }
+
+        currentY += Math.max(leftH, rightH);
+      }
+
+      currentY += 6;
 
       // Section 2: Property & Elevator Details
       doc.rect(36, currentY, 523, 18).fill('#00cccc');
       doc.fillColor(navy).font(fontBold).fontSize(9.5).text('2. PROPERTY & ELEVATOR SPECIFICATIONS', 44, currentY + 4);
       currentY += 22;
 
-      const stopsLabel = data.floorConfig ? `G+${Number(data.floorConfig) - 1} (${data.floorConfig} Stops)` : '2 Stops';
+      const rawFloorNum =
+        typeof data.floorConfig === 'number'
+          ? data.floorConfig
+          : (() => {
+              const str = String(data.floorConfig || '').trim();
+              const stopsMatch = str.match(/\((\d+)\s*Stops?\)/i);
+              if (stopsMatch) return Number(stopsMatch[1]);
+              const gPlusMatch = str.match(/G\s*\+\s*(\d+)/i);
+              if (gPlusMatch) return Number(gPlusMatch[1]) + 1;
+              const num = Number(str);
+              return !isNaN(num) && num > 0 ? num : 0;
+            })();
+      const stopsLabel =
+        rawFloorNum >= 2
+          ? `G+${rawFloorNum - 1} (${rawFloorNum} Stops)`
+          : data.floorConfig
+          ? String(data.floorConfig)
+          : 'G+1 (2 Stops)';
+
       const propLeft = [
         ['Product Series', data.product || 'Standard'],
         ['Floor Config', stopsLabel],
@@ -217,22 +250,37 @@ export async function generateQCReportPdf(
       const propRight = [
         ['Property Stage', data.propertyStage || 'Planning'],
         ['Installation Area', data.installationArea || 'Indoor'],
-        ['Client Confirmation', data.clientSignatureType || 'Confirmed'],
       ];
 
-      propLeft.forEach(([label, val], idx) => {
-        const y = currentY + idx * rowH;
-        doc.font(fontBold).fillColor(slate).text(`${label}:`, col1X, y, { width: 95 });
-        doc.font(fontRegular).fillColor(darkSlate).text(String(val), col1X + 100, y, { width: 150 });
-      });
+      doc.fontSize(8.5);
+      const maxPropRows = Math.max(propLeft.length, propRight.length);
+      for (let idx = 0; idx < maxPropRows; idx++) {
+        let leftH = rowH;
+        let rightH = rowH;
 
-      propRight.forEach(([label, val], idx) => {
-        const y = currentY + idx * rowH;
-        doc.font(fontBold).fillColor(slate).text(`${label}:`, col2X, y, { width: 95 });
-        doc.font(fontRegular).fillColor(darkSlate).text(String(val), col2X + 100, y, { width: 150 });
-      });
+        if (propLeft[idx]) {
+          const [label, val] = propLeft[idx];
+          const valStr = String(val);
+          doc.font(fontBold).fillColor(slate).text(`${label}:`, col1X, currentY, { width: labelW });
+          doc
+            .font(label === 'Floor Config' ? fontBold : fontRegular)
+            .fillColor(darkSlate)
+            .text(valStr, col1X + valOffset, currentY, { width: valW });
+          leftH = Math.max(rowH, doc.heightOfString(valStr, { width: valW }) + 3);
+        }
 
-      currentY += propLeft.length * rowH + 8;
+        if (propRight[idx]) {
+          const [label, val] = propRight[idx];
+          const valStr = String(val);
+          doc.font(fontBold).fillColor(slate).text(`${label}:`, col2X, currentY, { width: labelW });
+          doc.font(fontRegular).fillColor(darkSlate).text(valStr, col2X + valOffset, currentY, { width: valW });
+          rightH = Math.max(rowH, doc.heightOfString(valStr, { width: valW }) + 3);
+        }
+
+        currentY += Math.max(leftH, rightH);
+      }
+
+      currentY += 6;
 
       // Section 3: Shaft & Floor Measurements
       doc.rect(36, currentY, 523, 18).fill('#00cccc');
@@ -245,7 +293,7 @@ export async function generateQCReportPdf(
         { label: 'Shaft A-Side (W)', val: (data.shaftG || data.shaftA) ? `${data.shaftG || data.shaftA} mm` : '-' },
         { label: 'Shaft B-Side (D)', val: (data.shaftA || data.shaftB) ? `${data.shaftA || data.shaftB} mm` : '-' },
         { label: 'Shaft C-Side (R)', val: (data.shaftB || data.shaftC) ? `${data.shaftB || data.shaftC} mm` : '-' },
-        { label: 'Shaft D-Side (L)', val: (data.shaftC || data.shaftD) ? `${data.shaftC || data.shaftD} mm` : '-' },
+        { label: 'Shaft G-Side (L)', val: (data.shaftC || data.shaftD) ? `${data.shaftC || data.shaftD} mm` : '-' },
         { label: 'Accuracy', val: data.shaftAccuracy || 'Approximate' },
         { label: 'Plaster', val: data.plasterStatus || 'Without plaster' },
       ];
@@ -398,7 +446,6 @@ export async function generateQCReportPdf(
       const defaultAttendeeRoles = [
         'End Client (Owner)',
         'Architect',
-        'Electrician',
         'Fabricator / Civil Person',
         'Client Representative',
         'Sales Person',
@@ -447,29 +494,35 @@ export async function generateQCReportPdf(
       currentY += 50;
 
       // Signatures & Timings Box
-      doc.rect(36, currentY, 523, 56).fillAndStroke('#FFFFFF', borderCol);
+      doc.rect(36, currentY, 523, 74).fillAndStroke('#FFFFFF', borderCol);
 
+      // Row 1: Time In & Time Out
       doc.font(fontBold).fontSize(8).fillColor(slate)
-        .text('Time In:', 44, currentY + 8)
-        .text('Time Out:', 150, currentY + 8)
-        .text('Client Representative:', 270, currentY + 8)
-        .text('Contact No:', 420, currentY + 8);
+        .text('Time In:', 46, currentY + 8)
+        .text('Time Out:', 185, currentY + 8);
 
       doc.font(fontRegular).fontSize(8.5).fillColor(darkSlate)
-        .text(data.timeIn || 'N/A', 88, currentY + 8)
-        .text(data.timeOut || 'N/A', 198, currentY + 8)
-        .text(data.clientRepName || data.clientName || 'N/A', 368, currentY + 8)
-        .text(data.clientRepPhone || data.clientPhone || 'N/A', 475, currentY + 8);
+        .text(data.timeIn || 'N/A', 90, currentY + 8)
+        .text(data.timeOut || 'N/A', 236, currentY + 8);
+
+      // Row 2: Client Representative & Contact No (comfortably spaced apart)
+      doc.font(fontBold).fontSize(8).fillColor(slate)
+        .text('Client Representative:', 46, currentY + 25)
+        .text('Contact No:', 345, currentY + 25);
+
+      doc.font(fontRegular).fontSize(8.5).fillColor(darkSlate)
+        .text(data.clientRepName || data.clientName || 'N/A', 156, currentY + 25, { width: 175, ellipsis: true })
+        .text(data.clientRepPhone || data.clientPhone || 'N/A', 412, currentY + 25, { width: 135 });
 
       // Signature lines
-      doc.moveTo(44, currentY + 42).lineTo(220, currentY + 42).strokeColor('#94A3B8').lineWidth(0.8).stroke();
-      doc.moveTo(330, currentY + 42).lineTo(515, currentY + 42).strokeColor('#94A3B8').lineWidth(0.8).stroke();
+      doc.moveTo(46, currentY + 57).lineTo(230, currentY + 57).strokeColor('#94A3B8').lineWidth(0.8).stroke();
+      doc.moveTo(345, currentY + 57).lineTo(525, currentY + 57).strokeColor('#94A3B8').lineWidth(0.8).stroke();
 
       doc.font(fontBold).fontSize(7.5).fillColor(navy)
-        .text(`Technician: ${data.technicianSignature || data.technician || 'Dinesh Kumar S'}`, 44, currentY + 45)
-        .text(`Client Signature: ${data.clientSign || data.clientName || 'Confirmed'}`, 330, currentY + 45);
+        .text(`Technician: ${data.technicianSignature || data.technician || 'Dinesh Kumar S'}`, 46, currentY + 60)
+        .text(`Client Signature: ${data.clientSign || data.clientName || 'Confirmed'}`, 345, currentY + 60);
 
-      currentY += 66;
+      currentY += 82;
 
       // Extract section 7 & 8 photos into renderable items
       const photoCategories: Array<{ key: string; label: string }> = [
