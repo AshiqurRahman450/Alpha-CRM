@@ -2583,8 +2583,8 @@ export default function QuotationForm({
                           ₹{specialElevatorPrice.toLocaleString('en-IN')}
                         </span>
                       ) : (
-                        <span className="text-[10px] font-bold text-amber-700 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded-full">
-                          None on PDF (₹0)
+                        <span className="text-[10px] font-bold text-slate-600 bg-slate-100 border border-slate-300 px-1.5 py-0.5 rounded-full">
+                          Hidden on PDF
                         </span>
                       )}
                     </label>
@@ -2605,13 +2605,13 @@ export default function QuotationForm({
                                 : undefined,
                           });
                         }}
-                        placeholder="e.g. 1500000 (0 or empty for None)"
+                        placeholder="e.g. 1500000 (Leave empty to hide on PDF)"
                         className="w-full text-xs pl-7 pr-3 py-2 border border-emerald-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-900 bg-white placeholder:text-slate-400 placeholder:font-normal"
                       />
                     </div>
                     <span className="text-[10px] text-slate-500 mt-0.5 block">
                       {specialElevatorPrice <= 0
-                        ? 'Reflected on Page 5 Special Price as: None'
+                        ? 'Not entered — hidden on Page 5 PDF'
                         : `Special Price with GST: ₹${elevatorTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`}
                     </span>
                   </div>
@@ -2671,8 +2671,8 @@ export default function QuotationForm({
                           ₹{specialShaftPrice.toLocaleString('en-IN')}
                         </span>
                       ) : (
-                        <span className="text-[10px] font-bold text-amber-700 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded-full">
-                          None on PDF (₹0)
+                        <span className="text-[10px] font-bold text-slate-600 bg-slate-100 border border-slate-300 px-1.5 py-0.5 rounded-full">
+                          Hidden on PDF
                         </span>
                       )}
                     </label>
@@ -2693,13 +2693,13 @@ export default function QuotationForm({
                                 : undefined,
                           });
                         }}
-                        placeholder="e.g. 350000 (0 or empty for None)"
+                        placeholder="e.g. 350000 (Leave empty to hide on PDF)"
                         className="w-full text-xs pl-7 pr-3 py-2 border border-emerald-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-900 bg-white placeholder:text-slate-400 placeholder:font-normal"
                       />
                     </div>
                     <span className="text-[10px] text-slate-500 mt-0.5 block">
                       {specialShaftPrice <= 0
-                        ? 'Reflected on Page 5 Special Shaft Price as: None'
+                        ? 'Not entered — hidden on Page 5 PDF'
                         : `Special Shaft with GST: ₹${shaftTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`}
                     </span>
                   </div>

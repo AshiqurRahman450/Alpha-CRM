@@ -1126,16 +1126,28 @@ export function buildPage5TermsTableHtml(html: string, data?: QuotationData): st
   const labelCellStyle = "width:202px;text-align:left;vertical-align:middle;border-right:1px solid #000000;font-family:'f1',sans-serif;font-size:11.5px;font-weight:bold;color:#000000;padding:0 10px;margin:0;";
   const valueCellStyle = "width:484px;text-align:left;vertical-align:middle;font-family:'f3',sans-serif;font-size:11.5px;font-weight:bold;color:#000000;padding:0 12px;margin:0;";
 
-  const shaftRowsHtml = isCustomerScope
+  const specialPriceRowHtml =
+    specialElvPrice > 0
+      ? `<tr style="height:${singleRowH};border-bottom:1px solid #000000;">
+<td style="${labelCellStyle}">Special Price</td>
+<td style="${valueCellStyle}">${specialElvDisplay}</td>
+</tr>\n`
+      : '';
+
+  const shaftPriceRowHtml = isCustomerScope
     ? ''
     : `<tr style="height:${singleRowH};border-bottom:1px solid #000000;">
 <td style="${labelCellStyle}">Shaft Price</td>
 <td style="${valueCellStyle}">${shaftPriceDisplay}</td>
-</tr>
-<tr style="height:${singleRowH};border-bottom:1px solid #000000;">
+</tr>\n`;
+
+  const specialShaftRowHtml =
+    !isCustomerScope && specialShaftPrice > 0
+      ? `<tr style="height:${singleRowH};border-bottom:1px solid #000000;">
 <td style="${labelCellStyle}">Special Shaft Price</td>
 <td style="${valueCellStyle}">${specialShaftDisplay}</td>
-</tr>`;
+</tr>\n`
+      : '';
 
   const termsTableBlock = `<!-- START_PAGE5_TERMS_TABLE -->
 <div class="page5-table-mask" style="position:absolute;left:35px;top:584px;width:725px;height:262px;background:#ffffff;z-index:40;pointer-events:none;"></div>
@@ -1145,11 +1157,7 @@ export function buildPage5TermsTableHtml(html: string, data?: QuotationData): st
 <td style="${labelCellStyle}">Price</td>
 <td style="${valueCellStyle}">${elvPriceDisplay}</td>
 </tr>
-<tr style="height:${singleRowH};border-bottom:1px solid #000000;">
-<td style="${labelCellStyle}">Special Price</td>
-<td style="${valueCellStyle}">${specialElvDisplay}</td>
-</tr>
-${shaftRowsHtml}<tr style="height:${multiRowH};border-bottom:1px solid #000000;">
+${specialPriceRowHtml}${shaftPriceRowHtml}${specialShaftRowHtml}<tr style="height:${multiRowH};border-bottom:1px solid #000000;">
 <td style="${labelCellStyle}">Warranty</td>
 <td style="width:484px;text-align:left;vertical-align:middle;font-family:'f3','Segoe UI',Arial,sans-serif;font-size:10.8px;font-weight:600;color:#000000;padding:2px 12px;margin:0;">${warrantyInnerHtml}</td>
 </tr>
