@@ -13,7 +13,7 @@ export function isTlUser(user: any): boolean {
   const email = String(user.email || '');
 
   // Never match BDMs (e.g. Balaji)
-  if (role === 'BDM') return false;
+  if (role === 'BDM' || /balaji/i.test(name) || /balaji/i.test(email)) return false;
 
   if (role === 'LOGISTICS_TL' || role === 'TL' || role === 'TEAM_LEAD' || role === 'TECHNICAL_LEAD') return true;
   if (/srinivasan|srini/i.test(role) || /srinivasan|srini/i.test(name) || /srinivasan|srini/i.test(email)) return true;
@@ -31,7 +31,7 @@ export function getTlRegexForUser(user: any): RegExp | null {
   const name = String(user.name || '');
   const email = String(user.email || '');
 
-  if (role === 'BDM') return null;
+  if (role === 'BDM' || /balaji/i.test(name) || /balaji/i.test(email)) return null;
 
   if (/srinivasan|srini/i.test(role) || /srinivasan|srini/i.test(name) || /srinivasan|srini/i.test(email)) {
     return /srinivasan|srini/i;

@@ -27,7 +27,7 @@ export function getTlNameForUser(user: any): string | null {
   const email = String(user.email || '');
 
   // Never match BDMs (e.g. Balaji) or SITE_INSPECTOR
-  if (role === 'BDM' || role === 'SITE_INSPECTOR') return null;
+  if (role === 'BDM' || role === 'SITE_INSPECTOR' || /balaji/i.test(name) || /balaji/i.test(email)) return null;
 
   if (/srinivasan|srini/i.test(role) || /srinivasan|srini/i.test(name) || /srinivasan|srini/i.test(email)) {
     return 'Srinivasan (TL)';

@@ -459,25 +459,20 @@ export async function startServer() {
         console.warn('[Server] Notice initializing Admin Nithesh Babu:', nitheshInitErr.message);
       }
 
-      // Ensure all 10 BDM users from login page exist with login credentials and pilot data
-      try {
-        await seedBdms(true);
-      } catch (bdmInitErr: any) {
-        console.warn('[Server] Notice initializing BDM users:', bdmInitErr.message);
-      }
-
       // Ensure Logistics Users exist: Bilal, Srinivasan (TL), Sundaram, Bala
       try {
         const logisticsUsers = [
-          { name: 'Bilal (Logistics)', email: 'bilal@alphaelevators.com', pass: 'bilal123', role: 'LOGISTICS' as const, phone: '+91 98401 77881', altRegex: /bilal/i },
-          { name: 'Srinivasan (TL)', email: 'srinivasan@alphaelevators.com', pass: 'srini123', role: 'LOGISTICS_TL' as const, phone: '+91 98401 77882', altRegex: /srinivasan/i },
-          { name: 'Sundaram', email: 'sundaram@alphaelevators.com', pass: 'sundaram123', role: 'LOGISTICS_TL' as const, phone: '+91 98401 77883', altRegex: /sundaram/i },
-          { name: 'Bala', email: 'bala@alphaelevators.com', pass: 'bala123', role: 'LOGISTICS_TL' as const, phone: '+91 98401 77884', altRegex: /bala/i },
-          { name: 'Site Inspector', email: 'siteinspector@alphaelevators.com', pass: 'site123', role: 'SITE_INSPECTOR' as const, phone: '+91 98401 77885', altRegex: /siteinspector/i },
+          { name: 'Bilal (Logistics)', email: 'bilal@alphaelevators.com', pass: 'bilal123', role: 'LOGISTICS' as const, phone: '+91 98401 77881', altRegex: /^bilal/i },
+          { name: 'Srinivasan (TL)', email: 'srinivasan@alphaelevators.com', pass: 'srini123', role: 'LOGISTICS_TL' as const, phone: '+91 98401 77882', altRegex: /^srinivasan/i },
+          { name: 'Sundaram', email: 'sundaram@alphaelevators.com', pass: 'sundaram123', role: 'LOGISTICS_TL' as const, phone: '+91 98401 77883', altRegex: /^sundaram/i },
+          { name: 'Bala', email: 'bala@alphaelevators.com', pass: 'bala123', role: 'LOGISTICS_TL' as const, phone: '+91 98401 77884', altRegex: /^bala(@|\s|$)/i },
+          { name: 'Site Inspector', email: 'siteinspector@alphaelevators.com', pass: 'site123', role: 'SITE_INSPECTOR' as const, phone: '+91 98401 77885', altRegex: /^siteinspector/i },
         ];
 
         for (const lu of logisticsUsers) {
           const userDoc = await User.findOne({
+            email: { $not: /balaji/i },
+            name: { $not: /balaji/i },
             $or: [
               { email: lu.email },
               { email: lu.altRegex },
@@ -525,6 +520,13 @@ export async function startServer() {
         }
       } catch (logisticsInitErr: any) {
         console.warn('[Server] Notice initializing Logistics users:', logisticsInitErr.message);
+      }
+
+      // Ensure all 10 BDM users (including balaji@alpha.com / password123) exist and are restored as BDM
+      try {
+        await seedBdms(true);
+      } catch (bdmInitErr: any) {
+        console.warn('[Server] Notice initializing BDM users:', bdmInitErr.message);
       }
 
       // Ensure sample Tamil Nadu clients exist for QC autofill

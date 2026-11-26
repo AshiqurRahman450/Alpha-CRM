@@ -12,7 +12,7 @@ export const ALL_BDMS = [
   { name: 'Aravind Balaji', email: 'aravind@alpha.com', role: 'BDM' as const, phone: '+91 93848 20497' },
   { name: 'Naveenraj Murugan', email: 'naveen@alpha.com', role: 'BDM' as const, phone: '+91 93848 20213' },
   { name: 'Eswaran S', email: 'eswar@alpha.com', role: 'BDM' as const, phone: '+91 82209 22109' },
-  
+  { name: 'Karthik', email: 'karthik@alpha.com', role: 'BDM' as const, phone: '+91 98401 10010' },
 ];
 
 export async function seedBdms(assignPilotData = true) {
