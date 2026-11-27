@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { Customer, Project, WhatsAppMessage, WhatsAppChannel, SystemSettings } from '../models';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { getTlRegexForUser, getCustomerTlFilter, isTlUser } from '../utils/tlAuth';
+import { getOrSetApiCache } from '../utils/apiCache';
 
 export const dashboardRouter = Router();
 
@@ -12,6 +13,8 @@ dashboardRouter.use(authenticate);
  */
 dashboardRouter.get('/', async (req: AuthRequest, res: Response) => {
   try {
+    const cacheKey = `dashboard:main:${req.user?._id || 'anon'}:${req.user?.role || ''}`;
+    const payload = await getOrSetApiCache(cacheKey, 20 * 1000, async () => {
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
@@ -242,9 +245,7 @@ dashboardRouter.get('/', async (req: AuthRequest, res: Response) => {
       }
     }
 
-    return res.json({
-      success: true,
-      data: {
+    return {
         cards: {
           totalCustomers,
           totalProjects,
@@ -339,7 +340,12 @@ dashboardRouter.get('/', async (req: AuthRequest, res: Response) => {
           })),
         },
         testModeActive: settings?.whatsappTestMode ?? true,
-      },
+      };
+    });
+
+    return res.json({
+      success: true,
+      data: payload,
     });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });

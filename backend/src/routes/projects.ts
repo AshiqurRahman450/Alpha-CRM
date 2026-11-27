@@ -39,10 +39,17 @@ import {
 } from '../services/installation/workingDaysService';
 import { DEFAULT_INSTALLATION_STAGES } from '../models/Project';
 import { config } from '../config';
-import { getNextProjectId } from '../utils/idGenerators';
+import {
+  getNextProjectId,
+  resolveProjectCustomerName,
+  personalizeWhatsAppMessageForCustomer,
+  ensureProjectCustomerPopulated,
+  isPlaceholderCustomerName,
+} from '../utils/idGenerators';
 import { parseAndImportExcel, generateImportTemplateBuffer } from '../services/import/excelImportService';
 import { getTlRegexForUser, isProjectAccessibleByTl, isTlUser } from '../utils/tlAuth';
 import { autoFillExecutedDatesForCompletedStages } from '../utils/stageDates';
+import { getOrSetApiCache, invalidateApiCache } from '../utils/apiCache';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -62,7 +69,7 @@ export function ensureUploadsDir(): string {
         fs.mkdirSync(dir, { recursive: true });
       }
       return dir;
-    } catch {}
+    } catch { }
   }
 
   const fallbackDir = path.resolve(process.cwd(), 'uploads');
@@ -70,7 +77,7 @@ export function ensureUploadsDir(): string {
     if (!fs.existsSync(fallbackDir)) {
       fs.mkdirSync(fallbackDir, { recursive: true });
     }
-  } catch {}
+  } catch { }
   return fallbackDir;
 }
 
@@ -128,6 +135,7 @@ const excelUpload = multer({
  */
 async function sendBdmApprovalNotification(project: any, currentUserId?: any, currentUserName?: string, note?: string) {
   try {
+    await ensureProjectCustomerPopulated(project);
     const customer = (project.customerId as any) || (await Customer.findById(project.customerId));
     let bdmPhone = project.bdmPhone || customer?.bdmPhone;
     let bdmName = 'BDM';
@@ -148,7 +156,7 @@ async function sendBdmApprovalNotification(project: any, currentUserId?: any, cu
       return { success: false, reason: 'No BDM phone number configured for this project or customer' };
     }
 
-    const customerName = customer?.fullName || 'Client';
+    const customerName = resolveProjectCustomerName(project, customer, 'Customer');
     let bdmMessage = `Hello ${bdmName},\n\n`;
     bdmMessage += `🚨 *Action Required: Drawing and Cabin Design Approval*\n\n`;
     bdmMessage += `• Project: *${project.projectName}* (${project.projectId})\n`;
@@ -326,6 +334,10 @@ export async function dispatchSiteVisitScheduledMessage(
       return { success: true, sentViaBot: recentLog.status === 'SENT', formattedDate, formattedTime };
     }
 
+    await ensureProjectCustomerPopulated(project);
+    const customer = (project.customerId as any)?._id ? project.customerId : await Customer.findById(project.customerId);
+    const customerName = resolveProjectCustomerName(project, customer, 'Customer');
+
     const defaultTemplate = `Dear Sir/Madam,
 
 Your site visit has been scheduled for [Date] at [Time]. Our technical team will visit the site for measurement and inspection.
@@ -340,9 +352,12 @@ Alpha Elevators Team`;
       rawText = defaultTemplate;
     }
 
-    const messageText = rawText
-      .replace(/\[Date\]/gi, formattedDate)
-      .replace(/\[Time\]/gi, formattedTime);
+    const messageText = personalizeWhatsAppMessageForCustomer(
+      rawText
+        .replace(/\[Date\]/gi, formattedDate)
+        .replace(/\[Time\]/gi, formattedTime),
+      customerName
+    );
 
     const botStatus = whatsAppWebBot.getStatus();
     let sentViaBot = false;
@@ -372,12 +387,11 @@ Alpha Elevators Team`;
     });
 
     // Record WhatsAppMessage for UI
-    const customer = (project.customerId as any)?._id ? project.customerId : await Customer.findById(project.customerId);
     await WhatsAppMessage.create({
       projectId: project._id,
       projectCode: project.projectId,
-      customerId: project.customerId,
-      customerName: customer?.fullName || 'Customer',
+      customerId: customer?._id || project.customerId,
+      customerName,
       groupId: inviteTarget,
       templateName: 'SITE_VISIT_SCHEDULE_PM',
       messageType: 'template',
@@ -421,6 +435,10 @@ export async function dispatchSiteVisitCompletedMessage(project: any, user?: any
     const currentHour = new Date().getHours();
     const greeting = currentHour < 12 ? 'Good Morning' : currentHour < 17 ? 'Good Afternoon' : 'Good Evening';
 
+    await ensureProjectCustomerPopulated(project);
+    const customer = (project.customerId as any)?._id ? project.customerId : await Customer.findById(project.customerId);
+    const customerName = resolveProjectCustomerName(project, customer, 'Customer');
+
     const defaultMessage = `Dear Sir/Madam,
 
 We have successfully completed the site visit on the scheduled date and shared the site visit report with you via email.
@@ -433,7 +451,7 @@ Regards,
 Alpha Elevators Team`;
 
     const template = await WhatsAppTemplate.findOne({ templateName: 'SITE_VISIT_COMPLETED', templateStatus: 'APPROVED' });
-    let messageText = template?.bodyText || defaultMessage;
+    let messageText = personalizeWhatsAppMessageForCustomer(template?.bodyText || defaultMessage, customerName);
 
     const botStatus = whatsAppWebBot.getStatus();
     let sentViaBot = false;
@@ -479,12 +497,11 @@ Alpha Elevators Team`;
     });
 
     // Record legacy WhatsAppMessage for UI
-    const customer = (project.customerId as any)?._id ? project.customerId : await Customer.findById(project.customerId);
     await WhatsAppMessage.create({
       projectId: project._id,
       projectCode: project.projectId,
-      customerId: project.customerId,
-      customerName: customer?.fullName || 'Customer',
+      customerId: customer?._id || project.customerId,
+      customerName,
       groupId: inviteTarget,
       templateName: 'SITE_VISIT_COMPLETED',
       messageType: 'template',
@@ -556,153 +573,146 @@ projectRouter.post('/import-excel', excelUpload.single('file'), async (req: Auth
  */
 projectRouter.get('/', async (req: AuthRequest, res: Response) => {
   try {
-    const { status, paymentStatus, search, updateDue, employee } = req.query;
-    const query: any = {};
-    const andConditions: any[] = [];
+    const cacheKey = `projects:list:${req.user?._id || 'anon'}:${req.user?.role || ''}:${JSON.stringify(req.query || {})}`;
+    const result = await getOrSetApiCache(cacheKey, 30 * 1000, async () => {
+      const { status, paymentStatus, search, updateDue, employee } = req.query;
+      const query: any = {};
+      const andConditions: any[] = [];
 
-    if (req.user?.role === 'BDM') {
-      const bdmConditions: any[] = [{ bdmId: req.user._id }];
-      if (req.user.name) {
-        bdmConditions.push({ assignedEmployee: new RegExp(`^${req.user.name.trim()}$`, 'i') });
+      if (req.user?.role === 'BDM') {
+        const bdmConditions: any[] = [{ bdmId: req.user._id }];
+        if (req.user.name) {
+          bdmConditions.push({ assignedEmployee: new RegExp(`^${req.user.name.trim()}$`, 'i') });
+        }
+        if (req.user.phone) {
+          const cleanPhone = req.user.phone.replace(/\D/g, '').slice(-10);
+          if (cleanPhone) {
+            bdmConditions.push({ bdmPhone: new RegExp(cleanPhone) });
+          }
+        }
+        andConditions.push({ $or: bdmConditions });
       }
-      if (req.user.phone) {
-        const cleanPhone = req.user.phone.replace(/\D/g, '').slice(-10);
-        if (cleanPhone) {
-          bdmConditions.push({ bdmPhone: new RegExp(cleanPhone) });
+
+      if (isTlUser(req.user)) {
+        const tlRegex = getTlRegexForUser(req.user);
+        if (tlRegex) {
+          const custConditions: any[] = [
+            { assignedTl: tlRegex },
+          ];
+          if (req.user?._id) {
+            custConditions.push({ assignedTlId: req.user._id });
+          }
+          const matchingCustomers = await Customer.find({ $or: custConditions }).select('_id').lean();
+          const custIds = matchingCustomers.map((c) => c._id);
+
+          const tlConditions: any[] = [
+            { assignedTl: tlRegex },
+            { customerId: { $in: custIds } },
+          ];
+          if (req.user?._id) {
+            tlConditions.push({ assignedTlId: req.user._id });
+          }
+
+          andConditions.push({ $or: tlConditions });
         }
       }
-      andConditions.push({ $or: bdmConditions });
-    }
 
-    if (isTlUser(req.user)) {
-      const tlRegex = getTlRegexForUser(req.user);
-      if (tlRegex) {
-        const custConditions: any[] = [
-          { assignedTl: tlRegex },
-        ];
-        if (req.user?._id) {
-          custConditions.push({ assignedTlId: req.user._id });
+      if (status && typeof status === 'string') {
+        if (status.includes(',')) {
+          query.projectStatus = { $in: status.split(',') };
+        } else if (status === 'HANDOVER') {
+          query.projectStatus = { $in: ['TESTING', 'COMPLETED'] };
+        } else if (status === 'ACTIVE') {
+          query.projectStatus = { $nin: ['TESTING', 'COMPLETED', 'CANCELLED'] };
+        } else {
+          query.projectStatus = status;
         }
-        const matchingCustomers = await Customer.find({ $or: custConditions }).select('_id').lean();
-        const custIds = matchingCustomers.map((c) => c._id);
-
-        const tlConditions: any[] = [
-          { assignedTl: tlRegex },
-          { customerId: { $in: custIds } },
-        ];
-        if (req.user?._id) {
-          tlConditions.push({ assignedTlId: req.user._id });
-        }
-
-        andConditions.push({ $or: tlConditions });
-      }
-    }
-
-    if (status && typeof status === 'string') {
-      if (status.includes(',')) {
-        query.projectStatus = { $in: status.split(',') };
-      } else if (status === 'HANDOVER') {
-        query.projectStatus = { $in: ['TESTING', 'COMPLETED'] };
-      } else if (status === 'ACTIVE') {
+      } else if (req.query.excludeHandover === 'true') {
         query.projectStatus = { $nin: ['TESTING', 'COMPLETED', 'CANCELLED'] };
-      } else {
-        query.projectStatus = status;
       }
-    } else if (req.query.excludeHandover === 'true') {
-      query.projectStatus = { $nin: ['TESTING', 'COMPLETED', 'CANCELLED'] };
-    }
 
-    if (paymentStatus && typeof paymentStatus === 'string') {
-      if (paymentStatus.includes(',')) {
-        query.paymentStatus = { $in: paymentStatus.split(',') };
-      } else if (paymentStatus === 'AWAITING' || paymentStatus === 'PENDING_PARTIAL') {
-        query.paymentStatus = { $in: ['PENDING', 'PARTIAL_PAID'] };
-      } else {
-        query.paymentStatus = paymentStatus;
-      }
-    }
-
-    if (req.query.crmRequested === 'true') {
-      query['paymentRequest.status'] = 'REQUESTED';
-    }
-
-    if (employee && typeof employee === 'string') {
-      query.assignedEmployee = employee;
-    }
-
-    if (updateDue === 'today') {
-      const endOfDay = new Date();
-      endOfDay.setHours(23, 59, 59, 999);
-      query.automationEnabled = true;
-      query.whatsappGroupId = { $exists: true, $ne: '' };
-      query.projectStatus = { $nin: ['COMPLETED', 'CANCELLED', 'ON_HOLD'] };
-      andConditions.push({
-        $or: [
-          { nextUpdateAt: { $lte: endOfDay } },
-          { nextUpdateAt: { $exists: false } },
-          { nextUpdateAt: null },
-        ],
-      });
-    }
-
-    if (search && typeof search === 'string' && search.trim()) {
-      const escapedSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const searchRegex = new RegExp(escapedSearch, 'i');
-      const matchingSearchCustomers = await Customer.find({
-        $or: [
-          { fullName: searchRegex },
-          { customerId: searchRegex },
-          { phoneNumber: searchRegex },
-          { whatsappNumber: searchRegex },
-          { email: searchRegex },
-        ],
-      })
-        .select('_id')
-        .lean();
-      const matchingSearchCustomerIds = matchingSearchCustomers.map((c) => c._id);
-
-      andConditions.push({
-        $or: [
-          { projectName: searchRegex },
-          { projectId: searchRegex },
-          { liftModel: searchRegex },
-          { siteAddress: searchRegex },
-          ...(matchingSearchCustomerIds.length > 0 ? [{ customerId: { $in: matchingSearchCustomerIds } }] : []),
-        ],
-      });
-    }
-
-    if (andConditions.length > 0) {
-      query.$and = andConditions;
-    }
-
-    let projects = await Project.find(query)
-      .select('-drawingData -installationStages.images -installationStages.imageUrl')
-      .populate('customerId', '-documents.data')
-      .sort({ createdAt: -1 });
-
-    if (isTlUser(req.user)) {
-      projects = projects.filter((p) => isProjectAccessibleByTl(p, req.user));
-    }
-
-    const modifiedProjects: any[] = [];
-    for (const p of projects) {
-      if (autoFillExecutedDatesForCompletedStages(p)) {
-        modifiedProjects.push(p);
-      }
-    }
-
-    if (modifiedProjects.length > 0) {
-      setImmediate(async () => {
-        for (const mp of modifiedProjects) {
-          try {
-            await mp.save();
-          } catch {}
+      if (paymentStatus && typeof paymentStatus === 'string') {
+        if (paymentStatus.includes(',')) {
+          query.paymentStatus = { $in: paymentStatus.split(',') };
+        } else if (paymentStatus === 'AWAITING' || paymentStatus === 'PENDING_PARTIAL') {
+          query.paymentStatus = { $in: ['PENDING', 'PARTIAL_PAID'] };
+        } else {
+          query.paymentStatus = paymentStatus;
         }
-      });
-    }
+      }
 
-    return res.json({ success: true, count: projects.length, data: projects });
+      if (req.query.crmRequested === 'true') {
+        query['paymentRequest.status'] = 'REQUESTED';
+      }
+
+      if (employee && typeof employee === 'string') {
+        query.assignedEmployee = employee;
+      }
+
+      if (updateDue === 'today') {
+        const endOfDay = new Date();
+        endOfDay.setHours(23, 59, 59, 999);
+        query.automationEnabled = true;
+        query.whatsappGroupId = { $exists: true, $ne: '' };
+        query.projectStatus = { $nin: ['COMPLETED', 'CANCELLED', 'ON_HOLD'] };
+        andConditions.push({
+          $or: [
+            { nextUpdateAt: { $lte: endOfDay } },
+            { nextUpdateAt: { $exists: false } },
+            { nextUpdateAt: null },
+          ],
+        });
+      }
+
+      if (search && typeof search === 'string' && search.trim()) {
+        const escapedSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const searchRegex = new RegExp(escapedSearch, 'i');
+        const matchingSearchCustomers = await Customer.find({
+          $or: [
+            { fullName: searchRegex },
+            { customerId: searchRegex },
+            { phoneNumber: searchRegex },
+            { whatsappNumber: searchRegex },
+            { email: searchRegex },
+          ],
+        })
+          .select('_id')
+          .lean();
+        const matchingSearchCustomerIds = matchingSearchCustomers.map((c) => c._id);
+
+        andConditions.push({
+          $or: [
+            { projectName: searchRegex },
+            { projectId: searchRegex },
+            { liftModel: searchRegex },
+            { siteAddress: searchRegex },
+            ...(matchingSearchCustomerIds.length > 0 ? [{ customerId: { $in: matchingSearchCustomerIds } }] : []),
+          ],
+        });
+      }
+
+      if (andConditions.length > 0) {
+        query.$and = andConditions;
+      }
+
+      let projects = await Project.find(query)
+        .select('-drawingData -installationStages')
+        .populate('customerId', '-documents')
+        .sort({ createdAt: -1 })
+        .lean();
+
+      if (isTlUser(req.user)) {
+        projects = projects.filter((p) => isProjectAccessibleByTl(p, req.user));
+      }
+
+      for (const p of projects) {
+        autoFillExecutedDatesForCompletedStages(p);
+      }
+
+      return projects;
+    });
+
+    return res.json({ success: true, count: result.length, data: result });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -1235,9 +1245,13 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
     };
 
     for (const p of projects) {
+      const rawCust = p.customerId as any;
+      if (!rawCust || !rawCust._id || isPlaceholderCustomerName(rawCust.fullName)) {
+        await ensureProjectCustomerPopulated(p);
+      }
       const customer = (p.customerId as any) || {};
       const customerCode = customer.customerId || p.customerCode || 'N/A';
-      const customerName = customer.fullName || customer.name || p.projectName || 'N/A';
+      const customerName = resolveProjectCustomerName(p, customer, 'N/A');
       const phoneNumber = customer.phoneNumber || '';
       const whatsappNumber = customer.whatsappNumber || customer.phoneNumber || '';
       const email = customer.email || '';
@@ -1592,8 +1606,10 @@ projectRouter.get('/:id', async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ success: false, message: 'Access denied. This project is assigned to another TL.' });
     }
 
+    await ensureProjectCustomerPopulated(project);
+
     if (autoFillExecutedDatesForCompletedStages(project)) {
-      project.save().catch(() => {});
+      project.save().catch(() => { });
     }
 
     const [channel, payments, messages, activities] = await Promise.all([
@@ -1650,18 +1666,25 @@ projectRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT', 'BD
       }
       autoFillExecutedDatesForCompletedStages(project);
       await project.save();
+      await ensureProjectCustomerPopulated(project);
       return res.json({ success: true, data: project });
     }
 
-    if (req.body.customerId && String(req.body.customerId) !== String(project.customerId)) {
-      const cust = await Customer.findById(req.body.customerId);
+    const { customerId: incomingCustomerId, ...restBody } = req.body;
+    const rawIncomingCustId =
+      typeof incomingCustomerId === 'object' && incomingCustomerId !== null
+        ? incomingCustomerId._id || incomingCustomerId.id
+        : incomingCustomerId;
+
+    if (rawIncomingCustId && Types.ObjectId.isValid(String(rawIncomingCustId))) {
+      const cust = await Customer.findById(rawIncomingCustId);
       if (cust) {
         project.customerId = cust._id;
         project.customerCode = cust.customerId;
       }
     }
 
-    Object.assign(project, req.body);
+    Object.assign(project, restBody);
 
     if (req.body.googleMapsLink) {
       project.googleMapsLink = req.body.googleMapsLink.trim();
@@ -1697,6 +1720,7 @@ projectRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT', 'BD
 
     autoFillExecutedDatesForCompletedStages(project);
     await project.save();
+    await ensureProjectCustomerPopulated(project);
     return res.json({ success: true, data: project });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
@@ -1845,9 +1869,9 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
             ? `Production Payment completed (Done) and project moved to Production in progress. Stage 1 Production Update scheduled in ${intervalDays <= 0.003 ? '2 minutes' : intervalDays <= 0.025 ? '30 minutes' : intervalDays < 0.1 ? '1 hour' : intervalDays >= 1.24 && intervalDays <= 1.26 ? '30 hours' : `${intervalDays} days`}.`
             : completedStage === 'MATERIAL_IN_TRANSIT' && project.vrlLrNumber
               ? `Material in transit completed (Done) and moved to Pre Site Visit. VRL Tracking No: ${project.vrlLrNumber}. ${notes ? `Note: ${notes}` : ''}`
-            : (completedStage === 'DISPATCH' || completedStage === 'MATERIAL_DISPATCHED') && project.vrlLrNumber
-              ? `Material ready to Dispatch completed (Done) and moved to Material in transit. VRL Tracking No: ${project.vrlLrNumber}. ${notes ? `Note: ${notes}` : ''}`
-              : `Stage ${completedStage} marked Done and project moved from ${prevStatus} to ${effectiveStatus}. ${notes ? `Note: ${notes}` : ''}`,
+              : (completedStage === 'DISPATCH' || completedStage === 'MATERIAL_DISPATCHED') && project.vrlLrNumber
+                ? `Material ready to Dispatch completed (Done) and moved to Material in transit. VRL Tracking No: ${project.vrlLrNumber}. ${notes ? `Note: ${notes}` : ''}`
+                : `Stage ${completedStage} marked Done and project moved from ${prevStatus} to ${effectiveStatus}. ${notes ? `Note: ${notes}` : ''}`,
       userId: req.user?._id,
       userName: req.user?.name,
       metadata: { previousStatus: prevStatus, completedStage, newStatus: effectiveStatus, intervalDays, vrlLrNumber: project.vrlLrNumber, productionTimelineDays: project.productionTimelineDays },
@@ -1877,13 +1901,15 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
             groupMessageError = sixStageRes.error;
           }
         } else {
-          const customer = await Customer.findById(project.customerId);
+          await ensureProjectCustomerPopulated(project);
+          const customer = (project.customerId as any)?._id ? project.customerId : await Customer.findById(project.customerId);
+          const resolvedCustomerName = resolveProjectCustomerName(project, customer, 'Customer');
           const completedTemplateKey =
             completedStage === 'QUALITY_CHECK'
               ? 'READINESS_PAYMENT_RECEIVED'
-              :completedStage === 'ENGINEERING'
-              ? 'PRODUCTION_PAYMENT_RECEIVED'
-              : STAGE_TEMPLATE_MAP[completedStage] || 'SITE_VISIT_COMPLETED';
+              : completedStage === 'ENGINEERING'
+                ? 'PRODUCTION_PAYMENT_RECEIVED'
+                : STAGE_TEMPLATE_MAP[completedStage] || 'SITE_VISIT_COMPLETED';
           const messageText = generateProjectUpdateText(
             project,
             customer,
@@ -1912,7 +1938,7 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
               projectId: project._id,
               projectCode: project.projectId,
               customerId: customer?._id,
-              customerName: customer?.fullName || 'Client',
+              customerName: resolvedCustomerName,
               groupId: project.whatsapp?.groupId || project.whatsappGroupId || 'GROUP',
               templateName: STAGE_TEMPLATE_MAP[status] || 'SITE_VISIT_COMPLETED',
               messageType: 'template',
@@ -1955,7 +1981,7 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
                 projectId: project._id,
                 projectCode: project.projectId,
                 customerId: customer?._id,
-                customerName: customer?.fullName || 'Client',
+                customerName: resolvedCustomerName,
                 groupId: project.whatsapp?.groupId || project.whatsappGroupId || 'GROUP',
                 templateName: STAGE_TEMPLATE_MAP[status] || 'SITE_VISIT_COMPLETED',
                 messageType: 'template',
@@ -2034,6 +2060,7 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
       resultMsg = `Stage updated to ${status} and 1-to-1 approval alert sent to BDM via ${bdmNotificationResult?.provider || 'WhatsApp'}!`;
     }
 
+    await ensureProjectCustomerPopulated(project);
     return res.json({
       success: true,
       data: project,
@@ -2090,6 +2117,7 @@ projectRouter.post('/:id/drawing-approved', authorize('ADMIN', 'CRM', 'MANAGER',
 
     const workflowRes = await handleDrawingAndCabinApprovedWorkflow(project, days, req.user?._id, req.user?.name);
     const bdmNotifyRes = await sendBdmApprovalNotification(project, req.user?._id, req.user?.name, notes);
+    await ensureProjectCustomerPopulated(project);
 
     return res.json({
       success: true,
@@ -2226,6 +2254,7 @@ projectRouter.patch('/:id/stage-dates', authorize('ADMIN', 'CRM', 'MANAGER', 'BD
       await dispatchSiteVisitCompletedMessage(project, req.user);
     }
 
+    await ensureProjectCustomerPopulated(project);
     return res.json({
       success: true,
       data: project,
@@ -2324,6 +2353,7 @@ projectRouter.patch('/:id/stage-dates-bulk', authorize('ADMIN', 'CRM', 'MANAGER'
       await dispatchSiteVisitCompletedMessage(project, req.user);
     }
 
+    await ensureProjectCustomerPopulated(project);
     return res.json({ success: true, data: project });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
@@ -2382,9 +2412,24 @@ projectRouter.post(
       try {
         const uploadedPath = req.file.path || path.join(ensureUploadsDir(), req.file.filename);
         if (fs.existsSync(uploadedPath)) {
-          project.drawingData = fs.readFileSync(uploadedPath).toString('base64');
+          const b64 = fs.readFileSync(uploadedPath).toString('base64');
           project.drawingMimeType = req.file.mimetype || 'application/pdf';
           project.drawingOriginalName = req.file.originalname || req.file.filename;
+          await mongoose.connection.collection('project_drawings').updateOne(
+            { projectId: project._id },
+            {
+              $set: {
+                projectId: project._id,
+                projectCode: project.projectId,
+                drawingUrl: project.drawingUrl,
+                drawingData: b64,
+                drawingMimeType: project.drawingMimeType,
+                drawingOriginalName: project.drawingOriginalName,
+                updatedAt: new Date(),
+              },
+            },
+            { upsert: true }
+          );
         }
       } catch (encodeErr: any) {
         console.warn('[DrawingUpload] Unable to store drawing base64 in MongoDB:', encodeErr.message);
@@ -2418,11 +2463,15 @@ projectRouter.post(
       let documentSendError: string | null = null;
       const inviteTarget = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
 
+      await ensureProjectCustomerPopulated(project);
       if (inviteTarget) {
         try {
-          const customer = await Customer.findById(project.customerId);
-          const customerName = customer?.fullName || 'Valued Client';
-          const caption = `Dear Sir/Madam,\n\nThe elevator drawing and cabin design are ready for your review and approval.\n\n*Project:* ${project.projectName} (${project.liftModel || 'Elevator'})\n*Stage:* Drawing and Cabin Design Approval\n\nKindly review and confirm your approval to proceed to the next stage.\n\nRegards,\nAlpha Elevators Team`;
+          const customer = (project.customerId as any)?._id ? project.customerId : await Customer.findById(project.customerId);
+          const customerName = resolveProjectCustomerName(project, customer);
+          const caption = personalizeWhatsAppMessageForCustomer(
+            `Dear Sir/Madam,\n\nThe elevator drawing and cabin design are ready for your review and approval.\n\n*Project:* ${project.projectName} (${project.liftModel || 'Elevator'})\n*Customer:* ${customerName || project.projectName}\n*Stage:* Drawing and Cabin Design Approval\n\nKindly review and confirm your approval to proceed to the next stage.\n\nRegards,\nAlpha Elevators Team`,
+            customerName
+          );
 
           const activeDir = ensureUploadsDir();
           const fullFilePath = req.file.path
@@ -2430,73 +2479,73 @@ projectRouter.post(
             : path.resolve(activeDir, req.file.filename);
           const botStatus = whatsAppWebBot.getStatus();
 
-        if (botStatus.isConnected) {
-          const docRes = await whatsAppWebBot.sendDocumentToGroup(
-            inviteTarget,
-            fullFilePath,
-            req.file.originalname || req.file.filename,
-            caption
-          );
+          if (botStatus.isConnected) {
+            const docRes = await whatsAppWebBot.sendDocumentToGroup(
+              inviteTarget,
+              fullFilePath,
+              req.file.originalname || req.file.filename,
+              caption
+            );
 
-          if (docRes.success) {
-            documentSentToGroup = true;
-            await WhatsAppMessageLog.create({
-              projectId: project._id,
-              groupId: project.whatsapp?.groupId || project.whatsappGroupId || 'GROUP',
-              messageText: `[DOCUMENT DISPATCHED]: ${req.file.originalname || req.file.filename}\n${caption}`,
-              messageType: 'document',
-              scheduledAt: new Date(),
-              attemptedAt: new Date(),
-              sentAt: new Date(),
-              providerMessageId: docRes.messageId,
-              status: 'SENT',
-              attemptCount: 1,
-              isDryRun: false,
-            });
+            if (docRes.success) {
+              documentSentToGroup = true;
+              await WhatsAppMessageLog.create({
+                projectId: project._id,
+                groupId: project.whatsapp?.groupId || project.whatsappGroupId || 'GROUP',
+                messageText: `[DOCUMENT DISPATCHED]: ${req.file.originalname || req.file.filename}\n${caption}`,
+                messageType: 'document',
+                scheduledAt: new Date(),
+                attemptedAt: new Date(),
+                sentAt: new Date(),
+                providerMessageId: docRes.messageId,
+                status: 'SENT',
+                attemptCount: 1,
+                isDryRun: false,
+              });
 
-            await logProjectActivity({
-              projectId: project._id,
-              projectCode: project.projectId,
-              type: 'WHATSAPP_SENT',
-              description: `Drawing & Cabin Design document "${req.file.originalname}" sent directly to WhatsApp group via Web Bot (+${botStatus.botPhoneNumber || 'Bot'})`,
-              userId: req.user?._id,
-              userName: req.user?.name,
-            });
-            console.log(`[DrawingDispatch] Drawing document sent to WhatsApp group for ${project.projectId}`);
-          } else {
-            documentSendError = docRes.error || 'Failed to dispatch document to WhatsApp group';
+              await logProjectActivity({
+                projectId: project._id,
+                projectCode: project.projectId,
+                type: 'WHATSAPP_SENT',
+                description: `Drawing & Cabin Design document "${req.file.originalname}" sent directly to WhatsApp group via Web Bot (+${botStatus.botPhoneNumber || 'Bot'})`,
+                userId: req.user?._id,
+                userName: req.user?.name,
+              });
+              console.log(`[DrawingDispatch] Drawing document sent to WhatsApp group for ${project.projectId}`);
+            } else {
+              documentSendError = docRes.error || 'Failed to dispatch document to WhatsApp group';
+            }
           }
+        } catch (err: any) {
+          console.error('[DrawingDispatch] Error sending document to group:', err.message);
+          documentSendError = err.message;
         }
-      } catch (err: any) {
-        console.error('[DrawingDispatch] Error sending document to group:', err.message);
-        documentSendError = err.message;
       }
+
+      // Automatically send 1-to-1 WhatsApp notification to assigned BDM via WATI
+      await sendBdmApprovalNotification(
+        project,
+        req.user?._id,
+        req.user?.name,
+        'Drawing and cabin design uploaded and ready for customer sign-off.'
+      );
+
+      const responseObj = project.toObject();
+      delete responseObj.drawingData;
+
+      return res.json({
+        success: true,
+        data: responseObj,
+        documentSentToGroup,
+        documentSendError,
+        message: documentSentToGroup
+          ? 'Drawing uploaded and automatically sent to WhatsApp group!'
+          : 'Drawing uploaded successfully.',
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message });
     }
-
-    // Automatically send 1-to-1 WhatsApp notification to assigned BDM via WATI
-    await sendBdmApprovalNotification(
-      project,
-      req.user?._id,
-      req.user?.name,
-      'Drawing and cabin design uploaded and ready for customer sign-off.'
-    );
-
-    const responseObj = project.toObject();
-    delete responseObj.drawingData;
-
-    return res.json({
-      success: true,
-      data: responseObj,
-      documentSentToGroup,
-      documentSendError,
-      message: documentSentToGroup
-        ? 'Drawing uploaded and automatically sent to WhatsApp group!'
-        : 'Drawing uploaded successfully.',
-    });
-  } catch (err: any) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
-});
+  });
 
 /**
  * POST /api/projects/:id/notify-bdm
@@ -2591,8 +2640,9 @@ projectRouter.post('/:id/request-payment', authorize('ADMIN', 'CRM', 'MANAGER'),
     let usedProvider = 'WhatsApp Bot';
 
     try {
-      const customer = await Customer.findById(project.customerId);
-      const customerName = customer?.fullName || 'Valued Client';
+      await ensureProjectCustomerPopulated(project);
+      const customer: any = (project.customerId as any)?._id ? project.customerId : await Customer.findById(project.customerId);
+      const customerName = resolveProjectCustomerName(project, customer, 'Customer');
       const customerPhone = customer?.phoneNumber || 'N/A';
       const reqAmt = (project.paymentRequest.requestedAmount || 0).toLocaleString('en-IN');
       const orderVal = (project.orderValue || 0).toLocaleString('en-IN');
@@ -2832,6 +2882,108 @@ function imageUrlToDataUrl(imageUrl: string, projectCodeOrId: string, stageKey: 
 }
 
 /**
+ * Migrates any multi-megabyte inline data:image/... strings stored inside Project.installationStages
+ * and any multi-megabyte inline drawingData PDFs out of the main projects collection (to disk + project_drawings collection)
+ * so the projects collection in MongoDB stays compact (~150KB instead of 18.7MB) and fast to query.
+ */
+export async function slimProjectInstallationStageImages(): Promise<void> {
+  try {
+    // 1. Offload inline drawingData from projects collection to disk + project_drawings collection
+    const projectsWithDrawingData = await Project.find({
+      drawingData: { $exists: true, $nin: [null, ''] },
+    })
+      .select('+drawingData projectId drawingUrl drawingMimeType drawingOriginalName')
+      .lean();
+
+    if (projectsWithDrawingData.length > 0) {
+      const targetDir = ensureUploadsDir();
+      const drawingsCol = mongoose.connection.collection('project_drawings');
+      for (const p of projectsWithDrawingData) {
+        if (p.drawingData) {
+          if (p.drawingUrl) {
+            try {
+              const safeFilename = path.basename(p.drawingUrl);
+              const diskPath = path.join(targetDir, safeFilename);
+              if (!fs.existsSync(diskPath)) {
+                fs.writeFileSync(diskPath, Buffer.from(p.drawingData, 'base64'));
+              }
+            } catch {}
+          }
+          await drawingsCol.updateOne(
+            { projectId: p._id },
+            {
+              $set: {
+                projectId: p._id,
+                projectCode: p.projectId,
+                drawingUrl: p.drawingUrl,
+                drawingData: p.drawingData,
+                drawingMimeType: p.drawingMimeType || 'application/pdf',
+                drawingOriginalName: p.drawingOriginalName,
+                updatedAt: new Date(),
+              },
+            },
+            { upsert: true }
+          );
+          await Project.updateOne({ _id: p._id }, { $unset: { drawingData: 1 } });
+        }
+      }
+      console.log(`[ProjectSlim] Offloaded inline drawingData to project_drawings & disk for ${projectsWithDrawingData.length} project(s).`);
+    }
+
+    // 2. Offload inline base64 stage images from projects.installationStages to disk
+    const projectsWithInlineImages = await Project.find({
+      $or: [
+        { 'installationStages.imageUrl': /^data:image\// },
+        { 'installationStages.images': /^data:image\// },
+      ],
+    }).select('projectId installationStages');
+
+    let slimmedCount = 0;
+    for (const proj of projectsWithInlineImages) {
+      if (!Array.isArray(proj.installationStages)) continue;
+      let changed = false;
+      const stages = proj.installationStages.map((s: any) => {
+        const plain = typeof s.toObject === 'function' ? s.toObject() : s._doc ? { ...s._doc } : { ...s };
+        if (Array.isArray(plain.images) && plain.images.length > 0) {
+          plain.images = plain.images.map((img: string, idx: number) => {
+            if (typeof img === 'string' && img.startsWith('data:image/')) {
+              const saved = saveBase64StageImageToDisk(proj.projectId || String(proj._id), plain.stageKey || 'STAGE', img, idx);
+              if (saved) {
+                changed = true;
+                return saved;
+              }
+            }
+            return img;
+          });
+        }
+        if (typeof plain.imageUrl === 'string' && plain.imageUrl.startsWith('data:image/')) {
+          const firstSaved =
+            Array.isArray(plain.images) && plain.images[0] && !plain.images[0].startsWith('data:image/')
+              ? plain.images[0]
+              : saveBase64StageImageToDisk(proj.projectId || String(proj._id), plain.stageKey || 'STAGE', plain.imageUrl, 0);
+          if (firstSaved) {
+            plain.imageUrl = firstSaved;
+            changed = true;
+          }
+        }
+        return plain;
+      });
+
+      if (changed) {
+        await Project.updateOne({ _id: proj._id }, { $set: { installationStages: stages } });
+        slimmedCount++;
+      }
+    }
+
+    if (slimmedCount > 0) {
+      console.log(`[StageImageSlim] Offloaded inline base64 stage photos to disk for ${slimmedCount} project(s).`);
+    }
+  } catch (err: any) {
+    console.warn('[StageImageSlim] Warning offloading inline stage images:', err.message);
+  }
+}
+
+/**
  * Helper: Hydrates stage images so every stage has inline data:image/... URLs for instant rendering
  */
 function hydrateStagesWithInlineImages(stages: any[], projectCodeOrId: string): any[] {
@@ -2842,8 +2994,8 @@ function hydrateStagesWithInlineImages(stages: any[], projectCodeOrId: string): 
       Array.isArray(plain.images) && plain.images.length > 0
         ? plain.images
         : plain.imageUrl
-        ? [plain.imageUrl]
-        : [];
+          ? [plain.imageUrl]
+          : [];
     if (rawList.length > 0) {
       const hydrated = rawList
         .map((u) => imageUrlToDataUrl(u, projectCodeOrId, plain.stageKey || 'STAGE'))
@@ -2874,6 +3026,7 @@ projectRouter.get(
       const pendingItems: any[] = [];
       for (const proj of projects) {
         const cust: any = proj.customerId || {};
+        const resolvedCustName = resolveProjectCustomerName(proj, cust, 'Customer');
         const hydratedStages = hydrateStagesWithInlineImages(
           proj.installationStages || [],
           proj.projectId || String(proj._id)
@@ -2887,7 +3040,7 @@ projectRouter.get(
               siteAddress: proj.siteAddress,
               liftModel: proj.liftModel,
               assignedTl: proj.assignedTl || cust.assignedTl || '',
-              customerName: cust.fullName || 'Client',
+              customerName: resolvedCustName,
               customerCity: cust.city || '',
               customerCode: cust.customerId || proj.customerCode || '',
               whatsappGroupName: proj.whatsappGroupName || proj.whatsapp?.groupName || '',
@@ -2999,14 +3152,14 @@ projectRouter.post(
 
       const savedNewUrls: string[] = [];
       incomingBase64List.forEach((b64, idx) => {
-        // Always write a disk copy for WhatsApp bot file sending
-        saveBase64StageImageToDisk(project.projectId || String(project._id), stageKey, b64, idx);
-        // Store the self-contained data:image/...;base64,... URL (or hydrated dataUrl) directly in MongoDB
-        // so it renders 100% reliably across localhost, VPS, and all browsers without external file dependency
-        const inlineDataUrl = b64.startsWith('data:image/')
-          ? b64
-          : imageUrlToDataUrl(b64, project.projectId || String(project._id), stageKey);
-        if (inlineDataUrl) savedNewUrls.push(inlineDataUrl);
+        // Save stage image to disk and store compact /api/uploads/... URL in MongoDB so Project documents stay small & fast.
+        // hydrateStagesWithInlineImages() hydrates disk URLs to inline data:image/... when serving the 11-stage table.
+        const diskUrl = saveBase64StageImageToDisk(project.projectId || String(project._id), stageKey, b64, idx);
+        if (diskUrl) {
+          savedNewUrls.push(diskUrl);
+        } else if (b64.startsWith('data:image/')) {
+          savedNewUrls.push(b64);
+        }
       });
 
       const isPhotoOnlyUpdate = reason === 'PHOTO_UPLOAD';
@@ -3031,8 +3184,8 @@ projectRouter.post(
         const existingImages: string[] = Array.isArray(st.images)
           ? [...st.images]
           : st.imageUrl
-          ? [st.imageUrl]
-          : [];
+            ? [st.imageUrl]
+            : [];
 
         if (savedNewUrls.length > 0) {
           const merged = replaceImages ? savedNewUrls : Array.from(new Set([...existingImages, ...savedNewUrls]));
@@ -3096,8 +3249,10 @@ projectRouter.post(
 
       await project.save();
 
+      await ensureProjectCustomerPopulated(project);
       const updatedStage = updatedStages.find((s: any) => s.stageKey === stageKey);
       const customer = project.customerId as any;
+      const resolvedCustomerName = resolveProjectCustomerName(project, customer, 'Customer');
 
       // If marked COMPLETED (Done with photo), log activity and alert Kishore via 1-to-1 WhatsApp, DO NOT send to customer WhatsApp group!
       if (isMarkingCompleted && updatedStage) {
@@ -3121,7 +3276,7 @@ projectRouter.post(
               `Hello Kishore,\n\n` +
               `A new installation stage completion photo has been uploaded and awaits your approval:\n\n` +
               `*Project:* ${project.projectName} (${project.projectId})\n` +
-              `*Customer:* ${customer?.fullName || 'Client'} (${customer?.city || project.siteAddress || 'Tamil Nadu'})\n` +
+              `*Customer:* ${resolvedCustomerName} (${customer?.city || project.siteAddress || 'Tamil Nadu'})\n` +
               `*Stage ${updatedStage.slNo}/11:* ${updatedStage.stageName}\n` +
               `*Submitted By:* ${req.user?.name || 'Team Lead'} (${req.user?.role || 'TL'})\n` +
               `*Photos Uploaded:* ${updatedStage.images?.length || 1}\n\n` +
@@ -3186,13 +3341,13 @@ projectRouter.post(
               ? '⚙️ Technical Issue / On-Site Alignment Delay'
               : 'Operational Schedule Adjustment';
 
-        const whatsappMessage =
+        const whatsappMessage = personalizeWhatsAppMessageForCustomer(
           `🔔 *ALPHA ELEVATORS — INSTALLATION SCHEDULE UPDATE*
 
 Dear Sir/Madam,
 
 *Project:* ${project.projectName} (${project.projectId})
-*Customer:* ${customer?.fullName || 'Client'} (${customer?.city || project.siteAddress || 'Tamil Nadu'})
+*Customer:* ${resolvedCustomerName} (${customer?.city || project.siteAddress || 'Tamil Nadu'})
 
 ⚠️ *Stage Schedule Change:*
 *Stage ${updatedStage?.slNo}:* ${updatedStage?.stageName}
@@ -3204,7 +3359,9 @@ ${notes ? `*Technical Notes:* ${notes}\n` : ''}
 🗓️ *Updated Final Handover Target:* ${handoverStage ? formatDateDisplay(parseDateString(handoverStage.completeDate)) : 'Scheduled'}
 
 Regards,
-Alpha Elevators Team`;
+Alpha Elevators Team`,
+          resolvedCustomerName
+        );
 
         try {
           const targetGroup = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
@@ -3242,7 +3399,7 @@ Alpha Elevators Team`;
               projectId: project._id,
               projectCode: project.projectId,
               customerId: customer?._id,
-              customerName: customer?.fullName || 'Client',
+              customerName: resolvedCustomerName,
               groupId: targetGroup,
               templateName: 'STAGE_SCHEDULE_UPDATE',
               messageType: 'text',
@@ -3310,18 +3467,20 @@ projectRouter.post(
       targetStage.approvedAt = new Date();
       targetStage.rejectionReason = '';
 
+      await ensureProjectCustomerPopulated(project);
       const customer = project.customerId as any;
+      const resolvedCustomerName = resolveProjectCustomerName(project, customer, 'Customer');
       const handoverStage = stages.find((s: any) => s.stageKey === 'HANDOVER');
       const nextStage = stages.find((s: any) => s.slNo === (targetStage.slNo || 0) + 1);
       const isHandover = targetStage.slNo === 11 || targetStage.stageKey === 'HANDOVER';
 
-      const whatsappMessage =
+      const whatsappMessage = personalizeWhatsAppMessageForCustomer(
         `✅ *ALPHA ELEVATORS — INSTALLATION STAGE COMPLETED*
 
 Dear Sir/Madam,
 
 *Project:* ${project.projectName} (${project.projectId})
-*Customer:* ${customer?.fullName || 'Client'} (${customer?.city || project.siteAddress || 'Tamil Nadu'})
+*Customer:* ${resolvedCustomerName} (${customer?.city || project.siteAddress || 'Tamil Nadu'})
 
 🎉 *Stage Completed & Approved:*
 *Stage ${targetStage.slNo}/11:* ${targetStage.stageName}
@@ -3336,7 +3495,9 @@ ${isHandover
 🗓️ *Target Handover Date:* ${handoverStage ? formatDateDisplay(parseDateString(handoverStage.completeDate)) : 'Scheduled'}
 
 Regards,
-Alpha Elevators Team`;
+Alpha Elevators Team`,
+        resolvedCustomerName
+      );
 
       let whatsappResult: any = { sent: false, imageSent: false };
       const targetGroup = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
@@ -3351,8 +3512,8 @@ Alpha Elevators Team`;
           const imageUrls: string[] = Array.isArray(targetStage.images) && targetStage.images.length > 0
             ? targetStage.images
             : targetStage.imageUrl
-            ? [targetStage.imageUrl]
-            : [];
+              ? [targetStage.imageUrl]
+              : [];
 
           const diskPaths: string[] = [];
           for (const imgUrl of imageUrls) {
@@ -3424,7 +3585,7 @@ Alpha Elevators Team`;
             projectId: project._id,
             projectCode: project.projectId,
             customerId: customer?._id,
-            customerName: customer?.fullName || 'Client',
+            customerName: resolvedCustomerName,
             groupId: targetGroup,
             templateName: 'INSTALLATION_STAGE_COMPLETED',
             messageType: 'text',

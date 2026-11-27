@@ -205,7 +205,18 @@ export function setStoredUser(user: any): void {
   }
 }
 
+const inFlightGetRequests = new Map<string, Promise<any>>();
+
 async function fetchWithAuth(endpoint: string, options: RequestInit = {}): Promise<any> {
+  const method = (options.method || 'GET').toUpperCase();
+  if (method === 'GET') {
+    const existing = inFlightGetRequests.get(endpoint);
+    if (existing) {
+      return existing;
+    }
+  }
+
+  const runFetch = async (): Promise<any> => {
   const token = getAuthToken();
   const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
   const headers: HeadersInit = {
@@ -280,6 +291,17 @@ async function fetchWithAuth(endpoint: string, options: RequestInit = {}): Promi
   }
 
   return data;
+  };
+
+  if (method === 'GET') {
+    const promise = runFetch().finally(() => {
+      inFlightGetRequests.delete(endpoint);
+    });
+    inFlightGetRequests.set(endpoint, promise);
+    return promise;
+  }
+
+  return runFetch();
 }
 
 export const api = {

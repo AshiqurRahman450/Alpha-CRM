@@ -11,7 +11,7 @@ import { whatsAppWebBot } from './services/whatsapp';
 
 import { authRouter } from './routes/auth';
 import { customerRouter } from './routes/customers';
-import { projectRouter } from './routes/projects';
+import { projectRouter, slimProjectInstallationStageImages } from './routes/projects';
 import { paymentRouter } from './routes/payments';
 import { whatsappRouter } from './routes/whatsapp';
 import { templateRouter } from './routes/templates';
@@ -24,6 +24,7 @@ import { qcRouter } from './routes/qc';
 import { quotationRouter } from './routes/quotations';
 import { siteProblemRouter } from './routes/siteProblems';
 import { splitSharedCustomerProjects, resequenceCustomerIds } from './utils/idGenerators';
+import { invalidateApiCache } from './utils/apiCache';
 import bcrypt from 'bcryptjs';
 
 const app = express();
@@ -47,6 +48,14 @@ app.use(
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Automatically invalidate in-memory GET query cache on any mutating API request (POST, PUT, PATCH, DELETE)
+app.use('/api', (req: Request, _res: Response, next: NextFunction) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS') {
+    invalidateApiCache();
+  }
+  next();
+});
 
 if (config.nodeEnv !== 'test') {
   app.use(morgan('dev'));
@@ -168,8 +177,15 @@ app.get(['/uploads/:filename', '/api/uploads/:filename'], async (req: Request, r
 
     const project = await Project.findOne({ $or: projectOrConditions }).select('+drawingData').lean();
     if (project) {
-      if (project.drawingData) {
-        const buffer = Buffer.from(project.drawingData, 'base64');
+      let drawingBase64 = project.drawingData;
+      if (!drawingBase64) {
+        const backupDoc = await Customer.db.collection('project_drawings').findOne({ projectId: project._id });
+        if (backupDoc?.drawingData) {
+          drawingBase64 = backupDoc.drawingData;
+        }
+      }
+      if (drawingBase64) {
+        const buffer = Buffer.from(drawingBase64, 'base64');
         const mimeType = getMimeTypeFromFilename(safeFilename, project.drawingMimeType || 'application/pdf');
         try {
           fs.writeFileSync(path.join(uploadDirs[0], safeFilename), buffer);
@@ -613,8 +629,9 @@ export async function startServer() {
       console.warn('[Server] Auto-bootstrap warning:', seedErr.message);
     }
 
-    // Ensure all projects have their own dedicated individual customer
+    // Offload any multi-megabyte inline stage images to disk and ensure all projects have their own customer
     try {
+      await slimProjectInstallationStageImages();
       await splitSharedCustomerProjects();
     } catch (splitErr: any) {
       console.warn('[Server] Auto-split customer projects warning:', splitErr.message);

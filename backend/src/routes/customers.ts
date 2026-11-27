@@ -6,6 +6,7 @@ import { PROJECT_STAGE_NEXT_WORK } from './reminders';
 import { getNextCustomerId, getNextOldCustomerId, splitSharedCustomerProjects, resequenceCustomerIds } from '../utils/idGenerators';
 import { parseAndImportExcel, generateImportTemplateBuffer } from '../services/import/excelImportService';
 import { getCustomerTlFilter, isCustomerAccessibleByTl, isTlUser, getTlRegexForUser, normalizeCanonicalTlName, getSearchRegexForTlName } from '../utils/tlAuth';
+import { getOrSetApiCache } from '../utils/apiCache';
 
 async function resolveTlAssignment(rawTl: any): Promise<{ tlName: string | null; tlUserId: any }> {
   const canonicalName = normalizeCanonicalTlName(rawTl);
@@ -121,265 +122,227 @@ const QUOTE_BDM_SYNC_THROTTLE_MS = 5 * 60 * 1000; // Run at most once every 5 mi
  */
 customerRouter.get('/', async (req: AuthRequest, res: Response) => {
   try {
-    const { search, optIn, customerType, bdmId, isOldCustomer, assignedTl } = req.query;
-    const query: any = {};
+    const cacheKey = `customers:list:${req.user?._id || 'anon'}:${req.user?.role || ''}:${JSON.stringify(req.query || {})}`;
+    const data = await getOrSetApiCache(cacheKey, 30 * 1000, async () => {
+      const { search, optIn, customerType, bdmId, isOldCustomer, assignedTl } = req.query;
+      const query: any = {};
+      const andConditions: any[] = [];
 
-    // Throttled background non-blocking sync for quotes missing bdmId (runs at most once per 5 mins)
-    const nowMs = Date.now();
-    if (nowMs - lastQuoteBdmSyncAt > QUOTE_BDM_SYNC_THROTTLE_MS) {
-      lastQuoteBdmSyncAt = nowMs;
-      setImmediate(async () => {
-        try {
-          const quotesWithBdm = await Quotation.find({
-            status: 'CRM_APPROVED',
-            createdCustomerId: { $exists: true, $ne: null },
-            $or: [{ bdmId: { $exists: true, $ne: null } }, { approvalRequestedBy: { $exists: true, $ne: null } }],
-          })
-            .select('createdCustomerId createdProjectId bdmId bdmName bdmPhone approvalRequestedBy approvalRequestedByName')
-            .lean();
-
-          for (const q of quotesWithBdm) {
-            const bId = q.bdmId || q.approvalRequestedBy;
-            if (bId && q.createdCustomerId) {
-              await Customer.updateOne(
-                { _id: q.createdCustomerId, $or: [{ bdmId: null }, { bdmId: { $exists: false } }] },
-                {
-                  $set: {
-                    bdmId: bId,
-                    ...(q.bdmName || q.approvalRequestedByName ? { assignedEmployee: q.bdmName || q.approvalRequestedByName } : {}),
-                    ...(q.bdmPhone ? { bdmPhone: q.bdmPhone } : {}),
-                  },
-                }
-              );
-            }
-            if (bId && q.createdProjectId) {
-              await Project.updateOne(
-                { _id: q.createdProjectId, $or: [{ bdmId: null }, { bdmId: { $exists: false } }] },
-                {
-                  $set: {
-                    bdmId: bId,
-                    ...(q.bdmName || q.approvalRequestedByName ? { assignedEmployee: q.bdmName || q.approvalRequestedByName } : {}),
-                    ...(q.bdmPhone ? { bdmPhone: q.bdmPhone } : {}),
-                  },
-                }
-              );
-            }
-          }
-        } catch (e) {
-          // Non-blocking sync error swallowed
-        }
-      });
-    }
-
-    const andConditions: any[] = [];
-
-    if (req.user?.role === 'BDM') {
-      const bdmConditions: any[] = [
-        { bdmId: req.user._id },
-        { isOldCustomer: true },
-        { customerId: { $regex: /^OLD/i } },
-        { bdmId: null },
-        { bdmId: { $exists: false } },
-      ];
-      if (req.user.name) {
-        bdmConditions.push({ assignedEmployee: new RegExp(`^${req.user.name.trim()}$`, 'i') });
-      }
-      if (req.user.phone) {
-        const cleanPhone = req.user.phone.replace(/\D/g, '').slice(-10);
-        if (cleanPhone) {
-          bdmConditions.push({ bdmPhone: new RegExp(cleanPhone) });
-        }
-      }
-      andConditions.push({ $or: bdmConditions });
-    } else if (bdmId && bdmId !== 'ALL') {
-      const bdmMatch = await User.findById(bdmId).catch(() => null);
-      if (bdmMatch) {
-        andConditions.push({
-          $or: [
-            { bdmId: bdmMatch._id },
-            { assignedEmployee: new RegExp(`^${bdmMatch.name.trim()}$`, 'i') },
-          ],
-        });
-      } else {
-        query.bdmId = bdmId;
-      }
-    }
-
-    // Role-based visibility: Team Leads (Srinivasan, Sundaram, Bala) only see assigned customers
-    if (isTlUser(req.user)) {
-      const tlRegex = getTlRegexForUser(req.user);
-      if (tlRegex) {
-        const projectConditions: any[] = [{ assignedTl: tlRegex }];
-        if (req.user?._id) {
-          projectConditions.push({ assignedTlId: req.user._id });
-        }
-        const matchingProjects = await Project.find({ $or: projectConditions }).select('customerId').lean();
-        const projectCustIds = matchingProjects.map((p) => p.customerId).filter(Boolean);
-
-        const tlConditions: any[] = [
-          { assignedTl: tlRegex },
-          { _id: { $in: projectCustIds } },
-        ];
-        if (req.user?._id) {
-          tlConditions.push({ assignedTlId: req.user._id });
-          if (Types.ObjectId.isValid(req.user._id)) {
-            tlConditions.push({ assignedTlId: new Types.ObjectId(req.user._id) });
-          }
-        }
-        andConditions.push({ $or: tlConditions });
-      }
-    } else if (assignedTl && typeof assignedTl === 'string' && assignedTl !== 'ALL') {
-      if (assignedTl === 'unassigned') {
-        andConditions.push({
-          $or: [
-            { assignedTl: null },
-            { assignedTl: '' },
-            { assignedTl: { $exists: false } },
-          ],
-        });
-      } else {
-        const val = assignedTl.trim();
-        let targetRegex: RegExp;
-        if (/srinivasan|srini/i.test(val)) {
-          targetRegex = /srinivasan|srini/i;
-        } else if (/sundaram|sundar/i.test(val)) {
-          targetRegex = /sundaram|sundar/i;
-        } else if (/\bbala\b/i.test(val)) {
-          targetRegex = /\bbala\b/i;
-        } else {
-          const escaped = val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          targetRegex = new RegExp(escaped, 'i');
-        }
-        const projMatches = await Project.find({ assignedTl: targetRegex }).select('customerId').lean();
-        const pCustIds = projMatches.map((p) => p.customerId).filter(Boolean);
-        andConditions.push({
-          $or: [
-            { assignedTl: targetRegex },
-            { _id: { $in: pCustIds } },
-          ],
-        });
-      }
-    }
-
-    if (search && typeof search === 'string' && search.trim()) {
-      const searchRegex = new RegExp(search.trim(), 'i');
-      andConditions.push({
-        $or: [
-          { fullName: searchRegex },
-          { phoneNumber: searchRegex },
-          { whatsappNumber: searchRegex },
-          { customerId: searchRegex },
-          { city: searchRegex },
-        ],
-      });
-    }
-
-    if (optIn !== undefined && optIn !== '') {
-      query.whatsappOptIn = optIn === 'true';
-    }
-
-    if (customerType && typeof customerType === 'string') {
-      query.customerType = customerType;
-    }
-
-    if (String(isOldCustomer) === 'true') {
-      andConditions.push({
-        $or: [
+      if (req.user?.role === 'BDM') {
+        const bdmConditions: any[] = [
+          { bdmId: req.user._id },
           { isOldCustomer: true },
           { customerId: { $regex: /^OLD/i } },
-        ],
-      });
-    } else if (String(isOldCustomer) === 'false') {
-      andConditions.push({
-        isOldCustomer: { $ne: true },
-        customerId: { $regex: /^(?!OLD)/i },
-      });
-    }
-
-    if (andConditions.length > 0) {
-      query.$and = andConditions;
-    }
-
-    const customers = await Customer.find(query).select('-documents.data').populate('bdmId', 'name email phone').lean();
-
-    // Natural numeric sorting: CUST-001, CUST-002, ..., CUST-025
-    customers.sort((a, b) => {
-      const numA = parseInt(String(a.customerId || '').replace(/\D/g, '') || '0', 10);
-      const numB = parseInt(String(b.customerId || '').replace(/\D/g, '') || '0', 10);
-      if (numA !== numB) return numA - numB;
-      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      return timeB - timeA;
-    });
-
-    // Strict post-filtering guarantees 100% mutually exclusive separation
-    let strictlyFiltered = customers;
-    if (String(isOldCustomer) === 'true') {
-      strictlyFiltered = customers.filter((c) => {
-        const cid = String(c.customerId || '').trim().toUpperCase();
-        return c.isOldCustomer === true || cid.startsWith('OLD');
-      });
-    } else if (String(isOldCustomer) === 'false') {
-      strictlyFiltered = customers.filter((c) => {
-        const cid = String(c.customerId || '').trim().toUpperCase();
-        return c.isOldCustomer !== true && !cid.startsWith('OLD');
-      });
-    }
-
-    const custIds = strictlyFiltered.map((c) => c._id);
-    const activeProjects = await Project.find({
-      customerId: { $in: custIds },
-      projectStatus: { $nin: ['COMPLETED', 'CANCELLED'] },
-    }).select('customerId projectId projectName projectStatus nextUpdateAt assignedTl assignedTlId').lean();
-
-    const projectMap = new Map();
-    activeProjects.forEach((p) => {
-      if (!projectMap.has(String(p.customerId))) {
-        const nextInfo = PROJECT_STAGE_NEXT_WORK[p.projectStatus];
-        projectMap.set(String(p.customerId), {
-          ...p,
-          assignedTl: normalizeCanonicalTlName(p.assignedTl) || p.assignedTl,
-          nextWork: nextInfo?.nextWork || 'Next Stage Due',
-          nextWorkDesc: nextInfo?.description || '',
-          currentStageLabel: nextInfo?.currentLabel || p.projectStatus,
-        });
-      }
-    });
-
-    let data = strictlyFiltered.map((c) => {
-      const cObj: any = c.toObject ? c.toObject() : { ...c };
-      const activeProj = projectMap.get(String(c._id)) || null;
-      const rawCustTl = (cObj.assignedTl === undefined && activeProj?.assignedTl) ? activeProj.assignedTl : cObj.assignedTl;
-      const canonicalTl = normalizeCanonicalTlName(rawCustTl) || rawCustTl || null;
-      cObj.assignedTl = canonicalTl;
-      if (cObj.assignedTl === undefined && !cObj.assignedTlId && activeProj?.assignedTlId) {
-        cObj.assignedTlId = activeProj.assignedTlId;
-      }
-      cObj.activeProject = activeProj
-        ? {
-            ...activeProj,
-            assignedTl: canonicalTl || activeProj.assignedTl,
+          { bdmId: null },
+          { bdmId: { $exists: false } },
+        ];
+        if (req.user.name) {
+          bdmConditions.push({ assignedEmployee: new RegExp(`^${req.user.name.trim()}$`, 'i') });
+        }
+        if (req.user.phone) {
+          const cleanPhone = req.user.phone.replace(/\D/g, '').slice(-10);
+          if (cleanPhone) {
+            bdmConditions.push({ bdmPhone: new RegExp(cleanPhone) });
           }
-        : null;
-      return cObj;
-    });
+        }
+        andConditions.push({ $or: bdmConditions });
+      } else if (bdmId && bdmId !== 'ALL') {
+        const bdmMatch = await User.findById(bdmId).select('_id name').lean().catch(() => null);
+        if (bdmMatch) {
+          andConditions.push({
+            $or: [
+              { bdmId: bdmMatch._id },
+              { assignedEmployee: new RegExp(`^${bdmMatch.name.trim()}$`, 'i') },
+            ],
+          });
+        } else {
+          query.bdmId = bdmId;
+        }
+      }
 
-    if (isTlUser(req.user)) {
-      data = data.filter((c) => isCustomerAccessibleByTl(c, req.user));
-    } else if (assignedTl && typeof assignedTl === 'string' && assignedTl !== 'ALL' && assignedTl.trim()) {
-      const rawFilter = assignedTl.trim();
-      if (rawFilter.toLowerCase() === 'unassigned' || rawFilter.toLowerCase() === 'none') {
-        data = data.filter((c) => !c.assignedTl);
-      } else {
-        const filterRegex = getSearchRegexForTlName(rawFilter);
-        if (filterRegex) {
-          data = data.filter((c) => {
-            const cTl = normalizeCanonicalTlName(c.assignedTl || c.activeProject?.assignedTl);
-            return Boolean(cTl && filterRegex.test(cTl));
+      // Role-based visibility: Team Leads (Srinivasan, Sundaram, Bala) only see assigned customers
+      if (isTlUser(req.user)) {
+        const tlRegex = getTlRegexForUser(req.user);
+        if (tlRegex) {
+          const projectConditions: any[] = [{ assignedTl: tlRegex }];
+          if (req.user?._id) {
+            projectConditions.push({ assignedTlId: req.user._id });
+          }
+          const matchingProjects = await Project.find({ $or: projectConditions }).select('customerId').lean();
+          const projectCustIds = matchingProjects.map((p) => p.customerId).filter(Boolean);
+
+          const tlConditions: any[] = [
+            { assignedTl: tlRegex },
+            { _id: { $in: projectCustIds } },
+          ];
+          if (req.user?._id) {
+            tlConditions.push({ assignedTlId: req.user._id });
+            if (Types.ObjectId.isValid(req.user._id)) {
+              tlConditions.push({ assignedTlId: new Types.ObjectId(req.user._id) });
+            }
+          }
+          andConditions.push({ $or: tlConditions });
+        }
+      } else if (assignedTl && typeof assignedTl === 'string' && assignedTl !== 'ALL') {
+        if (assignedTl === 'unassigned') {
+          andConditions.push({
+            $or: [
+              { assignedTl: null },
+              { assignedTl: '' },
+              { assignedTl: { $exists: false } },
+            ],
+          });
+        } else {
+          const val = assignedTl.trim();
+          let targetRegex: RegExp;
+          if (/srinivasan|srini/i.test(val)) {
+            targetRegex = /srinivasan|srini/i;
+          } else if (/sundaram|sundar/i.test(val)) {
+            targetRegex = /sundaram|sundar/i;
+          } else if (/\bbala\b/i.test(val)) {
+            targetRegex = /\bbala\b/i;
+          } else {
+            const escaped = val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            targetRegex = new RegExp(escaped, 'i');
+          }
+          const projMatches = await Project.find({ assignedTl: targetRegex }).select('customerId').lean();
+          const pCustIds = projMatches.map((p) => p.customerId).filter(Boolean);
+          andConditions.push({
+            $or: [
+              { assignedTl: targetRegex },
+              { _id: { $in: pCustIds } },
+            ],
           });
         }
       }
-    }
+
+      if (search && typeof search === 'string' && search.trim()) {
+        const searchRegex = new RegExp(search.trim(), 'i');
+        andConditions.push({
+          $or: [
+            { fullName: searchRegex },
+            { phoneNumber: searchRegex },
+            { whatsappNumber: searchRegex },
+            { customerId: searchRegex },
+            { city: searchRegex },
+          ],
+        });
+      }
+
+      if (optIn !== undefined && optIn !== '') {
+        query.whatsappOptIn = optIn === 'true';
+      }
+
+      if (customerType && typeof customerType === 'string') {
+        query.customerType = customerType;
+      }
+
+      if (String(isOldCustomer) === 'true') {
+        andConditions.push({
+          $or: [
+            { isOldCustomer: true },
+            { customerId: { $regex: /^OLD/i } },
+          ],
+        });
+      } else if (String(isOldCustomer) === 'false') {
+        andConditions.push({
+          isOldCustomer: { $ne: true },
+          customerId: { $regex: /^(?!OLD)/i },
+        });
+      }
+
+      if (andConditions.length > 0) {
+        query.$and = andConditions;
+      }
+
+      // Fetch customers and active projects in parallel instead of sequentially
+      const [customers, activeProjects] = await Promise.all([
+        Customer.find(query)
+          .select('-documents.data')
+          .populate('bdmId', 'name email phone')
+          .lean(),
+        Project.find({
+          projectStatus: { $nin: ['COMPLETED', 'CANCELLED'] },
+        })
+          .select('customerId projectId projectName projectStatus nextUpdateAt assignedTl assignedTlId')
+          .lean(),
+      ]);
+
+      // Natural numeric sorting: CUST-001, CUST-002, ..., CUST-025
+      customers.sort((a, b) => {
+        const numA = parseInt(String(a.customerId || '').replace(/\D/g, '') || '0', 10);
+        const numB = parseInt(String(b.customerId || '').replace(/\D/g, '') || '0', 10);
+        if (numA !== numB) return numA - numB;
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return timeB - timeA;
+      });
+
+      // Strict post-filtering guarantees 100% mutually exclusive separation
+      let strictlyFiltered = customers;
+      if (String(isOldCustomer) === 'true') {
+        strictlyFiltered = customers.filter((c) => {
+          const cid = String(c.customerId || '').trim().toUpperCase();
+          return c.isOldCustomer === true || cid.startsWith('OLD');
+        });
+      } else if (String(isOldCustomer) === 'false') {
+        strictlyFiltered = customers.filter((c) => {
+          const cid = String(c.customerId || '').trim().toUpperCase();
+          return c.isOldCustomer !== true && !cid.startsWith('OLD');
+        });
+      }
+
+      const projectMap = new Map();
+      activeProjects.forEach((p) => {
+        if (!projectMap.has(String(p.customerId))) {
+          const nextInfo = PROJECT_STAGE_NEXT_WORK[p.projectStatus];
+          projectMap.set(String(p.customerId), {
+            ...p,
+            assignedTl: normalizeCanonicalTlName(p.assignedTl) || p.assignedTl,
+            nextWork: nextInfo?.nextWork || 'Next Stage Due',
+            nextWorkDesc: nextInfo?.description || '',
+            currentStageLabel: nextInfo?.currentLabel || p.projectStatus,
+          });
+        }
+      });
+
+      let mapped = strictlyFiltered.map((c: any) => {
+        const cObj: any = { ...c };
+        const activeProj = projectMap.get(String(c._id)) || null;
+        const rawCustTl = (cObj.assignedTl === undefined && activeProj?.assignedTl) ? activeProj.assignedTl : cObj.assignedTl;
+        const canonicalTl = normalizeCanonicalTlName(rawCustTl) || rawCustTl || null;
+        cObj.assignedTl = canonicalTl;
+        if (cObj.assignedTl === undefined && !cObj.assignedTlId && activeProj?.assignedTlId) {
+          cObj.assignedTlId = activeProj.assignedTlId;
+        }
+        cObj.activeProject = activeProj
+          ? {
+              ...activeProj,
+              assignedTl: canonicalTl || activeProj.assignedTl,
+            }
+          : null;
+        return cObj;
+      });
+
+      if (isTlUser(req.user)) {
+        mapped = mapped.filter((c) => isCustomerAccessibleByTl(c, req.user));
+      } else if (assignedTl && typeof assignedTl === 'string' && assignedTl !== 'ALL' && assignedTl.trim()) {
+        const rawFilter = assignedTl.trim();
+        if (rawFilter.toLowerCase() === 'unassigned' || rawFilter.toLowerCase() === 'none') {
+          mapped = mapped.filter((c) => !c.assignedTl);
+        } else {
+          const filterRegex = getSearchRegexForTlName(rawFilter);
+          if (filterRegex) {
+            mapped = mapped.filter((c) => {
+              const cTl = normalizeCanonicalTlName(c.assignedTl || c.activeProject?.assignedTl);
+              return Boolean(cTl && filterRegex.test(cTl));
+            });
+          }
+        }
+      }
+
+      return mapped;
+    });
 
     return res.json({ success: true, count: data.length, data });
   } catch (err: any) {
