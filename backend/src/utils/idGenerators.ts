@@ -255,4 +255,25 @@ export async function splitSharedCustomerProjects(): Promise<void> {
   }
 }
 
+export function isPlaceholderCustomerName(name?: string | null): boolean {
+  return !name || !String(name).trim();
+}
+
+export function resolveProjectCustomerName(project?: any, customer?: any, fallback: string = 'Client'): string {
+  return customer?.fullName || (project?.customerId as any)?.fullName || fallback;
+}
+
+export function personalizeWhatsAppMessageForCustomer(messageText: string, _customerName?: string | null): string {
+  return messageText;
+}
+
+export async function ensureProjectCustomerPopulated(project: any): Promise<any> {
+  if (project && project.customerId && typeof project.populate === 'function' && !project.customerId.fullName) {
+    try {
+      await project.populate('customerId', '-documents.data');
+    } catch {}
+  }
+  return project?.customerId;
+}
+
 
