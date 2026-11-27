@@ -112,14 +112,44 @@ export const PROJECT_STAGE_NEXT_WORK: Record<
   },
 };
 
+const lastReminderSyncByUser = new Map<string, number>();
+const REMINDER_SYNC_THROTTLE_MS = 60 * 1000;
+
 /**
  * Automatically synchronizes Next Work reminders for every active project for CRM/Admin users
  */
 async function syncProjectNextWorkReminders(userId: any) {
   try {
-    const activeProjects = await Project.find({
-      projectStatus: { $nin: ['COMPLETED', 'CANCELLED', 'ON_HOLD'] },
-    }).populate('customerId', 'fullName customerId phoneNumber');
+    const userKey = String(userId);
+    const nowMs = Date.now();
+    const lastSync = lastReminderSyncByUser.get(userKey) || 0;
+    if (nowMs - lastSync < REMINDER_SYNC_THROTTLE_MS) {
+      return;
+    }
+    lastReminderSyncByUser.set(userKey, nowMs);
+
+    const [activeProjects, existingReminders] = await Promise.all([
+      Project.find({
+        projectStatus: { $nin: ['COMPLETED', 'CANCELLED', 'ON_HOLD'] },
+      })
+        .select('projectId projectName projectStatus nextUpdateAt customerId')
+        .populate('customerId', 'fullName customerId phoneNumber')
+        .lean(),
+      Reminder.find({
+        userId,
+        type: 'PROJECT_NEXT_WORK',
+        status: 'PENDING',
+      }).lean(),
+    ]);
+
+    const existingByProject = new Map<string, any>();
+    for (const rem of existingReminders) {
+      if (rem.relatedProjectId) {
+        existingByProject.set(String(rem.relatedProjectId), rem);
+      }
+    }
+
+    const bulkOps: any[] = [];
 
     for (const p of activeProjects) {
       const stageInfo = PROJECT_STAGE_NEXT_WORK[p.projectStatus];
@@ -132,35 +162,39 @@ async function syncProjectNextWorkReminders(userId: any) {
       const notes = `Customer: ${customerName} (${customer.phoneNumber || 'N/A'}). Current Stage: ${stageInfo.currentLabel}. Next step to move project forward: ${stageInfo.nextWork} — ${stageInfo.description}`;
       const dueAt = p.nextUpdateAt || new Date();
 
-      const existing = await Reminder.findOne({
-        userId,
-        relatedProjectId: p._id,
-        type: 'PROJECT_NEXT_WORK',
-        status: 'PENDING',
-      });
+      const existing = existingByProject.get(String(p._id));
 
       if (existing) {
         if (existing.title !== title) {
-          existing.title = title;
-          existing.notes = notes;
-          existing.dueAt = dueAt;
-          existing.customerName = customerName;
-          await existing.save();
+          bulkOps.push({
+            updateOne: {
+              filter: { _id: existing._id },
+              update: { $set: { title, notes, dueAt, customerName } },
+            },
+          });
         }
       } else {
-        await Reminder.create({
-          userId,
-          title,
-          notes,
-          dueAt,
-          status: 'PENDING',
-          type: 'PROJECT_NEXT_WORK',
-          relatedProjectId: p._id,
-          relatedCustomerId: customer._id || p.customerId,
-          customerName,
-          actionRequired: true,
+        bulkOps.push({
+          insertOne: {
+            document: {
+              userId,
+              title,
+              notes,
+              dueAt,
+              status: 'PENDING',
+              type: 'PROJECT_NEXT_WORK',
+              relatedProjectId: p._id,
+              relatedCustomerId: customer._id || p.customerId,
+              customerName,
+              actionRequired: true,
+            },
+          },
         });
       }
+    }
+
+    if (bulkOps.length > 0) {
+      await Reminder.bulkWrite(bulkOps, { ordered: false });
     }
   } catch (err: any) {
     console.warn('[SyncProjectNextWorkReminders] Error:', err.message);
@@ -180,9 +214,11 @@ reminderRouter.get('/', async (req: AuthRequest, res: Response) => {
     const isCrmOrAdmin = req.user?.role === 'CRM' || req.user?.role === 'ADMIN';
     const isAdmin = req.user?.role === 'ADMIN' || req.user?.name?.toLowerCase().includes('nithesh');
 
-    // For CRM and Admin, keep active project next-work reminders synchronized
+    // For CRM and Admin, keep active project next-work reminders synchronized in the background
     if (isCrmOrAdmin && req.user?._id) {
-      await syncProjectNextWorkReminders(req.user._id);
+      setImmediate(() => {
+        syncProjectNextWorkReminders(req.user?._id).catch(() => {});
+      });
     }
 
     const orConditions: any[] = [

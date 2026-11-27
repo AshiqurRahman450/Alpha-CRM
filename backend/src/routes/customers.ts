@@ -113,6 +113,9 @@ customerRouter.post('/import-excel', excelUpload.single('file'), async (req: Aut
   }
 });
 
+let lastQuoteBdmSyncAt = 0;
+const QUOTE_BDM_SYNC_THROTTLE_MS = 5 * 60 * 1000; // Run at most once every 5 minutes
+
 /**
  * GET /api/customers
  */
@@ -121,48 +124,52 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
     const { search, optIn, customerType, bdmId, isOldCustomer, assignedTl } = req.query;
     const query: any = {};
 
-    // Background non-blocking sync for quotes missing bdmId (never blocks GET /api/customers)
-    setImmediate(async () => {
-      try {
-        const quotesWithBdm = await Quotation.find({
-          status: 'CRM_APPROVED',
-          createdCustomerId: { $exists: true, $ne: null },
-          $or: [{ bdmId: { $exists: true, $ne: null } }, { approvalRequestedBy: { $exists: true, $ne: null } }],
-        })
-          .select('createdCustomerId createdProjectId bdmId bdmName bdmPhone approvalRequestedBy approvalRequestedByName')
-          .lean();
+    // Throttled background non-blocking sync for quotes missing bdmId (runs at most once per 5 mins)
+    const nowMs = Date.now();
+    if (nowMs - lastQuoteBdmSyncAt > QUOTE_BDM_SYNC_THROTTLE_MS) {
+      lastQuoteBdmSyncAt = nowMs;
+      setImmediate(async () => {
+        try {
+          const quotesWithBdm = await Quotation.find({
+            status: 'CRM_APPROVED',
+            createdCustomerId: { $exists: true, $ne: null },
+            $or: [{ bdmId: { $exists: true, $ne: null } }, { approvalRequestedBy: { $exists: true, $ne: null } }],
+          })
+            .select('createdCustomerId createdProjectId bdmId bdmName bdmPhone approvalRequestedBy approvalRequestedByName')
+            .lean();
 
-        for (const q of quotesWithBdm) {
-          const bId = q.bdmId || q.approvalRequestedBy;
-          if (bId && q.createdCustomerId) {
-            await Customer.updateOne(
-              { _id: q.createdCustomerId, $or: [{ bdmId: null }, { bdmId: { $exists: false } }] },
-              {
-                $set: {
-                  bdmId: bId,
-                  ...(q.bdmName || q.approvalRequestedByName ? { assignedEmployee: q.bdmName || q.approvalRequestedByName } : {}),
-                  ...(q.bdmPhone ? { bdmPhone: q.bdmPhone } : {}),
-                },
-              }
-            );
+          for (const q of quotesWithBdm) {
+            const bId = q.bdmId || q.approvalRequestedBy;
+            if (bId && q.createdCustomerId) {
+              await Customer.updateOne(
+                { _id: q.createdCustomerId, $or: [{ bdmId: null }, { bdmId: { $exists: false } }] },
+                {
+                  $set: {
+                    bdmId: bId,
+                    ...(q.bdmName || q.approvalRequestedByName ? { assignedEmployee: q.bdmName || q.approvalRequestedByName } : {}),
+                    ...(q.bdmPhone ? { bdmPhone: q.bdmPhone } : {}),
+                  },
+                }
+              );
+            }
+            if (bId && q.createdProjectId) {
+              await Project.updateOne(
+                { _id: q.createdProjectId, $or: [{ bdmId: null }, { bdmId: { $exists: false } }] },
+                {
+                  $set: {
+                    bdmId: bId,
+                    ...(q.bdmName || q.approvalRequestedByName ? { assignedEmployee: q.bdmName || q.approvalRequestedByName } : {}),
+                    ...(q.bdmPhone ? { bdmPhone: q.bdmPhone } : {}),
+                  },
+                }
+              );
+            }
           }
-          if (bId && q.createdProjectId) {
-            await Project.updateOne(
-              { _id: q.createdProjectId, $or: [{ bdmId: null }, { bdmId: { $exists: false } }] },
-              {
-                $set: {
-                  bdmId: bId,
-                  ...(q.bdmName || q.approvalRequestedByName ? { assignedEmployee: q.bdmName || q.approvalRequestedByName } : {}),
-                  ...(q.bdmPhone ? { bdmPhone: q.bdmPhone } : {}),
-                },
-              }
-            );
-          }
+        } catch (e) {
+          // Non-blocking sync error swallowed
         }
-      } catch (e) {
-        // Non-blocking sync error swallowed
-      }
-    });
+      });
+    }
 
     const andConditions: any[] = [];
 
@@ -537,8 +544,14 @@ customerRouter.get('/:id', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ success: false, message: 'Customer not found' });
     }
 
-    // Fetch related projects
-    const projects = await Project.find({ customerId: customer._id }).sort({ createdAt: -1 });
+    // Fetch related projects, payments, and WhatsApp message history in parallel (excluding heavy base64 blobs)
+    const [projects, payments, messages] = await Promise.all([
+      Project.find({ customerId: customer._id })
+        .select('-drawingData -installationStages.images -installationStages.imageUrl')
+        .sort({ createdAt: -1 }),
+      Payment.find({ customerId: customer._id }).sort({ paymentDate: -1 }).lean(),
+      WhatsAppMessage.find({ customerId: customer._id }).sort({ createdAt: -1 }).limit(50).lean(),
+    ]);
 
     // Normalize or backfill customer.assignedTl from projects if needed
     if (customer.assignedTl) {
@@ -556,12 +569,6 @@ customerRouter.get('/:id', async (req: AuthRequest, res: Response) => {
     if (!isCustomerAccessibleByTl(customer, req.user)) {
       return res.status(403).json({ success: false, message: 'Access denied. This customer is assigned to another TL.' });
     }
-
-    // Fetch related payments
-    const payments = await Payment.find({ customerId: customer._id }).sort({ paymentDate: -1 });
-
-    // Fetch related WhatsApp message history
-    const messages = await WhatsAppMessage.find({ customerId: customer._id }).sort({ createdAt: -1 }).limit(50);
 
     return res.json({
       success: true,

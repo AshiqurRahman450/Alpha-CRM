@@ -676,16 +676,30 @@ projectRouter.get('/', async (req: AuthRequest, res: Response) => {
       query.$and = andConditions;
     }
 
-    let projects = await Project.find(query).select('-drawingData').populate('customerId').sort({ createdAt: -1 });
+    let projects = await Project.find(query)
+      .select('-drawingData -installationStages.images -installationStages.imageUrl')
+      .populate('customerId', '-documents.data')
+      .sort({ createdAt: -1 });
 
     if (isTlUser(req.user)) {
       projects = projects.filter((p) => isProjectAccessibleByTl(p, req.user));
     }
 
+    const modifiedProjects: any[] = [];
     for (const p of projects) {
       if (autoFillExecutedDatesForCompletedStages(p)) {
-        await p.save();
+        modifiedProjects.push(p);
       }
+    }
+
+    if (modifiedProjects.length > 0) {
+      setImmediate(async () => {
+        for (const mp of modifiedProjects) {
+          try {
+            await mp.save();
+          } catch {}
+        }
+      });
     }
 
     return res.json({ success: true, count: projects.length, data: projects });
@@ -1579,13 +1593,15 @@ projectRouter.get('/:id', async (req: AuthRequest, res: Response) => {
     }
 
     if (autoFillExecutedDatesForCompletedStages(project)) {
-      await project.save();
+      project.save().catch(() => {});
     }
 
-    const channel = await WhatsAppChannel.findOne({ projectId: project._id });
-    const payments = await Payment.find({ projectId: project._id }).sort({ paymentDate: -1 });
-    const messages = await WhatsAppMessage.find({ projectId: project._id }).sort({ createdAt: -1 });
-    const activities = await ProjectActivity.find({ projectId: project._id }).sort({ createdAt: -1 });
+    const [channel, payments, messages, activities] = await Promise.all([
+      WhatsAppChannel.findOne({ projectId: project._id }).lean(),
+      Payment.find({ projectId: project._id }).sort({ paymentDate: -1 }).lean(),
+      WhatsAppMessage.find({ projectId: project._id }).sort({ createdAt: -1 }).limit(100).lean(),
+      ProjectActivity.find({ projectId: project._id }).sort({ createdAt: -1 }).limit(100).lean(),
+    ]);
 
     return res.json({
       success: true,

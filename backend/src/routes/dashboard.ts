@@ -61,88 +61,7 @@ dashboardRouter.get('/', async (req: AuthRequest, res: Response) => {
       }
     }
 
-    // 1. Core Metrics
-    const [
-      totalCustomers,
-      totalProjects,
-      activeProjectsCount,
-      awaitingPaymentCount,
-      manufacturingCount,
-      readyForDeliveryCount,
-      installationOngoingCount,
-      handoverCount,
-      messagesSentCount,
-      messagesFailedCount,
-      settings,
-      pendingApprovalCount,
-      pendingBalanceAgg,
-      pendingPaymentProjects,
-      crmPaymentRequestsCount,
-      crmPaymentRequests,
-    ] = await Promise.all([
-      Customer.countDocuments({ ...customerFilter }),
-      Project.countDocuments({ ...bdmFilter }),
-      Project.countDocuments({ ...bdmFilter, projectStatus: { $nin: ['COMPLETED', 'CANCELLED'] } }),
-      Project.countDocuments({ ...bdmFilter, paymentStatus: { $in: ['PENDING', 'PARTIAL_PAID'] } }),
-      Project.countDocuments({ ...bdmFilter, projectStatus: { $in: ['MANUFACTURING', 'PRODUCTION_IN_PROGRESS'] } }),
-      Project.countDocuments({ ...bdmFilter, projectStatus: { $in: ['QUALITY_CHECK', 'DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY'] } }),
-      Project.countDocuments({ ...bdmFilter, projectStatus: 'INSTALLATION' }),
-      Project.countDocuments({ ...bdmFilter, projectStatus: 'TESTING' }),
-      WhatsAppMessage.countDocuments({ status: { $in: ['SENT', 'DELIVERED', 'READ'] } }),
-      WhatsAppMessage.countDocuments({ status: 'FAILED' }),
-      SystemSettings.findOne({ key: 'GLOBAL_CONFIG' }),
-      Project.countDocuments({ ...bdmFilter, projectStatus: { $in: ['DESIGN', 'CUSTOMER_APPROVAL'] } }),
-      Project.aggregate([
-        { $match: { ...bdmFilter, paymentStatus: { $in: ['PENDING', 'PARTIAL_PAID'] } } },
-        { $group: { _id: null, totalBalance: { $sum: '$balanceAmount' } } },
-      ]),
-      Project.find({
-        ...bdmFilter,
-        paymentStatus: { $in: ['PENDING', 'PARTIAL_PAID'] },
-      })
-        .populate('customerId')
-        .sort({ createdAt: -1 })
-        .limit(10),
-      Project.countDocuments({ ...bdmFilter, 'paymentRequest.status': 'REQUESTED' }),
-      Project.find({
-        ...bdmFilter,
-        'paymentRequest.status': 'REQUESTED',
-      })
-        .populate('customerId')
-        .sort({ 'paymentRequest.requestedAt': -1 })
-        .limit(25),
-    ]);
-
-    const totalPendingBalance = pendingBalanceAgg[0]?.totalBalance || 0;
-
-    // 2. Updates Due Today (Projects with nextUpdateAt <= endOfToday and active)
-    const updatesDueTodayProjects = await Project.find({
-      automationEnabled: true,
-      whatsappGroupId: { $exists: true, $ne: '' },
-      projectStatus: { $nin: ['COMPLETED', 'CANCELLED', 'ON_HOLD'] },
-      $or: [
-        { nextUpdateAt: { $lte: endOfToday } },
-        { nextUpdateAt: { $exists: false } },
-        { nextUpdateAt: null },
-      ],
-    }).populate('customerId');
-
-    // 3. Upcoming Updates breakdown
-    const updatesTomorrowProjects = await Project.find({
-      automationEnabled: true,
-      whatsappGroupId: { $exists: true, $ne: '' },
-      projectStatus: { $nin: ['COMPLETED', 'CANCELLED', 'ON_HOLD'] },
-      nextUpdateAt: { $gte: startOfTomorrow, $lte: endOfTomorrow },
-    }).populate('customerId');
-
-    const updatesNext7DaysProjects = await Project.find({
-      automationEnabled: true,
-      whatsappGroupId: { $exists: true, $ne: '' },
-      projectStatus: { $nin: ['COMPLETED', 'CANCELLED', 'ON_HOLD'] },
-      nextUpdateAt: { $gt: endOfTomorrow, $lte: in7Days },
-    }).populate('customerId');
-
-    // 4. Status distribution (ensuring all 14 pipeline stages are present with count)
+    // 1. Execute all dashboard queries in a single parallel batch with lightweight projections (.lean())
     const ALL_STAGES = [
       'PAYMENT_RECEIVED',
       'SITE_MEASUREMENT',
@@ -163,17 +82,125 @@ dashboardRouter.get('/', async (req: AuthRequest, res: Response) => {
       'ON_HOLD',
       'CANCELLED',
     ];
-    const statusDistributionRaw = await Project.aggregate([
-      ...(isBDM ? [{ $match: { bdmId: req.user?._id } }] : isLogisticsTL ? [{ $match: bdmFilter }] : []),
-      { $group: { _id: '$projectStatus', count: { $sum: 1 } } },
+
+    const [
+      totalCustomers,
+      allMatchingProjects,
+      messageStatusAgg,
+      settings,
+      pendingPaymentProjects,
+      crmPaymentRequests,
+      upcomingAutomationProjects,
+      recentMessages,
+      pilotProjects,
+    ] = await Promise.all([
+      Customer.countDocuments({ ...customerFilter }),
+      Project.find({ ...bdmFilter })
+        .select('projectStatus paymentStatus balanceAmount paymentRequest.status')
+        .lean(),
+      WhatsAppMessage.aggregate([
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+      ]),
+      SystemSettings.findOne({ key: 'GLOBAL_CONFIG' }).lean(),
+      Project.find({
+        ...bdmFilter,
+        paymentStatus: { $in: ['PENDING', 'PARTIAL_PAID'] },
+      })
+        .select('projectId projectName customerId orderValue advanceAmount totalPaid balanceAmount paymentStatus paymentRequest createdAt')
+        .populate('customerId', 'fullName phoneNumber email')
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .lean(),
+      Project.find({
+        ...bdmFilter,
+        'paymentRequest.status': 'REQUESTED',
+      })
+        .select('projectId projectName customerId orderValue advanceAmount totalPaid balanceAmount paymentStatus paymentRequest')
+        .populate('customerId', 'fullName phoneNumber email')
+        .sort({ 'paymentRequest.requestedAt': -1 })
+        .limit(25)
+        .lean(),
+      Project.find({
+        automationEnabled: true,
+        whatsappGroupId: { $exists: true, $ne: '' },
+        projectStatus: { $nin: ['COMPLETED', 'CANCELLED', 'ON_HOLD'] },
+        $or: [
+          { nextUpdateAt: { $lte: in7Days } },
+          { nextUpdateAt: { $exists: false } },
+          { nextUpdateAt: null },
+        ],
+      })
+        .select('projectId projectName projectStatus customerId whatsappGroupId nextUpdateAt advancePercentage')
+        .populate('customerId', 'fullName phoneNumber whatsappOptIn')
+        .lean(),
+      WhatsAppMessage.find()
+        .select('projectId projectCode customerId customerName groupId templateName messageType recipientType direction senderName messageContent status sentAt createdAt')
+        .sort({ createdAt: -1 })
+        .limit(8)
+        .lean(),
+      Project.find()
+        .select('projectId projectName customerId projectStatus whatsappGroupId nextUpdateAt')
+        .populate('customerId', 'fullName whatsappOptIn')
+        .limit(10)
+        .lean(),
     ]);
+
+    // Compute all project counts & stage distribution in-memory in O(N) from the single lightweight projection
     const statusDistribution: Record<string, number> = {};
     for (const st of ALL_STAGES) {
       statusDistribution[st] = 0;
     }
-    for (const item of statusDistributionRaw) {
-      if (item._id) {
-        statusDistribution[item._id] = item.count;
+
+    let totalProjects = 0;
+    let activeProjectsCount = 0;
+    let awaitingPaymentCount = 0;
+    let manufacturingCount = 0;
+    let readyForDeliveryCount = 0;
+    let installationOngoingCount = 0;
+    let handoverCount = 0;
+    let pendingApprovalCount = 0;
+    let crmPaymentRequestsCount = 0;
+    let totalPendingBalance = 0;
+
+    const READY_FOR_DELIVERY_SET = new Set([
+      'QUALITY_CHECK',
+      'DISPATCH',
+      'MATERIAL_DISPATCHED',
+      'MATERIAL_IN_TRANSIT',
+      'DELIVERY',
+      'MATERIAL_DELIVERY',
+    ]);
+
+    for (const p of allMatchingProjects) {
+      totalProjects++;
+      const st = p.projectStatus;
+      if (st) {
+        statusDistribution[st] = (statusDistribution[st] || 0) + 1;
+      }
+      if (st !== 'COMPLETED' && st !== 'CANCELLED') {
+        activeProjectsCount++;
+      }
+      if (p.paymentStatus === 'PENDING' || p.paymentStatus === 'PARTIAL_PAID') {
+        awaitingPaymentCount++;
+        totalPendingBalance += Number(p.balanceAmount || 0);
+      }
+      if (st === 'MANUFACTURING' || st === 'PRODUCTION_IN_PROGRESS') {
+        manufacturingCount++;
+      }
+      if (st && READY_FOR_DELIVERY_SET.has(st)) {
+        readyForDeliveryCount++;
+      }
+      if (st === 'INSTALLATION') {
+        installationOngoingCount++;
+      }
+      if (st === 'TESTING') {
+        handoverCount++;
+      }
+      if (st === 'DESIGN' || st === 'CUSTOMER_APPROVAL') {
+        pendingApprovalCount++;
+      }
+      if (p.paymentRequest?.status === 'REQUESTED') {
+        crmPaymentRequestsCount++;
       }
     }
 
@@ -186,14 +213,34 @@ dashboardRouter.get('/', async (req: AuthRequest, res: Response) => {
     statusDistribution['DISPATCH'] = dispatchCount;
     statusDistribution['MATERIAL_DISPATCHED'] = dispatchCount;
 
-    // 5. Recent WhatsApp Communication
-    const recentMessages = await WhatsAppMessage.find()
-      .sort({ createdAt: -1 })
-      .limit(8);
+    let messagesSentCount = 0;
+    let messagesFailedCount = 0;
+    for (const m of messageStatusAgg) {
+      if (m._id === 'SENT' || m._id === 'DELIVERED' || m._id === 'READ') {
+        messagesSentCount += m.count;
+      } else if (m._id === 'FAILED') {
+        messagesFailedCount += m.count;
+      }
+    }
 
-    // 6. Pilot Mode Status
-    const pilotCustomers = await Customer.find().limit(10);
-    const pilotProjects = await Project.find().populate('customerId').limit(10);
+    const updatesDueTodayProjects: any[] = [];
+    const updatesTomorrowProjects: any[] = [];
+    const updatesNext7DaysProjects: any[] = [];
+
+    for (const p of upcomingAutomationProjects) {
+      if (!p.nextUpdateAt) {
+        updatesDueTodayProjects.push(p);
+      } else {
+        const dt = new Date(p.nextUpdateAt);
+        if (dt <= endOfToday) {
+          updatesDueTodayProjects.push(p);
+        } else if (dt >= startOfTomorrow && dt <= endOfTomorrow) {
+          updatesTomorrowProjects.push(p);
+        } else if (dt > endOfTomorrow && dt <= in7Days) {
+          updatesNext7DaysProjects.push(p);
+        }
+      }
+    }
 
     return res.json({
       success: true,
@@ -385,15 +432,29 @@ dashboardRouter.get('/card-items', async (req: AuthRequest, res: Response) => {
       createdAt: p.createdAt,
     });
 
+    const findCardProjects = (filter: any, sort: any = { createdAt: -1 }) =>
+      Project.find(filter)
+        .select(
+          'projectId projectName projectStatus paymentStatus orderValue advanceAmount totalPaid balanceAmount liftModel siteAddress googleMapsLink customerId whatsappGroupId nextUpdateAt paymentRequest advancePercentage createdAt'
+        )
+        .populate('customerId', 'fullName phoneNumber whatsappNumber email googleMapsLink whatsappOptIn')
+        .sort(sort)
+        .lean();
+
     switch (type) {
       case 'totalCustomers': {
         title = 'Total Customers';
         subtitle = 'All registered and verified elevator customers';
         itemType = 'customer';
-        const customers = await Customer.find({ ...customerFilter }).sort({ createdAt: -1 });
-        const projectCounts = await Project.aggregate([
-          { $match: { ...bdmFilter } },
-          { $group: { _id: '$customerId', count: { $sum: 1 } } },
+        const [customers, projectCounts] = await Promise.all([
+          Customer.find({ ...customerFilter })
+            .select('fullName phoneNumber whatsappNumber email city state address googleMapsLink customerType whatsappOptIn leadSource bdmPhone createdAt')
+            .sort({ createdAt: -1 })
+            .lean(),
+          Project.aggregate([
+            { $match: { ...bdmFilter } },
+            { $group: { _id: '$customerId', count: { $sum: 1 } } },
+          ]),
         ]);
         const countMap: Record<string, number> = {};
         for (const pc of projectCounts) {
@@ -423,9 +484,7 @@ dashboardRouter.get('/card-items', async (req: AuthRequest, res: Response) => {
         title = 'Total Projects';
         subtitle = 'All elevator installation projects';
         itemType = 'project';
-        const projects = await Project.find({ ...bdmFilter })
-          .populate('customerId')
-          .sort({ createdAt: -1 });
+        const projects = await findCardProjects({ ...bdmFilter });
         items = projects.map(formatProject);
         break;
       }
@@ -434,12 +493,10 @@ dashboardRouter.get('/card-items', async (req: AuthRequest, res: Response) => {
         title = 'Active Projects';
         subtitle = 'Orders confirmed & active in the 4-month elevator manufacturing and installation cycle';
         itemType = 'project';
-        const projects = await Project.find({
+        const projects = await findCardProjects({
           ...bdmFilter,
           projectStatus: { $nin: ['COMPLETED', 'CANCELLED'] },
-        })
-          .populate('customerId')
-          .sort({ createdAt: -1 });
+        });
         items = projects.map(formatProject);
         break;
       }
@@ -449,12 +506,10 @@ dashboardRouter.get('/card-items', async (req: AuthRequest, res: Response) => {
         title = 'Projects Awaiting Payment';
         subtitle = 'Projects with outstanding customer balance or pending milestone payment';
         itemType = 'project';
-        const projects = await Project.find({
+        const projects = await findCardProjects({
           ...bdmFilter,
           paymentStatus: { $in: ['PENDING', 'PARTIAL_PAID'] },
-        })
-          .populate('customerId')
-          .sort({ createdAt: -1 });
+        });
         items = projects.map(formatProject);
         break;
       }
@@ -464,12 +519,10 @@ dashboardRouter.get('/card-items', async (req: AuthRequest, res: Response) => {
         title = 'Projects in Manufacturing';
         subtitle = 'Factory fabrication stage: shaft fabrication, motor assembly & panel wiring';
         itemType = 'project';
-        const projects = await Project.find({
+        const projects = await findCardProjects({
           ...bdmFilter,
-          projectStatus: 'MANUFACTURING',
-        })
-          .populate('customerId')
-          .sort({ createdAt: -1 });
+          projectStatus: { $in: ['MANUFACTURING', 'PRODUCTION_IN_PROGRESS'] },
+        });
         items = projects.map(formatProject);
         break;
       }
@@ -479,12 +532,10 @@ dashboardRouter.get('/card-items', async (req: AuthRequest, res: Response) => {
         title = 'Projects Ready for Delivery';
         subtitle = 'QC passed, dispatched, or in transit to customer site';
         itemType = 'project';
-        const projects = await Project.find({
+        const projects = await findCardProjects({
           ...bdmFilter,
-          projectStatus: { $in: ['QUALITY_CHECK', 'DISPATCH', 'DELIVERY'] },
-        })
-          .populate('customerId')
-          .sort({ createdAt: -1 });
+          projectStatus: { $in: ['QUALITY_CHECK', 'DISPATCH', 'MATERIAL_DISPATCHED', 'MATERIAL_IN_TRANSIT', 'DELIVERY', 'MATERIAL_DELIVERY'] },
+        });
         items = projects.map(formatProject);
         break;
       }
@@ -494,12 +545,10 @@ dashboardRouter.get('/card-items', async (req: AuthRequest, res: Response) => {
         title = 'Installation Ongoing Projects';
         subtitle = 'On-site shaft rigging, guide rail alignment, cabin erection & electrical wiring';
         itemType = 'project';
-        const projects = await Project.find({
+        const projects = await findCardProjects({
           ...bdmFilter,
           projectStatus: 'INSTALLATION',
-        })
-          .populate('customerId')
-          .sort({ createdAt: -1 });
+        });
         items = projects.map(formatProject);
         break;
       }
@@ -509,12 +558,10 @@ dashboardRouter.get('/card-items', async (req: AuthRequest, res: Response) => {
         title = 'Handover & Testing Projects';
         subtitle = 'Safety inspection, load testing, commissioning & final handover to client';
         itemType = 'project';
-        const projects = await Project.find({
+        const projects = await findCardProjects({
           ...bdmFilter,
           projectStatus: 'TESTING',
-        })
-          .populate('customerId')
-          .sort({ createdAt: -1 });
+        });
         items = projects.map(formatProject);
         break;
       }
@@ -525,19 +572,20 @@ dashboardRouter.get('/card-items', async (req: AuthRequest, res: Response) => {
         title = "WhatsApp Updates Due Today";
         subtitle = "Active projects scheduled for automated or manual WhatsApp group dispatch today";
         itemType = 'project';
-        const projects = await Project.find({
-          ...bdmFilter,
-          automationEnabled: true,
-          whatsappGroupId: { $exists: true, $ne: '' },
-          projectStatus: { $nin: ['COMPLETED', 'CANCELLED', 'ON_HOLD'] },
-          $or: [
-            { nextUpdateAt: { $lte: endOfToday } },
-            { nextUpdateAt: { $exists: false } },
-            { nextUpdateAt: null },
-          ],
-        })
-          .populate('customerId')
-          .sort({ nextUpdateAt: 1 });
+        const projects = await findCardProjects(
+          {
+            ...bdmFilter,
+            automationEnabled: true,
+            whatsappGroupId: { $exists: true, $ne: '' },
+            projectStatus: { $nin: ['COMPLETED', 'CANCELLED', 'ON_HOLD'] },
+            $or: [
+              { nextUpdateAt: { $lte: endOfToday } },
+              { nextUpdateAt: { $exists: false } },
+              { nextUpdateAt: null },
+            ],
+          },
+          { nextUpdateAt: 1 }
+        );
         items = projects.map(formatProject);
         break;
       }
@@ -546,15 +594,16 @@ dashboardRouter.get('/card-items', async (req: AuthRequest, res: Response) => {
         title = "WhatsApp Updates Due Tomorrow";
         subtitle = "Projects scheduled for customer WhatsApp group dispatch in next 24 hours";
         itemType = 'project';
-        const projects = await Project.find({
-          ...bdmFilter,
-          automationEnabled: true,
-          whatsappGroupId: { $exists: true, $ne: '' },
-          projectStatus: { $nin: ['COMPLETED', 'CANCELLED', 'ON_HOLD'] },
-          nextUpdateAt: { $gte: startOfTomorrow, $lte: endOfTomorrow },
-        })
-          .populate('customerId')
-          .sort({ nextUpdateAt: 1 });
+        const projects = await findCardProjects(
+          {
+            ...bdmFilter,
+            automationEnabled: true,
+            whatsappGroupId: { $exists: true, $ne: '' },
+            projectStatus: { $nin: ['COMPLETED', 'CANCELLED', 'ON_HOLD'] },
+            nextUpdateAt: { $gte: startOfTomorrow, $lte: endOfTomorrow },
+          },
+          { nextUpdateAt: 1 }
+        );
         items = projects.map(formatProject);
         break;
       }
@@ -563,15 +612,16 @@ dashboardRouter.get('/card-items', async (req: AuthRequest, res: Response) => {
         title = "WhatsApp Updates Due Next 7 Days";
         subtitle = "Projects scheduled for customer WhatsApp group dispatch over the upcoming week";
         itemType = 'project';
-        const projects = await Project.find({
-          ...bdmFilter,
-          automationEnabled: true,
-          whatsappGroupId: { $exists: true, $ne: '' },
-          projectStatus: { $nin: ['COMPLETED', 'CANCELLED', 'ON_HOLD'] },
-          nextUpdateAt: { $gt: endOfTomorrow, $lte: in7Days },
-        })
-          .populate('customerId')
-          .sort({ nextUpdateAt: 1 });
+        const projects = await findCardProjects(
+          {
+            ...bdmFilter,
+            automationEnabled: true,
+            whatsappGroupId: { $exists: true, $ne: '' },
+            projectStatus: { $nin: ['COMPLETED', 'CANCELLED', 'ON_HOLD'] },
+            nextUpdateAt: { $gt: endOfTomorrow, $lte: in7Days },
+          },
+          { nextUpdateAt: 1 }
+        );
         items = projects.map(formatProject);
         break;
       }
@@ -584,7 +634,8 @@ dashboardRouter.get('/card-items', async (req: AuthRequest, res: Response) => {
           status: { $in: ['SENT', 'DELIVERED', 'READ'] },
         })
           .sort({ createdAt: -1 })
-          .limit(100);
+          .limit(100)
+          .lean();
         items = messages;
         break;
       }
@@ -597,7 +648,8 @@ dashboardRouter.get('/card-items', async (req: AuthRequest, res: Response) => {
           status: 'FAILED',
         })
           .sort({ createdAt: -1 })
-          .limit(100);
+          .limit(100)
+          .lean();
         items = messages;
         break;
       }
@@ -607,12 +659,10 @@ dashboardRouter.get('/card-items', async (req: AuthRequest, res: Response) => {
         title = 'Pending Approvals (Drawing & Cabin)';
         subtitle = 'Elevator projects waiting for design or customer approval confirmation';
         itemType = 'project';
-        const projects = await Project.find({
+        const projects = await findCardProjects({
           ...bdmFilter,
           projectStatus: { $in: ['DESIGN', 'CUSTOMER_APPROVAL'] },
-        })
-          .populate('customerId')
-          .sort({ createdAt: -1 });
+        });
         items = projects.map(formatProject);
         break;
       }
@@ -622,12 +672,13 @@ dashboardRouter.get('/card-items', async (req: AuthRequest, res: Response) => {
         title = 'CRM Payment Requests';
         subtitle = 'Milestone collection requests initiated by CRM awaiting accountant recording';
         itemType = 'project';
-        const projects = await Project.find({
-          ...bdmFilter,
-          'paymentRequest.status': 'REQUESTED',
-        })
-          .populate('customerId')
-          .sort({ 'paymentRequest.requestedAt': -1 });
+        const projects = await findCardProjects(
+          {
+            ...bdmFilter,
+            'paymentRequest.status': 'REQUESTED',
+          },
+          { 'paymentRequest.requestedAt': -1 }
+        );
         items = projects.map(formatProject);
         break;
       }
@@ -665,12 +716,10 @@ dashboardRouter.get('/card-items', async (req: AuthRequest, res: Response) => {
           statusQuery = { $in: ['DISPATCH', 'MATERIAL_DISPATCHED'] };
         }
 
-        const projects = await Project.find({
+        const projects = await findCardProjects({
           ...bdmFilter,
           projectStatus: statusQuery,
-        })
-          .populate('customerId')
-          .sort({ createdAt: -1 });
+        });
         items = projects.map(formatProject);
         break;
       }
@@ -679,9 +728,7 @@ dashboardRouter.get('/card-items', async (req: AuthRequest, res: Response) => {
         title = 'Projects List';
         subtitle = 'All elevator installation projects';
         itemType = 'project';
-        const projects = await Project.find({ ...bdmFilter })
-          .populate('customerId')
-          .sort({ createdAt: -1 });
+        const projects = await findCardProjects({ ...bdmFilter });
         items = projects.map(formatProject);
         break;
       }

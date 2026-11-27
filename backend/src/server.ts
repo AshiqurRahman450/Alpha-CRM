@@ -195,7 +195,7 @@ app.get(['/uploads/:filename', '/api/uploads/:filename'], async (req: Request, r
     if (custPrefixMatch && custPrefixMatch[1]) {
       customerOrConditions.push({ _id: custPrefixMatch[1] });
     }
-    const customer = await Customer.findOne({ $or: customerOrConditions }).lean();
+    const customer = await Customer.findOne({ $or: customerOrConditions }).select('+documents.data').lean();
     if (customer && Array.isArray(customer.documents)) {
       const matchedDoc = customer.documents.find((d: any) => d?.url && fileRegex.test(d.url));
       if (matchedDoc?.data) {

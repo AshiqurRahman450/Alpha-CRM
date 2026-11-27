@@ -513,7 +513,9 @@ export async function processDueWhatsAppUpdates(): Promise<{
           ],
         },
       ],
-    }).populate('customerId');
+    })
+      .select('-drawingData -installationStages.images -installationStages.imageUrl')
+      .populate('customerId', '-documents.data');
 
     console.log(`[Scheduler] Evaluated ${dueProjects.length} candidate projects due for WhatsApp update at ${now.toISOString()}`);
 
@@ -2015,7 +2017,7 @@ export async function checkScheduleDateReminders(force: boolean = false): Promis
     const now = new Date();
     const projects = await Project.find({
       projectStatus: { $nin: ['COMPLETED', 'CANCELLED'] },
-    });
+    }).select('projectId projectName projectStatus stageDates');
 
     const notifyUsers = await User.find({
       role: { $in: ['CRM', 'ADMIN'] },

@@ -384,32 +384,7 @@ export const api = {
 
   // Dashboard
   getDashboard: async () => {
-    const res = await fetchWithAuth('/api/dashboard');
-    const overrides = getProjectStatusOverrides();
-    if (res?.data && Object.keys(overrides).length > 0) {
-      try {
-        const projRes = await api.getProjects();
-        const projects: any[] = projRes?.data || [];
-        if (projects.length > 0 && res.data.statusDistribution) {
-          const dist: Record<string, number> = {};
-          for (const k of Object.keys(res.data.statusDistribution)) {
-            dist[k] = 0;
-          }
-          for (const p of projects) {
-            const st = p.projectStatus || 'PAYMENT_RECEIVED';
-            dist[st] = (dist[st] || 0) + 1;
-          }
-          const mfg = (dist['MANUFACTURING'] || 0) + (dist['PRODUCTION_IN_PROGRESS'] || 0);
-          dist['MANUFACTURING'] = mfg;
-          dist['PRODUCTION_IN_PROGRESS'] = mfg;
-          const disp = (dist['DISPATCH'] || 0) + (dist['MATERIAL_DISPATCHED'] || 0);
-          dist['DISPATCH'] = disp;
-          dist['MATERIAL_DISPATCHED'] = disp;
-          res.data.statusDistribution = dist;
-        }
-      } catch {}
-    }
-    return res;
+    return fetchWithAuth('/api/dashboard');
   },
   getDashboardCardItems: async (params: { type: string; stage?: string; search?: string }) => {
     const q = new URLSearchParams();

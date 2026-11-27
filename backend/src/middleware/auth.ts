@@ -7,6 +7,17 @@ export interface AuthRequest extends Request {
   user?: IUser;
 }
 
+const AUTH_USER_CACHE_TTL_MS = 30 * 1000;
+const authUserCache = new Map<string, { user: any; expiresAt: number }>();
+
+export function clearAuthUserCache(userId?: string): void {
+  if (userId) {
+    authUserCache.delete(String(userId));
+  } else {
+    authUserCache.clear();
+  }
+}
+
 export async function authenticate(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const authHeader = req.headers.authorization;
@@ -24,8 +35,20 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     }
     const decoded = jwt.verify(token, config.jwtSecret) as { id: string; email: string; role: UserRole };
 
-    const user = await User.findById(decoded.id);
+    const cacheKey = String(decoded.id);
+    const now = Date.now();
+    const cached = authUserCache.get(cacheKey);
+    let user: any = cached && cached.expiresAt > now ? cached.user : null;
+
+    if (!user) {
+      user = await User.findById(decoded.id).lean();
+      if (user && user.isActive) {
+        authUserCache.set(cacheKey, { user, expiresAt: now + AUTH_USER_CACHE_TTL_MS });
+      }
+    }
+
     if (!user || !user.isActive) {
+      authUserCache.delete(cacheKey);
       return res.status(401).json({ success: false, message: 'Invalid or inactive user account.' });
     }
 
@@ -33,7 +56,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       user.role = 'BDM';
     }
 
-    req.user = user;
+    req.user = user as IUser;
     next();
   } catch (err: any) {
     return res.status(401).json({ success: false, message: 'Invalid or expired token.' });

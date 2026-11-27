@@ -160,7 +160,7 @@ const CustomerSchema = new Schema<ICustomer>(
       {
         name: { type: String, required: true },
         url: { type: String, required: true },
-        data: { type: String },
+        data: { type: String, select: false },
         mimeType: { type: String },
         uploadedAt: { type: Date, default: Date.now },
       },

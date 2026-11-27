@@ -26,6 +26,9 @@ export async function connectDB(): Promise<typeof mongoose> {
       console.log(`[DB] Attempting connection to MongoDB Atlas URI: ${maskedUri}`);
       const conn = await mongoose.connect(config.mongoUri, {
         serverSelectionTimeoutMS: 5000,
+        maxPoolSize: 25,
+        minPoolSize: 5,
+        socketTimeoutMS: 45000,
       });
       isConnected = true;
       console.log(`[DB] Successfully connected to MongoDB Atlas!`);
