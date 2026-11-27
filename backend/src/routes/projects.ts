@@ -695,11 +695,28 @@ projectRouter.get('/', async (req: AuthRequest, res: Response) => {
         query.$and = andConditions;
       }
 
-      let projects = await Project.find(query)
-        .select('-drawingData -installationStages')
-        .populate('customerId', '-documents')
-        .sort({ createdAt: -1 })
-        .lean();
+      // Run Project.find and Customer.find in parallel with batchSize(1000) to avoid sequential populate & getMore round-trips
+      const [rawProjects, allCustomers] = await Promise.all([
+        Project.find(query)
+          .select('-drawingData -installationStages')
+          .sort({ createdAt: -1 })
+          .batchSize(1000)
+          .lean(),
+        Customer.find({})
+          .select('-documents')
+          .batchSize(1000)
+          .lean(),
+      ]);
+
+      const customerMap = new Map<string, any>();
+      for (const c of allCustomers) {
+        customerMap.set(String(c._id), c);
+      }
+
+      let projects: any[] = rawProjects.map((p: any) => ({
+        ...p,
+        customerId: (p.customerId && customerMap.get(String(p.customerId))) || p.customerId || null,
+      }));
 
       if (isTlUser(req.user)) {
         projects = projects.filter((p) => isProjectAccessibleByTl(p, req.user));
@@ -2888,83 +2905,60 @@ function imageUrlToDataUrl(imageUrl: string, projectCodeOrId: string, stageKey: 
  */
 export async function slimProjectInstallationStageImages(): Promise<void> {
   try {
-    const targetDir = ensureUploadsDir();
-
-    // Covered index query on _id (reads only the 4KB _id index without scanning the 18.7MB collection)
-    const allIds = await Project.distinct('_id');
-    let drawingSlimmedCount = 0;
-    let stageSlimmedCount = 0;
-
-    for (const id of allIds) {
-      try {
-        const doc: any = await Project.findById(id)
-          .select('+drawingData projectId drawingUrl drawingMimeType drawingOriginalName installationStages')
-          .lean();
-        if (!doc) continue;
-
-        const updateDoc: any = {};
-
-        // 1. Offload inline drawingData to disk if present
-        if (doc.drawingData && typeof doc.drawingData === 'string' && doc.drawingData.length > 0) {
-          const safeFilename = doc.drawingUrl
-            ? path.basename(doc.drawingUrl)
-            : `${doc._id}-drawing.pdf`;
-          try {
-            const diskPath = path.join(targetDir, safeFilename);
-            if (!fs.existsSync(diskPath)) {
-              fs.writeFileSync(diskPath, Buffer.from(doc.drawingData, 'base64'));
-            }
-          } catch {}
-          updateDoc.$unset = { drawingData: 1 };
-          drawingSlimmedCount++;
-        }
-
-        // 2. Offload inline data:image/... stage photos to disk if present
-        if (Array.isArray(doc.installationStages) && doc.installationStages.length > 0) {
-          let changed = false;
-          const stages = doc.installationStages.map((s: any) => {
-            const plain = { ...s };
-            if (Array.isArray(plain.images) && plain.images.length > 0) {
-              plain.images = plain.images.map((img: string, idx: number) => {
-                if (typeof img === 'string' && img.startsWith('data:image/')) {
-                  const saved = saveBase64StageImageToDisk(doc.projectId || String(doc._id), plain.stageKey || 'STAGE', img, idx);
-                  if (saved) {
-                    changed = true;
-                    return saved;
-                  }
-                }
-                return img;
-              });
-            }
-            if (typeof plain.imageUrl === 'string' && plain.imageUrl.startsWith('data:image/')) {
-              const firstSaved =
-                Array.isArray(plain.images) && plain.images[0] && !plain.images[0].startsWith('data:image/')
-                  ? plain.images[0]
-                  : saveBase64StageImageToDisk(doc.projectId || String(doc._id), plain.stageKey || 'STAGE', plain.imageUrl, 0);
-              if (firstSaved) {
-                plain.imageUrl = firstSaved;
-                changed = true;
-              }
-            }
-            return plain;
-          });
-
-          if (changed) {
-            updateDoc.$set = { installationStages: stages };
-            stageSlimmedCount++;
-          }
-        }
-
-        if (updateDoc.$unset || updateDoc.$set) {
-          await Project.updateOne({ _id: doc._id }, updateDoc);
-        }
-      } catch {}
+    const col = mongoose.connection.db?.collection('projects');
+    if (col) {
+      // Instantly remove any residual inline drawingData on the server without transferring MBs over the wire
+      await col.updateMany({ drawingData: { $exists: true } }, { $unset: { drawingData: '' } });
     }
 
-    if (drawingSlimmedCount > 0 || stageSlimmedCount > 0) {
-      console.log(
-        `[ProjectSlim] Offloaded inline drawingData (${drawingSlimmedCount}) and stage photos (${stageSlimmedCount}) to disk.`
-      );
+    const projectsWithInlineImages = await Project.find({
+      $or: [
+        { 'installationStages.imageUrl': /^data:image\// },
+        { 'installationStages.images': /^data:image\// },
+      ],
+    })
+      .select('projectId installationStages')
+      .lean();
+
+    let stageSlimmedCount = 0;
+    for (const doc of projectsWithInlineImages) {
+      if (!Array.isArray(doc.installationStages)) continue;
+      let changed = false;
+      const stages = doc.installationStages.map((s: any) => {
+        const plain = { ...s };
+        if (Array.isArray(plain.images) && plain.images.length > 0) {
+          plain.images = plain.images.map((img: string, idx: number) => {
+            if (typeof img === 'string' && img.startsWith('data:image/')) {
+              const saved = saveBase64StageImageToDisk(doc.projectId || String(doc._id), plain.stageKey || 'STAGE', img, idx);
+              if (saved) {
+                changed = true;
+                return saved;
+              }
+            }
+            return img;
+          });
+        }
+        if (typeof plain.imageUrl === 'string' && plain.imageUrl.startsWith('data:image/')) {
+          const firstSaved =
+            Array.isArray(plain.images) && plain.images[0] && !plain.images[0].startsWith('data:image/')
+              ? plain.images[0]
+              : saveBase64StageImageToDisk(doc.projectId || String(doc._id), plain.stageKey || 'STAGE', plain.imageUrl, 0);
+          if (firstSaved) {
+            plain.imageUrl = firstSaved;
+            changed = true;
+          }
+        }
+        return plain;
+      });
+
+      if (changed) {
+        await Project.updateOne({ _id: doc._id }, { $set: { installationStages: stages } });
+        stageSlimmedCount++;
+      }
+    }
+
+    if (stageSlimmedCount > 0) {
+      console.log(`[ProjectSlim] Offloaded inline stage photos (${stageSlimmedCount}) to disk.`);
     }
   } catch (err: any) {
     console.warn('[StageImageSlim] Warning offloading inline stage images:', err.message);

@@ -29,6 +29,7 @@ export async function connectDB(): Promise<typeof mongoose> {
         maxPoolSize: 25,
         minPoolSize: 5,
         socketTimeoutMS: 45000,
+        compressors: ['zlib'],
       });
       isConnected = true;
       console.log(`[DB] Successfully connected to MongoDB Atlas!`);

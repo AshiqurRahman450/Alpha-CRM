@@ -255,18 +255,33 @@ customerRouter.get('/', async (req: AuthRequest, res: Response) => {
         query.$and = andConditions;
       }
 
-      // Fetch customers and active projects in parallel instead of sequentially
-      const [customers, activeProjects] = await Promise.all([
+      // Fetch customers, BDM users, and active projects in a single parallel batch with batchSize(1000) (zero sequential populate/getMore round-trips)
+      const [rawCustomers, bdmUsers, activeProjects] = await Promise.all([
         Customer.find(query)
           .select('-documents.data')
-          .populate('bdmId', 'name email phone')
+          .batchSize(1000)
+          .lean(),
+        User.find({ role: 'BDM' })
+          .select('_id name email phone')
+          .batchSize(500)
           .lean(),
         Project.find({
           projectStatus: { $nin: ['COMPLETED', 'CANCELLED'] },
         })
           .select('customerId projectId projectName projectStatus nextUpdateAt assignedTl assignedTlId')
+          .batchSize(1000)
           .lean(),
       ]);
+
+      const bdmMap = new Map<string, any>();
+      for (const u of bdmUsers) {
+        bdmMap.set(String(u._id), u);
+      }
+
+      const customers: any[] = rawCustomers.map((c: any) => ({
+        ...c,
+        bdmId: (c.bdmId && bdmMap.get(String(c.bdmId))) || c.bdmId || null,
+      }));
 
       // Natural numeric sorting: CUST-001, CUST-002, ..., CUST-025
       customers.sort((a, b) => {
