@@ -213,9 +213,6 @@ export function getEffectiveSpecialElevatorPrice(data?: Partial<QuotationData>):
   if (data.specialElevatorPrice !== undefined && data.specialElevatorPrice !== null) {
     return Math.max(0, Number(data.specialElevatorPrice) || 0);
   }
-  if (data.elevatorDiscountPrice !== undefined && data.elevatorDiscountPrice !== null && Number(data.elevatorDiscountPrice) > 0) {
-    return Math.max(0, Number(data.elevatorPrice || 0) - Number(data.elevatorDiscountPrice));
-  }
   return 0;
 }
 
@@ -223,7 +220,14 @@ export function getEffectiveElevatorPrice(data?: Partial<QuotationData>): number
   if (!data) return 0;
   const special = getEffectiveSpecialElevatorPrice(data);
   if (special > 0) return special;
-  return Math.max(0, Number(data.elevatorPrice || 0));
+  const base = Math.max(0, Number(data.elevatorPrice || 0));
+  const discount =
+    data.elevatorDiscountPrice !== undefined &&
+    data.elevatorDiscountPrice !== null &&
+    Number(data.elevatorDiscountPrice) > 0
+      ? Number(data.elevatorDiscountPrice)
+      : 0;
+  return Math.max(0, base - discount);
 }
 
 export function isCustomerScopeShaft(data?: Partial<QuotationData>): boolean {
@@ -238,14 +242,6 @@ export function getEffectiveSpecialShaftPrice(data?: Partial<QuotationData>): nu
   if (data.specialShaftPrice !== undefined && data.specialShaftPrice !== null) {
     return Math.max(0, Number(data.specialShaftPrice) || 0);
   }
-  if (
-    data.shaftDiscountPrice !== undefined &&
-    data.shaftDiscountPrice !== null &&
-    Number(data.shaftDiscountPrice) > 0 &&
-    Number(data.shaftPrice || 0) > 0
-  ) {
-    return Math.max(0, Number(data.shaftPrice || 0) - Number(data.shaftDiscountPrice));
-  }
   return 0;
 }
 
@@ -253,7 +249,14 @@ export function getEffectiveShaftPrice(data?: Partial<QuotationData>): number {
   if (!data || isCustomerScopeShaft(data)) return 0;
   const special = getEffectiveSpecialShaftPrice(data);
   if (special > 0) return special;
-  return Math.max(0, Number(data.shaftPrice || 0));
+  const base = Math.max(0, Number(data.shaftPrice || 0));
+  const discount =
+    data.shaftDiscountPrice !== undefined &&
+    data.shaftDiscountPrice !== null &&
+    Number(data.shaftDiscountPrice) > 0
+      ? Number(data.shaftDiscountPrice)
+      : 0;
+  return Math.max(0, base - discount);
 }
 
 export const DEFAULT_QUOTATION_DATA: QuotationData = {

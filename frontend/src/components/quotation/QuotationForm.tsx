@@ -560,29 +560,42 @@ export default function QuotationForm({
   };
 
   // Calculations
+  // Formula: (elevator price - discount price) * 1.18 (plus optional Special Price)
   const isCustomerScope = isCustomerScopeShaft(data);
   const elevatorPrice = Number(data.elevatorPrice || 0);
+  const elevatorDiscountPrice =
+    data.elevatorDiscountPrice !== undefined &&
+    data.elevatorDiscountPrice !== null &&
+    Number(data.elevatorDiscountPrice) > 0
+      ? Number(data.elevatorDiscountPrice)
+      : 0;
+  const discountedElevatorPrice = Math.max(0, elevatorPrice - elevatorDiscountPrice);
   const specialElevatorPrice = getEffectiveSpecialElevatorPrice(data);
   const netElevatorPrice = getEffectiveElevatorPrice(data);
   const effectiveElevatorPrice = netElevatorPrice;
-  const elevatorDiscountPrice = specialElevatorPrice > 0 && elevatorPrice > specialElevatorPrice
-    ? elevatorPrice - specialElevatorPrice
-    : 0;
 
+  // Shaft formula: (shaft price - discount price) * 1.18 (plus optional Special Shaft Price)
   const shaftPrice = isCustomerScope ? 0 : Number(data.shaftPrice || 0);
+  const shaftDiscountPrice =
+    !isCustomerScope &&
+    data.shaftDiscountPrice !== undefined &&
+    data.shaftDiscountPrice !== null &&
+    Number(data.shaftDiscountPrice) > 0
+      ? Number(data.shaftDiscountPrice)
+      : 0;
+  const discountedShaftPrice = Math.max(0, shaftPrice - shaftDiscountPrice);
   const specialShaftPrice = isCustomerScope ? 0 : getEffectiveSpecialShaftPrice(data);
   const netShaftPrice = isCustomerScope ? 0 : getEffectiveShaftPrice(data);
   const effectiveShaftPrice = netShaftPrice;
-  const shaftDiscountPrice = specialShaftPrice > 0 && shaftPrice > specialShaftPrice
-    ? shaftPrice - specialShaftPrice
-    : 0;
 
   const gstRate = data.gstRate !== undefined ? Number(data.gstRate) : 18;
   const gstMultiplier = 1 + gstRate / 100;
   const elevatorTotalWithGst = Math.round(netElevatorPrice * gstMultiplier);
+  const elevatorDiscountedTotalWithGst = Math.round(discountedElevatorPrice * gstMultiplier);
   const elevatorMRPTotalWithGst = Math.round(elevatorPrice * gstMultiplier);
 
   const shaftTotalWithGst = Math.round(netShaftPrice * gstMultiplier);
+  const shaftDiscountedTotalWithGst = Math.round(discountedShaftPrice * gstMultiplier);
   const shaftMRPTotalWithGst = Math.round(shaftPrice * gstMultiplier);
 
   const subtotal = netElevatorPrice + netShaftPrice;
@@ -591,7 +604,11 @@ export default function QuotationForm({
 
   const baseSubtotal = elevatorPrice + shaftPrice;
   const totalSavings = Math.max(0, baseSubtotal - subtotal);
-  const hasDiscounts = specialElevatorPrice > 0 || specialShaftPrice > 0;
+  const hasDiscounts =
+    elevatorDiscountPrice > 0 ||
+    shaftDiscountPrice > 0 ||
+    specialElevatorPrice > 0 ||
+    specialShaftPrice > 0;
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col h-full overflow-hidden">
@@ -2372,6 +2389,30 @@ export default function QuotationForm({
 
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
+                      <span>Discount Price (₹):</span>
+                      {elevatorDiscountPrice > 0 && (
+                        <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1 py-0.2 rounded">
+                          -₹{elevatorDiscountPrice.toLocaleString('en-IN')}
+                        </span>
+                      )}
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={data.elevatorDiscountPrice ?? ''}
+                      onChange={(e) =>
+                        updateField('elevatorDiscountPrice', e.target.value === '' ? undefined : Number(e.target.value))
+                      }
+                      placeholder="Optional discount amount (e.g. 100000)"
+                      className="w-full text-xs px-2.5 py-1.5 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-900 bg-emerald-50/30 placeholder:text-slate-400 placeholder:font-normal"
+                    />
+                    <span className="text-[10px] text-slate-500 mt-0.5 block">
+                      Total with GST: ₹{elevatorDiscountedTotalWithGst.toLocaleString('en-IN')} (Inc. {gstRate}% GST)
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
                       <span>Special Price (₹):</span>
                       {specialElevatorPrice > 0 && (
                         <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1 py-0.2 rounded">
@@ -2382,15 +2423,10 @@ export default function QuotationForm({
                     <input
                       type="number"
                       min={0}
-                      value={data.specialElevatorPrice ?? (specialElevatorPrice > 0 ? specialElevatorPrice : '')}
+                      value={data.specialElevatorPrice ?? ''}
                       onChange={(e) => {
                         const val = e.target.value === '' ? undefined : Number(e.target.value);
-                        onChange({
-                          ...data,
-                          specialElevatorPrice: val,
-                          elevatorDiscountPrice:
-                            val !== undefined && val > 0 && elevatorPrice > val ? elevatorPrice - val : undefined,
-                        });
+                        updateField('specialElevatorPrice', val);
                       }}
                       placeholder="Optional special price (0 for None)"
                       className="w-full text-xs px-2.5 py-1.5 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-900 bg-emerald-50/30 placeholder:text-slate-400 placeholder:font-normal"
@@ -2498,13 +2534,15 @@ export default function QuotationForm({
                 <div className={`grid ${isCustomerScope ? 'grid-cols-2' : 'grid-cols-3'} gap-2 pt-1 border-t border-white/10 text-center`}>
                   <div>
                     <div className="text-[10px] text-slate-400">Elevator Total</div>
-                    {specialElevatorPrice > 0 ? (
+                    {specialElevatorPrice > 0 || elevatorDiscountPrice > 0 ? (
                       <div>
-                        {elevatorPrice > specialElevatorPrice && (
+                        {elevatorPrice > netElevatorPrice && (
                           <div className="text-[11px] text-slate-400 line-through">₹{elevatorMRPTotalWithGst.toLocaleString('en-IN')}</div>
                         )}
                         <div className="text-sm font-bold text-emerald-400">₹{elevatorTotalWithGst.toLocaleString('en-IN')}</div>
-                        <div className="text-[10px] text-slate-300 font-normal">Special: ₹{netElevatorPrice.toLocaleString('en-IN')}</div>
+                        <div className="text-[10px] text-slate-300 font-normal">
+                          {specialElevatorPrice > 0 ? 'Special' : 'Base'}: ₹{netElevatorPrice.toLocaleString('en-IN')}
+                        </div>
                       </div>
                     ) : (
                       <div>
@@ -2521,13 +2559,15 @@ export default function QuotationForm({
                           <div className="text-sm font-bold text-slate-300">None</div>
                           <div className="text-[10px] text-slate-400 font-normal">Base: ₹0</div>
                         </div>
-                      ) : specialShaftPrice > 0 ? (
+                      ) : specialShaftPrice > 0 || shaftDiscountPrice > 0 ? (
                         <div>
-                          {shaftPrice > specialShaftPrice && (
+                          {shaftPrice > netShaftPrice && (
                             <div className="text-[11px] text-slate-400 line-through">₹{shaftMRPTotalWithGst.toLocaleString('en-IN')}</div>
                           )}
                           <div className="text-sm font-bold text-emerald-400">₹{shaftTotalWithGst.toLocaleString('en-IN')}</div>
-                          <div className="text-[10px] text-slate-300 font-normal">Special: ₹{netShaftPrice.toLocaleString('en-IN')}</div>
+                          <div className="text-[10px] text-slate-300 font-normal">
+                            {specialShaftPrice > 0 ? 'Special' : 'Base'}: ₹{netShaftPrice.toLocaleString('en-IN')}
+                          </div>
                         </div>
                       ) : (
                         <div>
@@ -2555,12 +2595,12 @@ export default function QuotationForm({
                       <IndianRupee className="w-3.5 h-3.5 text-teal-600" />
                       Elevator Pricing
                     </span>
-                    <span className="text-[10px] font-bold text-slate-400">Price & Special Price</span>
+                    <span className="text-[10px] font-bold text-slate-400">Base, Discount &amp; Special</span>
                   </div>
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Price (₹): <span className="text-rose-500">*</span>
+                      Elevator Price (₹): <span className="text-rose-500">*</span>
                     </label>
                     <div className="relative">
                       <span className="absolute left-3 top-2 text-slate-400 text-xs">₹</span>
@@ -2574,6 +2614,33 @@ export default function QuotationForm({
                     </div>
                     <span className="text-[10px] text-slate-400 mt-0.5 block">
                       Standard MRP / Base Elevator Price (Page 5: Price)
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                      <span>Discount Price (₹):</span>
+                      {elevatorDiscountPrice > 0 && (
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                          -₹{elevatorDiscountPrice.toLocaleString('en-IN')}
+                        </span>
+                      )}
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-slate-400 text-xs">₹</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={data.elevatorDiscountPrice ?? ''}
+                        onChange={(e) =>
+                          updateField('elevatorDiscountPrice', e.target.value === '' ? undefined : Number(e.target.value))
+                        }
+                        placeholder="Optional discount amount (e.g. 100000)"
+                        className="w-full text-xs pl-7 pr-3 py-2 border border-emerald-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-900 bg-white placeholder:text-slate-400 placeholder:font-normal"
+                      />
+                    </div>
+                    <span className="text-[10px] text-slate-500 mt-0.5 block">
+                      Total with GST: ₹{elevatorDiscountedTotalWithGst.toLocaleString('en-IN')} (Inc. {gstRate}% GST)
                     </span>
                   </div>
 
@@ -2595,17 +2662,10 @@ export default function QuotationForm({
                       <input
                         type="number"
                         min={0}
-                        value={data.specialElevatorPrice ?? (specialElevatorPrice > 0 ? specialElevatorPrice : '')}
+                        value={data.specialElevatorPrice ?? ''}
                         onChange={(e) => {
                           const nextVal = e.target.value === '' ? undefined : Number(e.target.value);
-                          onChange({
-                            ...data,
-                            specialElevatorPrice: nextVal,
-                            elevatorDiscountPrice:
-                              nextVal !== undefined && nextVal > 0 && elevatorPrice > nextVal
-                                ? elevatorPrice - nextVal
-                                : undefined,
-                          });
+                          updateField('specialElevatorPrice', nextVal);
                         }}
                         placeholder="e.g. 1500000 (Leave empty to hide on PDF)"
                         className="w-full text-xs pl-7 pr-3 py-2 border border-emerald-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-900 bg-white placeholder:text-slate-400 placeholder:font-normal"
@@ -2614,7 +2674,7 @@ export default function QuotationForm({
                     <span className="text-[10px] text-slate-500 mt-0.5 block">
                       {specialElevatorPrice <= 0
                         ? 'Not entered — hidden on Page 5 PDF'
-                        : `Special Price with GST: ₹${elevatorTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`}
+                        : `Special Price with GST: ₹${Math.round(specialElevatorPrice * gstMultiplier).toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`}
                     </span>
                   </div>
                 </div>
@@ -2665,7 +2725,7 @@ export default function QuotationForm({
                         None on PDF (₹0)
                       </span>
                     ) : (
-                      <span className="text-[10px] font-bold text-slate-400">Shaft & Special Shaft</span>
+                      <span className="text-[10px] font-bold text-slate-400">Base, Discount &amp; Special</span>
                     )}
                   </div>
 
@@ -2700,6 +2760,35 @@ export default function QuotationForm({
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                      <span>Discount Price (₹):</span>
+                      {shaftDiscountPrice > 0 && (
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                          -₹{shaftDiscountPrice.toLocaleString('en-IN')}
+                        </span>
+                      )}
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-slate-400 text-xs">₹</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={data.shaftDiscountPrice ?? ''}
+                        onChange={(e) =>
+                          updateField('shaftDiscountPrice', e.target.value === '' ? undefined : Number(e.target.value))
+                        }
+                        placeholder="Optional discount amount (e.g. 50000)"
+                        className="w-full text-xs pl-7 pr-3 py-2 border border-emerald-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-900 bg-white placeholder:text-slate-400 placeholder:font-normal"
+                      />
+                    </div>
+                    <span className="text-[10px] text-slate-500 mt-0.5 block">
+                      {shaftPrice <= 0
+                        ? 'Reflected on PDF as: None'
+                        : `Total with GST: ₹${shaftDiscountedTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`}
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
                       <span>Special Shaft Price (₹):</span>
                       {specialShaftPrice > 0 ? (
                         <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
@@ -2716,17 +2805,10 @@ export default function QuotationForm({
                       <input
                         type="number"
                         min={0}
-                        value={data.specialShaftPrice ?? (specialShaftPrice > 0 ? specialShaftPrice : '')}
+                        value={data.specialShaftPrice ?? ''}
                         onChange={(e) => {
                           const nextVal = e.target.value === '' ? undefined : Number(e.target.value);
-                          onChange({
-                            ...data,
-                            specialShaftPrice: nextVal,
-                            shaftDiscountPrice:
-                              nextVal !== undefined && nextVal > 0 && shaftPrice > nextVal
-                                ? shaftPrice - nextVal
-                                : undefined,
-                          });
+                          updateField('specialShaftPrice', nextVal);
                         }}
                         placeholder="e.g. 350000 (Leave empty to hide on PDF)"
                         className="w-full text-xs pl-7 pr-3 py-2 border border-emerald-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-900 bg-white placeholder:text-slate-400 placeholder:font-normal"
@@ -2735,7 +2817,7 @@ export default function QuotationForm({
                     <span className="text-[10px] text-slate-500 mt-0.5 block">
                       {specialShaftPrice <= 0
                         ? 'Not entered — hidden on Page 5 PDF'
-                        : `Special Shaft with GST: ₹${shaftTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`}
+                        : `Special Shaft with GST: ₹${Math.round(specialShaftPrice * gstMultiplier).toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`}
                     </span>
                   </div>
                 </div>

@@ -1013,7 +1013,7 @@ export default function QuotationLivePdf({
               baseHtml = renderExactPdfPage(1, data);
             } else if (pageNum === 3 && (!isEditing || !baseHtml || !baseHtml.includes('page3-civil-spec-table') || baseHtml.includes('page3-compact-civil-cabin-wrapper') || baseHtml.includes('490.24,806.2') || !baseHtml.includes('color:#000000'))) {
               baseHtml = renderExactPdfPage(2, data);
-            } else if (pageNum === 5 && (!isEditing || !baseHtml || !baseHtml.includes('page5-terms-spec-table') || !baseHtml.includes('Special Shaft Price'))) {
+            } else if (pageNum === 5 && (!isEditing || !baseHtml || !baseHtml.includes('page5-terms-spec-table'))) {
               baseHtml = renderExactPdfPage(4, data);
             } else if (pageNum === 6 && !isEditing) {
               baseHtml = renderExactPdfPage(5, data);
