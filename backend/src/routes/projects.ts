@@ -703,7 +703,7 @@ projectRouter.get('/', async (req: AuthRequest, res: Response) => {
           .batchSize(1000)
           .lean(),
         Customer.find({})
-          .select('-documents')
+          .select('-documents.data')
           .batchSize(1000)
           .lean(),
       ]);
