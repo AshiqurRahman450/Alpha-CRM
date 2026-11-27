@@ -49,6 +49,143 @@ export function removeAuthToken(): void {
 
 const TL_OVERRIDES_STORAGE_KEY = 'alpha_customer_tl_overrides_v1';
 const PROJECT_STATUS_OVERRIDES_KEY = 'alpha_project_status_overrides_v1';
+const CUSTOMER_DIRECTORY_CACHE_KEY = 'alpha_customer_directory_cache_v1';
+
+const PLACEHOLDER_CUSTOMER_NAME_REGEX = /^(client|new\s*client|valued\s*client|valued\s*customer|customer|primary\s*client|unknown\s*customer|n\/a|unknown|-|sir\/madam)$/i;
+
+export function isPlaceholderCustomerName(name?: string | null): boolean {
+  if (!name || typeof name !== 'string') return true;
+  const trimmed = name.trim();
+  if (!trimmed) return true;
+  return PLACEHOLDER_CUSTOMER_NAME_REGEX.test(trimmed);
+}
+
+export function extractCustomerNameFromProjectName(projectName?: string | null): string {
+  if (!projectName || typeof projectName !== 'string') return '';
+  const cleaned = projectName
+    .trim()
+    .replace(/\s*[—–-]\s*alpha\s+updates.*$/i, '')
+    .replace(/\s*\(\s*ALP-\d+\s*\)/gi, '')
+    .replace(/\bALP-\d+\b/gi, '')
+    .replace(
+      /\s+(?:residence\s*lift|home\s*lift|elevator\s*project|residence\s*elevator|commercial\s*lift|passenger\s*lift|hospital\s*lift|villa\s*lift|bungalow\s*lift|apartment\s*lift|hydraulic\s*lift|gearless\s*lift|residence|villa|bungalow|apartments?|complex|tower|heights|enclave|building|elevator|lift|project)\b.*$/i,
+      ''
+    )
+    .replace(/\s*[—–-]\s*$/, '')
+    .trim();
+
+  if (!cleaned || isPlaceholderCustomerName(cleaned)) {
+    return '';
+  }
+  return cleaned;
+}
+
+export function resolveProjectCustomerName(project?: any, customer?: any, fallback: string = 'Customer'): string {
+  const candidates = [
+    customer?.fullName,
+    customer?.name,
+    typeof project?.customerId === 'object' && project?.customerId !== null ? project.customerId.fullName : undefined,
+    typeof project?.customerId === 'object' && project?.customerId !== null ? project.customerId.name : undefined,
+    project?.customerName,
+    project?.clientName,
+    extractCustomerNameFromProjectName(project?.projectName),
+    extractCustomerNameFromProjectName(project?.whatsappGroupName || project?.whatsapp?.groupName),
+  ];
+
+  for (const cand of candidates) {
+    if (cand && typeof cand === 'string' && !isPlaceholderCustomerName(cand)) {
+      return cand.trim();
+    }
+  }
+
+  if (project?.projectName && !isPlaceholderCustomerName(project.projectName)) {
+    return String(project.projectName).trim();
+  }
+
+  return fallback;
+}
+
+function getCachedCustomersMap(): Record<string, any> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(CUSTOMER_DIRECTORY_CACHE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function cacheCustomerRecord(customer: any): void {
+  if (typeof window === 'undefined' || !customer || typeof customer !== 'object') return;
+  if (isPlaceholderCustomerName(customer.fullName)) return;
+  const idKey = String(customer._id || customer.id || '');
+  const codeKey = String(customer.customerId || customer.customerCode || '');
+  if (!idKey && !codeKey) return;
+
+  try {
+    const map = getCachedCustomersMap();
+    const slim = {
+      _id: customer._id || customer.id,
+      customerId: customer.customerId || customer.customerCode,
+      fullName: customer.fullName.trim(),
+      phoneNumber: customer.phoneNumber || customer.whatsappNumber || '',
+      whatsappNumber: customer.whatsappNumber || customer.phoneNumber || '',
+      email: customer.email || '',
+      city: customer.city || '',
+      state: customer.state || '',
+      address: customer.address || '',
+      whatsappOptIn: customer.whatsappOptIn !== false,
+      assignedTl: customer.assignedTl || null,
+      bdmId: customer.bdmId,
+      bdmPhone: customer.bdmPhone,
+    };
+    if (idKey) map[idKey] = { ...(map[idKey] || {}), ...slim };
+    if (codeKey) map[codeKey] = { ...(map[codeKey] || {}), ...slim };
+    localStorage.setItem(CUSTOMER_DIRECTORY_CACHE_KEY, JSON.stringify(map));
+  } catch {}
+}
+
+function hydrateProjectCustomer(project: any): any {
+  if (!project) return project;
+  const rawCust = project.customerId;
+  const custObj = typeof rawCust === 'object' && rawCust !== null ? { ...rawCust } : null;
+  if (custObj && !isPlaceholderCustomerName(custObj.fullName)) {
+    cacheCustomerRecord(custObj);
+    return project;
+  }
+
+  const cacheMap = getCachedCustomersMap();
+  const idKey = String(custObj?._id || custObj?.id || (typeof rawCust === 'string' ? rawCust : '') || '');
+  const codeKey = String(custObj?.customerId || project.customerCode || '');
+  const cached = (idKey && cacheMap[idKey]) || (codeKey && cacheMap[codeKey]) || null;
+
+  const resolvedName =
+    (!isPlaceholderCustomerName(cached?.fullName) ? cached.fullName : '') ||
+    resolveProjectCustomerName(project, custObj, '');
+
+  const hydratedCust = {
+    ...(cached || {}),
+    ...(custObj || {}),
+    _id: custObj?._id || cached?._id || (typeof rawCust === 'string' ? rawCust : undefined),
+    customerId: custObj?.customerId || cached?.customerId || project.customerCode || undefined,
+    fullName: resolvedName || custObj?.fullName || project.projectName || 'Customer',
+    phoneNumber: custObj?.phoneNumber || cached?.phoneNumber || project.customerPhone || '',
+    whatsappNumber: custObj?.whatsappNumber || cached?.whatsappNumber || custObj?.phoneNumber || project.customerPhone || '',
+    city: custObj?.city || cached?.city || '',
+    address: custObj?.address || cached?.address || project.siteAddress || '',
+    whatsappOptIn: custObj?.whatsappOptIn ?? cached?.whatsappOptIn ?? true,
+  };
+
+  if (!isPlaceholderCustomerName(hydratedCust.fullName)) {
+    cacheCustomerRecord(hydratedCust);
+  }
+
+  return {
+    ...project,
+    customerName: hydratedCust.fullName,
+    customerId: hydratedCust,
+  };
+}
 
 const LEGACY_STAGE_ENUM_FALLBACK: Record<string, string> = {
   MATERIAL_DELIVERY: 'DELIVERY',
@@ -125,6 +262,15 @@ function setCustomerTlOverride(customerId: string, assignedTl: string | null): v
 
 function applyTlOverrideToCustomer(customer: any): any {
   if (!customer || typeof window === 'undefined') return customer;
+  if (!isPlaceholderCustomerName(customer.fullName)) {
+    cacheCustomerRecord(customer);
+  } else if (customer.activeProject) {
+    const recovered = resolveProjectCustomerName(customer.activeProject, customer, '');
+    if (recovered) {
+      customer = { ...customer, fullName: recovered };
+      cacheCustomerRecord(customer);
+    }
+  }
   const map = getCustomerTlOverrides();
   const idKey = String(customer._id || customer.id || '');
   const codeKey = String(customer.customerId || '');
@@ -147,7 +293,8 @@ function applyTlOverrideToCustomer(customer: any): any {
 
 function applyTlOverrideToProject(project: any): any {
   if (!project || typeof window === 'undefined') return project;
-  const withStatus = applyProjectStatusOverride(project);
+  const withCustomer = hydrateProjectCustomer(project);
+  const withStatus = applyProjectStatusOverride(withCustomer);
   const map = getCustomerTlOverrides();
   const custObj = typeof withStatus.customerId === 'object' && withStatus.customerId !== null ? withStatus.customerId : null;
   const custIdKey = String(custObj?._id || custObj?.id || withStatus.customerId || '');
@@ -453,7 +600,7 @@ export const api = {
       balanceAmount: p.balanceAmount || 0,
       liftModel: p.liftModel,
       siteAddress: p.siteAddress,
-      customerName: (p.customerId as any)?.fullName || p.customerName || 'Customer',
+      customerName: resolveProjectCustomerName(p, p.customerId, 'Customer'),
       customerPhone: (p.customerId as any)?.phoneNumber || p.customerPhone,
       customerWhatsapp: (p.customerId as any)?.whatsappNumber || p.customerWhatsapp,
       customerEmail: (p.customerId as any)?.email || p.customerEmail,

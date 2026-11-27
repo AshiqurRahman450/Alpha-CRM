@@ -13,7 +13,7 @@ import {
   Search,
   Filter,
 } from 'lucide-react';
-import { api } from '../../lib/api';
+import { api, resolveProjectCustomerName, extractCustomerNameFromProjectName } from '../../lib/api';
 import { QrCode } from 'lucide-react';
 import WhatsAppBotModal from '../../components/WhatsAppBotModal';
 
@@ -101,7 +101,11 @@ export default function WhatsAppHubPage() {
                 <div>
                   <span className="text-[10px] font-mono font-bold text-slate-400">{ch.projectCode}</span>
                   <h4 className="text-sm font-extrabold text-slate-900">{ch.groupName}</h4>
-                  <span className="text-xs text-slate-500">Client: {ch.customerName}</span>
+                  <span className="text-xs text-slate-500">
+                    Customer: {ch.customerName && !/^(client|new\s*client|valued\s*client)$/i.test(String(ch.customerName).trim())
+                      ? ch.customerName
+                      : resolveProjectCustomerName(ch.projectId, ch.customerId, extractCustomerNameFromProjectName(ch.groupName) || ch.groupName || 'Customer')}
+                  </span>
                 </div>
                 <span
                   className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
@@ -192,7 +196,11 @@ export default function WhatsAppHubPage() {
                         </span>
                       </td>
                       <td className="py-3.5 px-4">
-                        <span className="font-bold text-slate-800 block">{m.customerName}</span>
+                        <span className="font-bold text-slate-800 block">
+                          {m.customerName && !/^(client|new\s*client|valued\s*client)$/i.test(String(m.customerName).trim())
+                            ? m.customerName
+                            : (extractCustomerNameFromProjectName(m.groupId) || m.projectCode || 'Customer')}
+                        </span>
                         <span className="text-[10px] text-slate-400">{m.projectCode}</span>
                       </td>
                       <td className="py-3.5 px-4 max-w-md">

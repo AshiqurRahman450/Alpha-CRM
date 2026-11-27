@@ -39,7 +39,13 @@ import {
 } from '../services/installation/workingDaysService';
 import { DEFAULT_INSTALLATION_STAGES } from '../models/Project';
 import { config } from '../config';
-import { getNextProjectId } from '../utils/idGenerators';
+import {
+  getNextProjectId,
+  resolveProjectCustomerName,
+  personalizeWhatsAppMessageForCustomer,
+  ensureProjectCustomerPopulated,
+  isPlaceholderCustomerName,
+} from '../utils/idGenerators';
 import { parseAndImportExcel, generateImportTemplateBuffer } from '../services/import/excelImportService';
 import { getTlRegexForUser, isProjectAccessibleByTl, isTlUser } from '../utils/tlAuth';
 import { autoFillExecutedDatesForCompletedStages } from '../utils/stageDates';
@@ -128,6 +134,7 @@ const excelUpload = multer({
  */
 async function sendBdmApprovalNotification(project: any, currentUserId?: any, currentUserName?: string, note?: string) {
   try {
+    await ensureProjectCustomerPopulated(project);
     const customer = (project.customerId as any) || (await Customer.findById(project.customerId));
     let bdmPhone = project.bdmPhone || customer?.bdmPhone;
     let bdmName = 'BDM';
@@ -148,7 +155,7 @@ async function sendBdmApprovalNotification(project: any, currentUserId?: any, cu
       return { success: false, reason: 'No BDM phone number configured for this project or customer' };
     }
 
-    const customerName = customer?.fullName || 'Client';
+    const customerName = resolveProjectCustomerName(project, customer, 'Customer');
     let bdmMessage = `Hello ${bdmName},\n\n`;
     bdmMessage += `🚨 *Action Required: Drawing and Cabin Design Approval*\n\n`;
     bdmMessage += `• Project: *${project.projectName}* (${project.projectId})\n`;
@@ -326,6 +333,10 @@ export async function dispatchSiteVisitScheduledMessage(
       return { success: true, sentViaBot: recentLog.status === 'SENT', formattedDate, formattedTime };
     }
 
+    await ensureProjectCustomerPopulated(project);
+    const customer = (project.customerId as any)?._id ? project.customerId : await Customer.findById(project.customerId);
+    const customerName = resolveProjectCustomerName(project, customer, 'Customer');
+
     const defaultTemplate = `Dear Sir/Madam,
 
 Your site visit has been scheduled for [Date] at [Time]. Our technical team will visit the site for measurement and inspection.
@@ -340,9 +351,12 @@ Alpha Elevators Team`;
       rawText = defaultTemplate;
     }
 
-    const messageText = rawText
-      .replace(/\[Date\]/gi, formattedDate)
-      .replace(/\[Time\]/gi, formattedTime);
+    const messageText = personalizeWhatsAppMessageForCustomer(
+      rawText
+        .replace(/\[Date\]/gi, formattedDate)
+        .replace(/\[Time\]/gi, formattedTime),
+      customerName
+    );
 
     const botStatus = whatsAppWebBot.getStatus();
     let sentViaBot = false;
@@ -372,12 +386,11 @@ Alpha Elevators Team`;
     });
 
     // Record WhatsAppMessage for UI
-    const customer = (project.customerId as any)?._id ? project.customerId : await Customer.findById(project.customerId);
     await WhatsAppMessage.create({
       projectId: project._id,
       projectCode: project.projectId,
-      customerId: project.customerId,
-      customerName: customer?.fullName || 'Customer',
+      customerId: customer?._id || project.customerId,
+      customerName,
       groupId: inviteTarget,
       templateName: 'SITE_VISIT_SCHEDULE_PM',
       messageType: 'template',
@@ -421,6 +434,10 @@ export async function dispatchSiteVisitCompletedMessage(project: any, user?: any
     const currentHour = new Date().getHours();
     const greeting = currentHour < 12 ? 'Good Morning' : currentHour < 17 ? 'Good Afternoon' : 'Good Evening';
 
+    await ensureProjectCustomerPopulated(project);
+    const customer = (project.customerId as any)?._id ? project.customerId : await Customer.findById(project.customerId);
+    const customerName = resolveProjectCustomerName(project, customer, 'Customer');
+
     const defaultMessage = `Dear Sir/Madam,
 
 We have successfully completed the site visit on the scheduled date and shared the site visit report with you via email.
@@ -433,7 +450,7 @@ Regards,
 Alpha Elevators Team`;
 
     const template = await WhatsAppTemplate.findOne({ templateName: 'SITE_VISIT_COMPLETED', templateStatus: 'APPROVED' });
-    let messageText = template?.bodyText || defaultMessage;
+    let messageText = personalizeWhatsAppMessageForCustomer(template?.bodyText || defaultMessage, customerName);
 
     const botStatus = whatsAppWebBot.getStatus();
     let sentViaBot = false;
@@ -479,12 +496,11 @@ Alpha Elevators Team`;
     });
 
     // Record legacy WhatsAppMessage for UI
-    const customer = (project.customerId as any)?._id ? project.customerId : await Customer.findById(project.customerId);
     await WhatsAppMessage.create({
       projectId: project._id,
       projectCode: project.projectId,
-      customerId: project.customerId,
-      customerName: customer?.fullName || 'Customer',
+      customerId: customer?._id || project.customerId,
+      customerName,
       groupId: inviteTarget,
       templateName: 'SITE_VISIT_COMPLETED',
       messageType: 'template',
@@ -683,6 +699,10 @@ projectRouter.get('/', async (req: AuthRequest, res: Response) => {
     }
 
     for (const p of projects) {
+      const cust = p.customerId as any;
+      if (!cust || !cust._id || isPlaceholderCustomerName(cust.fullName)) {
+        await ensureProjectCustomerPopulated(p);
+      }
       if (autoFillExecutedDatesForCompletedStages(p)) {
         await p.save();
       }
@@ -1221,9 +1241,13 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
     };
 
     for (const p of projects) {
+      const rawCust = p.customerId as any;
+      if (!rawCust || !rawCust._id || isPlaceholderCustomerName(rawCust.fullName)) {
+        await ensureProjectCustomerPopulated(p);
+      }
       const customer = (p.customerId as any) || {};
       const customerCode = customer.customerId || p.customerCode || 'N/A';
-      const customerName = customer.fullName || customer.name || p.projectName || 'N/A';
+      const customerName = resolveProjectCustomerName(p, customer, 'N/A');
       const phoneNumber = customer.phoneNumber || '';
       const whatsappNumber = customer.whatsappNumber || customer.phoneNumber || '';
       const email = customer.email || '';
@@ -1578,6 +1602,8 @@ projectRouter.get('/:id', async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ success: false, message: 'Access denied. This project is assigned to another TL.' });
     }
 
+    await ensureProjectCustomerPopulated(project);
+
     if (autoFillExecutedDatesForCompletedStages(project)) {
       await project.save();
     }
@@ -1634,18 +1660,25 @@ projectRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT', 'BD
       }
       autoFillExecutedDatesForCompletedStages(project);
       await project.save();
+      await ensureProjectCustomerPopulated(project);
       return res.json({ success: true, data: project });
     }
 
-    if (req.body.customerId && String(req.body.customerId) !== String(project.customerId)) {
-      const cust = await Customer.findById(req.body.customerId);
+    const { customerId: incomingCustomerId, ...restBody } = req.body;
+    const rawIncomingCustId =
+      typeof incomingCustomerId === 'object' && incomingCustomerId !== null
+        ? incomingCustomerId._id || incomingCustomerId.id
+        : incomingCustomerId;
+
+    if (rawIncomingCustId && Types.ObjectId.isValid(String(rawIncomingCustId))) {
+      const cust = await Customer.findById(rawIncomingCustId);
       if (cust) {
         project.customerId = cust._id;
         project.customerCode = cust.customerId;
       }
     }
 
-    Object.assign(project, req.body);
+    Object.assign(project, restBody);
 
     if (req.body.googleMapsLink) {
       project.googleMapsLink = req.body.googleMapsLink.trim();
@@ -1681,6 +1714,7 @@ projectRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT', 'BD
 
     autoFillExecutedDatesForCompletedStages(project);
     await project.save();
+    await ensureProjectCustomerPopulated(project);
     return res.json({ success: true, data: project });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
@@ -1861,7 +1895,9 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
             groupMessageError = sixStageRes.error;
           }
         } else {
-          const customer = await Customer.findById(project.customerId);
+          await ensureProjectCustomerPopulated(project);
+          const customer = (project.customerId as any)?._id ? project.customerId : await Customer.findById(project.customerId);
+          const resolvedCustomerName = resolveProjectCustomerName(project, customer, 'Customer');
           const completedTemplateKey =
             completedStage === 'QUALITY_CHECK'
               ? 'READINESS_PAYMENT_RECEIVED'
@@ -1896,7 +1932,7 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
               projectId: project._id,
               projectCode: project.projectId,
               customerId: customer?._id,
-              customerName: customer?.fullName || 'Client',
+              customerName: resolvedCustomerName,
               groupId: project.whatsapp?.groupId || project.whatsappGroupId || 'GROUP',
               templateName: STAGE_TEMPLATE_MAP[status] || 'SITE_VISIT_COMPLETED',
               messageType: 'template',
@@ -1939,7 +1975,7 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
                 projectId: project._id,
                 projectCode: project.projectId,
                 customerId: customer?._id,
-                customerName: customer?.fullName || 'Client',
+                customerName: resolvedCustomerName,
                 groupId: project.whatsapp?.groupId || project.whatsappGroupId || 'GROUP',
                 templateName: STAGE_TEMPLATE_MAP[status] || 'SITE_VISIT_COMPLETED',
                 messageType: 'template',
@@ -2018,6 +2054,7 @@ projectRouter.patch('/:id/status', authorize('ADMIN', 'CRM', 'MANAGER', 'BDM', '
       resultMsg = `Stage updated to ${status} and 1-to-1 approval alert sent to BDM via ${bdmNotificationResult?.provider || 'WhatsApp'}!`;
     }
 
+    await ensureProjectCustomerPopulated(project);
     return res.json({
       success: true,
       data: project,
@@ -2074,6 +2111,7 @@ projectRouter.post('/:id/drawing-approved', authorize('ADMIN', 'CRM', 'MANAGER',
 
     const workflowRes = await handleDrawingAndCabinApprovedWorkflow(project, days, req.user?._id, req.user?.name);
     const bdmNotifyRes = await sendBdmApprovalNotification(project, req.user?._id, req.user?.name, notes);
+    await ensureProjectCustomerPopulated(project);
 
     return res.json({
       success: true,
@@ -2210,6 +2248,7 @@ projectRouter.patch('/:id/stage-dates', authorize('ADMIN', 'CRM', 'MANAGER', 'BD
       await dispatchSiteVisitCompletedMessage(project, req.user);
     }
 
+    await ensureProjectCustomerPopulated(project);
     return res.json({
       success: true,
       data: project,
@@ -2308,6 +2347,7 @@ projectRouter.patch('/:id/stage-dates-bulk', authorize('ADMIN', 'CRM', 'MANAGER'
       await dispatchSiteVisitCompletedMessage(project, req.user);
     }
 
+    await ensureProjectCustomerPopulated(project);
     return res.json({ success: true, data: project });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
@@ -2402,11 +2442,15 @@ projectRouter.post(
       let documentSendError: string | null = null;
       const inviteTarget = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
 
+      await ensureProjectCustomerPopulated(project);
       if (inviteTarget) {
         try {
-          const customer = await Customer.findById(project.customerId);
-          const customerName = customer?.fullName || 'Valued Client';
-          const caption = `Dear Sir/Madam,\n\nThe elevator drawing and cabin design are ready for your review and approval.\n\n*Project:* ${project.projectName} (${project.liftModel || 'Elevator'})\n*Stage:* Drawing and Cabin Design Approval\n\nKindly review and confirm your approval to proceed to the next stage.\n\nRegards,\nAlpha Elevators Team`;
+          const customer = (project.customerId as any)?._id ? project.customerId : await Customer.findById(project.customerId);
+          const customerName = resolveProjectCustomerName(project, customer);
+          const caption = personalizeWhatsAppMessageForCustomer(
+            `Dear Sir/Madam,\n\nThe elevator drawing and cabin design are ready for your review and approval.\n\n*Project:* ${project.projectName} (${project.liftModel || 'Elevator'})\n*Customer:* ${customerName || project.projectName}\n*Stage:* Drawing and Cabin Design Approval\n\nKindly review and confirm your approval to proceed to the next stage.\n\nRegards,\nAlpha Elevators Team`,
+            customerName
+          );
 
           const activeDir = ensureUploadsDir();
           const fullFilePath = req.file.path
@@ -2575,8 +2619,9 @@ projectRouter.post('/:id/request-payment', authorize('ADMIN', 'CRM', 'MANAGER'),
     let usedProvider = 'WhatsApp Bot';
 
     try {
-      const customer = await Customer.findById(project.customerId);
-      const customerName = customer?.fullName || 'Valued Client';
+      await ensureProjectCustomerPopulated(project);
+      const customer: any = (project.customerId as any)?._id ? project.customerId : await Customer.findById(project.customerId);
+      const customerName = resolveProjectCustomerName(project, customer, 'Customer');
       const customerPhone = customer?.phoneNumber || 'N/A';
       const reqAmt = (project.paymentRequest.requestedAmount || 0).toLocaleString('en-IN');
       const orderVal = (project.orderValue || 0).toLocaleString('en-IN');
@@ -2858,6 +2903,7 @@ projectRouter.get(
       const pendingItems: any[] = [];
       for (const proj of projects) {
         const cust: any = proj.customerId || {};
+        const resolvedCustName = resolveProjectCustomerName(proj, cust, 'Customer');
         const hydratedStages = hydrateStagesWithInlineImages(
           proj.installationStages || [],
           proj.projectId || String(proj._id)
@@ -2871,7 +2917,7 @@ projectRouter.get(
               siteAddress: proj.siteAddress,
               liftModel: proj.liftModel,
               assignedTl: proj.assignedTl || cust.assignedTl || '',
-              customerName: cust.fullName || 'Client',
+              customerName: resolvedCustName,
               customerCity: cust.city || '',
               customerCode: cust.customerId || proj.customerCode || '',
               whatsappGroupName: proj.whatsappGroupName || proj.whatsapp?.groupName || '',
@@ -3080,8 +3126,10 @@ projectRouter.post(
 
       await project.save();
 
+      await ensureProjectCustomerPopulated(project);
       const updatedStage = updatedStages.find((s: any) => s.stageKey === stageKey);
       const customer = project.customerId as any;
+      const resolvedCustomerName = resolveProjectCustomerName(project, customer, 'Customer');
 
       // If marked COMPLETED (Done with photo), log activity and alert Kishore via 1-to-1 WhatsApp, DO NOT send to customer WhatsApp group!
       if (isMarkingCompleted && updatedStage) {
@@ -3105,7 +3153,7 @@ projectRouter.post(
               `Hello Kishore,\n\n` +
               `A new installation stage completion photo has been uploaded and awaits your approval:\n\n` +
               `*Project:* ${project.projectName} (${project.projectId})\n` +
-              `*Customer:* ${customer?.fullName || 'Client'} (${customer?.city || project.siteAddress || 'Tamil Nadu'})\n` +
+              `*Customer:* ${resolvedCustomerName} (${customer?.city || project.siteAddress || 'Tamil Nadu'})\n` +
               `*Stage ${updatedStage.slNo}/11:* ${updatedStage.stageName}\n` +
               `*Submitted By:* ${req.user?.name || 'Team Lead'} (${req.user?.role || 'TL'})\n` +
               `*Photos Uploaded:* ${updatedStage.images?.length || 1}\n\n` +
@@ -3170,13 +3218,13 @@ projectRouter.post(
               ? '⚙️ Technical Issue / On-Site Alignment Delay'
               : 'Operational Schedule Adjustment';
 
-        const whatsappMessage =
+        const whatsappMessage = personalizeWhatsAppMessageForCustomer(
           `🔔 *ALPHA ELEVATORS — INSTALLATION SCHEDULE UPDATE*
 
 Dear Sir/Madam,
 
 *Project:* ${project.projectName} (${project.projectId})
-*Customer:* ${customer?.fullName || 'Client'} (${customer?.city || project.siteAddress || 'Tamil Nadu'})
+*Customer:* ${resolvedCustomerName} (${customer?.city || project.siteAddress || 'Tamil Nadu'})
 
 ⚠️ *Stage Schedule Change:*
 *Stage ${updatedStage?.slNo}:* ${updatedStage?.stageName}
@@ -3188,7 +3236,9 @@ ${notes ? `*Technical Notes:* ${notes}\n` : ''}
 🗓️ *Updated Final Handover Target:* ${handoverStage ? formatDateDisplay(parseDateString(handoverStage.completeDate)) : 'Scheduled'}
 
 Regards,
-Alpha Elevators Team`;
+Alpha Elevators Team`,
+          resolvedCustomerName
+        );
 
         try {
           const targetGroup = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
@@ -3226,7 +3276,7 @@ Alpha Elevators Team`;
               projectId: project._id,
               projectCode: project.projectId,
               customerId: customer?._id,
-              customerName: customer?.fullName || 'Client',
+              customerName: resolvedCustomerName,
               groupId: targetGroup,
               templateName: 'STAGE_SCHEDULE_UPDATE',
               messageType: 'text',
@@ -3294,18 +3344,20 @@ projectRouter.post(
       targetStage.approvedAt = new Date();
       targetStage.rejectionReason = '';
 
+      await ensureProjectCustomerPopulated(project);
       const customer = project.customerId as any;
+      const resolvedCustomerName = resolveProjectCustomerName(project, customer, 'Customer');
       const handoverStage = stages.find((s: any) => s.stageKey === 'HANDOVER');
       const nextStage = stages.find((s: any) => s.slNo === (targetStage.slNo || 0) + 1);
       const isHandover = targetStage.slNo === 11 || targetStage.stageKey === 'HANDOVER';
 
-      const whatsappMessage =
+      const whatsappMessage = personalizeWhatsAppMessageForCustomer(
         `✅ *ALPHA ELEVATORS — INSTALLATION STAGE COMPLETED*
 
 Dear Sir/Madam,
 
 *Project:* ${project.projectName} (${project.projectId})
-*Customer:* ${customer?.fullName || 'Client'} (${customer?.city || project.siteAddress || 'Tamil Nadu'})
+*Customer:* ${resolvedCustomerName} (${customer?.city || project.siteAddress || 'Tamil Nadu'})
 
 🎉 *Stage Completed & Approved:*
 *Stage ${targetStage.slNo}/11:* ${targetStage.stageName}
@@ -3320,7 +3372,9 @@ ${isHandover
 🗓️ *Target Handover Date:* ${handoverStage ? formatDateDisplay(parseDateString(handoverStage.completeDate)) : 'Scheduled'}
 
 Regards,
-Alpha Elevators Team`;
+Alpha Elevators Team`,
+        resolvedCustomerName
+      );
 
       let whatsappResult: any = { sent: false, imageSent: false };
       const targetGroup = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
@@ -3408,7 +3462,7 @@ Alpha Elevators Team`;
             projectId: project._id,
             projectCode: project.projectId,
             customerId: customer?._id,
-            customerName: customer?.fullName || 'Client',
+            customerName: resolvedCustomerName,
             groupId: targetGroup,
             templateName: 'INSTALLATION_STAGE_COMPLETED',
             messageType: 'text',

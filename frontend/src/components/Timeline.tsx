@@ -93,6 +93,10 @@ export default function Timeline({
   const isLogistics = currentUserRole === 'LOGISTICS';
   const isLogisticsTL = currentUserRole === 'LOGISTICS_TL';
   const isAnyLogistics = isLogistics || isLogisticsTL;
+  const cleanRecipientName =
+    customerName && !/^(client|new\s*client|valued\s*client|valued\s*customer|customer|unknown|n\/a|-)$/i.test(customerName.trim())
+      ? customerName.trim()
+      : 'Sir/Madam';
   const visibleStages = isLogistics
     ? STAGES_ORDER.slice(0, STAGES_ORDER.findIndex((s) => s.key === 'MATERIAL_DELIVERY') + 1)
     : STAGES_ORDER;
@@ -686,7 +690,7 @@ export default function Timeline({
                 </div>
                 <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-2xl p-3.5 text-xs text-slate-800 space-y-2 relative shadow-2xs font-sans">
                   <div className="text-emerald-950 leading-relaxed whitespace-pre-line">
-                    Dear Sir/Madam,
+                    Dear {cleanRecipientName},
                     {'\n\n'}Your elevator material is currently in transit via VRL Logistics.
                     {'\n'}VRL Tracking No.:{' '}
                     <span className="font-mono font-bold bg-amber-200/80 text-amber-950 px-1.5 py-0.5 rounded border border-amber-300 inline-block">
@@ -804,7 +808,7 @@ export default function Timeline({
                 </div>
                 <div className="bg-sky-50/70 border border-sky-200/90 rounded-2xl p-3.5 text-xs text-slate-800 space-y-1 relative shadow-2xs">
                   <div className="text-slate-900 leading-relaxed font-sans">
-                    Dear Sir/Madam,<br /><br />
+                    Dear {cleanRecipientName},<br /><br />
                     This is a gentle reminder to kindly review and approves the elevator drawing and cabin design shared with you, so that we can proceed with the next stage without delay.<br /><br />
                     Regards,<br />
                     Alpha Elevators Team
@@ -828,7 +832,7 @@ export default function Timeline({
                 </div>
                 <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-2xl p-3.5 text-xs text-slate-800 space-y-1 relative shadow-2xs">
                   <div className="text-slate-900 leading-relaxed font-sans">
-                    Dear Sir/Madam,<br /><br />
+                    Dear {cleanRecipientName},<br /><br />
                     Kindly release the production payment to initiate the production process. Please note that the production timeline is approximately{' '}
                     <span className="font-bold bg-emerald-200/90 text-emerald-950 px-1.5 py-0.5 rounded border border-emerald-300">
                       {productionDaysInput.trim() || '60'} days
@@ -856,7 +860,7 @@ export default function Timeline({
                 </div>
                 <div className="bg-amber-50/70 border border-amber-200/90 rounded-2xl p-3.5 text-xs text-slate-800 space-y-1 relative shadow-2xs">
                   <div className="text-slate-900 leading-relaxed font-sans">
-                    Dear Sir/Madam,<br /><br />
+                    Dear {cleanRecipientName},<br /><br />
                     This is a gentle reminder to kindly release the production payment to initiate the production process.<br />
                     Please note that the production timeline is approximately{' '}
                     <span className="font-bold bg-amber-200/90 text-amber-950 px-1.5 py-0.5 rounded border border-amber-300">
@@ -1034,7 +1038,7 @@ export default function Timeline({
                 </div>
                 <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-2xl p-4 text-xs text-slate-800 space-y-2 relative shadow-2xs font-sans">
                   <div className="text-emerald-950 leading-relaxed whitespace-pre-line">
-                    Dear Sir/Madam,
+                    Dear {cleanRecipientName},
                     {'\n\n'}Your site visit has been scheduled for{' '}
                     <span className="font-bold bg-amber-200/80 text-amber-950 px-1.5 py-0.5 rounded border border-amber-300 inline-block">
                       {siteVisitDateInput ? new Date(siteVisitDateInput).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '[Date]'}

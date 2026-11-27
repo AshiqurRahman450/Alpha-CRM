@@ -484,7 +484,11 @@ export default function ProjectDetailPage() {
 
           <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
             <span className="text-slate-400 block text-[11px]">Primary Customer</span>
-            <strong className="text-slate-900 text-sm">{customer.fullName || 'Client'}</strong>
+            <strong className="text-slate-900 text-sm">
+              {customer.fullName && !/^(client|new\s*client|valued\s*client)$/i.test(String(customer.fullName).trim())
+                ? customer.fullName
+                : (project.customerName || project.projectName?.replace(/\s+(?:residence\s*lift|home\s*lift|residence|villa|lift|elevator|project)\b.*$/i, '') || project.projectName || 'Customer')}
+            </strong>
             <span className="text-[10px] text-slate-500 block mt-0.5">{customer.phoneNumber}</span>
           </div>
 
@@ -537,8 +541,12 @@ export default function ProjectDetailPage() {
           projectId={project._id}
           projectName={project.projectName}
           projectCode={project.projectId}
-          customerName={customer?.fullName}
-          customerPhone={customer?.phone}
+          customerName={
+            customer?.fullName && !/^(client|new\s*client|valued\s*client)$/i.test(String(customer.fullName).trim())
+              ? customer.fullName
+              : (project.customerName || project.projectName?.replace(/\s+(?:residence\s*lift|home\s*lift|residence|villa|lift|elevator|project)\b.*$/i, '') || project.projectName)
+          }
+          customerPhone={customer?.phone || customer?.phoneNumber}
           whatsappGroupName={project.whatsappGroupName || project.whatsapp?.groupName}
           vrlLrNumber={project.vrlLrNumber || project.trackingNumber}
           productionTimelineDays={project.productionTimelineDays || 60}

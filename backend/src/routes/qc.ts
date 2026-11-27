@@ -5,6 +5,11 @@ import { generateQCReportPdf } from '../services/qc/qcReportGenerator';
 import { whatsAppWebBot } from '../services/whatsapp/whatsappWebBot';
 import { logProjectActivity } from '../services/activity/activityService';
 import { autoFillExecutedDatesForCompletedStages } from '../utils/stageDates';
+import {
+  resolveProjectCustomerName,
+  personalizeWhatsAppMessageForCustomer,
+  ensureProjectCustomerPopulated,
+} from '../utils/idGenerators';
 import path from 'path';
 import fs from 'fs';
 
@@ -358,7 +363,12 @@ qcRouter.post('/:id/approve', authorize('TECHNICAL_MANAGER', 'ADMIN'), async (re
         greeting = 'Good Evening';
       }
 
-      const messageText = `Dear Sir/Madam,
+      await ensureProjectCustomerPopulated(project);
+      const customer: any = (project.customerId as any)?._id ? project.customerId : await Customer.findById(project.customerId);
+      const resolvedCustomerName = resolveProjectCustomerName(project, customer, report.clientName || 'Customer');
+
+      const messageText = personalizeWhatsAppMessageForCustomer(
+        `Dear Sir/Madam,
 
 We have successfully completed the site visit on the scheduled date and shared the site visit report with you via email.
 
@@ -367,7 +377,9 @@ Kindly review the report and confirm your approval by replying to the email so t
 Thank you for your support and cooperation.
 
 Regards,
-Alpha Elevators Team`;
+Alpha Elevators Team`,
+        resolvedCustomerName
+      );
 
       // 4. Resolve group target & send text + PDF document
       const inviteTarget = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
@@ -440,12 +452,11 @@ Alpha Elevators Team`;
         });
 
         // Record legacy WhatsAppMessage for UI
-        const customer: any = (project.customerId as any)?._id ? project.customerId : await Customer.findById(project.customerId);
         await WhatsAppMessage.create({
           projectId: project._id,
           projectCode: project.projectId,
-          customerId: project.customerId,
-          customerName: customer?.fullName || project.projectName || 'Customer',
+          customerId: customer?._id || project.customerId,
+          customerName: resolvedCustomerName,
           groupId: inviteTarget,
           templateName: 'SITE_VISIT_COMPLETED',
           messageType: 'template',

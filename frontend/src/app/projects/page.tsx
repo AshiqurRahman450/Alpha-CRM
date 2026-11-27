@@ -466,7 +466,11 @@ export default function ProjectsPage() {
                       </td>
 
                       <td className="py-4 px-4">
-                        <span className="font-semibold text-slate-800 block">{customer.fullName || 'Client'}</span>
+                        <span className="font-semibold text-slate-800 block">
+                          {customer.fullName && !/^(client|new\s*client|valued\s*client)$/i.test(String(customer.fullName).trim())
+                            ? customer.fullName
+                            : (p.customerName || p.projectName?.replace(/\s+(?:residence\s*lift|home\s*lift|residence|villa|lift|elevator|project)\b.*$/i, '') || p.projectName || 'Customer')}
+                        </span>
                         <span className="text-[10px] text-slate-400">{customer.phoneNumber}</span>
                       </td>
 

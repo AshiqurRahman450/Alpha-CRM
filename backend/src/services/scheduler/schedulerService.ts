@@ -15,6 +15,11 @@ import {
 import { whatsappService, watiService, whatsAppWebBot, normalizeWhatsAppPhone } from '../whatsapp';
 import { logProjectActivity } from '../activity/activityService';
 import { config } from '../../config';
+import {
+  resolveProjectCustomerName,
+  personalizeWhatsAppMessageForCustomer,
+  ensureProjectCustomerPopulated,
+} from '../../utils/idGenerators';
 
 let isJobRunning = false;
 
@@ -436,7 +441,8 @@ export function generateProjectUpdateText(
     }
   }
 
-  return text;
+  const resolvedCustomerName = resolveProjectCustomerName(project, customer);
+  return personalizeWhatsAppMessageForCustomer(text, resolvedCustomerName);
 }
 
 /**
@@ -518,7 +524,9 @@ export async function processDueWhatsAppUpdates(): Promise<{
     console.log(`[Scheduler] Evaluated ${dueProjects.length} candidate projects due for WhatsApp update at ${now.toISOString()}`);
 
     for (const project of dueProjects) {
+      await ensureProjectCustomerPopulated(project);
       const customer = project.customerId as any;
+      const resolvedCustomerName = resolveProjectCustomerName(project, customer, 'Customer');
       const groupId = project.whatsapp?.groupId || project.whatsappGroupId || project.whatsapp?.inviteLink;
       const intervalDays = project.whatsapp?.intervalDays || project.updateFrequencyDays || 10;
 
@@ -731,7 +739,7 @@ export async function processDueWhatsAppUpdates(): Promise<{
         projectId: project._id,
         projectCode: project.projectId,
         customerId: customer._id,
-        customerName: customer.fullName,
+        customerName: resolvedCustomerName,
         groupId: groupId!,
         templateName: templateKey,
         messageType: 'text',
@@ -932,8 +940,9 @@ export async function dispatchSiteVisitWhatsAppReminders(
       return { success: false, sentCount: 0, errors: ['Project not found'] };
     }
 
+    await ensureProjectCustomerPopulated(project);
     const customer = project.customerId as any;
-    const customerName = customer?.fullName || 'Valued Client';
+    const customerName = resolveProjectCustomerName(project, customer, 'Customer');
     const customerPhone = customer?.phoneNumber || 'N/A';
     const customerLocation = customer?.city || customer?.address || 'Site Address';
     const amtStr = (paidAmount || project.totalPaid || 0).toLocaleString('en-IN');
@@ -1134,8 +1143,9 @@ export async function triggerAdvancePaymentReminderForCRMAndAdmin(projectId: any
     const project = await Project.findById(projectId).populate('customerId');
     if (!project) return;
 
+    await ensureProjectCustomerPopulated(project);
     const customer = project.customerId as any;
-    const customerName = customer?.fullName || 'Valued Client';
+    const customerName = resolveProjectCustomerName(project, customer, 'Customer');
     const customerPhone = customer?.phoneNumber || 'N/A';
     const amtStr = (paidAmount || project.totalPaid || 0).toLocaleString('en-IN');
 
@@ -1201,8 +1211,9 @@ export async function sendEscalationMatrixToProjectGroup(projectId: any): Promis
       return false;
     }
 
+    await ensureProjectCustomerPopulated(project);
     const customer = project.customerId as any;
-    const customerName = customer?.fullName || 'Valued Client';
+    const customerName = resolveProjectCustomerName(project, customer);
 
     // Locate the Customer Concern Escalation Matrix image across all standard locations
     const candidatePaths = [
@@ -1228,7 +1239,7 @@ export async function sendEscalationMatrixToProjectGroup(projectId: any): Promis
       return false;
     }
 
-    const matrixCaption =
+    const matrixCaption = personalizeWhatsAppMessageForCustomer(
       `Alpha Elevators - Customer Concern Escalation Matrix 📞\n\n` +
       `Dear Sir/Madam,\n\n` +
       `Thank you for your advance payment confirmation. For your complete peace of mind and transparent project execution, please find our official Customer Concern Escalation Matrix attached above.\n\n` +
@@ -1237,7 +1248,9 @@ export async function sendEscalationMatrixToProjectGroup(projectId: any): Promis
       `* Step 3 (Technical Manager): Kishore (+91 93848 20214 | kishore@alphaelevators.in) - TAT: Within 48 Hours\n` +
       `* Step 4 (Operational Head): Abeal (+91 93848 20499 | abeal@alphaelevators.in) - TAT: Within 48 Hours\n\n` +
       `Kindly follow the escalation process step by step to ensure timely resolution of your concern.\n\n` +
-      `Regards,\nAlpha Elevators Team`;
+      `Regards,\nAlpha Elevators Team`,
+      customerName
+    );
 
     const botStatus = whatsAppWebBot.getStatus();
     let sentSuccess = false;
@@ -1503,18 +1516,24 @@ export async function handleDrawingAndCabinApprovedWorkflow(
       return { success: false, error: 'Project not found' };
     }
 
+    await ensureProjectCustomerPopulated(project);
+    const customerName = resolveProjectCustomerName(project, project.customerId);
     const days = Number(productionTimelineDays) > 0 ? Number(productionTimelineDays) : (project.productionTimelineDays || 60);
     const inviteTarget = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
 
-    const msg1Text =
+    const msg1Text = personalizeWhatsAppMessageForCustomer(
       `Dear Sir/Madam,\n\n` +
       `This is a gentle reminder to kindly review and approves the elevator drawing and cabin design shared with you, so that we can proceed with the next stage without delay.\n\n` +
-      `Regards,\nAlpha Elevators Team`;
+      `Regards,\nAlpha Elevators Team`,
+      customerName
+    );
 
-    const msg2Text =
+    const msg2Text = personalizeWhatsAppMessageForCustomer(
       `Dear Sir/Madam,\n\n` +
       `Kindly release the production payment to initiate the production process. Please note that the production timeline is approximately ${days} days from the date of payment and approval.\n\n` +
-      `Regards,\nAlpha Elevators Team`;
+      `Regards,\nAlpha Elevators Team`,
+      customerName
+    );
 
     let message1Id: string | undefined;
     let message2Id: string | undefined;
@@ -1656,11 +1675,15 @@ export async function sendProductionPaymentOddDayReminder(projectId: any): Promi
       return true;
     }
 
+    await ensureProjectCustomerPopulated(project);
+    const customerName = resolveProjectCustomerName(project, project.customerId);
     const days = project.productionTimelineDays || 60;
-    const reminderText =
+    const reminderText = personalizeWhatsAppMessageForCustomer(
       `Dear Sir/Madam,\n\n` +
       `Kindly release the production payment to initiate the production process. Please note that the production timeline is approximately ${days} days from the date of payment and approval.\n\n` +
-      `Regards,\nAlpha Elevators Team`;
+      `Regards,\nAlpha Elevators Team`,
+      customerName
+    );
 
     const inviteTarget = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
     let sent = false;
@@ -1785,11 +1808,15 @@ export async function handleSixStageProductionCompletedWorkflow(
       });
     }
 
-    const reminderText =
+    await ensureProjectCustomerPopulated(project);
+    const customerName = resolveProjectCustomerName(project, project.customerId);
+    const reminderText = personalizeWhatsAppMessageForCustomer(
       `Dear Sir/Madam,\n\n` +
       `This is a gentle reminder to kindly release the Readiness payment to proceed with the Material dispatch.\n` +
       `We request you to complete the payment at the earliest to avoid any delay in the dispatch schedule.\n\n` +
-      `Regards,\nAlpha Elevators Team`;
+      `Regards,\nAlpha Elevators Team`,
+      customerName
+    );
 
     const inviteTarget = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
     let messageId: string | undefined;
@@ -1895,11 +1922,15 @@ export async function sendReadinessPaymentOddDayReminder(projectId: any): Promis
       return true;
     }
 
-    const reminderText =
+    await ensureProjectCustomerPopulated(project);
+    const customerName = resolveProjectCustomerName(project, project.customerId);
+    const reminderText = personalizeWhatsAppMessageForCustomer(
       `Dear Sir/Madam,\n\n` +
       `This is a gentle reminder to kindly release the Readiness payment to proceed with the Material dispatch.\n` +
       `We request you to complete the payment at the earliest to avoid any delay in the dispatch schedule.\n\n` +
-      `Regards,\nAlpha Elevators Team`;
+      `Regards,\nAlpha Elevators Team`,
+      customerName
+    );
 
     const inviteTarget = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
     let sent = false;

@@ -1169,6 +1169,14 @@ quotationRouter.post('/crm-approve', async (req: any, res: Response) => {
       });
     } else {
       let changed = false;
+      if (
+        fullName &&
+        !/^(client|new\s*client|valued\s*client|valued\s*customer|customer)$/i.test(fullName.trim()) &&
+        (!customer.fullName || /^(client|new\s*client|valued\s*client|valued\s*customer|customer)$/i.test(customer.fullName.trim()))
+      ) {
+        customer.fullName = fullName.trim();
+        changed = true;
+      }
       if (targetBdmId && (!customer.bdmId || String(customer.bdmId) !== String(targetBdmId))) {
         customer.bdmId = targetBdmId;
         changed = true;

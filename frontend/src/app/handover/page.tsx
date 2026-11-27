@@ -310,7 +310,9 @@ export default function HandoverCustomersPage() {
                       <td className="py-3.5 px-4">
                         <div className="space-y-0.5">
                           <div className="font-semibold text-slate-800">
-                            {customer.fullName || 'Unknown Customer'}
+                            {customer.fullName && !/^(client|new\s*client|valued\s*client|unknown\s*customer)$/i.test(String(customer.fullName).trim())
+                              ? customer.fullName
+                              : (proj.customerName || proj.projectName?.replace(/\s+(?:residence\s*lift|home\s*lift|residence|villa|lift|elevator|project)\b.*$/i, '') || proj.projectName || 'Customer')}
                           </div>
                           {phone && (
                             <div className="text-slate-500 text-[11px] flex items-center gap-1 font-mono">
