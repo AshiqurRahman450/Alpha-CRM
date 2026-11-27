@@ -464,15 +464,7 @@ export async function parseAndImportExcel(
       }
 
       // Format customer name & project name
-      const cleanedFromProj = String(rawProjectName || '')
-        .trim()
-        .replace(/\s+(?:residence\s*lift|home\s*lift|elevator\s*project|residence|villa|lift|elevator|project)\b.*$/i, '')
-        .trim();
-      const validRawCustName =
-        rawCustomerName && !/^(client|new\s*client|valued\s*client|valued\s*customer|customer)$/i.test(String(rawCustomerName).trim())
-          ? String(rawCustomerName).trim()
-          : '';
-      const customerName = String(validRawCustName || cleanedFromProj || rawProjectName || 'Valued Customer').trim();
+      const customerName = String(rawCustomerName || rawProjectName || 'Valued Customer').trim();
       const phone = normalizePhone(rawPhone);
       const whatsapp = normalizePhone(rawWhatsapp) || phone;
       const email = String(rawEmail || '').trim().toLowerCase();

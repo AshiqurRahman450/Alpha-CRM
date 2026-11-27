@@ -14,7 +14,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { api, resolveProjectCustomerName } from '../lib/api';
+import { api } from '../lib/api';
 import { formatProjectStatus, STAGES_ORDER } from './Timeline';
 
 interface EditProjectModalProps {
@@ -174,16 +174,7 @@ export default function EditProjectModal({
         };
         const res = await api.updateProject(project._id, logisticsPayload);
         toast.success(`Project ${project.projectId || ''} updated successfully!`);
-        const mergedLogistics = {
-          ...project,
-          ...(res?.data || {}),
-          ...logisticsPayload,
-          customerId:
-            typeof res?.data?.customerId === 'object' && res?.data?.customerId?.fullName
-              ? res.data.customerId
-              : project.customerId,
-        };
-        onProjectUpdated(mergedLogistics);
+        onProjectUpdated(res?.data || { ...project, ...logisticsPayload });
         onClose();
       } catch (err: any) {
         toast.error(err.message || 'Failed to update project');
@@ -243,17 +234,7 @@ export default function EditProjectModal({
 
       const res = await api.updateProject(project._id, payload);
       toast.success(`Project ${project.projectId || ''} updated successfully!`);
-      const selectedCustObj =
-        customers.find((c) => String(c._id) === String(formData.customerId)) ||
-        (typeof res?.data?.customerId === 'object' && res?.data?.customerId !== null ? res.data.customerId : null) ||
-        (typeof project.customerId === 'object' && project.customerId !== null ? project.customerId : null);
-      const updatedProjectObj = {
-        ...project,
-        ...(res?.data || {}),
-        ...payload,
-        customerId: selectedCustObj || res?.data?.customerId || project.customerId,
-      };
-      onProjectUpdated(updatedProjectObj);
+      onProjectUpdated(res?.data || { ...project, ...payload });
       onClose();
     } catch (err: any) {
       toast.error(err.message || 'Failed to update project');
@@ -418,16 +399,9 @@ export default function EditProjectModal({
                 className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none bg-white font-medium"
               >
                 <option value="">-- Choose Customer --</option>
-                {formData.customerId &&
-                  !customers.some((c) => String(c._id) === String(formData.customerId)) && (
-                    <option value={formData.customerId}>
-                      {resolveProjectCustomerName(project, project.customerId, 'Associated Customer')} (
-                      {project.customerId?.customerId || project.customerCode || 'Linked'})
-                    </option>
-                  )}
                 {customers.map((c) => (
                   <option key={c._id} value={c._id}>
-                    {resolveProjectCustomerName(undefined, c, c.fullName || 'Customer')} ({c.customerId}) - {c.phoneNumber}
+                    {c.fullName} ({c.customerId}) - {c.phoneNumber}
                   </option>
                 ))}
               </select>

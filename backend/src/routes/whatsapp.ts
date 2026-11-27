@@ -21,11 +21,6 @@ import {
   handleSixStageProductionCompletedWorkflow,
 } from '../services/scheduler/schedulerService';
 import { config } from '../config';
-import {
-  resolveProjectCustomerName,
-  personalizeWhatsAppMessageForCustomer,
-  ensureProjectCustomerPopulated,
-} from '../utils/idGenerators';
 
 /**
  * Format phone number to international E.164 standard (e.g. +919820011101)
@@ -54,13 +49,6 @@ whatsappRouter.use(authenticate);
 whatsappRouter.get('/channels', async (req: AuthRequest, res: Response) => {
   try {
     const channels = await WhatsAppChannel.find().populate('projectId customerId').sort({ updatedAt: -1 });
-    for (const ch of channels) {
-      const resolved = resolveProjectCustomerName(ch.projectId, ch.customerId, '');
-      if (resolved && (!ch.customerName || /^(client|new\s*client|valued\s*client|customer)$/i.test(ch.customerName.trim()))) {
-        ch.customerName = resolved;
-        await ch.save();
-      }
-    }
     return res.json({ success: true, count: channels.length, data: channels });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
@@ -99,9 +87,7 @@ whatsappRouter.post('/link', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: A
       return res.status(404).json({ success: false, message: 'Project not found' });
     }
 
-    await ensureProjectCustomerPopulated(project);
     const customer = project.customerId as any;
-    const customerName = resolveProjectCustomerName(project, customer, 'Customer');
     const finalGroupName = groupName?.trim() || `${project.projectName} — Alpha Updates`;
 
     // Upsert WhatsAppChannel
@@ -111,16 +97,16 @@ whatsappRouter.post('/link', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: A
         whatsappGroupId: cleanGroupId,
         groupName: finalGroupName,
         projectCode: project.projectId,
-        customerId: customer?._id,
-        customerName,
+        customerId: customer._id,
+        customerName: customer.fullName,
         groupStatus: 'ACTIVE',
         automationEnabled: project.automationEnabled,
         updateFrequencyDays: project.updateFrequencyDays || 20,
         nextUpdateDate: project.nextUpdateAt,
         $addToSet: {
           participants: {
-            phoneNumber: customer?.phoneNumber || '',
-            name: customerName,
+            phoneNumber: customer.phoneNumber,
+            name: customer.fullName,
             role: 'MEMBER',
           },
         },
@@ -160,11 +146,9 @@ whatsappRouter.post('/send', authorize('ADMIN', 'CRM', 'MANAGER', 'TECHNICAL_LEA
       return res.status(404).json({ success: false, message: 'Project not found' });
     }
 
-    await ensureProjectCustomerPopulated(project);
     const customer = project.customerId as any;
-    const customerName = resolveProjectCustomerName(project, customer, 'Customer');
 
-    if (customer && customer.whatsappOptIn === false) {
+    if (!customer.whatsappOptIn) {
       return res.status(400).json({
         success: false,
         message: 'Cannot send WhatsApp message: Customer WhatsApp opt-in is disabled.',
@@ -196,8 +180,8 @@ whatsappRouter.post('/send', authorize('ADMIN', 'CRM', 'MANAGER', 'TECHNICAL_LEA
     const nextMilestone = STAGE_NEXT_MILESTONE_MAP[project.projectStatus] || 'Next project milestone';
 
     const variableValues = {
-      customer_name: customerName,
-      project_name: project.projectName || `${customerName} Residence`,
+      customer_name: customer.fullName || 'Valued Client',
+      project_name: project.projectName || `${customer.fullName} Residence`,
       project_stage: stageNameFormatted,
       next_milestone: nextMilestone,
       lift_model: project.liftModel || 'Alpha EV',
@@ -255,8 +239,6 @@ whatsappRouter.post('/send', authorize('ADMIN', 'CRM', 'MANAGER', 'TECHNICAL_LEA
       }
     }
 
-    readableContent = personalizeWhatsAppMessageForCustomer(readableContent, customerName);
-
     const now = new Date();
     const dateKey = formatDateKey(now);
     const idempotencyKey = `MANUAL_${project.projectId}_${Date.now()}_${templateName}`;
@@ -264,8 +246,8 @@ whatsappRouter.post('/send', authorize('ADMIN', 'CRM', 'MANAGER', 'TECHNICAL_LEA
     const messageDoc = await WhatsAppMessage.create({
       projectId: project._id,
       projectCode: project.projectId,
-      customerId: customer?._id,
-      customerName,
+      customerId: customer._id,
+      customerName: customer.fullName,
       groupId: project.whatsappGroupId,
       templateName,
       messageType: 'template',
@@ -560,9 +542,7 @@ whatsappRouter.post('/reply', authorize('ADMIN', 'CRM', 'MANAGER', 'TECHNICAL_LE
       return res.status(404).json({ success: false, message: 'Project or linked WhatsApp group not found' });
     }
 
-    await ensureProjectCustomerPopulated(project);
     const customer = project.customerId as any;
-    const customerName = resolveProjectCustomerName(project, customer, 'Customer');
 
     const sendResult = await whatsappService.sendGroupTextMessage({
       recipientType: 'group',
@@ -573,8 +553,8 @@ whatsappRouter.post('/reply', authorize('ADMIN', 'CRM', 'MANAGER', 'TECHNICAL_LE
     const msgDoc = await WhatsAppMessage.create({
       projectId: project._id,
       projectCode: project.projectId,
-      customerId: customer?._id,
-      customerName,
+      customerId: customer._id,
+      customerName: customer.fullName,
       groupId: project.whatsappGroupId,
       metaMessageId: sendResult.messageId,
       messageType: 'text',
@@ -911,9 +891,7 @@ whatsappRouter.get('/projects/:id/group', async (req: AuthRequest, res: Response
       return res.status(404).json({ success: false, message: 'Project not found' });
     }
 
-    await ensureProjectCustomerPopulated(project);
     const customer = project.customerId as any;
-    const customerName = resolveProjectCustomerName(project, customer, 'Customer');
     const groupId = project.whatsapp?.groupId || project.whatsappGroupId;
 
     let watiGroupDetails = null;
@@ -935,7 +913,7 @@ whatsappRouter.get('/projects/:id/group', async (req: AuthRequest, res: Response
       data: {
         projectId: project.projectId,
         projectName: project.projectName,
-        customerName,
+        customerName: customer?.fullName,
         customerPhone: formatInternationalPhone(customer?.whatsappNumber || customer?.phoneNumber),
         consentGiven: !!customer?.whatsappOptIn,
         whatsapp: project.whatsapp || {
@@ -1151,9 +1129,7 @@ whatsappRouter.get('/projects/:id/preview', async (req: AuthRequest, res: Respon
     const project = await Project.findById(req.params.id).populate('customerId');
     if (!project) return res.status(404).json({ success: false, message: 'Project not found' });
 
-    await ensureProjectCustomerPopulated(project);
     const customer = project.customerId as any;
-    const customerName = resolveProjectCustomerName(project, customer, 'Customer');
     const previewText = generateProjectUpdateText(project, customer, typeof customNote === 'string' ? customNote : undefined);
 
     return res.json({
@@ -1161,7 +1137,7 @@ whatsappRouter.get('/projects/:id/preview', async (req: AuthRequest, res: Respon
       data: {
         projectId: project.projectId,
         projectName: project.projectName,
-        customerName,
+        customerName: customer?.fullName,
         currentStage: project.projectStatus,
         nextMilestone: STAGE_NEXT_MILESTONE_MAP[project.projectStatus] || 'Next milestone in progress',
         previewText,
@@ -1187,15 +1163,13 @@ whatsappRouter.get('/projects/:id/participants', async (req: AuthRequest, res: R
     const project = await Project.findById(req.params.id).populate('customerId');
     if (!project) return res.status(404).json({ success: false, message: 'Project not found' });
 
-    await ensureProjectCustomerPopulated(project);
     const customer = project.customerId as any;
-    const customerName = resolveProjectCustomerName(project, customer, 'Customer');
     const participants = project.whatsapp?.participants || [];
 
     return res.json({
       success: true,
       primaryCustomer: {
-        name: customerName,
+        name: customer?.fullName || 'Primary Client',
         phone: customer?.whatsappNumber || customer?.phoneNumber,
         role: 'PRIMARY_CLIENT',
       },
@@ -1297,16 +1271,14 @@ whatsappRouter.post('/projects/:id/send-test', authorize('ADMIN', 'CRM', 'MANAGE
     const project = await Project.findById(req.params.id).populate('customerId');
     if (!project) return res.status(404).json({ success: false, message: 'Project not found' });
 
-    await ensureProjectCustomerPopulated(project);
     const customer = project.customerId as any;
-    const customerName = resolveProjectCustomerName(project, customer, 'Customer');
     const groupId = project.whatsapp?.groupId || project.whatsappGroupId;
 
     if (!groupId) {
       return res.status(400).json({ success: false, message: 'No WhatsApp group linked to this project' });
     }
 
-    if (customer && customer.whatsappOptIn === false) {
+    if (!customer?.whatsappOptIn) {
       return res.status(400).json({ success: false, message: 'Customer has not consented to WhatsApp communications.' });
     }
 
@@ -1319,7 +1291,7 @@ whatsappRouter.post('/projects/:id/send-test', authorize('ADMIN', 'CRM', 'MANAGE
     if (customerPhone) {
       recipients.push({
         phone: customerPhone,
-        name: customerName,
+        name: customer.fullName || 'Customer',
         role: 'PRIMARY_CLIENT',
       });
     }
@@ -1385,7 +1357,7 @@ whatsappRouter.post('/projects/:id/send-test', authorize('ADMIN', 'CRM', 'MANAGE
             projectId: project._id,
             projectCode: project.projectId,
             customerId: customer?._id,
-            customerName,
+            customerName: customer?.fullName || 'Client',
             groupId,
             templateName: STAGE_TEMPLATE_MAP[project.projectStatus] || 'SITE_VISIT_COMPLETED',
             messageType: 'template',

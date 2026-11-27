@@ -12,11 +12,6 @@ import {
   calculateNextUpdateDate,
 } from '../services/scheduler/schedulerService';
 import { autoFillExecutedDatesForCompletedStages } from '../utils/stageDates';
-import {
-  resolveProjectCustomerName,
-  personalizeWhatsAppMessageForCustomer,
-  ensureProjectCustomerPopulated,
-} from '../utils/idGenerators';
 
 export const paymentRouter = Router();
 
@@ -89,9 +84,7 @@ paymentRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT'), asyn
       });
     }
 
-    await ensureProjectCustomerPopulated(project);
     const customer = project.customerId as any;
-    const resolvedCustomerName = resolveProjectCustomerName(project, customer, 'Customer');
     const paidNum = Number(amountPaid);
     const newTotalPaid = (project.totalPaid || 0) + paidNum;
     const newBalance = Math.max(0, project.orderValue - newTotalPaid);
@@ -107,8 +100,8 @@ paymentRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT'), asyn
     const payment = await Payment.create({
       projectId: project._id,
       projectCode: project.projectId,
-      customerId: customer?._id || project.customerId,
-      customerName: resolvedCustomerName,
+      customerId: customer._id,
+      customerName: customer.fullName,
       totalOrderValue: project.orderValue,
       advanceRequired: project.advanceAmount,
       amountPaid: paidNum,
@@ -306,11 +299,8 @@ paymentRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT'), asyn
     let groupDispatchError: string | null = null;
     const inviteTarget = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
 
-    const customerName = resolvedCustomerName;
-    const waCaption = personalizeWhatsAppMessageForCustomer(
-      `*Official Payment Receipt* 🧾\n\nDear Sir/Madam,\n\nWe have successfully received your payment!\n\n*Customer:* ${customerName}\n*Project:* ${project.projectName} (${project.projectId})\n*Amount Received:* ₹${paidNum.toLocaleString('en-IN')}\n*Payment Milestone:* ${payment.paymentType || 'Milestone Payment'}\n*Payment Method:* ${paymentMethod || 'Bank Transfer'}\n*Receipt No:* ${payment.receiptNumber}\n*Transaction Ref:* ${transactionReference}\n\n*Total Paid So Far:* ₹${newTotalPaid.toLocaleString('en-IN')}\n*Outstanding Balance:* ₹${newBalance.toLocaleString('en-IN')}\n\nPlease find your official payment receipt document attached above for your records.\n\nRegards,\nAlpha Elevators Team`,
-      customerName
-    );
+    const customerName = customer?.fullName || 'Valued Client';
+    const waCaption = `*Official Payment Receipt* 🧾\n\nDear Sir/Madam,\n\nWe have successfully received your payment!\n\n*Customer:* ${customerName}\n*Project:* ${project.projectName} (${project.projectId})\n*Amount Received:* ₹${paidNum.toLocaleString('en-IN')}\n*Payment Milestone:* ${payment.paymentType || 'Milestone Payment'}\n*Payment Method:* ${paymentMethod || 'Bank Transfer'}\n*Receipt No:* ${payment.receiptNumber}\n*Transaction Ref:* ${transactionReference}\n\n*Total Paid So Far:* ₹${newTotalPaid.toLocaleString('en-IN')}\n*Outstanding Balance:* ₹${newBalance.toLocaleString('en-IN')}\n\nPlease find your official payment receipt document attached above for your records.\n\nRegards,\nAlpha Elevators Team`;
 
     // 1. Dispatch Receipt to WhatsApp Group
     if (inviteTarget) {
@@ -616,9 +606,7 @@ paymentRouter.post('/:id/send-receipt', authorize('ADMIN', 'CRM', 'MANAGER', 'AC
     const project = await Project.findById(payment.projectId).populate('customerId');
     if (!project) return res.status(404).json({ success: false, message: 'Project not found' });
 
-    await ensureProjectCustomerPopulated(project);
     const customer = project.customerId as any;
-    const customerName = resolveProjectCustomerName(project, customer, payment.customerName || 'Customer');
     const inviteTarget = project.whatsapp?.inviteLink || project.whatsapp?.groupId || project.whatsappGroupId;
 
     if (!inviteTarget) {
@@ -649,10 +637,8 @@ paymentRouter.post('/:id/send-receipt', authorize('ADMIN', 'CRM', 'MANAGER', 'AC
       await payment.save();
     }
 
-    const waCaption = personalizeWhatsAppMessageForCustomer(
-      `*Official Payment Receipt* 🧾\n\nDear Sir/Madam,\n\nPlease find your official payment receipt attached below.\n\n*Customer:* ${customerName}\n*Project:* ${project.projectName} (${project.projectId})\n*Receipt No:* ${payment.receiptNumber || 'N/A'}\n*Amount:* ₹${(payment.amountPaid || 0).toLocaleString('en-IN')}\n*Method:* ${payment.paymentMethod || 'Bank Transfer'}\n*Ref:* ${payment.transactionReference || 'N/A'}\n*Remaining Balance:* ₹${(payment.balanceAmount || 0).toLocaleString('en-IN')}\n\nRegards,\nAlpha Elevators Team`,
-      customerName
-    );
+    const customerName = customer?.fullName || 'Valued Client';
+    const waCaption = `*Official Payment Receipt* 🧾\n\nDear Sir/Madam,\n\nPlease find your official payment receipt attached below.\n\n*Customer:* ${customerName}\n*Project:* ${project.projectName} (${project.projectId})\n*Receipt No:* ${payment.receiptNumber || 'N/A'}\n*Amount:* ₹${(payment.amountPaid || 0).toLocaleString('en-IN')}\n*Method:* ${payment.paymentMethod || 'Bank Transfer'}\n*Ref:* ${payment.transactionReference || 'N/A'}\n*Remaining Balance:* ₹${(payment.balanceAmount || 0).toLocaleString('en-IN')}\n\nRegards,\nAlpha Elevators Team`;
 
     const sendRes = await whatsAppWebBot.sendDocumentToGroup(
       inviteTarget,

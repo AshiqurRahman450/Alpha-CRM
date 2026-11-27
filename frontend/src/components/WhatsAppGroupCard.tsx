@@ -35,7 +35,7 @@ import {
   Unlink,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { api, resolveProjectCustomerName } from '../lib/api';
+import { api } from '../lib/api';
 
 interface WhatsAppGroupCardProps {
   project: any;
@@ -675,9 +675,7 @@ export default function WhatsAppGroupCard({
         {/* Project & Client Card */}
         <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 space-y-1.5">
           <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Customer & Project</span>
-          <strong className="text-slate-900 text-sm block truncate">
-            {resolveProjectCustomerName(project, customer, 'Customer')}
-          </strong>
+          <strong className="text-slate-900 text-sm block truncate">{customer?.fullName || '—'}</strong>
           <div className="flex items-center gap-1.5 text-slate-600 text-xs font-mono">
             <Phone className="w-3 h-3 text-emerald-600" />
             <span>{internationalPhone}</span>

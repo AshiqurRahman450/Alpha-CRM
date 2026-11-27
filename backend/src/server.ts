@@ -23,7 +23,7 @@ import { reminderRouter } from './routes/reminders';
 import { qcRouter } from './routes/qc';
 import { quotationRouter } from './routes/quotations';
 import { siteProblemRouter } from './routes/siteProblems';
-import { splitSharedCustomerProjects, resequenceCustomerIds, healOrphanedAndPlaceholderCustomers } from './utils/idGenerators';
+import { splitSharedCustomerProjects, resequenceCustomerIds } from './utils/idGenerators';
 import bcrypt from 'bcryptjs';
 
 const app = express();
@@ -613,13 +613,11 @@ export async function startServer() {
       console.warn('[Server] Auto-bootstrap warning:', seedErr.message);
     }
 
-    // Ensure all projects have their own dedicated individual customer and repair any orphaned/placeholder customer names
+    // Ensure all projects have their own dedicated individual customer
     try {
-      await healOrphanedAndPlaceholderCustomers();
       await splitSharedCustomerProjects();
-      await healOrphanedAndPlaceholderCustomers();
     } catch (splitErr: any) {
-      console.warn('[Server] Auto-split/heal customer projects warning:', splitErr.message);
+      console.warn('[Server] Auto-split customer projects warning:', splitErr.message);
     }
 
     // Ensure all historical old customers retain isOldCustomer: true and resequence all IDs continuously (CUST-001, CUST-002, ...)
