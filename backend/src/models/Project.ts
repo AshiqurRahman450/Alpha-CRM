@@ -609,8 +609,6 @@ ProjectSchema.index({ nextUpdateAt: 1 });
 ProjectSchema.index({ projectStatus: 1 });
 ProjectSchema.index({ paymentStatus: 1 });
 ProjectSchema.index({ bdmId: 1 });
-ProjectSchema.index({ assignedTl: 1 });
-ProjectSchema.index({ assignedTlId: 1 });
 ProjectSchema.index({ createdAt: -1 });
 ProjectSchema.index({ whatsappGroupId: 1 });
 ProjectSchema.index({ 'whatsapp.groupId': 1 });
