@@ -134,6 +134,87 @@ const ACCURACY_OPTIONS = ['Approximate', 'Confirmed / Final', 'Pending'];
 const SIDE_OPTIONS = ['A', 'B', 'C', 'G', 'Multiple sides', 'Not confirmed'];
 const HINGE_OPTIONS = ['LH (Left Hand)', 'RH (Right Hand)', 'Centre', 'Not applicable', 'Not confirmed'];
 
+const CIVIL_SHAFT_SCOPE_ITEMS = [
+  'Hoistway inside plastering work need to complete',
+  'Overhead slab need to close.',
+  'After plastering Shaft inside scaffolding need to do. ( Before installation)',
+  'Hoistway inside after plastering white wash need to do.',
+  'Electrical work as per our drawing requirement need to follow up.',
+  'Earth wire lay pit to roof top our control panel near by need to provide.',
+  'Hoistway inside electrical work light fixing and socket need to fix.',
+  'Materials storage need to provide by client with lockable.',
+];
+
+const STRUCTURAL_SHAFT_SCOPE_ITEMS = [
+  'Pit depth as per our requirement 250mm need to provide',
+  'Before structural work starts Scaffolding work need to complete',
+  'Before structural work starts civil work plastering work need to complete.',
+  'Earth wire need to lay 8Gauge copper wire 2nos.',
+  'Materials storage need to provide by client with lockable.',
+];
+
+const normalizeScopeLine = (str: string) =>
+  str
+    .replace(/^\d+[\.\)\-\s]+/, '')
+    .replace(/\s+/g, ' ')
+    .replace(/\.+$/, '')
+    .trim()
+    .toLowerCase();
+
+const ALL_KNOWN_SCOPE_NORMS = new Set(
+  [...CIVIL_SHAFT_SCOPE_ITEMS, ...STRUCTURAL_SHAFT_SCOPE_ITEMS].map(normalizeScopeLine)
+);
+
+function buildRemarksWithScopeChecklists(
+  nextCivil: string[],
+  nextStructural: string[],
+  currentRemarks: string
+): string {
+  const customLines: string[] = [];
+  const rawLines = (currentRemarks || '').split('\n');
+
+  for (const rawLine of rawLines) {
+    const trimmed = rawLine.trim();
+    if (!trimmed) continue;
+    if (
+      /^(title of )?civil shaft/i.test(trimmed) ||
+      /^(title of )?structural shaft/i.test(trimmed) ||
+      /^customer scope works follows\.?:?$/i.test(trimmed)
+    ) {
+      continue;
+    }
+    const norm = normalizeScopeLine(trimmed);
+    if (ALL_KNOWN_SCOPE_NORMS.has(norm)) {
+      continue;
+    }
+    customLines.push(trimmed);
+  }
+
+  const sections: string[] = [];
+
+  if (nextCivil.length > 0) {
+    const orderedCivil = CIVIL_SHAFT_SCOPE_ITEMS.filter((item) => nextCivil.includes(item));
+    sections.push(
+      `Civil Shaft - Customer scope works follows:\n` +
+        orderedCivil.map((item, idx) => `${idx + 1}. ${item}`).join('\n')
+    );
+  }
+
+  if (nextStructural.length > 0) {
+    const orderedStructural = STRUCTURAL_SHAFT_SCOPE_ITEMS.filter((item) => nextStructural.includes(item));
+    sections.push(
+      `Structural Shaft - Customer scope works follows:\n` +
+        orderedStructural.map((item, idx) => `${idx + 1}. ${item}`).join('\n')
+    );
+  }
+
+  if (customLines.length > 0) {
+    sections.push(customLines.join('\n'));
+  }
+
+  return sections.join('\n\n');
+}
+
 interface QCInspectionFormProps {
   initialReport?: any;
   onSaved?: () => void;
@@ -216,6 +297,40 @@ export default function QCInspectionForm({ initialReport, onSaved, onCancelEdit 
   const [technicianSignature, setTechnicianSignature] = useState<string>('Dinesh Kumar S');
   const [clientSign, setClientSign] = useState<string>('');
   const [remarks, setRemarks] = useState<string>('');
+  const [selectedCivilScope, setSelectedCivilScope] = useState<string[]>([]);
+  const [selectedStructuralScope, setSelectedStructuralScope] = useState<string[]>([]);
+
+  const handleToggleCivilScopeItem = (item: string) => {
+    const nextCivil = selectedCivilScope.includes(item)
+      ? selectedCivilScope.filter((i) => i !== item)
+      : [...selectedCivilScope, item];
+    setSelectedCivilScope(nextCivil);
+    setRemarks((prev) => buildRemarksWithScopeChecklists(nextCivil, selectedStructuralScope, prev));
+  };
+
+  const handleToggleAllCivilScope = () => {
+    const nextCivil =
+      selectedCivilScope.length === CIVIL_SHAFT_SCOPE_ITEMS.length ? [] : [...CIVIL_SHAFT_SCOPE_ITEMS];
+    setSelectedCivilScope(nextCivil);
+    setRemarks((prev) => buildRemarksWithScopeChecklists(nextCivil, selectedStructuralScope, prev));
+  };
+
+  const handleToggleStructuralScopeItem = (item: string) => {
+    const nextStructural = selectedStructuralScope.includes(item)
+      ? selectedStructuralScope.filter((i) => i !== item)
+      : [...selectedStructuralScope, item];
+    setSelectedStructuralScope(nextStructural);
+    setRemarks((prev) => buildRemarksWithScopeChecklists(selectedCivilScope, nextStructural, prev));
+  };
+
+  const handleToggleAllStructuralScope = () => {
+    const nextStructural =
+      selectedStructuralScope.length === STRUCTURAL_SHAFT_SCOPE_ITEMS.length
+        ? []
+        : [...STRUCTURAL_SHAFT_SCOPE_ITEMS];
+    setSelectedStructuralScope(nextStructural);
+    setRemarks((prev) => buildRemarksWithScopeChecklists(selectedCivilScope, nextStructural, prev));
+  };
 
   // Photos State: base64 JPEG strings for high-res embedding in generated PDF
   const [photos, setPhotos] = useState<Record<string, string[]>>({});
@@ -337,7 +452,33 @@ export default function QCInspectionForm({ initialReport, onSaved, onCancelEdit 
     setTimeOut(initialReport.timeOut || '12:30');
     setTechnicianSignature(initialReport.technicianSignature || 'Dinesh Kumar S');
     setClientSign(initialReport.clientSign || '');
-    setRemarks(initialReport.remarks || '');
+    const initRemarks = initialReport.remarks || '';
+    setRemarks(initRemarks);
+
+    if (Array.isArray(initialReport.civilShaftScope) && initialReport.civilShaftScope.length > 0) {
+      setSelectedCivilScope(initialReport.civilShaftScope);
+    } else if (initRemarks) {
+      const civilSectionMatch = initRemarks.split(/structural shaft/i)[0] || initRemarks;
+      const inferredCivil = CIVIL_SHAFT_SCOPE_ITEMS.filter((item) =>
+        civilSectionMatch.toLowerCase().includes(normalizeScopeLine(item))
+      );
+      setSelectedCivilScope(inferredCivil);
+    } else {
+      setSelectedCivilScope([]);
+    }
+
+    if (Array.isArray(initialReport.structuralShaftScope) && initialReport.structuralShaftScope.length > 0) {
+      setSelectedStructuralScope(initialReport.structuralShaftScope);
+    } else if (initRemarks) {
+      const structuralParts = initRemarks.split(/structural shaft/i);
+      const structuralSection = structuralParts.length > 1 ? structuralParts[1] : '';
+      const inferredStructural = STRUCTURAL_SHAFT_SCOPE_ITEMS.filter((item) =>
+        structuralSection.toLowerCase().includes(normalizeScopeLine(item))
+      );
+      setSelectedStructuralScope(inferredStructural);
+    } else {
+      setSelectedStructuralScope([]);
+    }
 
     if (initialReport.photos && typeof initialReport.photos === 'object') {
       setPhotos(initialReport.photos);
@@ -694,6 +835,8 @@ export default function QCInspectionForm({ initialReport, onSaved, onCancelEdit 
       technicianSignature,
       clientSign,
       remarks,
+      civilShaftScope: selectedCivilScope,
+      structuralShaftScope: selectedStructuralScope,
 
       photos,
       supportPhotos,
@@ -818,6 +961,8 @@ export default function QCInspectionForm({ initialReport, onSaved, onCancelEdit 
       setJobNo('');
       setRegion('');
       setRemarks('');
+      setSelectedCivilScope([]);
+      setSelectedStructuralScope([]);
       setSelectedCrmItem(null);
       setPhotos({});
       setSupportPhotos([]);
@@ -2001,15 +2146,112 @@ export default function QCInspectionForm({ initialReport, onSaved, onCancelEdit 
           </div>
         </div>
 
+        {/* Customer Scope Works Checklists (Civil Shaft & Structural Shaft) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
+          {/* Civil Shaft Scope Checklist */}
+          <div className="rounded-2xl border border-sky-200 bg-sky-50/40 p-4">
+            <div className="flex items-center justify-between gap-2 mb-2.5 pb-2 border-b border-sky-200/70">
+              <div>
+                <h3 className="text-xs sm:text-sm font-bold text-slate-900">
+                  Civil Shaft
+                </h3>
+                <p className="text-[11px] font-semibold text-sky-700">
+                  Customer scope works follows ({selectedCivilScope.length}/{CIVIL_SHAFT_SCOPE_ITEMS.length} selected)
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleToggleAllCivilScope}
+                className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white hover:bg-sky-100 text-sky-700 border border-sky-200 transition-colors cursor-pointer shrink-0"
+              >
+                {selectedCivilScope.length === CIVIL_SHAFT_SCOPE_ITEMS.length ? 'Clear All' : 'Select All'}
+              </button>
+            </div>
+            <div className="space-y-1.5">
+              {CIVIL_SHAFT_SCOPE_ITEMS.map((item, idx) => {
+                const isChecked = selectedCivilScope.includes(item);
+                return (
+                  <label
+                    key={`civil-scope-${idx}`}
+                    className={`flex items-start gap-2.5 p-2 rounded-xl border text-xs transition-all cursor-pointer select-none ${
+                      isChecked
+                        ? 'bg-sky-600/10 border-sky-400 text-slate-900 font-semibold shadow-2xs'
+                        : 'bg-white/90 border-slate-200/80 text-slate-700 hover:border-sky-300'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => handleToggleCivilScopeItem(item)}
+                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 shrink-0 cursor-pointer"
+                    />
+                    <span className="leading-snug">
+                      <span className="font-bold text-sky-800 mr-1">{idx + 1}.</span>
+                      {item}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Structural Shaft Scope Checklist */}
+          <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 p-4">
+            <div className="flex items-center justify-between gap-2 mb-2.5 pb-2 border-b border-indigo-200/70">
+              <div>
+                <h3 className="text-xs sm:text-sm font-bold text-slate-900">
+                  Structural Shaft
+                </h3>
+                <p className="text-[11px] font-semibold text-indigo-700">
+                  Customer scope works follows ({selectedStructuralScope.length}/{STRUCTURAL_SHAFT_SCOPE_ITEMS.length} selected)
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleToggleAllStructuralScope}
+                className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors cursor-pointer shrink-0"
+              >
+                {selectedStructuralScope.length === STRUCTURAL_SHAFT_SCOPE_ITEMS.length ? 'Clear All' : 'Select All'}
+              </button>
+            </div>
+            <div className="space-y-1.5">
+              {STRUCTURAL_SHAFT_SCOPE_ITEMS.map((item, idx) => {
+                const isChecked = selectedStructuralScope.includes(item);
+                return (
+                  <label
+                    key={`structural-scope-${idx}`}
+                    className={`flex items-start gap-2.5 p-2 rounded-xl border text-xs transition-all cursor-pointer select-none ${
+                      isChecked
+                        ? 'bg-indigo-600/10 border-indigo-400 text-slate-900 font-semibold shadow-2xs'
+                        : 'bg-white/90 border-slate-200/80 text-slate-700 hover:border-indigo-300'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => handleToggleStructuralScopeItem(item)}
+                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 shrink-0 cursor-pointer"
+                    />
+                    <span className="leading-snug">
+                      <span className="font-bold text-indigo-800 mr-1">{idx + 1}.</span>
+                      {item}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
         <div className="text-xs">
           <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
-            Remarks / Pending Work / Client Commitments
+            Remarks / Pending Work / Client Commitments (Auto-filled from selected Civil &amp; Structural Shaft scope items above)
           </label>
           <textarea
-            rows={3}
+            rows={7}
             value={remarks}
             onChange={(e) => setRemarks(e.target.value)}
-            placeholder="Enter site observations, pending civil work, door opening details, electrical points, pit requirements, etc."
+            placeholder="Tick any Civil Shaft or Structural Shaft customer scope items above to auto-fill remarks, or type additional site observations here..."
             className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
           ></textarea>
         </div>

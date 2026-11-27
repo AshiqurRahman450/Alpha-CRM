@@ -58,6 +58,8 @@ export interface IQCReport extends Document {
   technicianSignature?: string;
   clientSign?: string;
   remarks?: string;
+  civilShaftScope?: string[];
+  structuralShaftScope?: string[];
 
   // Photos summary & data
   photos?: Record<string, string[]>;
@@ -132,6 +134,8 @@ const QCReportSchema = new Schema<IQCReport>(
     technicianSignature: { type: String },
     clientSign: { type: String },
     remarks: { type: String },
+    civilShaftScope: [{ type: String }],
+    structuralShaftScope: [{ type: String }],
 
     photos: { type: Schema.Types.Mixed },
     supportPhotos: { type: Schema.Types.Mixed },

@@ -45,6 +45,8 @@ export interface QCReportData {
   technicianSignature?: string;
   clientSign?: string;
   remarks?: string;
+  civilShaftScope?: string[];
+  structuralShaftScope?: string[];
   photos?: Record<string, string[]>;
   supportPhotos?: Array<{ name: string; dataUrl: string }>;
   uploadedFiles?: any;
@@ -486,12 +488,53 @@ export async function generateQCReportPdf(
       doc.fillColor(navy).font(fontBold).fontSize(9.5).text('6. REMARKS, CIVIL COMMITMENTS & SITE CONFIRMATION', 44, currentY + 4);
       currentY += 22;
 
+      // Build complete remarks text including ticked Civil Shaft & Structural Shaft customer scope items
+      const remarksParts: string[] = [];
+      const rawRemarks = (data.remarks || '').trim();
+      const hasCivilInRemarks = /civil\s+shaft/i.test(rawRemarks);
+      const hasStructuralInRemarks = /structural\s+shaft/i.test(rawRemarks);
+
+      if (Array.isArray(data.civilShaftScope) && data.civilShaftScope.length > 0 && !hasCivilInRemarks) {
+        remarksParts.push(
+          `Civil Shaft - Customer scope works follows:\n` +
+            data.civilShaftScope.map((item, idx) => `${idx + 1}. ${item}`).join('\n')
+        );
+      }
+      if (Array.isArray(data.structuralShaftScope) && data.structuralShaftScope.length > 0 && !hasStructuralInRemarks) {
+        remarksParts.push(
+          `Structural Shaft - Customer scope works follows:\n` +
+            data.structuralShaftScope.map((item, idx) => `${idx + 1}. ${item}`).join('\n')
+        );
+      }
+      if (rawRemarks) {
+        remarksParts.push(rawRemarks);
+      }
+
+      const finalRemarksText =
+        remarksParts.join('\n\n') ||
+        'Site dimensions and wall specifications verified by technical team during visit.';
+
+      // Dynamically size the Remarks Box so all ticked Civil/Structural Shaft scope items render clearly on Page 2
+      const remarksFontSize = finalRemarksText.length > 450 ? 7.2 : 7.8;
+      doc.font(fontRegular).fontSize(remarksFontSize);
+      const measuredRemarksH = doc.heightOfString(finalRemarksText, {
+        width: 507,
+        lineGap: 1.2,
+      });
+      const maxAvailableRemarksH = Math.max(44, 796 - currentY - 118);
+      const remarksBoxH = Math.max(44, Math.min(maxAvailableRemarksH, Math.ceil(measuredRemarksH) + 24));
+
       // Remarks Box
-      doc.rect(36, currentY, 523, 44).fillAndStroke(lightBg, borderCol);
+      doc.rect(36, currentY, 523, remarksBoxH).fillAndStroke(lightBg, borderCol);
       doc.font(fontBold).fontSize(8).fillColor(slate).text('Site Observations, Pending Civil Work & Client Commitments:', 44, currentY + 5);
-      doc.font(fontRegular).fontSize(8).fillColor(darkSlate)
-        .text(data.remarks || 'Site dimensions and wall specifications verified by technical team during visit.', 44, currentY + 17, { width: 507, height: 26, ellipsis: true });
-      currentY += 50;
+      doc.font(fontRegular).fontSize(remarksFontSize).fillColor(darkSlate)
+        .text(finalRemarksText, 44, currentY + 17, {
+          width: 507,
+          height: remarksBoxH - 20,
+          lineGap: 1.2,
+          ellipsis: true,
+        });
+      currentY += remarksBoxH + 6;
 
       // Signatures & Timings Box
       doc.rect(36, currentY, 523, 74).fillAndStroke('#FFFFFF', borderCol);
