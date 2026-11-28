@@ -44,6 +44,8 @@ export interface QCReportData {
   timeOut?: string;
   technicianSignature?: string;
   clientSign?: string;
+  technicianSignatureImage?: string;
+  clientSignatureImage?: string;
   remarks?: string;
   civilShaftScope?: string[];
   structuralShaftScope?: string[];
@@ -290,12 +292,12 @@ export async function generateQCReportPdf(
       currentY += 22;
 
       // Shaft Box Grid (4 dimensions + Accuracy + Plaster)
-      doc.rect(36, currentY, 523, 34).fillAndStroke(lightBg, borderCol);
+      doc.rect(36, currentY, 523, 38).fillAndStroke(lightBg, borderCol);
       const shaftCols = [
         { label: 'Shaft A-Side (W)', val: (data.shaftG || data.shaftA) ? `${data.shaftG || data.shaftA} mm` : '-' },
-        { label: 'Shaft B-Side (D)', val: (data.shaftA || data.shaftB) ? `${data.shaftA || data.shaftB} mm` : '-' },
+        { label: 'Shaft B-Side (Opening Side)', val: (data.shaftA || data.shaftB) ? `${data.shaftA || data.shaftB} mm` : '-' },
         { label: 'Shaft C-Side (R)', val: (data.shaftB || data.shaftC) ? `${data.shaftB || data.shaftC} mm` : '-' },
-        { label: 'Shaft G-Side (L)', val: (data.shaftC || data.shaftD) ? `${data.shaftC || data.shaftD} mm` : '-' },
+        { label: 'Shaft G-Side (Mechanical Side)', val: (data.shaftC || data.shaftD) ? `${data.shaftC || data.shaftD} mm` : '-' },
         { label: 'Accuracy', val: data.shaftAccuracy || 'Approximate' },
         { label: 'Plaster', val: data.plasterStatus || 'Without plaster' },
       ];
@@ -303,14 +305,14 @@ export async function generateQCReportPdf(
       const sBoxW = 523 / shaftCols.length;
       shaftCols.forEach((col, idx) => {
         const x = 36 + idx * sBoxW;
-        doc.font(fontRegular).fontSize(7.5).fillColor(slate).text(col.label, x + 2, currentY + 5, { width: sBoxW - 4, align: 'center' });
-        doc.font(fontBold).fontSize(8.5).fillColor(navy).text(col.val, x + 2, currentY + 18, { width: sBoxW - 4, align: 'center' });
+        doc.font(fontRegular).fontSize(6.6).fillColor(slate).text(col.label, x + 2, currentY + 4, { width: sBoxW - 4, align: 'center', lineGap: -0.5 });
+        doc.font(fontBold).fontSize(8.5).fillColor(navy).text(col.val, x + 2, currentY + 23, { width: sBoxW - 4, align: 'center' });
         if (idx > 0) {
-          doc.moveTo(x, currentY).lineTo(x, currentY + 34).strokeColor(borderCol).lineWidth(0.5).stroke();
+          doc.moveTo(x, currentY).lineTo(x, currentY + 38).strokeColor(borderCol).lineWidth(0.5).stroke();
         }
       });
 
-      currentY += 40;
+      currentY += 44;
 
       // Dynamic Measurements Table
       const stops = Math.max(2, Math.min(7, Number(data.floorConfig) || 2));
@@ -398,18 +400,19 @@ export async function generateQCReportPdf(
       // Wall matrix table
       const wallSides = [
         { key: 'A', oldKey: 'G', label: 'A-Side (Front/Door)' },
-        { key: 'B', oldKey: 'A', label: 'B-Side (Back)' },
+        { key: 'B', oldKey: 'A', label: 'B-Side (Opening Side)' },
         { key: 'C', oldKey: 'B', label: 'C-Side (Right)' },
-        { key: 'D', oldKey: 'G', label: 'G-Side (Left)' },
+        { key: 'D', oldKey: 'G', label: 'G-Side (Mechanical Side)' },
       ];
 
-      const wallColW = (523 - 110) / stops;
+      const wallLabelW = 128;
+      const wallColW = (523 - wallLabelW) / stops;
 
       // Wall Table Header
       doc.rect(36, currentY, 523, 16).fill(navy);
-      doc.fillColor('#FFFFFF').font(fontBold).fontSize(8).text('Wall Side', 42, currentY + 4, { width: 105 });
+      doc.fillColor('#FFFFFF').font(fontBold).fontSize(8).text('Wall Side', 42, currentY + 4, { width: wallLabelW - 8 });
       for (let i = 0; i < stops; i++) {
-        const x = 36 + 110 + i * wallColW;
+        const x = 36 + wallLabelW + i * wallColW;
         doc.text(i === 0 ? 'Floor "0"' : `Floor "${i}"`, x, currentY + 4, { width: wallColW, align: 'center' });
       }
       currentY += 16;
@@ -419,10 +422,10 @@ export async function generateQCReportPdf(
         const rowBg = rIdx % 2 === 0 ? '#FFFFFF' : '#F8FAFC';
         doc.rect(36, currentY, 523, 16).fillAndStroke(rowBg, borderCol);
 
-        doc.fillColor(navy).font(fontBold).fontSize(7.5).text(label, 42, currentY + 4, { width: 105 });
+        doc.fillColor(navy).font(fontBold).fontSize(7.2).text(label, 42, currentY + 4, { width: wallLabelW - 8 });
 
         for (let i = 0; i < stops; i++) {
-          const x = 36 + 110 + i * wallColW;
+          const x = 36 + wallLabelW + i * wallColW;
           const val = ws[`wallFloor${i}${key}`] || ws[`wallFloor${i}${oldKey}`] || ws[`wallFloor${i}C`] || '9-inch Brick Wall';
           doc.fillColor(darkSlate).font(fontRegular).fontSize(7).text(val, x + 2, currentY + 4, { width: wallColW - 4, align: 'center' });
         }
@@ -521,7 +524,7 @@ export async function generateQCReportPdf(
         width: 507,
         lineGap: 1.2,
       });
-      const maxAvailableRemarksH = Math.max(44, 796 - currentY - 118);
+      const maxAvailableRemarksH = Math.max(44, 796 - currentY - 130);
       const remarksBoxH = Math.max(44, Math.min(maxAvailableRemarksH, Math.ceil(measuredRemarksH) + 24));
 
       // Remarks Box
@@ -537,35 +540,87 @@ export async function generateQCReportPdf(
       currentY += remarksBoxH + 6;
 
       // Signatures & Timings Box
-      doc.rect(36, currentY, 523, 74).fillAndStroke('#FFFFFF', borderCol);
+      doc.rect(36, currentY, 523, 88).fillAndStroke('#FFFFFF', borderCol);
 
       // Row 1: Time In & Time Out
       doc.font(fontBold).fontSize(8).fillColor(slate)
-        .text('Time In:', 46, currentY + 8)
-        .text('Time Out:', 185, currentY + 8);
+        .text('Time In:', 46, currentY + 7)
+        .text('Time Out:', 185, currentY + 7);
 
       doc.font(fontRegular).fontSize(8.5).fillColor(darkSlate)
-        .text(data.timeIn || 'N/A', 90, currentY + 8)
-        .text(data.timeOut || 'N/A', 236, currentY + 8);
+        .text(data.timeIn || 'N/A', 90, currentY + 7)
+        .text(data.timeOut || 'N/A', 236, currentY + 7);
 
       // Row 2: Client Representative & Contact No (comfortably spaced apart)
       doc.font(fontBold).fontSize(8).fillColor(slate)
-        .text('Client Representative:', 46, currentY + 25)
-        .text('Contact No:', 345, currentY + 25);
+        .text('Client Representative:', 46, currentY + 22)
+        .text('Contact No:', 345, currentY + 22);
 
       doc.font(fontRegular).fontSize(8.5).fillColor(darkSlate)
-        .text(data.clientRepName || data.clientName || 'N/A', 156, currentY + 25, { width: 175, ellipsis: true })
-        .text(data.clientRepPhone || data.clientPhone || 'N/A', 412, currentY + 25, { width: 135 });
+        .text(data.clientRepName || data.clientName || 'N/A', 156, currentY + 22, { width: 175, ellipsis: true })
+        .text(data.clientRepPhone || data.clientPhone || 'N/A', 412, currentY + 22, { width: 135 });
+
+      // Embed Digital Signatures above signature lines when provided
+      const techSigDataUrl =
+        data.technicianSignatureImage ||
+        (typeof data.technicianSignature === 'string' && data.technicianSignature.startsWith('data:image')
+          ? data.technicianSignature
+          : undefined);
+      if (techSigDataUrl) {
+        try {
+          const base64Data = techSigDataUrl.split(',')[1] || techSigDataUrl;
+          const sigBuf = Buffer.from(base64Data, 'base64');
+          if (sigBuf.length > 50) {
+            doc.image(sigBuf, 48, currentY + 35, {
+              fit: [175, 32],
+              align: 'center',
+              valign: 'center',
+            });
+          }
+        } catch (sigErr) {
+          console.warn('[QC PDF] Failed to embed technician digital signature:', sigErr);
+        }
+      }
+
+      const clientSigDataUrl =
+        data.clientSignatureImage ||
+        (typeof data.clientSign === 'string' && data.clientSign.startsWith('data:image')
+          ? data.clientSign
+          : undefined);
+      if (clientSigDataUrl) {
+        try {
+          const base64Data = clientSigDataUrl.split(',')[1] || clientSigDataUrl;
+          const sigBuf = Buffer.from(base64Data, 'base64');
+          if (sigBuf.length > 50) {
+            doc.image(sigBuf, 348, currentY + 35, {
+              fit: [175, 32],
+              align: 'center',
+              valign: 'center',
+            });
+          }
+        } catch (sigErr) {
+          console.warn('[QC PDF] Failed to embed client digital signature:', sigErr);
+        }
+      }
 
       // Signature lines
-      doc.moveTo(46, currentY + 57).lineTo(230, currentY + 57).strokeColor('#94A3B8').lineWidth(0.8).stroke();
-      doc.moveTo(345, currentY + 57).lineTo(525, currentY + 57).strokeColor('#94A3B8').lineWidth(0.8).stroke();
+      doc.moveTo(46, currentY + 70).lineTo(230, currentY + 70).strokeColor('#94A3B8').lineWidth(0.8).stroke();
+      doc.moveTo(345, currentY + 70).lineTo(525, currentY + 70).strokeColor('#94A3B8').lineWidth(0.8).stroke();
+
+      const techNameDisplay =
+        data.technicianSignature && !data.technicianSignature.startsWith('data:image')
+          ? data.technicianSignature
+          : data.technician || 'Dinesh Kumar S';
+      const clientNameDisplay =
+        data.clientSign && !data.clientSign.startsWith('data:image')
+          ? data.clientSign
+          : data.clientRepName || data.clientName || 'Confirmed';
 
       doc.font(fontBold).fontSize(7.5).fillColor(navy)
-        .text(`Technician: ${data.technicianSignature || data.technician || 'Dinesh Kumar S'}`, 46, currentY + 60)
-        .text(`Client Signature: ${data.clientSign || data.clientName || 'Confirmed'}`, 345, currentY + 60);
+        .text(`Technician: ${techNameDisplay}`, 46, currentY + 73)
+        .text(`Client Signature: ${clientNameDisplay}`, 345, currentY + 73);
 
-      currentY += 82;
+      currentY += 94;
 
       // Extract section 7 & 8 photos into renderable items
       const photoCategories: Array<{ key: string; label: string }> = [

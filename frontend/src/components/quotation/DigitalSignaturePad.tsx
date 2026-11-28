@@ -8,6 +8,9 @@ interface DigitalSignaturePadProps {
   onChange: (signatureDataUrl: string) => void;
   signerName?: string;
   className?: string;
+  label?: string;
+  subtitle?: string;
+  badgeText?: string;
 }
 
 export const DigitalSignaturePad: React.FC<DigitalSignaturePadProps> = ({
@@ -15,6 +18,9 @@ export const DigitalSignaturePad: React.FC<DigitalSignaturePadProps> = ({
   onChange,
   signerName = '',
   className = '',
+  label = 'Digital Client Signature:',
+  subtitle,
+  badgeText = 'Active on all PDF pages',
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -196,13 +202,17 @@ export const DigitalSignaturePad: React.FC<DigitalSignaturePadProps> = ({
     e.target.value = '';
   };
 
-  // If value is provided externally, draw it on canvas on mount
+  // If value is provided externally, draw it on canvas when value changes
   useEffect(() => {
-    if (!value) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
+    if (!value) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
 
     const img = new Image();
     img.onload = () => {
@@ -210,7 +220,7 @@ export const DigitalSignaturePad: React.FC<DigitalSignaturePadProps> = ({
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     };
     img.src = value;
-  }, []);
+  }, [value]);
 
   return (
     <div className={`space-y-2.5 ${className}`}>
@@ -218,17 +228,22 @@ export const DigitalSignaturePad: React.FC<DigitalSignaturePadProps> = ({
         <div>
           <label className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
             <PenTool className="w-3.5 h-3.5 text-teal-600" />
-            <span>Digital Client Signature:</span>
+            <span>{label}</span>
           </label>
           <p className="text-[10px] text-slate-500">
-            Signs this quotation digitally. Automatically reflects on <span className="font-semibold text-teal-700">every page</span> of the live PDF.
+            {subtitle || (
+              <>
+                Signs this quotation digitally. Automatically reflects on{' '}
+                <span className="font-semibold text-teal-700">every page</span> of the live PDF.
+              </>
+            )}
           </p>
         </div>
 
         {value && (
           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
             <Check className="w-3 h-3 text-emerald-600" />
-            Active on all PDF pages
+            {badgeText}
           </span>
         )}
       </div>

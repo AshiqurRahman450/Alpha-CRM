@@ -37,6 +37,7 @@ import {
 import toast from 'react-hot-toast';
 import { api, getStoredUser } from '../lib/api';
 import { getTlNameForUser, isCustomerAssignedToTlUser, isProjectAssignedToTlUser } from '../lib/constants';
+import { DigitalSignaturePad } from './quotation/DigitalSignaturePad';
 
 const TAMIL_NADU_REGIONS = [
   'Tamil Nadu — Chennai',
@@ -296,6 +297,8 @@ export default function QCInspectionForm({ initialReport, onSaved, onCancelEdit 
   const [timeOut, setTimeOut] = useState<string>('12:30');
   const [technicianSignature, setTechnicianSignature] = useState<string>('Dinesh Kumar S');
   const [clientSign, setClientSign] = useState<string>('');
+  const [technicianSignatureImage, setTechnicianSignatureImage] = useState<string>('');
+  const [clientSignatureImage, setClientSignatureImage] = useState<string>('');
   const [remarks, setRemarks] = useState<string>('');
   const [selectedCivilScope, setSelectedCivilScope] = useState<string[]>([]);
   const [selectedStructuralScope, setSelectedStructuralScope] = useState<string[]>([]);
@@ -452,6 +455,8 @@ export default function QCInspectionForm({ initialReport, onSaved, onCancelEdit 
     setTimeOut(initialReport.timeOut || '12:30');
     setTechnicianSignature(initialReport.technicianSignature || 'Dinesh Kumar S');
     setClientSign(initialReport.clientSign || '');
+    setTechnicianSignatureImage(initialReport.technicianSignatureImage || '');
+    setClientSignatureImage(initialReport.clientSignatureImage || '');
     const initRemarks = initialReport.remarks || '';
     setRemarks(initRemarks);
 
@@ -834,6 +839,8 @@ export default function QCInspectionForm({ initialReport, onSaved, onCancelEdit 
       timeOut: overrideTimeOut ?? timeOut,
       technicianSignature,
       clientSign,
+      technicianSignatureImage,
+      clientSignatureImage,
       remarks,
       civilShaftScope: selectedCivilScope,
       structuralShaftScope: selectedStructuralScope,
@@ -961,6 +968,8 @@ export default function QCInspectionForm({ initialReport, onSaved, onCancelEdit 
       setJobNo('');
       setRegion('');
       setRemarks('');
+      setTechnicianSignatureImage('');
+      setClientSignatureImage('');
       setSelectedCivilScope([]);
       setSelectedStructuralScope([]);
       setSelectedCrmItem(null);
@@ -1543,7 +1552,7 @@ export default function QCInspectionForm({ initialReport, onSaved, onCancelEdit 
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">Shaft depth — B-Side (Back) (mm)</label>
+            <label className="block text-[11px] font-bold text-slate-700 mb-1">Shaft depth — B-Side (Opening Side) (mm)</label>
             <input
               type="number"
               min="0"
@@ -1567,7 +1576,7 @@ export default function QCInspectionForm({ initialReport, onSaved, onCancelEdit 
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">Shaft G-Side (Left) (mm)</label>
+            <label className="block text-[11px] font-bold text-slate-700 mb-1">Shaft G-Side (Mechanical Side) (mm)</label>
             <input
               type="number"
               min="0"
@@ -1969,9 +1978,9 @@ export default function QCInspectionForm({ initialReport, onSaved, onCancelEdit 
             <tbody className="divide-y divide-slate-200">
               {[
                 { key: 'A', oldKey: 'G', label: 'A-Side (Front/Door)' },
-                { key: 'B', oldKey: 'A', label: 'B-Side (Back)' },
+                { key: 'B', oldKey: 'A', label: 'B-Side (Opening Side)' },
                 { key: 'C', oldKey: 'B', label: 'C-Side (Right)' },
-                { key: 'D', oldKey: 'G', label: 'G-Side (Left)' },
+                { key: 'D', oldKey: 'G', label: 'G-Side (Mechanical Side)' },
               ].map(({ key, oldKey, label }) => {
                 return (
                   <tr key={key} className="hover:bg-slate-50/70">
@@ -2123,25 +2132,45 @@ export default function QCInspectionForm({ initialReport, onSaved, onCancelEdit 
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs mb-4">
-          <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">Technician Signature / Name</label>
-            <input
-              type="text"
-              value={technicianSignature}
-              onChange={(e) => setTechnicianSignature(e.target.value)}
-              placeholder="Type technician name for confirmation"
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl"
+          <div className="space-y-3 p-3.5 rounded-2xl border border-slate-200 bg-slate-50/60">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Technician Signature / Name</label>
+              <input
+                type="text"
+                value={technicianSignature}
+                onChange={(e) => setTechnicianSignature(e.target.value)}
+                placeholder="Type technician name for confirmation"
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl"
+              />
+            </div>
+            <DigitalSignaturePad
+              label="Digital Technician Signature:"
+              subtitle="Draw, adopt from name, or upload signature image to embed on the QC Report PDF."
+              badgeText="Embedded on QC PDF"
+              value={technicianSignatureImage}
+              onChange={setTechnicianSignatureImage}
+              signerName={technicianSignature || technician || 'Dinesh Kumar S'}
             />
           </div>
 
-          <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1">Client Signature / Confirmation Name</label>
-            <input
-              type="text"
-              value={clientSign}
-              onChange={(e) => setClientSign(e.target.value)}
-              placeholder="Type name or confirmed by owner"
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl"
+          <div className="space-y-3 p-3.5 rounded-2xl border border-slate-200 bg-slate-50/60">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Client Signature / Confirmation Name</label>
+              <input
+                type="text"
+                value={clientSign}
+                onChange={(e) => setClientSign(e.target.value)}
+                placeholder="Type name or confirmed by owner"
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl"
+              />
+            </div>
+            <DigitalSignaturePad
+              label="Digital Client Signature:"
+              subtitle="Draw, adopt from name, or upload client signature image to embed on the QC Report PDF."
+              badgeText="Embedded on QC PDF"
+              value={clientSignatureImage}
+              onChange={setClientSignatureImage}
+              signerName={clientSign || clientRepName || clientName || 'Client Signatory'}
             />
           </div>
         </div>
