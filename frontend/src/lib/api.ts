@@ -49,6 +49,37 @@ export function removeAuthToken(): void {
 
 const TL_OVERRIDES_STORAGE_KEY = 'alpha_customer_tl_overrides_v1';
 const PROJECT_STATUS_OVERRIDES_KEY = 'alpha_project_status_overrides_v1';
+const PROJECT_AMC_OVERRIDES_KEY = 'alpha_project_amc_overrides_v1';
+
+interface ProjectAmcOverride {
+  amcWarranty?: string;
+  motorWarranty?: string;
+  manufacturingWarranty?: string;
+  freeMaintenance?: string;
+  amcSource?: 'QUOTATION' | 'MANUAL';
+}
+
+function getProjectAmcOverrides(): Record<string, ProjectAmcOverride> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(PROJECT_AMC_OVERRIDES_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function setProjectAmcOverride(projectId: string, amc: ProjectAmcOverride, projectCode?: string): void {
+  if (typeof window === 'undefined' || !projectId) return;
+  try {
+    const map = getProjectAmcOverrides();
+    map[String(projectId)] = amc;
+    if (projectCode) {
+      map[String(projectCode)] = amc;
+    }
+    localStorage.setItem(PROJECT_AMC_OVERRIDES_KEY, JSON.stringify(map));
+  } catch {}
+}
 
 const LEGACY_STAGE_ENUM_FALLBACK: Record<string, string> = {
   MATERIAL_DELIVERY: 'DELIVERY',
@@ -147,7 +178,17 @@ function applyTlOverrideToCustomer(customer: any): any {
 
 function applyTlOverrideToProject(project: any): any {
   if (!project || typeof window === 'undefined') return project;
-  const withStatus = applyProjectStatusOverride(project);
+  let withStatus = applyProjectStatusOverride(project);
+  const amcMap = getProjectAmcOverrides();
+  const projIdKey = String(withStatus._id || withStatus.id || '');
+  const projCodeKey = String(withStatus.projectId || withStatus.projectCode || '');
+  const amcOverride = (projIdKey && amcMap[projIdKey]) || (projCodeKey && amcMap[projCodeKey]);
+  if (amcOverride && amcOverride.amcWarranty) {
+    withStatus = {
+      ...withStatus,
+      ...amcOverride,
+    };
+  }
   const map = getCustomerTlOverrides();
   const custObj = typeof withStatus.customerId === 'object' && withStatus.customerId !== null ? withStatus.customerId : null;
   const custIdKey = String(custObj?._id || custObj?.id || withStatus.customerId || '');
@@ -966,6 +1007,40 @@ export const api = {
   },
   createProject: (data: any) =>
     fetchWithAuth('/api/projects', { method: 'POST', body: JSON.stringify(data) }),
+  updateProjectAmc: async (
+    id: string,
+    data: {
+      amcWarranty: string;
+      motorWarranty?: string;
+      manufacturingWarranty?: string;
+      freeMaintenance?: string;
+      amcSource?: 'QUOTATION' | 'MANUAL';
+    },
+    projectCode?: string
+  ) => {
+    setProjectAmcOverride(id, data, projectCode);
+    try {
+      const res = await fetchWithAuth(`/api/projects/${id}/amc`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      });
+      if (res?.data) {
+        setProjectAmcOverride(res.data._id || id, data, res.data.projectId || projectCode);
+        res.data = applyTlOverrideToProject(res.data);
+      }
+      return res;
+    } catch {
+      const fallbackRes = await fetchWithAuth(`/api/projects/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+      if (fallbackRes?.data) {
+        setProjectAmcOverride(fallbackRes.data._id || id, data, fallbackRes.data.projectId || projectCode);
+        fallbackRes.data = applyTlOverrideToProject({ ...fallbackRes.data, ...data });
+      }
+      return fallbackRes;
+    }
+  },
   updateProject: async (id: string, data: any) => {
     const targetStatus = data?.projectStatus;
     if (targetStatus) {

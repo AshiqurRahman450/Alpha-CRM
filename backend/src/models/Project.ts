@@ -69,6 +69,14 @@ export interface IProject extends Document {
   vrlLrNumber?: string;
   trackingNumber?: string;
 
+  // AMC / Warranty Fields (from approved quotation or manual entry at Handover Customers)
+  amcWarranty?: string;
+  motorWarranty?: string;
+  manufacturingWarranty?: string;
+  freeMaintenance?: string;
+  amcSource?: 'QUOTATION' | 'MANUAL';
+  quotationOfferNo?: string;
+
   // WhatsApp Automation Fields
   whatsappGroupId?: string;
   whatsappGroupName?: string;
@@ -390,6 +398,30 @@ const ProjectSchema = new Schema<IProject>(
       trim: true,
     },
     trackingNumber: {
+      type: String,
+      trim: true,
+    },
+    amcWarranty: {
+      type: String,
+      trim: true,
+    },
+    motorWarranty: {
+      type: String,
+      trim: true,
+    },
+    manufacturingWarranty: {
+      type: String,
+      trim: true,
+    },
+    freeMaintenance: {
+      type: String,
+      trim: true,
+    },
+    amcSource: {
+      type: String,
+      enum: ['QUOTATION', 'MANUAL'],
+    },
+    quotationOfferNo: {
       type: String,
       trim: true,
     },

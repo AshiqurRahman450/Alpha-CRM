@@ -25,8 +25,14 @@ import {
   Briefcase,
   Wrench,
   UserCheck,
+  ShieldCheck,
+  Plus,
+  Edit2,
+  X,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { api } from '../../lib/api';
+import { buildWarrantyText, parseWarrantyText } from '../../types/quotation';
 import SiteProblemsView, { AssignCallbackProblemModal } from '../../components/SiteProblemsView';
 
 export default function HandoverCustomersPage() {
@@ -41,19 +47,187 @@ export default function HandoverCustomersPage() {
   const [selectedCallbackProject, setSelectedCallbackProject] = useState<any>(null);
   const [problemsRefreshKey, setProblemsRefreshKey] = useState(0);
 
+  // AMC / Warranty Modal State for Manual Customers (and editing existing AMC)
+  const [amcModalProject, setAmcModalProject] = useState<any | null>(null);
+  const [amcMotorWarranty, setAmcMotorWarranty] = useState<string>('Lifetime');
+  const [amcMfgWarranty, setAmcMfgWarranty] = useState<string>('5 years');
+  const [amcFreeMaintenance, setAmcFreeMaintenance] = useState<string>('1 Years');
+  const [amcIncludeBattery, setAmcIncludeBattery] = useState<boolean>(false);
+  const [amcFullText, setAmcFullText] = useState<string>('');
+  const [savingAmc, setSavingAmc] = useState<boolean>(false);
+
   const fetchHandoverProjects = async () => {
     try {
       setLoading(true);
-      const res = await api.getProjects({
-        status: statusFilter,
-        paymentStatus: paymentFilter || undefined,
-        search: search || undefined,
+      const [res, quotesRes] = await Promise.all([
+        api.getProjects({
+          status: statusFilter,
+          paymentStatus: paymentFilter || undefined,
+          search: search || undefined,
+        }),
+        api.quotations.getBdmStageWiseQuotations({ all: true }).catch(() => ({ data: [] })),
+      ]);
+
+      const rawList = res.data || [];
+      const quoteGroups: any[] = quotesRes?.data || [];
+
+      const enriched = rawList.map((proj: any) => {
+        if (proj.amcWarranty && String(proj.amcWarranty).trim()) {
+          const parsed = parseWarrantyText(proj.amcWarranty);
+          return {
+            ...proj,
+            motorWarranty: proj.motorWarranty || parsed.motorWarranty,
+            manufacturingWarranty: proj.manufacturingWarranty || parsed.manufacturingWarranty,
+            freeMaintenance: proj.freeMaintenance || parsed.freeMaintenance,
+          };
+        }
+
+        const customer = proj.customerId || {};
+        const projCode = String(proj.projectId || '').trim().toUpperCase();
+        const custCode = String(customer.customerId || proj.customerCode || '').trim().toUpperCase();
+        const custNameNorm = String(customer.fullName || proj.projectName || '')
+          .replace(/\s*residence$/i, '')
+          .replace(/^Dear\s*/i, '')
+          .trim()
+          .toLowerCase();
+        const custPhoneClean = String(customer.phoneNumber || proj.customerPhone || '').replace(/\D/g, '').slice(-10);
+
+        const matchedGroup = quoteGroups.find((g: any) => {
+          if (projCode && String(g.createdProjectCode || '').toUpperCase() === projCode) return true;
+          if (custCode && String(g.createdCustomerCode || '').toUpperCase() === custCode) return true;
+          if (proj._id && String(g.createdProjectId || '') === String(proj._id)) return true;
+          if (customer._id && String(g.createdCustomerId || '') === String(customer._id)) return true;
+
+          const isApproved =
+            g.latestStatus === 'CRM_APPROVED' ||
+            g.stages?.stage4?.status === 'CRM_APPROVED' ||
+            g.stages?.stage3?.status === 'CRM_APPROVED';
+          if (isApproved) {
+            const gPhone = String(g.customerPhone || '').replace(/\D/g, '').slice(-10);
+            if (custPhoneClean && custPhoneClean.length === 10 && gPhone === custPhoneClean) return true;
+            const gName = String(g.customerName || '')
+              .replace(/^Dear\s*/i, '')
+              .trim()
+              .toLowerCase();
+            if (custNameNorm && gName && gName === custNameNorm) return true;
+          }
+          return false;
+        });
+
+        if (matchedGroup) {
+          const bestStage =
+            matchedGroup.stages?.stage4 ||
+            matchedGroup.stages?.stage3 ||
+            matchedGroup.stages?.stage2 ||
+            matchedGroup.stages?.stage1;
+          const qData = bestStage?.data || {};
+          const qWarranty =
+            qData.warranty ||
+            'Lifetime- MOTOR WARRANTY, 5 years - manufacturing warranty + 1 Years Free Maintenance';
+          const parsed = parseWarrantyText(qWarranty);
+          return {
+            ...proj,
+            amcWarranty: qWarranty,
+            motorWarranty: qData.motorWarranty || parsed.motorWarranty || 'Lifetime',
+            manufacturingWarranty: qData.manufacturingWarranty || parsed.manufacturingWarranty || '5 years',
+            freeMaintenance: qData.freeMaintenance || parsed.freeMaintenance || '1 Years',
+            amcSource: 'QUOTATION',
+            quotationOfferNo: bestStage?.offerNo || matchedGroup.baseOfferNo,
+          };
+        }
+
+        return proj;
       });
-      setProjects(res.data || []);
+
+      setProjects(enriched);
     } catch (err: any) {
       console.error('Failed to load handover projects:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openAmcModal = (proj: any) => {
+    const existingText = String(proj.amcWarranty || '').trim();
+    const isEv = Boolean(
+      (proj.liftModel && /\bEV\b|home\s*EV|battery/i.test(proj.liftModel)) ||
+        /battery\s*warranty/i.test(existingText)
+    );
+    const parsed = parseWarrantyText(existingText);
+    const motor = proj.motorWarranty || parsed.motorWarranty || 'Lifetime';
+    const mfg = proj.manufacturingWarranty || parsed.manufacturingWarranty || '5 years';
+    const maint = proj.freeMaintenance || parsed.freeMaintenance || '1 Years';
+    const full =
+      existingText ||
+      buildWarrantyText({
+        motorWarranty: motor,
+        manufacturingWarranty: mfg,
+        freeMaintenance: maint,
+        isEv,
+      });
+
+    setAmcModalProject(proj);
+    setAmcMotorWarranty(motor);
+    setAmcMfgWarranty(mfg);
+    setAmcFreeMaintenance(maint);
+    setAmcIncludeBattery(isEv);
+    setAmcFullText(full);
+  };
+
+  const handleAmcDropdownChange = (updates: {
+    motorWarranty?: string;
+    manufacturingWarranty?: string;
+    freeMaintenance?: string;
+    includeBattery?: boolean;
+  }) => {
+    const nextMotor = updates.motorWarranty !== undefined ? updates.motorWarranty : amcMotorWarranty;
+    const nextMfg = updates.manufacturingWarranty !== undefined ? updates.manufacturingWarranty : amcMfgWarranty;
+    const nextMaint = updates.freeMaintenance !== undefined ? updates.freeMaintenance : amcFreeMaintenance;
+    const nextBat = updates.includeBattery !== undefined ? updates.includeBattery : amcIncludeBattery;
+
+    setAmcMotorWarranty(nextMotor);
+    setAmcMfgWarranty(nextMfg);
+    setAmcFreeMaintenance(nextMaint);
+    setAmcIncludeBattery(nextBat);
+    setAmcFullText(
+      buildWarrantyText({
+        motorWarranty: nextMotor,
+        manufacturingWarranty: nextMfg,
+        freeMaintenance: nextMaint,
+        isEv: nextBat,
+      })
+    );
+  };
+
+  const handleSaveAmc = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!amcModalProject) return;
+    const cleanText = amcFullText.trim();
+    if (!cleanText) {
+      toast.error('Please enter or select AMC / Warranty details');
+      return;
+    }
+    try {
+      setSavingAmc(true);
+      const source: 'QUOTATION' | 'MANUAL' =
+        amcModalProject.amcSource === 'QUOTATION' ? 'QUOTATION' : 'MANUAL';
+      const payload = {
+        amcWarranty: cleanText,
+        motorWarranty: amcMotorWarranty,
+        manufacturingWarranty: amcMfgWarranty,
+        freeMaintenance: amcFreeMaintenance,
+        amcSource: source,
+      };
+      await api.updateProjectAmc(amcModalProject._id, payload, amcModalProject.projectId);
+      setProjects((prev) =>
+        prev.map((p) => (String(p._id) === String(amcModalProject._id) ? { ...p, ...payload } : p))
+      );
+      toast.success(`AMC (Warranty) saved for ${amcModalProject.projectName}!`);
+      setAmcModalProject(null);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save AMC / Warranty');
+    } finally {
+      setSavingAmc(false);
     }
   };
 
@@ -285,6 +459,7 @@ export default function HandoverCustomersPage() {
                   <th className="py-3.5 px-4 font-bold">Customer Details</th>
                   <th className="py-3.5 px-4 font-bold">Handover Status</th>
                   <th className="py-3.5 px-4 font-bold">Financial Summary</th>
+                  <th className="py-3.5 px-4 font-bold">AMC (Warranty)</th>
                   <th className="py-3.5 px-4 font-bold">Specs &amp; Location</th>
                   <th className="py-3.5 px-4 font-bold">WhatsApp Group</th>
                   <th className="py-3.5 px-4 font-bold text-right">Actions</th>
@@ -384,6 +559,81 @@ export default function HandoverCustomersPage() {
                             )}
                           </div>
                         </div>
+                      </td>
+
+                      {/* AMC (Warranty) Column */}
+                      <td className="py-3.5 px-4">
+                        {proj.amcWarranty ? (
+                          <div className="space-y-1.5 max-w-[250px]">
+                            <div className="flex items-center justify-between gap-1.5">
+                              {proj.amcSource === 'QUOTATION' ? (
+                                <span
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-800 border border-teal-200"
+                                  title={
+                                    proj.quotationOfferNo
+                                      ? `Auto-populated from Approved Quotation (${proj.quotationOfferNo})`
+                                      : 'Auto-populated from Approved Quotation'
+                                  }
+                                >
+                                  <ShieldCheck className="w-3 h-3 text-teal-600" />
+                                  <span>Quotation Warranty</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
+                                  <ShieldCheck className="w-3 h-3 text-indigo-600" />
+                                  <span>Manual AMC</span>
+                                </span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => openAmcModal(proj)}
+                                className="p-1 text-slate-400 hover:text-teal-700 hover:bg-teal-50 rounded-lg transition-colors cursor-pointer"
+                                title="Edit AMC / Warranty"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {proj.motorWarranty && (
+                                <span className="text-[10px] font-semibold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200">
+                                  Motor: {proj.motorWarranty}
+                                </span>
+                              )}
+                              {proj.manufacturingWarranty && (
+                                <span className="text-[10px] font-semibold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200">
+                                  Mfg: {proj.manufacturingWarranty}
+                                </span>
+                              )}
+                              {proj.freeMaintenance && (
+                                <span className="text-[10px] font-bold bg-emerald-50 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200">
+                                  AMC: {proj.freeMaintenance} Free
+                                </span>
+                              )}
+                            </div>
+                            <div
+                              className="text-[10px] text-slate-500 line-clamp-2 leading-snug"
+                              title={proj.amcWarranty}
+                            >
+                              {proj.amcWarranty}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            <span className="inline-block text-[10px] font-medium text-slate-400">
+                              Manual Customer • No AMC Set
+                            </span>
+                            <div>
+                              <button
+                                type="button"
+                                onClick={() => openAmcModal(proj)}
+                                className="px-2.5 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-300 rounded-lg font-bold text-[11px] transition-colors inline-flex items-center gap-1 cursor-pointer shadow-2xs"
+                              >
+                                <Plus className="w-3 h-3 text-teal-600" />
+                                <span>Add AMC (Warranty)</span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </td>
 
                       {/* Specs & Location */}
@@ -496,6 +746,134 @@ export default function HandoverCustomersPage() {
         initialProject={selectedCallbackProject}
         onSuccess={() => setProblemsRefreshKey((k) => k + 1)}
       />
+
+      {/* Add / Edit AMC (Warranty) Modal for Handover Customers */}
+      {amcModalProject && (
+        <div className="fixed inset-0 z-[9999] bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden animate-fade-in">
+            <div className="bg-gradient-to-r from-teal-900 via-slate-900 to-slate-900 text-white p-5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-teal-500/20 border border-teal-400/40 text-teal-300 flex items-center justify-center">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black tracking-tight">
+                    {amcModalProject.amcWarranty ? 'Edit AMC (Warranty)' : 'Add AMC (Warranty) — Manual Customer'}
+                  </h3>
+                  <p className="text-xs text-slate-300">
+                    {amcModalProject.projectName} ({amcModalProject.projectId})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAmcModalProject(null)}
+                className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAmc} className="p-5 space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Motor Warranty:
+                  </label>
+                  <select
+                    value={amcMotorWarranty}
+                    onChange={(e) => handleAmcDropdownChange({ motorWarranty: e.target.value })}
+                    className="w-full text-xs px-2.5 py-2 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-teal-500 font-semibold text-slate-800"
+                  >
+                    <option value="Lifetime">Lifetime</option>
+                    <option value="1years">1years</option>
+                    <option value="2years">2years</option>
+                    <option value="3years">3years</option>
+                    <option value="4years">4years</option>
+                    <option value="5years">5years</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Manufacturing Warranty:
+                  </label>
+                  <select
+                    value={amcMfgWarranty}
+                    onChange={(e) => handleAmcDropdownChange({ manufacturingWarranty: e.target.value })}
+                    className="w-full text-xs px-2.5 py-2 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-teal-500 font-semibold text-slate-800"
+                  >
+                    <option value="1 years">1 years</option>
+                    <option value="2 years">2 years</option>
+                    <option value="3 years">3 years</option>
+                    <option value="4 years">4 years</option>
+                    <option value="5 years">5 years</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Free Maintenance (AMC):
+                  </label>
+                  <select
+                    value={amcFreeMaintenance}
+                    onChange={(e) => handleAmcDropdownChange({ freeMaintenance: e.target.value })}
+                    className="w-full text-xs px-2.5 py-2 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-teal-500 font-semibold text-slate-800"
+                  >
+                    <option value="1 Years">1 Years</option>
+                    <option value="2 Years">2 Years</option>
+                    <option value="3 Years">3 Years</option>
+                    <option value="4 Years">4 Years</option>
+                    <option value="5 Years">5 Years</option>
+                  </select>
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={amcIncludeBattery}
+                  onChange={(e) => handleAmcDropdownChange({ includeBattery: e.target.checked })}
+                  className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                />
+                <span className="text-xs font-semibold text-slate-700">
+                  Include 5 Years EV Battery Warranty (3 Years Replaceable &amp; 2 Years Service)
+                </span>
+              </label>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Full AMC / Warranty Term Text:
+                </label>
+                <textarea
+                  rows={3}
+                  value={amcFullText}
+                  onChange={(e) => setAmcFullText(e.target.value)}
+                  placeholder="e.g. Lifetime- MOTOR WARRANTY, 5 years - manufacturing warranty + 1 Years Free Maintenance"
+                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium bg-white"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setAmcModalProject(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingAmc}
+                  className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400 text-white font-bold shadow-sm transition-colors cursor-pointer"
+                >
+                  {savingAmc ? 'Saving...' : 'Save AMC (Warranty)'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { Quotation, Customer, Project, User, Reminder } from '../models';
 import { whatsAppWebBot, watiService } from '../services/whatsapp';
 import { generateOrSaveQuotationPdf } from '../services/quotation/quotationPdfGenerator';
 import { getNextProjectId, getNextCustomerId } from '../utils/idGenerators';
+import { invalidateApiCache } from '../utils/apiCache';
 import * as XLSX from 'xlsx';
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
@@ -1192,6 +1193,16 @@ quotationRouter.post('/crm-approve', async (req: any, res: Response) => {
       newProject = await Project.findById(quotation.createdProjectId);
     }
 
+    const quotationWarrantyText =
+      (typeof qData.warranty === 'string' && qData.warranty.trim()) ||
+      'Lifetime- MOTOR WARRANTY, 5 years - manufacturing warranty + 1 Years Free Maintenance';
+    const quotationMotorWarranty =
+      (typeof qData.motorWarranty === 'string' && qData.motorWarranty.trim()) || 'Lifetime';
+    const quotationMfgWarranty =
+      (typeof qData.manufacturingWarranty === 'string' && qData.manufacturingWarranty.trim()) || '5 years';
+    const quotationFreeMaint =
+      (typeof qData.freeMaintenance === 'string' && qData.freeMaintenance.trim()) || '1 Years';
+
     if (!newProject) {
       const advPct = 30;
       const advanceAmount = Math.round((orderValue * advPct) / 100);
@@ -1222,9 +1233,25 @@ quotationRouter.post('/crm-approve', async (req: any, res: Response) => {
         assignedEmployee: targetBdmName || undefined,
         bdmId: targetBdmId || undefined,
         bdmPhone: targetBdmPhone || undefined,
+        amcWarranty: quotationWarrantyText,
+        motorWarranty: quotationMotorWarranty,
+        manufacturingWarranty: quotationMfgWarranty,
+        freeMaintenance: quotationFreeMaint,
+        amcSource: 'QUOTATION',
+        quotationOfferNo: quotation.offerNo,
         notes: `Generated automatically from approved Stage 3 Quotation ${quotation.offerNo}${targetBdmName ? ` (Assigned BDM: ${targetBdmName})` : ''}. Travel: ${qData.totalTravelHeight || '7000mm'}, Door: ${qData.doorSpecifications || 'SS 304 Grade'}, Power: ${qData.powerSupply || 'Single Phase'}.`,
       });
+    } else if (!newProject.amcWarranty) {
+      newProject.amcWarranty = quotationWarrantyText;
+      newProject.motorWarranty = quotationMotorWarranty;
+      newProject.manufacturingWarranty = quotationMfgWarranty;
+      newProject.freeMaintenance = quotationFreeMaint;
+      newProject.amcSource = 'QUOTATION';
+      newProject.quotationOfferNo = quotation.offerNo;
+      await newProject.save();
     }
+
+    invalidateApiCache('projects:');
 
     // 3. Mark Quotation as CRM_APPROVED
     quotation.status = 'CRM_APPROVED';

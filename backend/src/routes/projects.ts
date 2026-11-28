@@ -5,6 +5,7 @@ import {
   Project,
   Customer,
   Payment,
+  Quotation,
   WhatsAppChannel,
   WhatsAppMessage,
   ProjectActivity,
@@ -695,8 +696,8 @@ projectRouter.get('/', async (req: AuthRequest, res: Response) => {
         query.$and = andConditions;
       }
 
-      // Run Project.find and Customer.find in parallel with batchSize(1000) to avoid sequential populate & getMore round-trips
-      const [rawProjects, allCustomers] = await Promise.all([
+      // Run Project.find, Customer.find, and Quotation.find in parallel with batchSize(1000) to avoid sequential populate & getMore round-trips
+      const [rawProjects, allCustomers, linkedQuotations] = await Promise.all([
         Project.find(query)
           .select('-drawingData -installationStages')
           .sort({ createdAt: -1 })
@@ -706,6 +707,21 @@ projectRouter.get('/', async (req: AuthRequest, res: Response) => {
           .select('-documents.data')
           .batchSize(1000)
           .lean(),
+        Quotation.find({
+          $or: [
+            { status: 'CRM_APPROVED' },
+            { createdProjectId: { $exists: true, $ne: null } },
+            { createdProjectCode: { $exists: true, $nin: ['', null] } },
+            { createdCustomerId: { $exists: true, $ne: null } },
+            { createdCustomerCode: { $exists: true, $nin: ['', null] } },
+          ],
+        })
+          .select(
+            'offerNo stage status customerName customerPhone createdProjectId createdProjectCode createdCustomerId createdCustomerCode data.warranty data.motorWarranty data.manufacturingWarranty data.freeMaintenance'
+          )
+          .sort({ stage: -1, updatedAt: -1 })
+          .batchSize(1000)
+          .lean(),
       ]);
 
       const customerMap = new Map<string, any>();
@@ -713,10 +729,60 @@ projectRouter.get('/', async (req: AuthRequest, res: Response) => {
         customerMap.set(String(c._id), c);
       }
 
-      let projects: any[] = rawProjects.map((p: any) => ({
-        ...p,
-        customerId: (p.customerId && customerMap.get(String(p.customerId))) || p.customerId || null,
-      }));
+      const quotationByProjectId = new Map<string, any>();
+      const quotationByProjectCode = new Map<string, any>();
+      const quotationByCustomerId = new Map<string, any>();
+      const quotationByCustomerCode = new Map<string, any>();
+
+      for (const q of linkedQuotations) {
+        if (q.createdProjectId && !quotationByProjectId.has(String(q.createdProjectId))) {
+          quotationByProjectId.set(String(q.createdProjectId), q);
+        }
+        if (q.createdProjectCode && !quotationByProjectCode.has(String(q.createdProjectCode).toUpperCase())) {
+          quotationByProjectCode.set(String(q.createdProjectCode).toUpperCase(), q);
+        }
+        if (q.createdCustomerId && !quotationByCustomerId.has(String(q.createdCustomerId))) {
+          quotationByCustomerId.set(String(q.createdCustomerId), q);
+        }
+        if (q.createdCustomerCode && !quotationByCustomerCode.has(String(q.createdCustomerCode).toUpperCase())) {
+          quotationByCustomerCode.set(String(q.createdCustomerCode).toUpperCase(), q);
+        }
+      }
+
+      let projects: any[] = rawProjects.map((p: any) => {
+        const custObj = (p.customerId && customerMap.get(String(p.customerId))) || p.customerId || null;
+        const custIdStr = String(custObj?._id || p.customerId || '');
+        const custCodeStr = String(custObj?.customerId || p.customerCode || '').toUpperCase();
+        const projIdStr = String(p._id || '');
+        const projCodeStr = String(p.projectId || '').toUpperCase();
+
+        const matchedQuote =
+          (projIdStr && quotationByProjectId.get(projIdStr)) ||
+          (projCodeStr && quotationByProjectCode.get(projCodeStr)) ||
+          (custIdStr && quotationByCustomerId.get(custIdStr)) ||
+          (custCodeStr && quotationByCustomerCode.get(custCodeStr)) ||
+          null;
+
+        const qData = matchedQuote?.data || {};
+        const resolvedWarranty =
+          p.amcWarranty ||
+          (matchedQuote
+            ? qData.warranty ||
+              'Lifetime- MOTOR WARRANTY, 5 years - manufacturing warranty + 1 Years Free Maintenance'
+            : undefined);
+
+        return {
+          ...p,
+          customerId: custObj,
+          amcWarranty: resolvedWarranty,
+          motorWarranty: p.motorWarranty || (matchedQuote ? qData.motorWarranty || 'Lifetime' : undefined),
+          manufacturingWarranty:
+            p.manufacturingWarranty || (matchedQuote ? qData.manufacturingWarranty || '5 years' : undefined),
+          freeMaintenance: p.freeMaintenance || (matchedQuote ? qData.freeMaintenance || '1 Years' : undefined),
+          amcSource: p.amcSource || (matchedQuote ? 'QUOTATION' : undefined),
+          quotationOfferNo: p.quotationOfferNo || matchedQuote?.offerNo || undefined,
+        };
+      });
 
       if (isTlUser(req.user)) {
         projects = projects.filter((p: any) => isProjectAccessibleByTl(p, req.user));
@@ -884,6 +950,7 @@ projectRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER'), async (req: AuthRe
       userName: req.user?.name,
     });
 
+    invalidateApiCache('projects:');
     return res.status(201).json({ success: true, data: newProject });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
@@ -1254,6 +1321,7 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
       base['Customer Type'] = '';
       base['Lead Source'] = '';
       base['Assigned TL'] = '';
+      base['AMC / Warranty'] = '';
       base['Old Customer'] = '';
       base['Customer Notes'] = '';
       base['Project Notes'] = '';
@@ -1432,6 +1500,7 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
           'Customer Type': customerType,
           'Lead Source': leadSource,
           'Assigned TL': p.assignedTl || customer.assignedTl || '',
+          'AMC / Warranty': p.amcWarranty || '',
           'Old Customer': isOldCustomer,
           'Customer Notes': customerNotes,
           'Project Notes': projectNotes,
@@ -1525,6 +1594,7 @@ projectRouter.get('/export-excel', async (req: AuthRequest, res: Response) => {
         'Customer Type': customerType,
         'Lead Source': leadSource,
         'Assigned TL': p.assignedTl || customer.assignedTl || '',
+        'AMC / Warranty': p.amcWarranty || '',
         'Old Customer': isOldCustomer,
         'Customer Notes': customerNotes,
         'Project Notes': projectNotes,
@@ -1737,8 +1807,46 @@ projectRouter.put('/:id', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT', 'BD
 
     autoFillExecutedDatesForCompletedStages(project);
     await project.save();
+    invalidateApiCache('projects:');
     await ensureProjectCustomerPopulated(project);
     return res.json({ success: true, data: project });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * PATCH /api/projects/:id/amc
+ * Add or update AMC (Warranty) details on a project (for manual handover customers or warranty adjustments)
+ */
+projectRouter.patch('/:id/amc', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT', 'BDM', 'TECHNICAL_LEAD'), async (req: AuthRequest, res: Response) => {
+  try {
+    let project: any = null;
+    if (Types.ObjectId.isValid(req.params.id)) {
+      project = await Project.findById(req.params.id);
+    } else {
+      project = await Project.findOne({ projectId: req.params.id.toUpperCase() });
+    }
+    if (!project) {
+      return res.status(404).json({ success: false, message: 'Project not found' });
+    }
+
+    const { amcWarranty, motorWarranty, manufacturingWarranty, freeMaintenance, amcSource } = req.body;
+    if (amcWarranty !== undefined) project.amcWarranty = String(amcWarranty).trim();
+    if (motorWarranty !== undefined) project.motorWarranty = String(motorWarranty).trim();
+    if (manufacturingWarranty !== undefined) project.manufacturingWarranty = String(manufacturingWarranty).trim();
+    if (freeMaintenance !== undefined) project.freeMaintenance = String(freeMaintenance).trim();
+    project.amcSource = amcSource === 'QUOTATION' ? 'QUOTATION' : 'MANUAL';
+
+    await project.save();
+    invalidateApiCache('projects:');
+    await ensureProjectCustomerPopulated(project);
+
+    return res.json({
+      success: true,
+      message: 'AMC / Warranty updated successfully',
+      data: project,
+    });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
   }
