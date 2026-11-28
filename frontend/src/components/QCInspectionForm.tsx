@@ -2331,12 +2331,11 @@ export default function QCInspectionForm({ initialReport, onSaved, onCancelEdit 
                 )}
                 <UploadCloud className="w-5 h-5 text-slate-400 mb-1" />
                 <span className="text-[11px] font-semibold text-slate-600">Choose photo(s)</span>
-                <span className="text-[9px] text-slate-400">or take picture</span>
+                <span className="text-[9px] text-slate-400">from gallery</span>
                 <input
                   type="file"
                   accept={item.isVideo ? 'video/*,image/*' : 'image/*'}
                   multiple
-                  capture="environment"
                   onChange={(e) => handlePhotoUpload(item.id, e.target.files)}
                   className="hidden"
                 />
