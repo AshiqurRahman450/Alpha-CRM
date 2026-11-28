@@ -1299,7 +1299,40 @@ export const api = {
     const token = getAuthToken();
     const baseUrl = getApiBaseUrl();
 
-    // 1. If the report is already saved in MongoDB (_id present), try the zero-body GET endpoint first
+    const hydratedData = {
+      ...data,
+      civilShaftScope: data?.civilShaftScope || data?.floorMeasurements?.__meta?.civilShaftScope,
+      structuralShaftScope: data?.structuralShaftScope || data?.floorMeasurements?.__meta?.structuralShaftScope,
+      technicianSignatureImage:
+        data?.technicianSignatureImage || data?.floorMeasurements?.__meta?.technicianSignatureImage,
+      clientSignatureImage:
+        data?.clientSignatureImage || data?.floorMeasurements?.__meta?.clientSignatureImage,
+    };
+
+    // Ensure POST JSON payload stays under 750KB so Nginx default client_max_body_size (1MB) never rejects it with 413 / Failed to fetch
+    const safePayload = await compressQcReportPayloadIfNeeded(hydratedData, 750_000);
+    const bodyStr = JSON.stringify(safePayload);
+
+    // 1. Try Next.js server route (/api/qc-pdf) FIRST so live frontend deployments ALWAYS render the latest PDF format
+    if (typeof window !== 'undefined') {
+      try {
+        const nextRouteRes = await fetch('/api/qc-pdf', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/pdf',
+          },
+          body: bodyStr,
+        });
+        if (nextRouteRes.ok && (nextRouteRes.headers.get('content-type') || '').includes('application/pdf')) {
+          return await nextRouteRes.blob();
+        }
+      } catch {
+        // Fallback to backend endpoints below
+      }
+    }
+
+    // 2. If the report is already saved in MongoDB (_id present), try the zero-body GET endpoint on backend
     if (data?._id) {
       try {
         const getRes = await fetch(`${baseUrl}/api/qc/reports/${encodeURIComponent(String(data._id))}/pdf`, {
@@ -1317,9 +1350,7 @@ export const api = {
       }
     }
 
-    // 2. Ensure POST JSON payload stays under 750KB so Nginx default client_max_body_size (1MB) never rejects it with 413 / Failed to fetch
-    const safePayload = await compressQcReportPayloadIfNeeded(data, 750_000);
-    const bodyStr = JSON.stringify(safePayload);
+    // 3. Fallback to backend POST /api/qc/generate-pdf
     const reqInit: RequestInit = {
       method: 'POST',
       headers: {
@@ -1347,11 +1378,35 @@ export const api = {
     return res.blob();
   },
   saveQCReport: async (data: any) => {
-    const safePayload = await compressQcReportPayloadIfNeeded(data, 780_000);
+    const withMeta = {
+      ...data,
+      floorMeasurements: {
+        ...(data?.floorMeasurements || {}),
+        __meta: {
+          civilShaftScope: data?.civilShaftScope,
+          structuralShaftScope: data?.structuralShaftScope,
+          technicianSignatureImage: data?.technicianSignatureImage,
+          clientSignatureImage: data?.clientSignatureImage,
+        },
+      },
+    };
+    const safePayload = await compressQcReportPayloadIfNeeded(withMeta, 780_000);
     return fetchWithAuth('/api/qc/reports', { method: 'POST', body: JSON.stringify(safePayload) });
   },
   updateQCReport: async (id: string, data: any) => {
-    const safePayload = await compressQcReportPayloadIfNeeded(data, 780_000);
+    const withMeta = {
+      ...data,
+      floorMeasurements: {
+        ...(data?.floorMeasurements || {}),
+        __meta: {
+          civilShaftScope: data?.civilShaftScope,
+          structuralShaftScope: data?.structuralShaftScope,
+          technicianSignatureImage: data?.technicianSignatureImage,
+          clientSignatureImage: data?.clientSignatureImage,
+        },
+      },
+    };
+    const safePayload = await compressQcReportPayloadIfNeeded(withMeta, 780_000);
     try {
       return await fetchWithAuth(`/api/qc/reports/${id}`, {
         method: 'PUT',

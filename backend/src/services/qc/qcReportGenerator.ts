@@ -315,7 +315,7 @@ export async function generateQCReportPdf(
       currentY += 44;
 
       // Dynamic Measurements Table
-      const stops = Math.max(2, Math.min(7, Number(data.floorConfig) || 2));
+      const stops = Math.max(2, Math.min(7, rawFloorNum || Number(data.floorConfig) || 2));
       const colLabels: string[] = ['Pit Height'];
       for (let i = 0; i < stops - 1; i++) {
         colLabels.push(i === 0 ? 'Flr 0 to 1' : `Flr ${i} to ${i + 1}`);

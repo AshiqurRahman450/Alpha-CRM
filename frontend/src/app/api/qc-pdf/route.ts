@@ -1,0 +1,701 @@
+import { NextResponse } from 'next/server';
+import path from 'path';
+import fs from 'fs';
+
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+function loadPdfKit(): any {
+  const reqFn = eval('require');
+  const candidates = [
+    path.resolve(process.cwd(), '../backend/node_modules/pdfkit'),
+    path.resolve(process.cwd(), 'backend/node_modules/pdfkit'),
+    'pdfkit',
+  ];
+  for (const candidate of candidates) {
+    try {
+      return reqFn(candidate);
+    } catch {}
+  }
+  throw new Error('PDFKit module not found');
+}
+
+async function generateQCReportPdfBuffer(data: any): Promise<{ buffer: Buffer; fileName: string }> {
+  const PDFDocument = loadPdfKit();
+
+  const cleanJobNo = String(data.jobNo || 'SITE-REPORT').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const cleanClient = String(data.clientName || 'Client').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const fileName = `PreProduction-Report-${cleanJobNo}-${cleanClient}-${Date.now().toString().slice(-4)}.pdf`;
+
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({
+        size: 'A4',
+        margins: { top: 36, bottom: 20, left: 36, right: 36 },
+        bufferPages: true,
+        info: {
+          Title: `Elevator Site Visit Report/Pre-Production - ${data.jobNo}`,
+          Author: 'Alpha Elevators Quality Control Team',
+          Subject: `Site Visit Report/Pre-Production for ${data.clientName}`,
+          Creator: 'Alpha Elevators CRM System',
+        },
+      });
+
+      const chunks: Buffer[] = [];
+      doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+      doc.on('end', () => {
+        resolve({ buffer: Buffer.concat(chunks), fileName });
+      });
+      doc.on('error', (err: any) => reject(err));
+
+      // Font Registration (Poppins Font)
+      const fontDirCandidates = [
+        path.resolve(process.cwd(), '../backend/assets/fonts'),
+        path.resolve(process.cwd(), 'backend/assets/fonts'),
+        path.resolve(process.cwd(), 'assets/fonts'),
+      ];
+      const fontDir = fontDirCandidates.find((d) => fs.existsSync(path.join(d, 'Poppins-Regular.ttf')));
+
+      let fontRegular = 'Helvetica';
+      let fontBold = 'Helvetica-Bold';
+
+      if (fontDir) {
+        doc.registerFont('Poppins', path.join(fontDir, 'Poppins-Regular.ttf'));
+        doc.registerFont('Poppins-Bold', path.join(fontDir, 'Poppins-Bold.ttf'));
+        fontRegular = 'Poppins';
+        fontBold = 'Poppins-Bold';
+      }
+
+      doc.font(fontRegular);
+
+      // Colors
+      const navy = '#000000';
+      const darkSlate = '#000000';
+      const slate = '#475569';
+      const lightBg = '#F3F6FB';
+      const borderCol = '#DBE3EE';
+      const green = '#059669';
+
+      const logoCandidates = [
+        path.resolve(process.cwd(), 'public/logo.png'),
+        path.resolve(process.cwd(), 'frontend/public/logo.png'),
+        path.resolve(process.cwd(), '../frontend/public/logo.png'),
+      ];
+      const logoPath = logoCandidates.find((p) => fs.existsSync(p));
+
+      // ==========================================
+      // PAGE 1: Job, Property & Measurements
+      // ==========================================
+      doc.rect(36, 36, 523, 72).fill(navy);
+
+      if (logoPath) {
+        doc.image(logoPath, 48, 48, { width: 130, height: 48 });
+      } else {
+        doc.fillColor('#FFFFFF').font(fontBold).fontSize(16).text('ALPHA ELEVATORS', 48, 52);
+        doc.fillColor('#00cccc').font(fontRegular).fontSize(9).text('ENGINEERING & QUALITY CONTROL', 48, 70);
+      }
+
+      doc.fillColor('#FFFFFF').font(fontBold).fontSize(14).text('SITE VISIT REPORT/PRE-PRODUCTION', 200, 48, { align: 'right', width: 345 });
+      doc.fillColor('#BAE6FD').font(fontRegular).fontSize(8.5).text('Digital Technical Site Inspection & Measurement Verification', 200, 66, { align: 'right', width: 345 });
+      doc.fillColor('#94A3B8').font(fontRegular).fontSize(8).text(`Job No: ${data.jobNo || 'N/A'}  |  Date: ${data.reportDate || new Date().toISOString().slice(0, 10)}`, 200, 82, { align: 'right', width: 345 });
+
+      let currentY = 118;
+
+      // Section 1: Job & Client Details
+      doc.rect(36, currentY, 523, 18).fill('#00cccc');
+      doc.fillColor(navy).font(fontBold).fontSize(9.5).text('1. JOB & CLIENT DETAILS', 44, currentY + 4);
+      currentY += 22;
+
+      const col1X = 40;
+      const col2X = 302;
+      const rowH = 15;
+      const labelW = 90;
+      const valOffset = 94;
+      const valW = 160;
+
+      const detailsLeft = [
+        ['Report Date', data.reportDate || 'N/A'],
+        ['Job No. / Order', data.jobNo || 'N/A'],
+        ['Client Name', data.clientName || 'N/A'],
+        ['Client Contact', data.clientPhone || 'N/A'],
+      ];
+
+      const detailsRight = [
+        ['Quotation Number', data.quotationNo || data.automationCode || 'N/A'],
+        ['Region / Location', String(data.region || 'Tamil Nadu').replace(/—/g, '-')],
+        ['Site Visit Count', data.visitCount ? `Visit #${data.visitCount}` : '1st Visit'],
+        ['Technician Name', data.technician || 'Not Specified'],
+        ['Technician Email', data.technicianEmail || 'N/A'],
+      ];
+
+      doc.fontSize(8.5);
+      const maxDetailsRows = Math.max(detailsLeft.length, detailsRight.length);
+      for (let idx = 0; idx < maxDetailsRows; idx++) {
+        let leftH = rowH;
+        let rightH = rowH;
+
+        if (detailsLeft[idx]) {
+          const [label, val] = detailsLeft[idx];
+          const valStr = String(val);
+          doc.font(fontBold).fillColor(slate).text(`${label}:`, col1X, currentY, { width: labelW });
+          doc.font(fontRegular).fillColor(darkSlate).text(valStr, col1X + valOffset, currentY, { width: valW });
+          leftH = Math.max(rowH, doc.heightOfString(valStr, { width: valW }) + 3);
+        }
+
+        if (detailsRight[idx]) {
+          const [label, val] = detailsRight[idx];
+          const valStr = String(val);
+          doc.font(fontBold).fillColor(slate).text(`${label}:`, col2X, currentY, { width: labelW });
+          doc.font(fontRegular).fillColor(darkSlate).text(valStr, col2X + valOffset, currentY, { width: valW });
+          rightH = Math.max(rowH, doc.heightOfString(valStr, { width: valW }) + 3);
+        }
+
+        currentY += Math.max(leftH, rightH);
+      }
+
+      currentY += 6;
+
+      // Section 2: Property & Elevator Specifications (Client Confirmation removed, Floor Config adjusted)
+      doc.rect(36, currentY, 523, 18).fill('#00cccc');
+      doc.fillColor(navy).font(fontBold).fontSize(9.5).text('2. PROPERTY & ELEVATOR SPECIFICATIONS', 44, currentY + 4);
+      currentY += 22;
+
+      const rawFloorNum =
+        typeof data.floorConfig === 'number'
+          ? data.floorConfig
+          : (() => {
+              const str = String(data.floorConfig || '').trim();
+              const stopsMatch = str.match(/\((\d+)\s*Stops?\)/i);
+              if (stopsMatch) return Number(stopsMatch[1]);
+              const gPlusMatch = str.match(/G\s*\+\s*(\d+)/i);
+              if (gPlusMatch) return Number(gPlusMatch[1]) + 1;
+              const num = Number(str);
+              return !isNaN(num) && num > 0 ? num : 0;
+            })();
+      const stopsLabel =
+        rawFloorNum >= 2
+          ? `G+${rawFloorNum - 1} (${rawFloorNum} Stops)`
+          : data.floorConfig
+          ? String(data.floorConfig)
+          : 'G+1 (2 Stops)';
+
+      const propLeft = [
+        ['Product Series', data.product || 'Standard'],
+        ['Floor Config', stopsLabel],
+        ['Door Closing Side', data.doorClosing || 'Not confirmed'],
+      ];
+
+      const propRight = [
+        ['Property Stage', data.propertyStage || 'Planning'],
+        ['Installation Area', data.installationArea || 'Indoor'],
+      ];
+
+      doc.fontSize(8.5);
+      const maxPropRows = Math.max(propLeft.length, propRight.length);
+      for (let idx = 0; idx < maxPropRows; idx++) {
+        let leftH = rowH;
+        let rightH = rowH;
+
+        if (propLeft[idx]) {
+          const [label, val] = propLeft[idx];
+          const valStr = String(val);
+          doc.font(fontBold).fillColor(slate).text(`${label}:`, col1X, currentY, { width: labelW });
+          doc
+            .font(label === 'Floor Config' ? fontBold : fontRegular)
+            .fillColor(darkSlate)
+            .text(valStr, col1X + valOffset, currentY, { width: valW });
+          leftH = Math.max(rowH, doc.heightOfString(valStr, { width: valW }) + 3);
+        }
+
+        if (propRight[idx]) {
+          const [label, val] = propRight[idx];
+          const valStr = String(val);
+          doc.font(fontBold).fillColor(slate).text(`${label}:`, col2X, currentY, { width: labelW });
+          doc.font(fontRegular).fillColor(darkSlate).text(valStr, col2X + valOffset, currentY, { width: valW });
+          rightH = Math.max(rowH, doc.heightOfString(valStr, { width: valW }) + 3);
+        }
+
+        currentY += Math.max(leftH, rightH);
+      }
+
+      currentY += 6;
+
+      // Section 3: Shaft & Floor Measurements
+      doc.rect(36, currentY, 523, 18).fill('#00cccc');
+      doc.fillColor(navy).font(fontBold).fontSize(9.5).text('3. SHAFT & FLOOR MEASUREMENTS (Dimensions in mm)', 44, currentY + 4);
+      currentY += 22;
+
+      doc.rect(36, currentY, 523, 38).fillAndStroke(lightBg, borderCol);
+      const shaftCols = [
+        { label: 'Shaft A-Side (W)', val: (data.shaftG || data.shaftA) ? `${data.shaftG || data.shaftA} mm` : '-' },
+        { label: 'Shaft B-Side (Opening Side)', val: (data.shaftA || data.shaftB) ? `${data.shaftA || data.shaftB} mm` : '-' },
+        { label: 'Shaft C-Side (R)', val: (data.shaftB || data.shaftC) ? `${data.shaftB || data.shaftC} mm` : '-' },
+        { label: 'Shaft G-Side (Mechanical Side)', val: (data.shaftC || data.shaftD) ? `${data.shaftC || data.shaftD} mm` : '-' },
+        { label: 'Accuracy', val: data.shaftAccuracy || 'Approximate' },
+        { label: 'Plaster', val: data.plasterStatus || 'Without plaster' },
+      ];
+
+      const sBoxW = 523 / shaftCols.length;
+      shaftCols.forEach((col, idx) => {
+        const x = 36 + idx * sBoxW;
+        doc.font(fontRegular).fontSize(6.6).fillColor(slate).text(col.label, x + 2, currentY + 4, { width: sBoxW - 4, align: 'center', lineGap: -0.5 });
+        doc.font(fontBold).fontSize(8.5).fillColor(navy).text(col.val, x + 2, currentY + 23, { width: sBoxW - 4, align: 'center' });
+        if (idx > 0) {
+          doc.moveTo(x, currentY).lineTo(x, currentY + 38).strokeColor(borderCol).lineWidth(0.5).stroke();
+        }
+      });
+
+      currentY += 44;
+
+      const stops = Math.max(2, Math.min(7, rawFloorNum || Number(data.floorConfig) || 2));
+      const colLabels: string[] = ['Pit Height'];
+      for (let i = 0; i < stops - 1; i++) {
+        colLabels.push(i === 0 ? 'Flr 0 to 1' : `Flr ${i} to ${i + 1}`);
+      }
+      colLabels.push('Headroom');
+
+      const colCount = colLabels.length;
+      const detailColW = 95;
+      const dataColW = (523 - detailColW) / colCount;
+
+      doc.rect(36, currentY, 523, 16).fill(navy);
+      doc.fillColor('#FFFFFF').font(fontBold).fontSize(7.5).text('Measurement Detail', 40, currentY + 4, { width: detailColW - 8 });
+
+      colLabels.forEach((label, idx) => {
+        const x = 36 + detailColW + idx * dataColW;
+        doc.text(label, x, currentY + 4, { width: dataColW, align: 'center' });
+      });
+      currentY += 16;
+
+      const mRows = [
+        { label: 'Height (mm)', key: 'Height' },
+        { label: 'Accuracy', key: 'Accuracy' },
+        { label: 'Door Opening Side', key: 'DoorSide' },
+        { label: 'Door-1 Hinges', key: 'Door1Hinge' },
+        { label: 'Door-2 Hinges', key: 'Door2Hinge' },
+        { label: 'Door-1 DO (mm)', key: 'Door1DO' },
+        { label: 'Door-2 DO (mm)', key: 'Door2DO' },
+      ];
+
+      const fm = data.floorMeasurements || {};
+      const mKeys: string[] = ['pit'];
+      for (let i = 0; i < stops - 1; i++) mKeys.push(`travel${i}`);
+      mKeys.push('headroom');
+
+      mRows.forEach((row, rIdx) => {
+        const rowBg = rIdx % 2 === 0 ? '#FFFFFF' : '#F8FAFC';
+        doc.rect(36, currentY, 523, 14).fillAndStroke(rowBg, borderCol);
+        doc.fillColor(navy).font(fontBold).fontSize(7.5).text(row.label, 40, currentY + 3, { width: detailColW - 8 });
+
+        mKeys.forEach((key, cIdx) => {
+          const x = 36 + detailColW + cIdx * dataColW;
+          const valName = key + row.key;
+          const cellVal = fm[valName] !== undefined && fm[valName] !== '' ? String(fm[valName]) : '-';
+          doc.fillColor(darkSlate).font(fontRegular).fontSize(7.5).text(cellVal, x, currentY + 3, { width: dataColW, align: 'center' });
+        });
+        currentY += 14;
+      });
+
+      currentY += 6;
+
+      doc.rect(36, currentY, 523, 26).fillAndStroke('#ECFDF5', '#A7F3D0');
+      const totalTravelVal = data.totalTravel ? `${data.totalTravel} mm` : 'Calculated on Site';
+      const totalShaftVal = data.totalShaft ? `${data.totalShaft} mm` : 'To be confirmed';
+      const pitClientVal = data.pitClient ? `${data.pitClient} mm` : 'Standard';
+
+      doc.font(fontBold).fontSize(8.5).fillColor('#065F46')
+        .text(`Total Travel: ${totalTravelVal}`, 48, currentY + 8)
+        .text(`Total Shaft Height: ${totalShaftVal}`, 215, currentY + 8)
+        .text(`Pit to Provide: ${pitClientVal}`, 400, currentY + 8);
+
+      // ==========================================
+      // PAGE 2: Wall Construction, Attendees, Signatures
+      // ==========================================
+      doc.addPage();
+
+      doc.rect(36, 36, 523, 30).fill(navy);
+      doc.fillColor('#FFFFFF').font(fontBold).fontSize(11).text('ALPHA ELEVATORS — SITE VISIT REPORT/PRE-PRODUCTION', 48, 44);
+      doc.fillColor('#00cccc').font(fontRegular).fontSize(8).text(`Job No: ${data.jobNo || 'N/A'}  |  Client: ${data.clientName || 'N/A'}`, 350, 46, { align: 'right', width: 200 });
+
+      currentY = 76;
+
+      // Section 4: Shaft Wall Construction Specifications
+      doc.rect(36, currentY, 523, 18).fill('#00cccc');
+      doc.fillColor(navy).font(fontBold).fontSize(9.5).text('4. SHAFT WALL CONSTRUCTION SPECIFICATIONS', 44, currentY + 4);
+      currentY += 22;
+
+      const wallSides = [
+        { key: 'A', oldKey: 'G', label: 'A-Side (Front/Door)' },
+        { key: 'B', oldKey: 'A', label: 'B-Side (Opening Side)' },
+        { key: 'C', oldKey: 'B', label: 'C-Side (Right)' },
+        { key: 'D', oldKey: 'G', label: 'G-Side (Mechanical Side)' },
+      ];
+
+      const wallLabelW = 128;
+      const wallColW = (523 - wallLabelW) / stops;
+
+      doc.rect(36, currentY, 523, 16).fill(navy);
+      doc.fillColor('#FFFFFF').font(fontBold).fontSize(8).text('Wall Side', 42, currentY + 4, { width: wallLabelW - 8 });
+      for (let i = 0; i < stops; i++) {
+        const x = 36 + wallLabelW + i * wallColW;
+        doc.text(i === 0 ? 'Floor "0"' : `Floor "${i}"`, x, currentY + 4, { width: wallColW, align: 'center' });
+      }
+      currentY += 16;
+
+      const ws = data.wallSpecifications || {};
+      wallSides.forEach(({ key, oldKey, label }, rIdx) => {
+        const rowBg = rIdx % 2 === 0 ? '#FFFFFF' : '#F8FAFC';
+        doc.rect(36, currentY, 523, 16).fillAndStroke(rowBg, borderCol);
+        doc.fillColor(navy).font(fontBold).fontSize(7.2).text(label, 42, currentY + 4, { width: wallLabelW - 8 });
+
+        for (let i = 0; i < stops; i++) {
+          const x = 36 + wallLabelW + i * wallColW;
+          const val = ws[`wallFloor${i}${key}`] || ws[`wallFloor${i}${oldKey}`] || ws[`wallFloor${i}C`] || '9-inch Brick Wall';
+          doc.fillColor(darkSlate).font(fontRegular).fontSize(7).text(val, x + 2, currentY + 4, { width: wallColW - 4, align: 'center' });
+        }
+        currentY += 16;
+      });
+
+      currentY += 12;
+
+      // Section 5: Attendees During Site Visit (Electrician removed)
+      doc.rect(36, currentY, 523, 18).fill('#00cccc');
+      doc.fillColor(navy).font(fontBold).fontSize(9.5).text('5. ATTENDEES DURING SITE VISIT', 44, currentY + 4);
+      currentY += 22;
+
+      doc.rect(36, currentY, 523, 15).fill(navy);
+      doc.fillColor('#FFFFFF').font(fontBold).fontSize(8)
+        .text('Role / Designation', 42, currentY + 3, { width: 180 })
+        .text('Status', 230, currentY + 3, { width: 60, align: 'center' })
+        .text('Attendee Name', 300, currentY + 3, { width: 130 })
+        .text('Contact Number', 440, currentY + 3, { width: 110 });
+      currentY += 15;
+
+      const defaultAttendeeRoles = [
+        'End Client (Owner)',
+        'Architect',
+        'Fabricator / Civil Person',
+        'Client Representative',
+        'Sales Person',
+        'Technical Team / Person',
+      ];
+
+      const attendeesData = Array.isArray(data.attendees) ? data.attendees : [];
+
+      defaultAttendeeRoles.forEach((role, idx) => {
+        const match = attendeesData.find((a: any) => {
+          if (!a) return false;
+          if (a.role === role) return true;
+          if (role === 'Sales Person' && (a.role === 'Alpha Elevators Sales Person' || a.role === 'Sales Person')) return true;
+          if (role === 'Technical Team / Person' && (a.role === 'Alpha Elevators Technical Team / Person' || a.role === 'Technical Team / Person')) return true;
+          return false;
+        }) || { role, present: false, name: '', phone: '' };
+        const rowBg = idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC';
+        doc.rect(36, currentY, 523, 14).fillAndStroke(rowBg, borderCol);
+
+        doc.fillColor(navy).font(fontBold).fontSize(7.5).text(role, 42, currentY + 3, { width: 180 });
+        doc.font(fontBold).fontSize(7.5);
+        if (match.present) {
+          doc.fillColor(green).text('PRESENT', 230, currentY + 3, { width: 60, align: 'center' });
+        } else {
+          doc.fillColor(slate).text('Absent', 230, currentY + 3, { width: 60, align: 'center' });
+        }
+
+        doc.font(fontRegular).fontSize(7.5).fillColor(darkSlate)
+          .text(match.name || '-', 300, currentY + 3, { width: 130 })
+          .text(match.phone || '-', 440, currentY + 3, { width: 110 });
+
+        currentY += 14;
+      });
+
+      currentY += 12;
+
+      // Section 6: Remarks & Site Confirmation
+      doc.rect(36, currentY, 523, 18).fill('#00cccc');
+      doc.fillColor(navy).font(fontBold).fontSize(9.5).text('6. REMARKS, CIVIL COMMITMENTS & SITE CONFIRMATION', 44, currentY + 4);
+      currentY += 22;
+
+      const remarksParts: string[] = [];
+      const rawRemarks = String(data.remarks || '').trim();
+      const hasCivilInRemarks = /civil\s+shaft/i.test(rawRemarks);
+      const hasStructuralInRemarks = /structural\s+shaft/i.test(rawRemarks);
+
+      if (Array.isArray(data.civilShaftScope) && data.civilShaftScope.length > 0 && !hasCivilInRemarks) {
+        remarksParts.push(
+          `Civil Shaft - Customer scope works follows:\n` +
+            data.civilShaftScope.map((item: string, idx: number) => `${idx + 1}. ${item}`).join('\n')
+        );
+      }
+      if (Array.isArray(data.structuralShaftScope) && data.structuralShaftScope.length > 0 && !hasStructuralInRemarks) {
+        remarksParts.push(
+          `Structural Shaft - Customer scope works follows:\n` +
+            data.structuralShaftScope.map((item: string, idx: number) => `${idx + 1}. ${item}`).join('\n')
+        );
+      }
+      if (rawRemarks) {
+        remarksParts.push(rawRemarks);
+      }
+
+      const finalRemarksText =
+        remarksParts.join('\n\n') ||
+        'Site dimensions and wall specifications verified by technical team during visit.';
+
+      const remarksFontSize = finalRemarksText.length > 450 ? 7.2 : 7.8;
+      doc.font(fontRegular).fontSize(remarksFontSize);
+      const measuredRemarksH = doc.heightOfString(finalRemarksText, {
+        width: 507,
+        lineGap: 1.2,
+      });
+      const maxAvailableRemarksH = Math.max(44, 796 - currentY - 130);
+      const remarksBoxH = Math.max(44, Math.min(maxAvailableRemarksH, Math.ceil(measuredRemarksH) + 24));
+
+      doc.rect(36, currentY, 523, remarksBoxH).fillAndStroke(lightBg, borderCol);
+      doc.font(fontBold).fontSize(8).fillColor(slate).text('Site Observations, Pending Civil Work & Client Commitments:', 44, currentY + 5);
+      doc.font(fontRegular).fontSize(remarksFontSize).fillColor(darkSlate)
+        .text(finalRemarksText, 44, currentY + 17, {
+          width: 507,
+          height: remarksBoxH - 20,
+          lineGap: 1.2,
+          ellipsis: true,
+        });
+      currentY += remarksBoxH + 6;
+
+      // Signatures & Timings Box (Client Representative & Contact No properly spaced apart)
+      doc.rect(36, currentY, 523, 88).fillAndStroke('#FFFFFF', borderCol);
+
+      doc.font(fontBold).fontSize(8).fillColor(slate)
+        .text('Time In:', 46, currentY + 7)
+        .text('Time Out:', 185, currentY + 7);
+
+      doc.font(fontRegular).fontSize(8.5).fillColor(darkSlate)
+        .text(data.timeIn || 'N/A', 90, currentY + 7)
+        .text(data.timeOut || 'N/A', 236, currentY + 7);
+
+      doc.font(fontBold).fontSize(8).fillColor(slate)
+        .text('Client Representative:', 46, currentY + 22)
+        .text('Contact No:', 345, currentY + 22);
+
+      doc.font(fontRegular).fontSize(8.5).fillColor(darkSlate)
+        .text(data.clientRepName || data.clientName || 'N/A', 156, currentY + 22, { width: 175, ellipsis: true })
+        .text(data.clientRepPhone || data.clientPhone || 'N/A', 412, currentY + 22, { width: 135 });
+
+      const techSigDataUrl =
+        data.technicianSignatureImage ||
+        (typeof data.technicianSignature === 'string' && data.technicianSignature.startsWith('data:image')
+          ? data.technicianSignature
+          : undefined);
+      if (techSigDataUrl) {
+        try {
+          const base64Data = techSigDataUrl.split(',')[1] || techSigDataUrl;
+          const sigBuf = Buffer.from(base64Data, 'base64');
+          if (sigBuf.length > 50) {
+            doc.image(sigBuf, 48, currentY + 35, {
+              fit: [175, 32],
+              align: 'center',
+              valign: 'center',
+            });
+          }
+        } catch {}
+      }
+
+      const clientSigDataUrl =
+        data.clientSignatureImage ||
+        (typeof data.clientSign === 'string' && data.clientSign.startsWith('data:image')
+          ? data.clientSign
+          : undefined);
+      if (clientSigDataUrl) {
+        try {
+          const base64Data = clientSigDataUrl.split(',')[1] || clientSigDataUrl;
+          const sigBuf = Buffer.from(base64Data, 'base64');
+          if (sigBuf.length > 50) {
+            doc.image(sigBuf, 348, currentY + 35, {
+              fit: [175, 32],
+              align: 'center',
+              valign: 'center',
+            });
+          }
+        } catch {}
+      }
+
+      doc.moveTo(46, currentY + 70).lineTo(230, currentY + 70).strokeColor('#94A3B8').lineWidth(0.8).stroke();
+      doc.moveTo(345, currentY + 70).lineTo(525, currentY + 70).strokeColor('#94A3B8').lineWidth(0.8).stroke();
+
+      const techNameDisplay =
+        data.technicianSignature && !String(data.technicianSignature).startsWith('data:image')
+          ? data.technicianSignature
+          : data.technician || 'Dinesh Kumar S';
+      const clientNameDisplay =
+        data.clientSign && !String(data.clientSign).startsWith('data:image')
+          ? data.clientSign
+          : data.clientRepName || data.clientName || 'Confirmed';
+
+      doc.font(fontBold).fontSize(7.5).fillColor(navy)
+        .text(`Technician: ${techNameDisplay}`, 46, currentY + 73)
+        .text(`Client Signature: ${clientNameDisplay}`, 345, currentY + 73);
+
+      currentY += 94;
+
+      const photoCategories: Array<{ key: string; label: string }> = [
+        { key: 'photoOutside', label: '1. Outside from property' },
+        { key: 'photoGroundFloor', label: '2. From ground floor' },
+        { key: 'photoAllLandings', label: '3. All Landing Floor' },
+        { key: 'photoPit', label: '4. Showing the pit' },
+        { key: 'photoShaftTop', label: '5. Inside shaft top view' },
+        { key: 'photoShaftDown', label: '6. Top shaft down view' },
+        { key: 'photoPowerPack', label: '7. Power Pack Area' },
+        { key: 'videoObstacles', label: '8. Video / obstacle reference' },
+      ];
+
+      const attachedPhotoItems: Array<{ title: string; subtitle: string; buffer: Buffer }> = [];
+
+      if (data.photos && typeof data.photos === 'object') {
+        photoCategories.forEach((cat) => {
+          const list = data.photos[cat.key];
+          if (Array.isArray(list) && list.length > 0) {
+            list.forEach((item: any, idx: number) => {
+              if (typeof item === 'string' && (item.startsWith('data:image') || item.startsWith('data:application/octet-stream'))) {
+                try {
+                  const base64Data = item.split(',')[1] || item;
+                  const buf = Buffer.from(base64Data, 'base64');
+                  if (buf.length > 50) {
+                    attachedPhotoItems.push({
+                      title: cat.label,
+                      subtitle: list.length > 1 ? `Shot ${idx + 1} of ${list.length}` : 'Site Inspection Photo',
+                      buffer: buf,
+                    });
+                  }
+                } catch {}
+              }
+            });
+          }
+        });
+      }
+
+      if (Array.isArray(data.supportPhotos)) {
+        data.supportPhotos.forEach((item: any, idx: number) => {
+          if (item && item.dataUrl && (item.dataUrl.startsWith('data:image') || item.dataUrl.startsWith('data:application/octet-stream'))) {
+            try {
+              const base64Data = item.dataUrl.split(',')[1] || item.dataUrl;
+              const buf = Buffer.from(base64Data, 'base64');
+              if (buf.length > 50) {
+                attachedPhotoItems.push({
+                  title: item.name ? `Support: ${item.name}` : `Supporting Site Document ${idx + 1}`,
+                  subtitle: 'Technical Drawing / Document',
+                  buffer: buf,
+                });
+              }
+            } catch {}
+          }
+        });
+      }
+
+      doc.rect(36, currentY, 523, 30).fillAndStroke('#F1F5FB', borderCol);
+      doc.font(fontBold).fontSize(7.5).fillColor(navy)
+        .text(`Site Photos & Documentation Verification (${attachedPhotoItems.length} Photo(s) Attached):`, 44, currentY + 5);
+
+      const photoChecksText = photoCategories.map((c) => {
+        const count = Array.isArray(data.photos?.[c.key]) ? data.photos[c.key].length : 0;
+        const shortName = c.label.replace(/^\d+\.\s*/, '');
+        return `${shortName} [${count > 0 ? `✓ ${count}` : '—'}]`;
+      }).join('   ');
+      doc.font(fontRegular).fontSize(6.8).fillColor(slate).text(photoChecksText, 44, currentY + 16, { width: 507 });
+
+      // ==========================================
+      // PAGE 3+: High-Resolution Photo Gallery
+      // ==========================================
+      if (attachedPhotoItems.length > 0) {
+        const photosPerPage = 4;
+        const cardW = 255;
+        const cardH = 330;
+        const colX = [36, 304];
+        const rowY = [78, 424];
+
+        for (let i = 0; i < attachedPhotoItems.length; i++) {
+          const pageItemIdx = i % photosPerPage;
+          if (pageItemIdx === 0) {
+            doc.addPage();
+            doc.rect(36, 36, 523, 30).fill(navy);
+            doc.fillColor('#FFFFFF').font(fontBold).fontSize(11)
+              .text('ALPHA ELEVATORS — SITE INSPECTION PHOTOS', 48, 44);
+            doc.fillColor('#00cccc').font(fontRegular).fontSize(8)
+              .text(`Job No: ${data.jobNo || 'N/A'}  |  Client: ${data.clientName || 'N/A'}`, 350, 46, { align: 'right', width: 200 });
+          }
+
+          const col = pageItemIdx % 2;
+          const row = Math.floor(pageItemIdx / 2);
+          const cardX = colX[col];
+          const cardY = rowY[row];
+          const item = attachedPhotoItems[i];
+
+          doc.roundedRect(cardX, cardY, cardW, cardH, 4).fillAndStroke('#FFFFFF', '#CBD5E1');
+          doc.rect(cardX, cardY, cardW, 20).fill('#1E3A5F');
+          doc.fillColor('#FFFFFF').font(fontBold).fontSize(8)
+            .text(`[${i + 1}/${attachedPhotoItems.length}] ${item.title}`, cardX + 8, cardY + 6, { width: cardW - 16, ellipsis: true });
+
+          try {
+            doc.image(item.buffer, cardX + 6, cardY + 24, {
+              fit: [cardW - 12, cardH - 46],
+              align: 'center',
+              valign: 'center',
+            });
+          } catch {
+            doc.rect(cardX + 6, cardY + 24, cardW - 12, cardH - 46).fill('#F8FAFC');
+            doc.font(fontRegular).fontSize(8).fillColor('#64748B')
+              .text('Photo Attached (Inspect via Alpha CRM)', cardX + 10, cardY + 140, { width: cardW - 20, align: 'center' });
+          }
+
+          doc.rect(cardX, cardY + cardH - 18, cardW, 18).fill('#F1F5F9');
+          doc.fillColor('#059669').font(fontBold).fontSize(7)
+            .text('✓ QC Site Verified Photo', cardX + 8, cardY + cardH - 13);
+          doc.fillColor('#64748B').font(fontRegular).fontSize(7)
+            .text(item.subtitle, cardX + 110, cardY + cardH - 13, { width: cardW - 118, align: 'right' });
+        }
+      }
+
+      const totalPages = doc.bufferedPageRange().count;
+      for (let i = 0; i < totalPages; i++) {
+        doc.switchToPage(i);
+        const savedBottomMargin = doc.page.margins.bottom;
+        doc.page.margins.bottom = 0;
+
+        doc.rect(36, 804, 523, 0.5).fill('#CBD5E1');
+        doc.font(fontRegular).fontSize(7).fillColor(slate)
+          .text('Alpha Elevators Customer CRM & QC Inspection System • Confidential Site Visit Report/Pre-Production', 36, 808, { width: 350, lineBreak: false })
+          .text(`Page ${i + 1} of ${totalPages}`, 420, 808, { width: 139, align: 'right', lineBreak: false });
+
+        doc.page.margins.bottom = savedBottomMargin;
+      }
+
+      doc.end();
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+export async function POST(req: Request) {
+  try {
+    const reportData = await req.json();
+    if (!reportData?.clientName || !reportData?.jobNo) {
+      return NextResponse.json(
+        { success: false, message: 'Client Name and Job No are required to generate PDF' },
+        { status: 400 }
+      );
+    }
+
+    const { buffer, fileName } = await generateQCReportPdfBuffer(reportData);
+    return new NextResponse(new Uint8Array(buffer), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${fileName}"`,
+      },
+    });
+  } catch (err: any) {
+    console.error('[Next.js QC PDF Route Error]:', err);
+    return NextResponse.json(
+      { success: false, message: err?.message || 'Failed to generate PDF' },
+      { status: 500 }
+    );
+  }
+}
