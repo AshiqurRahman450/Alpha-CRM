@@ -82,8 +82,10 @@ export function renderCirclePdfPage(pageIdx: number, data: QuotationData): strin
     const elevatorPriceNum = Number(data.elevatorPrice) || 1100000;
     const discountNum = Number(data.elevatorDiscountPrice || 0);
     const hasDiscount = Boolean(discountNum > 0);
-    const mrpPriceNum = hasDiscount ? elevatorPriceNum + discountNum : elevatorPriceNum;
-    const finalPriceNum = elevatorPriceNum;
+    const isStage4 = String(data.offerNo || '').trim().endsWith('-4');
+    const netAfterDiscount = Math.max(0, elevatorPriceNum - discountNum);
+    const mrpPriceNum = isStage4 && hasDiscount ? netAfterDiscount : elevatorPriceNum;
+    const finalPriceNum = hasDiscount ? netAfterDiscount : (Number(data.specialElevatorPrice) > 0 ? Number(data.specialElevatorPrice) : elevatorPriceNum);
     const gstPct = data.gstRate !== undefined ? data.gstRate : 18;
 
     html = replaceExactText(html, 'Rs. 13,00,000 + 18% GST', `Rs. ${formatINR(mrpPriceNum)} + ${gstPct}% GST`);

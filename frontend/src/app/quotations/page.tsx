@@ -159,10 +159,19 @@ export default function QuotationCreatorPage() {
       try {
         const res = await api.quotations.getByOfferNo(data.offerNo, prevStage);
         if (res?.success && res.data?.data) {
-          setData({
-            ...res.data.data,
+          const loaded = res.data.data;
+          setData((prev) => ({
+            ...loaded,
+            elevatorDiscountPrice: loaded.elevatorDiscountPrice ?? prev.elevatorDiscountPrice,
+            shaftDiscountPrice: loaded.shaftDiscountPrice ?? prev.shaftDiscountPrice,
+            elevatorDiscountLocked:
+              Boolean(loaded.elevatorDiscountLocked || prev.elevatorDiscountLocked) ||
+              Number(loaded.elevatorDiscountPrice ?? prev.elevatorDiscountPrice) > 0,
+            shaftDiscountLocked:
+              Boolean(loaded.shaftDiscountLocked || prev.shaftDiscountLocked) ||
+              Number(loaded.shaftDiscountPrice ?? prev.shaftDiscountPrice) > 0,
             offerNo: newOfferNo,
-          });
+          }));
           if (res.data.customerPhone) setWhatsAppPhone(res.data.customerPhone);
           toast.success(`Switched to Stage ${newStage}! Auto-filled details from Stage ${prevStage}.`);
           return;
@@ -174,6 +183,10 @@ export default function QuotationCreatorPage() {
 
     setData((prev) => ({
       ...prev,
+      elevatorDiscountLocked:
+        Boolean(prev.elevatorDiscountLocked) || Number(prev.elevatorDiscountPrice) > 0,
+      shaftDiscountLocked:
+        Boolean(prev.shaftDiscountLocked) || Number(prev.shaftDiscountPrice) > 0,
       offerNo: newOfferNo,
     }));
     toast.success(`Stage ${newStage} active (${newOfferNo})`);
@@ -242,7 +255,12 @@ export default function QuotationCreatorPage() {
     setIsFinalizingStage(true);
     try {
       const finalOfferNo = getSuffixedOfferNo(data.offerNo, currentStage);
-      const updatedData = { ...data, offerNo: finalOfferNo };
+      const updatedData: QuotationData = {
+        ...data,
+        offerNo: finalOfferNo,
+        ...(currentStage === 3 && Number(data.elevatorDiscountPrice) > 0 ? { elevatorDiscountLocked: true } : {}),
+        ...(currentStage === 3 && Number(data.shaftDiscountPrice) > 0 ? { shaftDiscountLocked: true } : {}),
+      };
       setData(updatedData);
 
       const res = await api.quotations.finalizeStage({
@@ -283,7 +301,12 @@ export default function QuotationCreatorPage() {
     setIsSavingStage(true);
     try {
       const finalOfferNo = getSuffixedOfferNo(data.offerNo, currentStage);
-      const updatedData = { ...data, offerNo: finalOfferNo };
+      const updatedData: QuotationData = {
+        ...data,
+        offerNo: finalOfferNo,
+        ...(currentStage === 3 && Number(data.elevatorDiscountPrice) > 0 ? { elevatorDiscountLocked: true } : {}),
+        ...(currentStage === 3 && Number(data.shaftDiscountPrice) > 0 ? { shaftDiscountLocked: true } : {}),
+      };
       setData(updatedData);
 
       const res = await api.quotations.saveStage({
@@ -759,6 +782,8 @@ export default function QuotationCreatorPage() {
               deliveryApprovalRequestedAt: undefined,
               deliveryApprovedForOfferNo: undefined,
               deliveryApprovedForClientName: undefined,
+              elevatorDiscountLocked: false,
+              shaftDiscountLocked: false,
             }
           : {}),
       };
@@ -2077,6 +2102,7 @@ export default function QuotationCreatorPage() {
               onChange={handleDataChange}
               customers={customers}
               onSelectCustomer={handleSelectCustomer}
+              currentStage={currentStage}
             />
           </div>
         </div>

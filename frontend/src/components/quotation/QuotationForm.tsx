@@ -47,6 +47,7 @@ import {
   MessageSquare,
   Loader2,
   Send,
+  Lock,
 } from 'lucide-react';
 import { DigitalSignaturePad } from './DigitalSignaturePad';
 import { api, getStoredUser } from '../../lib/api';
@@ -57,6 +58,7 @@ interface QuotationFormProps {
   onChange: (data: QuotationData) => void;
   customers?: any[];
   onSelectCustomer?: (customer: any) => void;
+  currentStage?: 1 | 2 | 3 | 4;
 }
 
 export default function QuotationForm({
@@ -64,7 +66,11 @@ export default function QuotationForm({
   onChange,
   customers = [],
   onSelectCustomer,
+  currentStage,
 }: QuotationFormProps) {
+  const activeStage = currentStage || parseOfferNoParts(data.offerNo).stage || 1;
+  const isStage3 = activeStage === 3;
+  const isStage4 = activeStage === 4;
   const [activeTab, setActiveTab] = useState<
     'client' | 'civil' | 'elevator' | 'shaft' | 'pricing' | 'signatures' | 'billing'
   >('client');
@@ -442,6 +448,8 @@ export default function QuotationForm({
     deliveryApprovalRequestedAt: undefined,
     deliveryApprovedForOfferNo: undefined,
     deliveryApprovedForClientName: undefined,
+    elevatorDiscountLocked: false,
+    shaftDiscountLocked: false,
   };
 
   const updateField = (field: keyof QuotationData, value: any) => {
@@ -2374,42 +2382,85 @@ export default function QuotationForm({
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Final Agreed Price (₹):</label>
-                    <input
-                      type="number"
-                      value={data.elevatorPrice || 1100000}
-                      onChange={(e) => updateField('elevatorPrice', Number(e.target.value))}
-                      placeholder="e.g. 1100000"
-                      className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 font-bold text-teal-800"
-                    />
-                    <span className="text-[10px] text-slate-400 mt-0.5 block">
-                      Base / MRP Price
-                    </span>
-                  </div>
-
-                  <div>
                     <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
-                      <span>Discount Price (₹):</span>
-                      {elevatorDiscountPrice > 0 && (
-                        <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1 py-0.2 rounded">
-                          -₹{elevatorDiscountPrice.toLocaleString('en-IN')}
+                      <span>Final Agreed Price (₹):</span>
+                      {isStage4 && elevatorDiscountPrice > 0 && (
+                        <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                          Stage 3 Total Applied
                         </span>
                       )}
                     </label>
                     <input
                       type="number"
-                      min={0}
-                      value={data.elevatorDiscountPrice ?? ''}
-                      onChange={(e) =>
-                        updateField('elevatorDiscountPrice', e.target.value === '' ? undefined : Number(e.target.value))
-                      }
-                      placeholder="Optional discount amount (e.g. 100000)"
-                      className="w-full text-xs px-2.5 py-1.5 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-900 bg-emerald-50/30 placeholder:text-slate-400 placeholder:font-normal"
+                      readOnly={isStage4 && elevatorDiscountPrice > 0}
+                      value={isStage4 && elevatorDiscountPrice > 0 ? discountedElevatorPrice : (data.elevatorPrice || 1100000)}
+                      onChange={(e) => {
+                        if (isStage4 && elevatorDiscountPrice > 0) return;
+                        updateField('elevatorPrice', Number(e.target.value));
+                      }}
+                      placeholder="e.g. 1100000"
+                      className={`w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 font-bold ${
+                        isStage4 && elevatorDiscountPrice > 0 ? 'bg-emerald-50 text-emerald-900 cursor-not-allowed' : 'text-teal-800'
+                      }`}
                     />
                     <span className="text-[10px] text-slate-500 mt-0.5 block">
-                      Total with GST: ₹{elevatorDiscountedTotalWithGst.toLocaleString('en-IN')} (Inc. {gstRate}% GST)
+                      {isStage4 && elevatorDiscountPrice > 0
+                        ? `Total with GST: ₹${elevatorDiscountedTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`
+                        : 'Base / MRP Price'}
                     </span>
                   </div>
+
+                  {isStage3 && (
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
+                        <span>Discount Price (₹):</span>
+                        {data.elevatorDiscountLocked && elevatorDiscountPrice > 0 ? (
+                          <span className="text-[9px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                            <Lock className="w-2.5 h-2.5" /> Locked
+                          </span>
+                        ) : elevatorDiscountPrice > 0 ? (
+                          <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1 py-0.2 rounded">
+                            -₹{elevatorDiscountPrice.toLocaleString('en-IN')}
+                          </span>
+                        ) : null}
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        disabled={Boolean(data.elevatorDiscountLocked && elevatorDiscountPrice > 0)}
+                        readOnly={Boolean(data.elevatorDiscountLocked && elevatorDiscountPrice > 0)}
+                        value={data.elevatorDiscountPrice ?? ''}
+                        onChange={(e) => {
+                          if (data.elevatorDiscountLocked && elevatorDiscountPrice > 0) return;
+                          updateField('elevatorDiscountPrice', e.target.value === '' ? undefined : Number(e.target.value));
+                        }}
+                        onBlur={() => {
+                          if (Number(data.elevatorDiscountPrice) > 0 && !data.elevatorDiscountLocked) {
+                            onChange({ ...data, elevatorDiscountLocked: true });
+                            toast.success('Stage 3 Elevator Discount Price locked (one-time entry).');
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && Number(data.elevatorDiscountPrice) > 0 && !data.elevatorDiscountLocked) {
+                            e.preventDefault();
+                            onChange({ ...data, elevatorDiscountLocked: true });
+                            toast.success('Stage 3 Elevator Discount Price locked (one-time entry).');
+                          }
+                        }}
+                        placeholder="One-time Stage 3 discount (e.g. 100000)"
+                        className={`w-full text-xs px-2.5 py-1.5 border rounded-lg font-bold ${
+                          data.elevatorDiscountLocked && elevatorDiscountPrice > 0
+                            ? 'border-amber-300 bg-amber-50/60 text-amber-950 cursor-not-allowed'
+                            : 'border-emerald-300 focus:ring-2 focus:ring-emerald-500 text-emerald-900 bg-emerald-50/30 placeholder:text-slate-400 placeholder:font-normal'
+                        }`}
+                      />
+                      <span className="text-[10px] text-slate-500 mt-0.5 block">
+                        {data.elevatorDiscountLocked && elevatorDiscountPrice > 0
+                          ? `Entered once & locked • Total: ₹${elevatorDiscountedTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`
+                          : `One-time entry • Total with GST: ₹${elevatorDiscountedTotalWithGst.toLocaleString('en-IN')}`}
+                      </span>
+                    </div>
+                  )}
 
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
@@ -2599,30 +2650,11 @@ export default function QuotationForm({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Elevator Price (₹): <span className="text-rose-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-2 text-slate-400 text-xs">₹</span>
-                      <input
-                        type="number"
-                        value={data.elevatorPrice}
-                        onChange={(e) => updateField('elevatorPrice', Number(e.target.value))}
-                        placeholder="e.g. 1600000"
-                        className="w-full text-xs pl-7 pr-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-bold text-slate-800 bg-white"
-                      />
-                    </div>
-                    <span className="text-[10px] text-slate-400 mt-0.5 block">
-                      Standard MRP / Base Elevator Price (Page 5: Price)
-                    </span>
-                  </div>
-
-                  <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
-                      <span>Discount Price (₹):</span>
-                      {elevatorDiscountPrice > 0 && (
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
-                          -₹{elevatorDiscountPrice.toLocaleString('en-IN')}
+                      <span>Elevator Price (₹): <span className="text-rose-500">*</span></span>
+                      {isStage4 && elevatorDiscountPrice > 0 && (
+                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full">
+                          Stage 3 Discounted Total Applied
                         </span>
                       )}
                     </label>
@@ -2630,19 +2662,86 @@ export default function QuotationForm({
                       <span className="absolute left-3 top-2 text-slate-400 text-xs">₹</span>
                       <input
                         type="number"
-                        min={0}
-                        value={data.elevatorDiscountPrice ?? ''}
-                        onChange={(e) =>
-                          updateField('elevatorDiscountPrice', e.target.value === '' ? undefined : Number(e.target.value))
-                        }
-                        placeholder="Optional discount amount (e.g. 100000)"
-                        className="w-full text-xs pl-7 pr-3 py-2 border border-emerald-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-900 bg-white placeholder:text-slate-400 placeholder:font-normal"
+                        readOnly={isStage4 && elevatorDiscountPrice > 0}
+                        value={isStage4 && elevatorDiscountPrice > 0 ? discountedElevatorPrice : data.elevatorPrice}
+                        onChange={(e) => {
+                          if (isStage4 && elevatorDiscountPrice > 0) return;
+                          updateField('elevatorPrice', Number(e.target.value));
+                        }}
+                        placeholder="e.g. 1600000"
+                        className={`w-full text-xs pl-7 pr-3 py-2 border rounded-xl focus:ring-2 focus:ring-teal-500 font-bold ${
+                          isStage4 && elevatorDiscountPrice > 0
+                            ? 'border-emerald-300 bg-emerald-50/70 text-emerald-950 cursor-not-allowed'
+                            : 'border-slate-300 text-slate-800 bg-white'
+                        }`}
                       />
                     </div>
                     <span className="text-[10px] text-slate-500 mt-0.5 block">
-                      Total with GST: ₹{elevatorDiscountedTotalWithGst.toLocaleString('en-IN')} (Inc. {gstRate}% GST)
+                      {isStage4 && elevatorDiscountPrice > 0
+                        ? `Stage 4 Final Price: ₹${discountedElevatorPrice.toLocaleString('en-IN')} + ${gstRate}% GST (₹${elevatorDiscountedTotalWithGst.toLocaleString('en-IN')}) [Base ₹${elevatorPrice.toLocaleString('en-IN')} - Discount ₹${elevatorDiscountPrice.toLocaleString('en-IN')}]`
+                        : 'Standard MRP / Base Elevator Price (Page 5: Price)'}
                     </span>
                   </div>
+
+                  {isStage3 && (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                        <span>Discount Price (₹):</span>
+                        {data.elevatorDiscountLocked && elevatorDiscountPrice > 0 ? (
+                          <span className="text-[10px] font-bold text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <Lock className="w-3 h-3 text-amber-700" />
+                            <span>Locked (One-Time Entry)</span>
+                          </span>
+                        ) : elevatorDiscountPrice > 0 ? (
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                            -₹{elevatorDiscountPrice.toLocaleString('en-IN')}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded">
+                            Stage 3 One-Time Entry
+                          </span>
+                        )}
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2 text-slate-400 text-xs">₹</span>
+                        <input
+                          type="number"
+                          min={0}
+                          disabled={Boolean(data.elevatorDiscountLocked && elevatorDiscountPrice > 0)}
+                          readOnly={Boolean(data.elevatorDiscountLocked && elevatorDiscountPrice > 0)}
+                          value={data.elevatorDiscountPrice ?? ''}
+                          onChange={(e) => {
+                            if (data.elevatorDiscountLocked && elevatorDiscountPrice > 0) return;
+                            updateField('elevatorDiscountPrice', e.target.value === '' ? undefined : Number(e.target.value));
+                          }}
+                          onBlur={() => {
+                            if (Number(data.elevatorDiscountPrice) > 0 && !data.elevatorDiscountLocked) {
+                              onChange({ ...data, elevatorDiscountLocked: true });
+                              toast.success('Stage 3 Elevator Discount Price locked (one-time entry).');
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && Number(data.elevatorDiscountPrice) > 0 && !data.elevatorDiscountLocked) {
+                              e.preventDefault();
+                              onChange({ ...data, elevatorDiscountLocked: true });
+                              toast.success('Stage 3 Elevator Discount Price locked (one-time entry).');
+                            }
+                          }}
+                          placeholder="Enter one-time discount amount (e.g. 100000)"
+                          className={`w-full text-xs pl-7 pr-3 py-2 border rounded-xl font-bold ${
+                            data.elevatorDiscountLocked && elevatorDiscountPrice > 0
+                              ? 'border-amber-300 bg-amber-50/70 text-amber-950 cursor-not-allowed'
+                              : 'border-emerald-300 focus:ring-2 focus:ring-emerald-500 text-emerald-900 bg-white placeholder:text-slate-400 placeholder:font-normal'
+                          }`}
+                        />
+                      </div>
+                      <span className="text-[10px] text-slate-500 mt-0.5 block">
+                        {data.elevatorDiscountLocked && elevatorDiscountPrice > 0
+                          ? `Locked after one entry • Net: ₹${discountedElevatorPrice.toLocaleString('en-IN')} + ${gstRate}% GST (₹${elevatorDiscountedTotalWithGst.toLocaleString('en-IN')})`
+                          : `Enter once (locks after entry) • Total with GST: ₹${elevatorDiscountedTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`}
+                      </span>
+                    </div>
+                  )}
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
@@ -2730,40 +2829,11 @@ export default function QuotationForm({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Shaft Price (₹):
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-2 text-slate-400 text-xs">₹</span>
-                      <input
-                        type="number"
-                        min={0}
-                        value={data.shaftPrice}
-                        onChange={(e) => {
-                          const nextVal = e.target.value === '' ? 0 : Number(e.target.value);
-                          onChange({
-                            ...data,
-                            shaftPrice: nextVal,
-                            ...(nextVal <= 0 ? { specialShaftPrice: undefined, shaftDiscountPrice: undefined } : {}),
-                          });
-                        }}
-                        placeholder="e.g. 400000 (0 for None)"
-                        className="w-full text-xs pl-7 pr-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 font-bold text-slate-800 bg-white"
-                      />
-                    </div>
-                    <span className="text-[10px] text-slate-400 mt-0.5 block">
-                      {shaftPrice <= 0
-                        ? 'Shaft Price is ₹0 — shown as None on PDF'
-                        : 'Standard MRP / Base Shaft Price (Page 5: Shaft Price)'}
-                    </span>
-                  </div>
-
-                  <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
-                      <span>Discount Price (₹):</span>
-                      {shaftDiscountPrice > 0 && (
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
-                          -₹{shaftDiscountPrice.toLocaleString('en-IN')}
+                      <span>Shaft Price (₹):</span>
+                      {isStage4 && shaftDiscountPrice > 0 && (
+                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full">
+                          Stage 3 Discounted Total Applied
                         </span>
                       )}
                     </label>
@@ -2772,20 +2842,95 @@ export default function QuotationForm({
                       <input
                         type="number"
                         min={0}
-                        value={data.shaftDiscountPrice ?? ''}
-                        onChange={(e) =>
-                          updateField('shaftDiscountPrice', e.target.value === '' ? undefined : Number(e.target.value))
-                        }
-                        placeholder="Optional discount amount (e.g. 50000)"
-                        className="w-full text-xs pl-7 pr-3 py-2 border border-emerald-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-900 bg-white placeholder:text-slate-400 placeholder:font-normal"
+                        readOnly={isStage4 && shaftDiscountPrice > 0}
+                        value={isStage4 && shaftDiscountPrice > 0 ? discountedShaftPrice : data.shaftPrice}
+                        onChange={(e) => {
+                          if (isStage4 && shaftDiscountPrice > 0) return;
+                          const nextVal = e.target.value === '' ? 0 : Number(e.target.value);
+                          onChange({
+                            ...data,
+                            shaftPrice: nextVal,
+                            ...(nextVal <= 0 ? { specialShaftPrice: undefined, shaftDiscountPrice: undefined, shaftDiscountLocked: false } : {}),
+                          });
+                        }}
+                        placeholder="e.g. 400000 (0 for None)"
+                        className={`w-full text-xs pl-7 pr-3 py-2 border rounded-xl focus:ring-2 focus:ring-teal-500 font-bold ${
+                          isStage4 && shaftDiscountPrice > 0
+                            ? 'border-emerald-300 bg-emerald-50/70 text-emerald-950 cursor-not-allowed'
+                            : 'border-slate-300 text-slate-800 bg-white'
+                        }`}
                       />
                     </div>
                     <span className="text-[10px] text-slate-500 mt-0.5 block">
                       {shaftPrice <= 0
-                        ? 'Reflected on PDF as: None'
-                        : `Total with GST: ₹${shaftDiscountedTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`}
+                        ? 'Shaft Price is ₹0 — shown as None on PDF'
+                        : isStage4 && shaftDiscountPrice > 0
+                        ? `Stage 4 Final Shaft Price: ₹${discountedShaftPrice.toLocaleString('en-IN')} + ${gstRate}% GST (₹${shaftDiscountedTotalWithGst.toLocaleString('en-IN')}) [Base ₹${shaftPrice.toLocaleString('en-IN')} - Discount ₹${shaftDiscountPrice.toLocaleString('en-IN')}]`
+                        : 'Standard MRP / Base Shaft Price (Page 5: Shaft Price)'}
                     </span>
                   </div>
+
+                  {isStage3 && (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                        <span>Discount Price (₹):</span>
+                        {data.shaftDiscountLocked && shaftDiscountPrice > 0 ? (
+                          <span className="text-[10px] font-bold text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <Lock className="w-3 h-3 text-amber-700" />
+                            <span>Locked (One-Time Entry)</span>
+                          </span>
+                        ) : shaftDiscountPrice > 0 ? (
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                            -₹{shaftDiscountPrice.toLocaleString('en-IN')}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded">
+                            Stage 3 One-Time Entry
+                          </span>
+                        )}
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2 text-slate-400 text-xs">₹</span>
+                        <input
+                          type="number"
+                          min={0}
+                          disabled={Boolean(data.shaftDiscountLocked && shaftDiscountPrice > 0)}
+                          readOnly={Boolean(data.shaftDiscountLocked && shaftDiscountPrice > 0)}
+                          value={data.shaftDiscountPrice ?? ''}
+                          onChange={(e) => {
+                            if (data.shaftDiscountLocked && shaftDiscountPrice > 0) return;
+                            updateField('shaftDiscountPrice', e.target.value === '' ? undefined : Number(e.target.value));
+                          }}
+                          onBlur={() => {
+                            if (Number(data.shaftDiscountPrice) > 0 && !data.shaftDiscountLocked) {
+                              onChange({ ...data, shaftDiscountLocked: true });
+                              toast.success('Stage 3 Shaft Discount Price locked (one-time entry).');
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && Number(data.shaftDiscountPrice) > 0 && !data.shaftDiscountLocked) {
+                              e.preventDefault();
+                              onChange({ ...data, shaftDiscountLocked: true });
+                              toast.success('Stage 3 Shaft Discount Price locked (one-time entry).');
+                            }
+                          }}
+                          placeholder="Enter one-time shaft discount (e.g. 50000)"
+                          className={`w-full text-xs pl-7 pr-3 py-2 border rounded-xl font-bold ${
+                            data.shaftDiscountLocked && shaftDiscountPrice > 0
+                              ? 'border-amber-300 bg-amber-50/70 text-amber-950 cursor-not-allowed'
+                              : 'border-emerald-300 focus:ring-2 focus:ring-emerald-500 text-emerald-900 bg-white placeholder:text-slate-400 placeholder:font-normal'
+                          }`}
+                        />
+                      </div>
+                      <span className="text-[10px] text-slate-500 mt-0.5 block">
+                        {shaftPrice <= 0
+                          ? 'Reflected on PDF as: None'
+                          : data.shaftDiscountLocked && shaftDiscountPrice > 0
+                          ? `Locked after one entry • Net: ₹${discountedShaftPrice.toLocaleString('en-IN')} + ${gstRate}% GST (₹${shaftDiscountedTotalWithGst.toLocaleString('en-IN')})`
+                          : `Enter once (locks after entry) • Total with GST: ₹${shaftDiscountedTotalWithGst.toLocaleString('en-IN')} (Inc. ${gstRate}% GST)`}
+                      </span>
+                    </div>
+                  )}
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">

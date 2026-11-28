@@ -1064,6 +1064,10 @@ export function buildPage5TermsTableHtml(html: string, data?: QuotationData): st
   const safeData = data || DEFAULT_QUOTATION_DATA;
   const formatINR = (val: number) => Number(val || 0).toLocaleString('en-IN');
 
+  const offerTrimmed = String(safeData.offerNo || '').trim();
+  const isStage3 = offerTrimmed.endsWith('-3');
+  const isStage4 = offerTrimmed.endsWith('-4');
+
   const gstRate = safeData.gstRate !== undefined ? Number(safeData.gstRate) : 18;
   const gstMultiplier = 1 + gstRate / 100;
 
@@ -1075,14 +1079,18 @@ export function buildPage5TermsTableHtml(html: string, data?: QuotationData): st
       ? Number(safeData.elevatorDiscountPrice)
       : 0;
   const hasElvDiscount = Boolean(elvDiscountAmount > 0 && elvBasePrice > 0);
+  const showElvDiscountBreakdown = Boolean(isStage3 && hasElvDiscount);
   const netElvAfterDiscount = Math.max(0, elvBasePrice - elvDiscountAmount);
   const elvAfterDiscountWithGst = Math.round(netElvAfterDiscount * gstMultiplier);
   const elvBaseTotalWithGst = Math.round(elvBasePrice * gstMultiplier);
 
-  const elvPriceDisplay = hasElvDiscount
+  // Stage 3 shows the 3-line Discount Price breakdown; Stage 4 shows that discounted Total amount directly on the Price row
+  const elvPriceDisplay = showElvDiscountBreakdown
     ? `<div style="font-size:10.5px;line-height:13px;font-weight:normal;color:#000000;">Elevator Price: Rs. ${formatINR(elvBasePrice)}</div>` +
       `<div style="font-size:10.5px;line-height:13px;font-weight:normal;color:#000000;">Discount Price: - Rs. ${formatINR(elvDiscountAmount)}</div>` +
       `<div style="font-size:11px;line-height:13.5px;font-weight:bold;color:#000000;">Total: Rs. ${formatINR(netElvAfterDiscount)} + ${gstRate}% GST (Rs. ${formatINR(elvAfterDiscountWithGst)})</div>`
+    : isStage4 && hasElvDiscount
+    ? `Rs. ${formatINR(netElvAfterDiscount)} + ${gstRate}% GST (Rs. ${formatINR(elvAfterDiscountWithGst)})`
     : elvBasePrice > 0
     ? `Rs. ${formatINR(elvBasePrice)} + ${gstRate}% GST (Rs. ${formatINR(elvBaseTotalWithGst)})`
     : 'None';
@@ -1101,14 +1109,18 @@ export function buildPage5TermsTableHtml(html: string, data?: QuotationData): st
       ? Number(safeData.shaftDiscountPrice)
       : 0;
   const hasShaftDiscount = Boolean(shaftDiscountAmount > 0 && shaftBasePrice > 0);
+  const showShaftDiscountBreakdown = Boolean(isStage3 && hasShaftDiscount);
   const netShaftAfterDiscount = Math.max(0, shaftBasePrice - shaftDiscountAmount);
   const shaftAfterDiscountWithGst = Math.round(netShaftAfterDiscount * gstMultiplier);
   const shaftBaseTotalWithGst = Math.round(shaftBasePrice * gstMultiplier);
 
-  const shaftPriceDisplay = hasShaftDiscount
+  // Stage 3 shows the 3-line Shaft Discount Price breakdown; Stage 4 shows that discounted Total amount directly on the Shaft Price row
+  const shaftPriceDisplay = showShaftDiscountBreakdown
     ? `<div style="font-size:10.5px;line-height:13px;font-weight:normal;color:#000000;">Shaft Price: Rs. ${formatINR(shaftBasePrice)}</div>` +
       `<div style="font-size:10.5px;line-height:13px;font-weight:normal;color:#000000;">Discount Price: - Rs. ${formatINR(shaftDiscountAmount)}</div>` +
       `<div style="font-size:11px;line-height:13.5px;font-weight:bold;color:#000000;">Total: Rs. ${formatINR(netShaftAfterDiscount)} + ${gstRate}% GST (Rs. ${formatINR(shaftAfterDiscountWithGst)})</div>`
+    : isStage4 && hasShaftDiscount
+    ? `Rs. ${formatINR(netShaftAfterDiscount)} + ${gstRate}% GST (Rs. ${formatINR(shaftAfterDiscountWithGst)})`
     : shaftBasePrice > 0
     ? `Rs. ${formatINR(shaftBasePrice)} + ${gstRate}% GST (Rs. ${formatINR(shaftBaseTotalWithGst)})`
     : 'None';
@@ -1149,7 +1161,7 @@ export function buildPage5TermsTableHtml(html: string, data?: QuotationData): st
 
   const isCustomerScope = isCustomerScopeShaft(safeData);
   const hasAnySpecialRow = specialElvPrice > 0 || (!isCustomerScope && specialShaftPrice > 0);
-  const hasAnyDiscountRow = hasElvDiscount || (!isCustomerScope && hasShaftDiscount);
+  const hasAnyDiscountRow = showElvDiscountBreakdown || (!isCustomerScope && showShaftDiscountBreakdown);
   const singleRowH = hasAnySpecialRow && hasAnyDiscountRow ? '27px' : '31px';
   const discountRowH = hasAnySpecialRow ? '40px' : '43px';
   const multiRowH = hasAnySpecialRow && hasAnyDiscountRow ? '44px' : '49px';
@@ -1167,7 +1179,7 @@ export function buildPage5TermsTableHtml(html: string, data?: QuotationData): st
 
   const shaftPriceRowHtml = isCustomerScope
     ? ''
-    : `<tr style="height:${hasShaftDiscount ? discountRowH : singleRowH};border-bottom:1px solid #000000;">
+    : `<tr style="height:${showShaftDiscountBreakdown ? discountRowH : singleRowH};border-bottom:1px solid #000000;">
 <td style="${labelCellStyle}">Shaft Price</td>
 <td style="${valueCellStyle}">${shaftPriceDisplay}</td>
 </tr>\n`;
@@ -1184,7 +1196,7 @@ export function buildPage5TermsTableHtml(html: string, data?: QuotationData): st
 <div class="page5-table-mask" style="position:absolute;left:35px;top:584px;width:725px;height:262px;background:#ffffff;z-index:40;pointer-events:none;"></div>
 <table class="page5-terms-spec-table" style="position:absolute;left:46.5px;top:586px;width:686px;border-collapse:collapse;background:#ffffff;z-index:50;border:1px solid #000000;box-sizing:border-box;">
 <tbody>
-<tr style="height:${hasElvDiscount ? discountRowH : singleRowH};border-bottom:1px solid #000000;">
+<tr style="height:${showElvDiscountBreakdown ? discountRowH : singleRowH};border-bottom:1px solid #000000;">
 <td style="${labelCellStyle}">Price</td>
 <td style="${valueCellStyle}">${elvPriceDisplay}</td>
 </tr>

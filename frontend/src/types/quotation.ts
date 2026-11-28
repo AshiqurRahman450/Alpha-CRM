@@ -73,9 +73,11 @@ export interface QuotationData {
   elevatorPrice: number;
   specialElevatorPrice?: number;
   elevatorDiscountPrice?: number;
+  elevatorDiscountLocked?: boolean;
   shaftPrice: number;
   specialShaftPrice?: number;
   shaftDiscountPrice?: number;
+  shaftDiscountLocked?: boolean;
   gstRate: number; // percentage (e.g. 18)
   warranty: string;
   motorWarranty?: string;
@@ -218,8 +220,6 @@ export function getEffectiveSpecialElevatorPrice(data?: Partial<QuotationData>):
 
 export function getEffectiveElevatorPrice(data?: Partial<QuotationData>): number {
   if (!data) return 0;
-  const special = getEffectiveSpecialElevatorPrice(data);
-  if (special > 0) return special;
   const base = Math.max(0, Number(data.elevatorPrice || 0));
   const discount =
     data.elevatorDiscountPrice !== undefined &&
@@ -227,7 +227,12 @@ export function getEffectiveElevatorPrice(data?: Partial<QuotationData>): number
     Number(data.elevatorDiscountPrice) > 0
       ? Number(data.elevatorDiscountPrice)
       : 0;
-  return Math.max(0, base - discount);
+  if (discount > 0) {
+    return Math.max(0, base - discount);
+  }
+  const special = getEffectiveSpecialElevatorPrice(data);
+  if (special > 0) return special;
+  return base;
 }
 
 export function isCustomerScopeShaft(data?: Partial<QuotationData>): boolean {
@@ -247,8 +252,6 @@ export function getEffectiveSpecialShaftPrice(data?: Partial<QuotationData>): nu
 
 export function getEffectiveShaftPrice(data?: Partial<QuotationData>): number {
   if (!data || isCustomerScopeShaft(data)) return 0;
-  const special = getEffectiveSpecialShaftPrice(data);
-  if (special > 0) return special;
   const base = Math.max(0, Number(data.shaftPrice || 0));
   const discount =
     data.shaftDiscountPrice !== undefined &&
@@ -256,7 +259,12 @@ export function getEffectiveShaftPrice(data?: Partial<QuotationData>): number {
     Number(data.shaftDiscountPrice) > 0
       ? Number(data.shaftDiscountPrice)
       : 0;
-  return Math.max(0, base - discount);
+  if (discount > 0) {
+    return Math.max(0, base - discount);
+  }
+  const special = getEffectiveSpecialShaftPrice(data);
+  if (special > 0) return special;
+  return base;
 }
 
 export const DEFAULT_QUOTATION_DATA: QuotationData = {
