@@ -179,7 +179,7 @@ export default function Sidebar() {
                 {user?.role === 'QC'
                   ? 'QC INSPECTOR'
                   : user?.role === 'SITE_INSPECTOR'
-                  ? 'SITE INSPECTOR'
+                  ? 'MAARI (SITE INSPECTOR)'
                   : user?.role === 'TECHNICAL_LEAD'
                   ? 'TECHNICAL LEAD'
                   : user?.role === 'TECHNICAL_MANAGER'

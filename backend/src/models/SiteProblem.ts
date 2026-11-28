@@ -1,9 +1,11 @@
 import { Schema, model, Document, Types } from 'mongoose';
 
 export type SiteProblemStatus = 'ASSIGNED' | 'FINISHED';
+export type SiteProblemType = 'SITE_INSPECTION' | 'POST_HANDOVER_CALLBACK';
 
 export interface ISiteProblem extends Document {
   problemId: string;
+  problemType?: SiteProblemType;
   customerId?: Types.ObjectId;
   customerName: string;
   customerCode?: string;
@@ -18,6 +20,7 @@ export interface ISiteProblem extends Document {
   assignedTo: string;
   reportedBy?: Types.ObjectId;
   reportedByName?: string;
+  reportedByRole?: string;
   finishedAt?: Date;
   finishedByName?: string;
   resolutionNotes?: string;
@@ -28,6 +31,11 @@ export interface ISiteProblem extends Document {
 const SiteProblemSchema = new Schema<ISiteProblem>(
   {
     problemId: { type: String, required: true, unique: true, trim: true },
+    problemType: {
+      type: String,
+      enum: ['SITE_INSPECTION', 'POST_HANDOVER_CALLBACK'],
+      default: 'POST_HANDOVER_CALLBACK',
+    },
     customerId: { type: Schema.Types.ObjectId, ref: 'Customer' },
     customerName: { type: String, required: true, trim: true },
     customerCode: { type: String, trim: true },
@@ -46,6 +54,7 @@ const SiteProblemSchema = new Schema<ISiteProblem>(
     assignedTo: { type: String, default: 'Sundaram', trim: true },
     reportedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     reportedByName: { type: String, trim: true },
+    reportedByRole: { type: String, trim: true },
     finishedAt: { type: Date },
     finishedByName: { type: String, trim: true },
     resolutionNotes: { type: String, trim: true },

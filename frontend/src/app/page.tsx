@@ -35,7 +35,7 @@ import PostponeModal from '../components/PostponeModal';
 import RecordPaymentModal from '../components/RecordPaymentModal';
 import QCPage from './qc/page';
 import SiteProblemsView from '../components/SiteProblemsView';
-import { isSundaramUser } from '../lib/constants';
+import { isSundaramUser, getTlNameForUser } from '../lib/constants';
 
 const STAGES_CONFIG = [
   { key: 'PAYMENT_RECEIVED', step: 1, label: 'Advance Payment Received', icon: CheckCircle2, bg: 'bg-emerald-50/70', border: 'border-emerald-200', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-800' },
@@ -674,21 +674,21 @@ export default function DashboardPage() {
             <Link href="/qc" className="block group">
               <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-purple-300 hover:shadow-md transition-all">
                 <div className="text-xs text-slate-500 font-medium">
-                  {isSundaramUser(user) ? 'Site Problems & QC Reports' : 'QC Site Reports'}
+                  {getTlNameForUser(user) ? `Assigned Lift Problems & QC (${getTlNameForUser(user)})` : 'QC Site Reports'}
                 </div>
                 <div className="text-3xl font-black text-purple-600 mt-1">
-                  {isSundaramUser(user) ? 'Site Issues' : 'Inspection Ready'}
+                  {getTlNameForUser(user) ? 'Lift Issues' : 'Inspection Ready'}
                 </div>
                 <div className="text-[11px] text-purple-600 font-semibold mt-1">
-                  {isSundaramUser(user)
-                    ? 'View site problems & photos assigned to Sundaram →'
+                  {getTlNameForUser(user)
+                    ? `View customer lift problems assigned to ${getTlNameForUser(user)} →`
                     : 'View & submit site quality reports →'}
                 </div>
               </div>
             </Link>
           </div>
 
-          {isSundaramUser(user) && <SiteProblemsView mode="sundaram" />}
+          <SiteProblemsView mode="assignee" assigneeName={getTlNameForUser(user) || undefined} />
         </div>
       ) : (
         <React.Fragment>
@@ -905,6 +905,11 @@ export default function DashboardPage() {
             </Link>
           </div>
         </React.Fragment>
+      )}
+
+      {/* POST-HANDOVER CUSTOMER CALLBACK & LIFT ISSUE ASSIGNMENT (For CRM & Admin) */}
+      {(user?.role === 'CRM' || user?.role === 'ADMIN') && (
+        <SiteProblemsView mode="crm" />
       )}
 
       {/* ALL PROJECT STAGES PIPELINE OVERVIEW */}

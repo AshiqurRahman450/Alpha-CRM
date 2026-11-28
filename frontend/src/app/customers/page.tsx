@@ -35,6 +35,7 @@ import { api, getStoredUser } from '../../lib/api';
 import { DEFAULT_BDMS, getTlNameForUser, isCustomerAssignedToTlUser, normalizeTlValue, doesCustomerMatchTlFilter } from '../../lib/constants';
 import EditCustomerModal from '../../components/EditCustomerModal';
 import ExcelImportModal from '../../components/ExcelImportModal';
+import { AssignCallbackProblemModal } from '../../components/SiteProblemsView';
 
 interface MissingField {
   key: string;
@@ -62,6 +63,10 @@ export default function CustomersPage() {
 
   // Import Excel modal
   const [isImportOpen, setIsImportOpen] = useState(false);
+
+  // Customer Callback & Lift Problem Assignment modal
+  const [callbackModalOpen, setCallbackModalOpen] = useState(false);
+  const [callbackCustomer, setCallbackCustomer] = useState<any | null>(null);
 
   // Add Customer modal
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -651,7 +656,19 @@ export default function CustomersPage() {
                     </td>
 
                     <td className="py-4 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
+                      <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCallbackCustomer(c);
+                            setCallbackModalOpen(true);
+                          }}
+                          className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200/80 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1 cursor-pointer"
+                          title="Callback customer & assign lift problem to Srinivasan, Sundaram, Bala, or Maari"
+                        >
+                          <Phone className="w-3 h-3 text-rose-600" />
+                          <span>Assign Issue</span>
+                        </button>
                         {!(currentUser?.role === 'LOGISTICS' || currentUser?.role === 'LOGISTICS_TL') && (
                           <button
                             type="button"
@@ -1271,6 +1288,16 @@ export default function CustomersPage() {
         onClose={() => setIsImportOpen(false)}
         onSuccess={() => fetchCustomers()}
         title="Import Customers & Elevator Projects"
+      />
+
+      {/* Customer Callback & Lift Problem Assignment Modal */}
+      <AssignCallbackProblemModal
+        isOpen={callbackModalOpen}
+        onClose={() => {
+          setCallbackModalOpen(false);
+          setCallbackCustomer(null);
+        }}
+        initialCustomer={callbackCustomer}
       />
     </div>
   );

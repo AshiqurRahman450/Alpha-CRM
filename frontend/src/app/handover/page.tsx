@@ -23,8 +23,11 @@ import {
   Layers,
   ArrowUpRight,
   Briefcase,
+  Wrench,
+  UserCheck,
 } from 'lucide-react';
 import { api } from '../../lib/api';
+import SiteProblemsView, { AssignCallbackProblemModal } from '../../components/SiteProblemsView';
 
 export default function HandoverCustomersPage() {
   const [projects, setProjects] = useState<any[]>([]);
@@ -33,6 +36,10 @@ export default function HandoverCustomersPage() {
   const [statusFilter, setStatusFilter] = useState<'HANDOVER' | 'TESTING' | 'COMPLETED'>('HANDOVER');
   const [paymentFilter, setPaymentFilter] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [callbackModalOpen, setCallbackModalOpen] = useState(false);
+  const [selectedCallbackCustomer, setSelectedCallbackCustomer] = useState<any>(null);
+  const [selectedCallbackProject, setSelectedCallbackProject] = useState<any>(null);
+  const [problemsRefreshKey, setProblemsRefreshKey] = useState(0);
 
   const fetchHandoverProjects = async () => {
     try {
@@ -123,6 +130,19 @@ export default function HandoverCustomersPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedCallbackCustomer(null);
+                setSelectedCallbackProject(null);
+                setCallbackModalOpen(true);
+              }}
+              className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-extrabold transition-all shadow-lg shadow-amber-950/30 active:scale-95 flex items-center gap-2 cursor-pointer"
+            >
+              <Wrench className="w-4 h-4" />
+              <span>Callback Customer &amp; Assign Lift Problem</span>
+            </button>
+
             <button
               onClick={handleExportExcel}
               disabled={exporting || loading}
@@ -434,6 +454,20 @@ export default function HandoverCustomersPage() {
                             </>
                           )}
 
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedCallbackCustomer(customer);
+                              setSelectedCallbackProject(proj);
+                              setCallbackModalOpen(true);
+                            }}
+                            className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg font-extrabold text-[11px] transition-colors flex items-center gap-1 cursor-pointer"
+                            title="Callback customer & assign lift problem to Srinivasan, Sundaram, Bala, or Maari"
+                          >
+                            <Wrench className="w-3 h-3 text-amber-600" />
+                            <span>Assign Issue</span>
+                          </button>
+
                           <Link
                             href={`/projects/${proj._id}`}
                             className="px-2.5 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 rounded-lg font-bold text-[11px] transition-colors flex items-center gap-1"
@@ -451,6 +485,17 @@ export default function HandoverCustomersPage() {
           </div>
         )}
       </div>
+
+      {/* Post-Handover Customer Callback & Lift Problem Assignment Section */}
+      <SiteProblemsView key={problemsRefreshKey} mode="crm" />
+
+      <AssignCallbackProblemModal
+        isOpen={callbackModalOpen}
+        onClose={() => setCallbackModalOpen(false)}
+        initialCustomer={selectedCallbackCustomer}
+        initialProject={selectedCallbackProject}
+        onSuccess={() => setProblemsRefreshKey((k) => k + 1)}
+      />
     </div>
   );
 }

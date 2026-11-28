@@ -69,8 +69,8 @@ export default function LoginPage() {
       setEmail('bala@alphaelevators.com');
       setPassword('bala123');
     } else if (userType === 'siteinspector') {
-      setEmail('siteinspector@alphaelevators.com');
-      setPassword('site123');
+      setEmail('maari@alphaelevators.com');
+      setPassword('maari123');
     } else if (userType === 'bdm') {
       setEmail(bdmEmail || 'gopinath@alpha.com');
       setPassword('password123');
@@ -262,8 +262,8 @@ export default function LoginPage() {
                 onClick={() => handleQuickFill('siteinspector')}
                 className="col-span-2 px-2.5 py-1.5 bg-amber-950/80 hover:bg-amber-900 text-amber-300 rounded-lg border border-amber-500/50 transition-colors font-semibold text-left truncate flex items-center justify-between shadow-sm"
               >
-                <span>Site Inspector (Site Issue Upload → Sundaram)</span>
-                <span className="text-[9px] text-amber-300/80 font-mono">site123</span>
+                <span>Maari (Site Inspector &amp; Assigned Lift Issues)</span>
+                <span className="text-[9px] text-amber-300/80 font-mono">maari123</span>
               </button>
             </div>
           </div>

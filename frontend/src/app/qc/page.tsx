@@ -6,7 +6,7 @@ import QCInspectionForm from '../../components/QCInspectionForm';
 import SiteProblemsView from '../../components/SiteProblemsView';
 import { resolveStageImageUrl } from '../../components/InstallationProgrammeTable';
 import { api, getStoredUser } from '../../lib/api';
-import { isSundaramUser } from '../../lib/constants';
+import { getProblemAssigneeForUser } from '../../lib/constants';
 import {
   ClipboardCheck,
   History,
@@ -65,7 +65,7 @@ export default function QCPage() {
   useEffect(() => {
     const user = getStoredUser();
     setCurrentUser(user);
-    if (user?.role === 'TECHNICAL_MANAGER' || isSundaramUser(user)) {
+    if (user?.role === 'TECHNICAL_MANAGER' || getProblemAssigneeForUser(user)) {
       setActiveTab('approvals');
     }
   }, []);
@@ -206,15 +206,15 @@ export default function QCPage() {
 
   const isTechnicalManagerOrAdmin =
     currentUser?.role === 'TECHNICAL_MANAGER' || currentUser?.role === 'ADMIN';
-  const isSundaram = isSundaramUser(currentUser);
+  const assignedProblemRole = getProblemAssigneeForUser(currentUser);
 
   return (
     <div className="space-y-6">
       {/* Subnav Tabs */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-3">
         <div className="flex flex-wrap items-center gap-2">
-          {/* For Sundaram: show Site Problems tab instead of Technical Manager Approvals */}
-          {isSundaram ? (
+          {/* For Srinivasan (TL), Sundaram, Bala, or Maari: show Assigned Lift & Site Problems tab */}
+          {assignedProblemRole ? (
             <button
               type="button"
               onClick={() => setActiveTab('approvals')}
@@ -225,7 +225,7 @@ export default function QCPage() {
               }`}
             >
               <AlertCircle className="w-4 h-4 text-amber-200" />
-              <span>Site Problems & Issues (Sundaram)</span>
+              <span>Assigned Lift & Site Problems ({assignedProblemRole})</span>
               {sundaramProblemStats.assigned > 0 && (
                 <span
                   className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
@@ -306,12 +306,16 @@ export default function QCPage() {
       </div>
 
       {/* ============================================================== */}
-      {/* TAB 1: SUNDARAM SITE PROBLEMS (for Sundaram role ONLY) OR TECHNICAL MANAGER APPROVALS */}
+      {/* TAB 1: ASSIGNED LIFT & SITE PROBLEMS OR TECHNICAL MANAGER APPROVALS */}
       {/* ============================================================== */}
-      {activeTab === 'approvals' && isSundaram && (
-        <SiteProblemsView mode="sundaram" onStatsChange={(s) => setSundaramProblemStats(s)} />
+      {activeTab === 'approvals' && assignedProblemRole && (
+        <SiteProblemsView
+          mode={currentUser?.role === 'SITE_INSPECTOR' ? 'inspector' : 'assignee'}
+          assigneeName={assignedProblemRole}
+          onStatsChange={(s) => setSundaramProblemStats(s)}
+        />
       )}
-      {activeTab === 'approvals' && !isSundaram && (
+      {activeTab === 'approvals' && !assignedProblemRole && (
         <div className="space-y-6">
           {/* Header Banner */}
           <div className="bg-gradient-to-r from-indigo-950 via-slate-900 to-sky-950 rounded-3xl p-6 border border-indigo-800/40 text-white shadow-xl relative overflow-hidden">

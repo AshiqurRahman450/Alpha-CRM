@@ -44,6 +44,8 @@ export function getTlNameForUser(user: any): string | null {
   return null;
 }
 
+export const PROBLEM_ASSIGNEES = ['Srinivasan (TL)', 'Sundaram', 'Bala', 'Maari'] as const;
+
 export function isSundaramUser(user: any): boolean {
   if (!user) return false;
   return getTlNameForUser(user) === 'Sundaram';
@@ -52,6 +54,14 @@ export function isSundaramUser(user: any): boolean {
 export function isSiteInspectorUser(user: any): boolean {
   if (!user) return false;
   return String(user.role || '').toUpperCase() === 'SITE_INSPECTOR';
+}
+
+export function getProblemAssigneeForUser(user: any): string | null {
+  if (!user) return null;
+  if (isSiteInspectorUser(user)) return 'Maari';
+  const tl = getTlNameForUser(user);
+  if (tl) return tl;
+  return null;
 }
 
 export function normalizeTlValue(raw?: string | null): string {

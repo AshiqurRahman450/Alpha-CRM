@@ -1435,25 +1435,34 @@ export const api = {
     },
   },
 
-  // Site Problems (Site Inspector -> Sundaram role workflow)
-  getSiteProblems: (params?: { status?: string; search?: string }) => {
+  // Site & Post-Handover Callback Lift Problems (CRM / Maari -> Srinivasan, Sundaram, Bala, Maari)
+  getSiteProblems: (params?: { status?: string; search?: string; assignedTo?: string }) => {
     const q = new URLSearchParams();
     if (params?.status) q.append('status', params.status);
     if (params?.search) q.append('search', params.search);
+    if (params?.assignedTo) q.append('assignedTo', params.assignedTo);
     const queryStr = q.toString() ? `?${q.toString()}` : '';
     return fetchWithAuth(`/api/site-problems${queryStr}`);
   },
   createSiteProblem: (data: {
     customerId?: string;
     customerName: string;
+    customerPhone?: string;
     projectId?: string;
     projectName?: string;
     problemDescription: string;
-    images: string[];
+    images?: string[];
+    assignedTo?: string;
+    problemType?: 'SITE_INSPECTION' | 'POST_HANDOVER_CALLBACK';
   }) =>
     fetchWithAuth('/api/site-problems', {
       method: 'POST',
       body: JSON.stringify(data),
+    }),
+  assignSiteProblem: (id: string, assignedTo: string) =>
+    fetchWithAuth(`/api/site-problems/${id}/assign`, {
+      method: 'PATCH',
+      body: JSON.stringify({ assignedTo }),
     }),
   finishSiteProblem: (id: string, data?: { status?: 'FINISHED' | 'ASSIGNED'; resolutionNotes?: string }) =>
     fetchWithAuth(`/api/site-problems/${id}/finish`, {

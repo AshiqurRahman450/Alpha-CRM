@@ -482,7 +482,8 @@ export async function startServer() {
           { name: 'Srinivasan (TL)', email: 'srinivasan@alphaelevators.com', pass: 'srini123', role: 'LOGISTICS_TL' as const, phone: '+91 98401 77882', altRegex: /^srinivasan/i },
           { name: 'Sundaram', email: 'sundaram@alphaelevators.com', pass: 'sundaram123', role: 'LOGISTICS_TL' as const, phone: '+91 98401 77883', altRegex: /^sundaram/i },
           { name: 'Bala', email: 'bala@alphaelevators.com', pass: 'bala123', role: 'LOGISTICS_TL' as const, phone: '+91 98401 77884', altRegex: /^bala(@|\s|$)/i },
-          { name: 'Site Inspector', email: 'siteinspector@alphaelevators.com', pass: 'site123', role: 'SITE_INSPECTOR' as const, phone: '+91 98401 77885', altRegex: /^siteinspector/i },
+          { name: 'Maari', email: 'maari@alphaelevators.com', pass: 'maari123', role: 'SITE_INSPECTOR' as const, phone: '+91 98401 77885', altRegex: /^(maari|siteinspector)/i },
+          { name: 'Maari', email: 'siteinspector@alphaelevators.com', pass: 'site123', role: 'SITE_INSPECTOR' as const, phone: '+91 98401 77885', altRegex: /^siteinspector@/i },
         ];
 
         for (const lu of logisticsUsers) {

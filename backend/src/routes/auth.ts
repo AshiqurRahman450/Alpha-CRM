@@ -63,6 +63,29 @@ authRouter.post('/login', async (req: Request, res: Response) => {
       );
     }
 
+    // Auto-provision Maari (maari@alphaelevators.com / siteinspector@alphaelevators.com)
+    if (
+      (cleanUsername === 'maari' || cleanUsername === 'siteinspector') &&
+      (password === 'maari123' || password === 'site123')
+    ) {
+      const maariEmail = cleanUsername === 'maari' ? 'maari@alphaelevators.com' : 'siteinspector@alphaelevators.com';
+      const maariHash = await bcrypt.hash(password, 10);
+      await User.findOneAndUpdate(
+        { email: maariEmail },
+        {
+          $set: {
+            name: 'Maari',
+            email: maariEmail,
+            role: 'SITE_INSPECTOR',
+            phone: '+91 98401 77885',
+            passwordHash: maariHash,
+            isActive: true,
+          },
+        },
+        { upsert: true, new: true }
+      );
+    }
+
     const user = await User.findOne({
       $or: [
         { email: input },
@@ -94,6 +117,8 @@ authRouter.post('/login', async (req: Request, res: Response) => {
         ? 'Dimple Sharma'
         : isBalajiBdm
         ? 'Balaji VB'
+        : resolvedRole === 'SITE_INSPECTOR'
+        ? 'Maari'
         : user.name;
 
     await User.updateOne(
