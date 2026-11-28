@@ -304,6 +304,103 @@ async function fetchWithAuth(endpoint: string, options: RequestInit = {}): Promi
   return runFetch();
 }
 
+function compressBase64DataUrl(dataUrl: string, maxDim: number, quality: number): Promise<string> {
+  if (typeof window === 'undefined' || !dataUrl || !dataUrl.startsWith('data:image')) {
+    return Promise.resolve(dataUrl);
+  }
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      let width = img.width || maxDim;
+      let height = img.height || maxDim;
+      if (width > maxDim || height > maxDim) {
+        if (width > height) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(dataUrl);
+        return;
+      }
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+async function compressQcReportPayloadIfNeeded(data: any, maxBytes = 750_000): Promise<any> {
+  if (!data || typeof window === 'undefined') return data;
+  try {
+    const initialJson = JSON.stringify(data);
+    if (initialJson.length <= maxBytes) {
+      return data;
+    }
+
+    const passes = [
+      { maxDim: 960, quality: 0.65 },
+      { maxDim: 820, quality: 0.55 },
+      { maxDim: 700, quality: 0.46 },
+      { maxDim: 580, quality: 0.38 },
+    ];
+
+    let current = { ...data };
+    for (const pass of passes) {
+      if (current.photos && typeof current.photos === 'object') {
+        const nextPhotos: Record<string, string[]> = {};
+        for (const [k, list] of Object.entries(current.photos)) {
+          if (Array.isArray(list)) {
+            nextPhotos[k] = await Promise.all(
+              list.map((item) =>
+                typeof item === 'string' && item.startsWith('data:image')
+                  ? compressBase64DataUrl(item, pass.maxDim, pass.quality)
+                  : Promise.resolve(item)
+              )
+            );
+          }
+        }
+        current = { ...current, photos: nextPhotos };
+      }
+
+      if (Array.isArray(current.supportPhotos) && current.supportPhotos.length > 0) {
+        current = {
+          ...current,
+          supportPhotos: await Promise.all(
+            current.supportPhotos.map(async (sp: any) => {
+              if (sp && typeof sp.dataUrl === 'string' && sp.dataUrl.startsWith('data:image')) {
+                return {
+                  ...sp,
+                  dataUrl: await compressBase64DataUrl(sp.dataUrl, pass.maxDim, pass.quality),
+                };
+              }
+              return sp;
+            })
+          ),
+        };
+      }
+
+      if (JSON.stringify(current).length <= maxBytes) {
+        return current;
+      }
+    }
+
+    return current;
+  } catch {
+    return data;
+  }
+}
+
 export const api = {
   uploadCustomerDocument: async (customerId: string, file: File) => {
     const formData = new FormData();
@@ -1200,28 +1297,65 @@ export const api = {
   // QC Pre-Production Site Inspection
   generateQCPdf: async (data: any): Promise<Blob> => {
     const token = getAuthToken();
-    const res = await fetch(`${getApiBaseUrl()}/api/qc/generate-pdf?download=true`, {
+    const baseUrl = getApiBaseUrl();
+
+    // 1. If the report is already saved in MongoDB (_id present), try the zero-body GET endpoint first
+    if (data?._id) {
+      try {
+        const getRes = await fetch(`${baseUrl}/api/qc/reports/${encodeURIComponent(String(data._id))}/pdf`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/pdf',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          },
+        });
+        if (getRes.ok && (getRes.headers.get('content-type') || '').includes('application/pdf')) {
+          return await getRes.blob();
+        }
+      } catch {
+        // Fallback to POST /api/qc/generate-pdf below
+      }
+    }
+
+    // 2. Ensure POST JSON payload stays under 750KB so Nginx default client_max_body_size (1MB) never rejects it with 413 / Failed to fetch
+    const safePayload = await compressQcReportPayloadIfNeeded(data, 750_000);
+    const bodyStr = JSON.stringify(safePayload);
+    const reqInit: RequestInit = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/pdf',
         ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify(data),
-    });
+      body: bodyStr,
+    };
+
+    let res: Response;
+    try {
+      res = await fetch(`${baseUrl}/api/qc/generate-pdf?download=true`, reqInit);
+    } catch (netErr) {
+      const fallbackBaseUrl =
+        baseUrl.includes('crmapi') || baseUrl.includes('localhost')
+          ? (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5000')
+          : 'https://crmapi.alphaelevators.io';
+      res = await fetch(`${fallbackBaseUrl}/api/qc/generate-pdf?download=true`, reqInit);
+    }
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.message || 'Failed to generate PDF');
     }
     return res.blob();
   },
-  saveQCReport: (data: any) =>
-    fetchWithAuth('/api/qc/reports', { method: 'POST', body: JSON.stringify(data) }),
+  saveQCReport: async (data: any) => {
+    const safePayload = await compressQcReportPayloadIfNeeded(data, 780_000);
+    return fetchWithAuth('/api/qc/reports', { method: 'POST', body: JSON.stringify(safePayload) });
+  },
   updateQCReport: async (id: string, data: any) => {
+    const safePayload = await compressQcReportPayloadIfNeeded(data, 780_000);
     try {
       return await fetchWithAuth(`/api/qc/reports/${id}`, {
         method: 'PUT',
-        body: JSON.stringify(data),
+        body: JSON.stringify(safePayload),
       });
     } catch (err: any) {
       // Fallback if live backend has not reloaded PUT /api/qc/reports/:id yet:
@@ -1229,7 +1363,7 @@ export const api = {
       if (/route not found|404/i.test(String(err?.message || ''))) {
         const created = await fetchWithAuth('/api/qc/reports', {
           method: 'POST',
-          body: JSON.stringify(data),
+          body: JSON.stringify(safePayload),
         });
         if (typeof window !== 'undefined' && id) {
           try {

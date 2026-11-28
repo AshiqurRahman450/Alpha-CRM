@@ -675,8 +675,8 @@ export default function QCInspectionForm({ initialReport, onSaved, onCancelEdit 
 
         const img = new Image();
         img.onload = () => {
-          // Normalize to max 1280px for high-res PDF embedding with compact payload
-          const maxDim = 1280;
+          // Normalize to max 960px for high-res PDF embedding while staying well under 1MB reverse-proxy limits
+          const maxDim = 960;
           let width = img.width;
           let height = img.height;
 
@@ -704,8 +704,8 @@ export default function QCInspectionForm({ initialReport, onSaved, onCancelEdit 
           ctx.fillRect(0, 0, width, height);
           ctx.drawImage(img, 0, 0, width, height);
 
-          // Standard high-quality JPEG (0.82)
-          const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.82);
+          // Crisp JPEG (0.74) so multi-photo reports stay compact (<750KB total)
+          const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.74);
           resolve(jpegDataUrl);
         };
         img.onerror = () => resolve(result);

@@ -17,10 +17,35 @@ qcRouter.use(authenticate);
  * POST /api/qc/generate-pdf
  * Generates an official PDF report on-the-fly and returns either the binary stream
  * or JSON metadata with relative download URL.
+ * If `_id` or `reportId` is provided without photos, hydrates stored photos/signatures from MongoDB.
  */
 qcRouter.post('/generate-pdf', async (req: AuthRequest, res: Response) => {
   try {
-    const reportData = req.body;
+    const reportData = { ...req.body };
+
+    // Hydrate stored photos/signatures from MongoDB when downloading an existing saved report
+    if (reportData._id || reportData.reportId) {
+      const hasPhotos =
+        reportData.photos &&
+        typeof reportData.photos === 'object' &&
+        Object.values(reportData.photos).some((arr: any) => Array.isArray(arr) && arr.length > 0);
+      if (!hasPhotos) {
+        const existingReport = reportData._id
+          ? await QCReport.findById(reportData._id).lean().catch(() => null)
+          : await QCReport.findOne({ reportId: reportData.reportId }).lean().catch(() => null);
+        if (existingReport) {
+          reportData.clientName = reportData.clientName || existingReport.clientName;
+          reportData.jobNo = reportData.jobNo || existingReport.jobNo;
+          reportData.photos = existingReport.photos || reportData.photos;
+          reportData.supportPhotos = (existingReport as any).supportPhotos || reportData.supportPhotos;
+          reportData.technicianSignatureImage =
+            reportData.technicianSignatureImage || (existingReport as any).technicianSignatureImage;
+          reportData.clientSignatureImage =
+            reportData.clientSignatureImage || (existingReport as any).clientSignatureImage;
+        }
+      }
+    }
+
     if (!reportData.clientName || !reportData.jobNo) {
       return res.status(400).json({ success: false, message: 'Client Name and Job No are required to generate PDF' });
     }
@@ -45,6 +70,28 @@ qcRouter.post('/generate-pdf', async (req: AuthRequest, res: Response) => {
   } catch (err: any) {
     console.error('[QC] Generate PDF Error:', err);
     return res.status(500).json({ success: false, message: err.message || 'Failed to generate PDF' });
+  }
+});
+
+/**
+ * GET /api/qc/reports/:id/pdf
+ * Generates and streams the official PDF for a saved QC report directly from MongoDB
+ * without requiring the client browser to re-upload large base64 photo payloads.
+ */
+qcRouter.get('/reports/:id/pdf', async (req: AuthRequest, res: Response) => {
+  try {
+    const report = await QCReport.findById(req.params.id).lean();
+    if (!report) {
+      return res.status(404).json({ success: false, message: 'Site inspection report not found' });
+    }
+
+    const { buffer, fileName } = await generateQCReportPdf(report as any);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    return res.send(buffer);
+  } catch (err: any) {
+    console.error('[QC] GET Report PDF Error:', err);
+    return res.status(500).json({ success: false, message: err.message || 'Failed to generate report PDF' });
   }
 });
 
