@@ -232,20 +232,15 @@ export default function EditPaymentModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                Payment Type:
+                Payment Entry Label:
               </label>
-              <select
+              <input
+                type="text"
                 value={paymentType}
                 onChange={(e) => setPaymentType(e.target.value)}
-                className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none bg-white font-medium"
-              >
-                <option value="Booking Advance">Booking Advance</option>
-                <option value="Production Payment">Production Payment</option>
-                <option value="Rediness Notification">Rediness Notification</option>
-                <option value="Dispatch Materials">Dispatch Materials</option>
-                <option value="After Installation">After Installation</option>
-                <option value="OTHER">Other / Custom</option>
-              </select>
+                placeholder="e.g. Payment 1, Payment 2..."
+                className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none bg-white font-bold text-slate-900"
+              />
             </div>
 
             <div>

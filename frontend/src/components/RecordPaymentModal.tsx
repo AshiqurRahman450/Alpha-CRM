@@ -1,102 +1,171 @@
 'use client';
 
-import React, { useState } from 'react';
-import { IndianRupee, CreditCard, CheckCircle2, X, AlertCircle, Bell } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { api, getStoredUser } from '../lib/api';
+import React, { useState, useEffect } from 'react';
+import { IndianRupee, CheckCircle2, X, Plus, Trash2, Bell } from 'lucide-react';
+import { api } from '../lib/api';
 import { toast } from 'react-hot-toast';
 
 interface RecordPaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   project: any;
+  existingPayments?: any[];
+  initialPaymentNumber?: number;
   onSuccess: (paymentData?: any) => void;
+}
+
+interface PaymentEntryRow {
+  paymentNumber: number;
+  paymentLabel: string;
+  amountPaid: string;
+  paymentMethod: string;
+  transactionReference: string;
+  notes: string;
 }
 
 export default function RecordPaymentModal({
   isOpen,
   onClose,
   project,
+  existingPayments = [],
+  initialPaymentNumber,
   onSuccess,
 }: RecordPaymentModalProps) {
-  const [amountPaid, setAmountPaid] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('BANK_TRANSFER');
-  const [transactionReference, setTransactionReference] = useState('');
-  const [paymentType, setPaymentType] = useState('Booking Advance');
-  const [notes, setNotes] = useState('');
+  const [fetchedPayments, setFetchedPayments] = useState<any[]>([]);
+  const activeExistingPayments = existingPayments.length > 0 ? existingPayments : fetchedPayments;
+  const baseNextNumber =
+    initialPaymentNumber || (Array.isArray(activeExistingPayments) ? activeExistingPayments.length + 1 : 1);
+
+  const [entries, setEntries] = useState<PaymentEntryRow[]>([
+    {
+      paymentNumber: baseNextNumber,
+      paymentLabel: `Payment ${baseNextNumber}`,
+      amountPaid: '',
+      paymentMethod: 'BANK_TRANSFER',
+      transactionReference: '',
+      notes: '',
+    },
+  ]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  const router = useRouter();
-  const currentUser = getStoredUser();
-  const isCrm = currentUser?.role === 'CRM';
-  const isAccountant = currentUser?.role === 'ACCOUNTANT';
-  const isRequestedByCrm = project?.paymentRequest?.status === 'REQUESTED';
-  const isAccountantBlocked = isAccountant && !isRequestedByCrm;
 
-  React.useEffect(() => {
+  const isRequestedByCrm = project?.paymentRequest?.status === 'REQUESTED';
+
+  useEffect(() => {
     if (project && isOpen) {
-      if (project.paymentRequest?.status === 'REQUESTED') {
-        if (project.paymentRequest.paymentType) {
-          setPaymentType(project.paymentRequest.paymentType);
-        }
-        if (project.paymentRequest.requestedAmount) {
-          setAmountPaid(String(project.paymentRequest.requestedAmount));
-        } else {
-          setAmountPaid('');
-        }
-        setNotes(project.paymentRequest.notes ? `CRM Request: ${project.paymentRequest.notes}` : '');
-      } else if ((project.totalPaid || 0) < (project.advanceAmount || 0)) {
-        setPaymentType('Booking Advance');
-        const pendingAdv = Math.max(0, (project.advanceAmount || 0) - (project.totalPaid || 0));
-        setAmountPaid(pendingAdv > 0 ? String(pendingAdv) : '');
-        setNotes('');
-      } else {
-        setPaymentType('Production Payment');
-        setAmountPaid('');
-        setNotes('');
+      const initWithCount = (count: number) => {
+        const startNum = initialPaymentNumber || count + 1;
+        const defaultAmount =
+          project.paymentRequest?.status === 'REQUESTED' && project.paymentRequest?.requestedAmount
+            ? String(project.paymentRequest.requestedAmount)
+            : '';
+        const defaultNotes =
+          project.paymentRequest?.status === 'REQUESTED' && project.paymentRequest?.notes
+            ? `CRM Request: ${project.paymentRequest.notes}`
+            : '';
+
+        setEntries([
+          {
+            paymentNumber: startNum,
+            paymentLabel: `Payment ${startNum}`,
+            amountPaid: defaultAmount,
+            paymentMethod: 'BANK_TRANSFER',
+            transactionReference: '',
+            notes: defaultNotes,
+          },
+        ]);
+      };
+
+      initWithCount(existingPayments.length);
+      if (existingPayments.length === 0 && project._id) {
+        api
+          .getPayments(project._id)
+          .then((res) => {
+            const list = Array.isArray(res?.data) ? res.data : [];
+            setFetchedPayments(list);
+            initWithCount(list.length);
+          })
+          .catch(() => {});
       }
-      setTransactionReference('');
       setError(null);
     }
-  }, [project, isOpen]);
+  }, [project, isOpen, initialPaymentNumber, existingPayments.length]);
 
   if (!isOpen || !project) return null;
 
+  const updateEntry = (index: number, field: keyof PaymentEntryRow, value: string) => {
+    setEntries((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
+  };
+
+  const handleAddNextPaymentRow = () => {
+    setEntries((prev) => {
+      const lastNum = prev.length > 0 ? prev[prev.length - 1].paymentNumber : baseNextNumber - 1;
+      const nextNum = lastNum + 1;
+      return [
+        ...prev,
+        {
+          paymentNumber: nextNum,
+          paymentLabel: `Payment ${nextNum}`,
+          amountPaid: '',
+          paymentMethod: 'BANK_TRANSFER',
+          transactionReference: '',
+          notes: '',
+        },
+      ];
+    });
+  };
+
+  const handleRemoveEntryRow = (index: number) => {
+    if (entries.length <= 1) return;
+    setEntries((prev) => {
+      const filtered = prev.filter((_, idx) => idx !== index);
+      return filtered.map((item, idx) => {
+        const num = baseNextNumber + idx;
+        return {
+          ...item,
+          paymentNumber: num,
+          paymentLabel: `Payment ${num}`,
+        };
+      });
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isAccountantBlocked) {
-      setError('Payment recording is restricted for Accountant. CRM must request payment collection for this customer first.');
-      return;
-    }
-    if (!amountPaid || !transactionReference) {
-      setError('Please provide amount and transaction reference');
-      return;
+
+    for (const entry of entries) {
+      if (!entry.amountPaid || Number(entry.amountPaid) <= 0 || !entry.transactionReference.trim()) {
+        setError(`Please enter a valid amount and transaction reference for ${entry.paymentLabel}`);
+        return;
+      }
     }
 
     try {
       setLoading(true);
       setError(null);
-      const response = await api.recordPayment({
-        projectId: project._id,
-        amountPaid: Number(amountPaid),
-        paymentMethod,
-        transactionReference,
-        paymentType,
-        notes,
-      });
-      
-      if (response && response.receiptSentToGroup) {
-        toast.success(`Payment recorded and official receipt (${response.data?.receiptNumber || 'PDF'}) sent directly to the WhatsApp group!`);
-      } else {
-        toast.success(response?.message || 'Payment recorded successfully!');
+      let lastRecorded: any = null;
+
+      for (const entry of entries) {
+        const response = await api.recordPayment({
+          projectId: project._id,
+          amountPaid: Number(entry.amountPaid),
+          paymentMethod: entry.paymentMethod,
+          transactionReference: entry.transactionReference.trim(),
+          paymentType: entry.paymentLabel,
+          notes: entry.notes.trim(),
+        });
+        lastRecorded = response?.data;
       }
 
-      onSuccess(response.data);
+      const recordedLabels = entries.map((e) => e.paymentLabel).join(', ');
+      toast.success(`${recordedLabels} recorded successfully!`);
+
+      onSuccess(lastRecorded);
       onClose();
-      
-      // Navigate to the invoice page in the same tab
-      router.push(`/projects/${project._id}/invoice/${response.data._id}`);
     } catch (err: any) {
       setError(err.message || 'Failed to record payment');
       toast.error(err.message || 'Failed to record payment');
@@ -105,52 +174,28 @@ export default function RecordPaymentModal({
     }
   };
 
-  const stages = [
-    { name: 'Advance', percent: project.advancePercentage || 0 },
-    { name: 'Production', percent: project.productionPaymentPercent || 0 },
-    { name: 'Readiness', percent: project.readinessNotificationPercent || 0 },
-    ...((Number(project.dispatchMaterialsPercent) > 0 || !isCrm || isAccountant) ? [
-      { name: 'Dispatch', percent: project.dispatchMaterialsPercent || 0 },
-    ] : []),
-    ...((Number(project.afterInstallationPercent) > 0 || !isCrm || isAccountant) ? [
-      { name: 'Installation', percent: project.afterInstallationPercent || 0 },
-    ] : []),
-  ];
+  const sortedExisting = [...(activeExistingPayments || [])].sort(
+    (a, b) => new Date(a.paymentDate || a.createdAt || 0).getTime() - new Date(b.paymentDate || b.createdAt || 0).getTime()
+  );
 
-  let remainingPaid = project.totalPaid || 0;
-  const breakdown = stages.map(stage => {
-    const requiredAmount = ((project.orderValue || 0) * stage.percent) / 100;
-    let paidForStage = 0;
-    
-    if (remainingPaid >= requiredAmount) {
-      paidForStage = requiredAmount;
-      remainingPaid -= requiredAmount;
-    } else {
-      paidForStage = remainingPaid;
-      remainingPaid = 0;
-    }
-
-    const outstanding = requiredAmount - paidForStage;
-    
-    return {
-      ...stage,
-      requiredAmount,
-      paidForStage,
-      outstanding
-    };
-  });
+  const totalEnteredNow = entries.reduce((sum, item) => sum + (Number(item.amountPaid) || 0), 0);
+  const projectedBalance = Math.max(0, (project.balanceAmount || 0) - totalEnteredNow);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden animate-scale-up max-h-[95vh] flex flex-col">
+      <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden animate-scale-up max-h-[95vh] flex flex-col">
         <div className="bg-[#0F2744] text-white p-5 flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-2.5">
             <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300">
               <IndianRupee className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold">Record Customer Payment</h3>
-              <p className="text-[11px] text-slate-300">{project.projectName}</p>
+              <h3 className="text-sm font-bold">
+                Record Customer Payment ({entries.map((e) => e.paymentLabel).join(', ')})
+              </h3>
+              <p className="text-[11px] text-slate-300">
+                {project.projectName} • <span className="font-mono text-sky-300">{project.projectId}</span>
+              </p>
             </div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white p-1">
@@ -160,20 +205,8 @@ export default function RecordPaymentModal({
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs overflow-y-auto">
           {error && (
-            <div className="p-3 bg-rose-50 text-rose-700 rounded-xl border border-rose-200">
+            <div className="p-3 bg-rose-50 text-rose-700 rounded-xl border border-rose-200 font-medium">
               {error}
-            </div>
-          )}
-
-          {isAccountantBlocked && (
-            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 space-y-1">
-              <div className="flex items-center gap-2 font-bold text-xs">
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                <span>Accountant Restricted</span>
-              </div>
-              <p className="text-[11px] text-rose-700 leading-relaxed">
-                Payment recording is restricted for Accountant. CRM must first send a collection request from the Payment Schedule for this customer before you can record payment.
-              </p>
             </div>
           )}
 
@@ -189,7 +222,7 @@ export default function RecordPaymentModal({
                 </span>
               </div>
               <div className="text-[11px] text-amber-800 flex items-center justify-between">
-                <span>Milestone: <strong>{project.paymentRequest.paymentType || 'Milestone'}</strong></span>
+                <span>Entry: <strong>{project.paymentRequest.paymentType || `Payment ${baseNextNumber}`}</strong></span>
                 <span>By: <strong>{project.paymentRequest.requestedBy || 'CRM'}</strong></span>
               </div>
               {project.paymentRequest.notes && (
@@ -200,127 +233,163 @@ export default function RecordPaymentModal({
             </div>
           )}
 
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex justify-between items-center">
+          {/* Order Value & Balance Summary */}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 grid grid-cols-3 gap-2">
             <div>
-              <span className="text-slate-500 block">Total Order Value:</span>
+              <span className="text-slate-500 block text-[10px] uppercase font-bold">Total Order Value</span>
               <span className="font-bold text-slate-900 text-sm">
-                ₹{project.orderValue?.toLocaleString('en-IN')}
+                ₹{(project.orderValue || 0).toLocaleString('en-IN')}
+              </span>
+            </div>
+            <div>
+              <span className="text-slate-500 block text-[10px] uppercase font-bold">Collected So Far</span>
+              <span className="font-bold text-emerald-600 text-sm">
+                ₹{(project.totalPaid || 0).toLocaleString('en-IN')}
               </span>
             </div>
             <div className="text-right">
-              <span className="text-slate-500 block">Outstanding Balance:</span>
+              <span className="text-slate-500 block text-[10px] uppercase font-bold">Remaining Balance</span>
               <span className="font-bold text-rose-600 text-sm">
-                ₹{project.balanceAmount?.toLocaleString('en-IN')}
+                ₹{projectedBalance.toLocaleString('en-IN')}
               </span>
             </div>
           </div>
 
-          <div className="space-y-2">
-            <h4 className="font-bold text-slate-700">Stage-wise Outstanding Breakdown</h4>
-            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100">
-              {breakdown.filter(b => b.requiredAmount > 0).map((b, i) => (
-                <div key={i} className="flex justify-between items-center p-2.5 hover:bg-slate-50">
-                  <div className="flex-1">
-                    <div className="font-semibold text-slate-800">{b.name} ({b.percent}%)</div>
-                    <div className="text-[10px] text-slate-500">Req: ₹{b.requiredAmount.toLocaleString('en-IN')}</div>
+          {/* Previously Recorded Payments List */}
+          {sortedExisting.length > 0 && (
+            <div className="space-y-1.5">
+              <h4 className="font-bold text-slate-700 text-[11px] uppercase tracking-wider">
+                Recorded Payments ({sortedExisting.length})
+              </h4>
+              <div className="bg-emerald-50/50 border border-emerald-200/80 rounded-xl p-2.5 flex flex-wrap gap-2">
+                {sortedExisting.map((p: any, idx: number) => (
+                  <div
+                    key={p._id || idx}
+                    className="px-2.5 py-1.5 bg-white border border-emerald-200 rounded-lg flex items-center gap-1.5 shadow-2xs"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span className="font-bold text-slate-800 text-[11px]">
+                      {/^payment\s*\d+/i.test(String(p.paymentType || ''))
+                        ? p.paymentType
+                        : `Payment ${idx + 1}`}
+                      :
+                    </span>
+                    <span className="font-extrabold text-emerald-700 text-[11px]">
+                      ₹{(p.amountPaid || 0).toLocaleString('en-IN')}
+                    </span>
                   </div>
-                  <div className="text-right">
-                    {b.outstanding <= 0 ? (
-                      <span className="text-emerald-600 font-bold flex items-center justify-end gap-1 text-[11px]">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Fully Paid
-                      </span>
-                    ) : (
-                      <>
-                        <div className="font-bold text-rose-600">Pending: ₹{b.outstanding.toLocaleString('en-IN')}</div>
-                        {b.paidForStage > 0 && <div className="text-[10px] text-slate-500">Paid so far: ₹{b.paidForStage.toLocaleString('en-IN')}</div>}
-                      </>
-                    )}
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Dynamic Sequential Payment Entries (Payment 1, click + for Payment 2, Payment 3, ...) */}
+          <div className="space-y-3">
+            {entries.map((entry, idx) => (
+              <div
+                key={entry.paymentNumber}
+                className="p-4 rounded-2xl border-2 border-sky-200 bg-sky-50/30 space-y-3 relative"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-1 rounded-lg bg-sky-600 text-white font-black text-xs shadow-2xs">
+                      {entry.paymentLabel}
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-semibold">
+                      Installment #{entry.paymentNumber}
+                    </span>
+                  </div>
+                  {entries.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveEntryRow(idx)}
+                      className="text-rose-500 hover:text-rose-700 p-1 rounded-lg hover:bg-rose-50 transition-colors"
+                      title="Remove this payment entry"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      {entry.paymentLabel} Amount (₹): *
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min="1"
+                      value={entry.amountPaid}
+                      onChange={(e) => updateEntry(idx, 'amountPaid', e.target.value)}
+                      placeholder="e.g. 250000"
+                      className="w-full p-2.5 text-xs border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none font-bold text-slate-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Payment Method:
+                    </label>
+                    <select
+                      value={entry.paymentMethod}
+                      onChange={(e) => updateEntry(idx, 'paymentMethod', e.target.value)}
+                      className="w-full p-2.5 text-xs border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none font-medium"
+                    >
+                      <option value="BANK_TRANSFER">Bank Transfer (NEFT/RTGS)</option>
+                      <option value="UPI">UPI</option>
+                      <option value="CHEQUE">Cheque</option>
+                      <option value="CASH">Cash</option>
+                    </select>
                   </div>
                 </div>
-              ))}
-            </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Transaction Reference / UTR Number: *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={entry.transactionReference}
+                    onChange={(e) => updateEntry(idx, 'transactionReference', e.target.value)}
+                    placeholder="e.g. HDFC0001293847"
+                    className="w-full p-2.5 text-xs border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Notes (Optional):
+                  </label>
+                  <input
+                    type="text"
+                    value={entry.notes}
+                    onChange={(e) => updateEntry(idx, 'notes', e.target.value)}
+                    placeholder={`Optional note for ${entry.paymentLabel}`}
+                    className="w-full p-2.5 text-xs border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+            ))}
+
+            {/* Plus (+) Icon Button to Add Next Payment Entry (Payment 2, Payment 3, ...) */}
+            <button
+              type="button"
+              onClick={handleAddNextPaymentRow}
+              className="w-full py-2.5 px-4 rounded-xl border-2 border-dashed border-sky-300 hover:border-sky-500 bg-sky-50/50 hover:bg-sky-50 text-sky-700 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-98"
+              title="Click + to add another payment entry"
+            >
+              <span className="w-6 h-6 rounded-full bg-sky-600 text-white flex items-center justify-center shadow-xs">
+                <Plus className="w-3.5 h-3.5" />
+              </span>
+              <span>
+                Add Payment {(entries[entries.length - 1]?.paymentNumber || baseNextNumber) + 1}
+              </span>
+            </button>
           </div>
 
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-              Amount Received (₹): *
-            </label>
-            <input
-              type="number"
-              required
-              value={amountPaid}
-              onChange={(e) => setAmountPaid(e.target.value)}
-              placeholder="e.g. 250000"
-              className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none font-bold"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                Payment Type:
-              </label>
-              <select
-                value={paymentType}
-                onChange={(e) => setPaymentType(e.target.value)}
-                className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none"
-              >
-                <option value="Booking Advance">Booking Advance</option>
-                <option value="Production Payment">Production Payment</option>
-                <option value="Rediness Notification">Rediness Notification</option>
-                {(Number(project.dispatchMaterialsPercent) > 0 || !isCrm || isAccountant) && (
-                  <option value="Dispatch Materials">Dispatch Materials</option>
-                )}
-                {(Number(project.afterInstallationPercent) > 0 || !isCrm || isAccountant) && (
-                  <option value="After Installation">After Installation</option>
-                )}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                Payment Method:
-              </label>
-              <select
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-                className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none"
-              >
-                <option value="BANK_TRANSFER">Bank Transfer (NEFT/RTGS)</option>
-                <option value="UPI">UPI</option>
-                <option value="CHEQUE">Cheque</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-              Transaction Reference / UTR Number: *
-            </label>
-            <input
-              type="text"
-              required
-              value={transactionReference}
-              onChange={(e) => setTransactionReference(e.target.value)}
-              placeholder="e.g. HDFC0001293847"
-              className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-              Notes:
-            </label>
-            <input
-              type="text"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g. Received against fabrication stage invoice"
-              className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none"
-            />
-          </div>
-
-          <div className="pt-2 flex items-center justify-end space-x-2.5">
+          <div className="pt-2 flex items-center justify-end space-x-2.5 border-t border-slate-100">
             <button
               type="button"
               onClick={onClose}
@@ -331,10 +400,12 @@ export default function RecordPaymentModal({
             </button>
             <button
               type="submit"
-              disabled={loading || isAccountantBlocked}
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={loading}
+              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 disabled:opacity-50"
             >
-              {loading ? 'Recording...' : isAccountantBlocked ? 'Awaiting CRM Request' : 'Record Payment'}
+              {loading
+                ? 'Recording...'
+                : `Record ${entries.map((e) => e.paymentLabel).join(' & ')}`}
             </button>
           </div>
         </form>

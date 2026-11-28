@@ -9,6 +9,7 @@ interface RequestPaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   project: any;
+  existingPaymentsCount?: number;
   onSuccess: (updatedProject: any) => void;
 }
 
@@ -16,10 +17,12 @@ export default function RequestPaymentModal({
   isOpen,
   onClose,
   project,
+  existingPaymentsCount = 0,
   onSuccess,
 }: RequestPaymentModalProps) {
+  const nextPayNum = existingPaymentsCount + 1;
   const [requestedAmount, setRequestedAmount] = useState<string>('');
-  const [paymentType, setPaymentType] = useState<string>('Booking Advance');
+  const [paymentType, setPaymentType] = useState<string>(`Payment ${nextPayNum}`);
   const [accountantName, setAccountantName] = useState<string>('Vincy (Accountant)');
   const [accountantPhone, setAccountantPhone] = useState<string>('+91 98400 99881');
   const [notes, setNotes] = useState<string>('');
@@ -28,8 +31,9 @@ export default function RequestPaymentModal({
 
   useEffect(() => {
     if (project && isOpen) {
+      const nextNum = existingPaymentsCount + 1;
       if (project.paymentRequest?.status === 'REQUESTED') {
-        setPaymentType(project.paymentRequest.paymentType || 'Booking Advance');
+        setPaymentType(project.paymentRequest.paymentType || `Payment ${nextNum}`);
         setRequestedAmount(project.paymentRequest.requestedAmount ? String(project.paymentRequest.requestedAmount) : '');
         setNotes(project.paymentRequest.notes || '');
         if (project.paymentRequest.accountantPhone) {
@@ -39,16 +43,8 @@ export default function RequestPaymentModal({
           setAccountantName(project.paymentRequest.accountantName);
         }
       } else {
-        // Default to remaining advance or first milestone
-        const remainingAdv = Math.max(0, (project.advanceAmount || 0) - (project.totalPaid || 0));
-        if (remainingAdv > 0) {
-          setPaymentType('Booking Advance');
-          setRequestedAmount(String(remainingAdv));
-        } else {
-          setPaymentType('Production Milestone');
-          const prodAmt = Math.round(((project.orderValue || 0) * (project.productionPaymentPercent || 40)) / 100);
-          setRequestedAmount(prodAmt > 0 ? String(prodAmt) : '');
-        }
+        setPaymentType(`Payment ${nextNum}`);
+        setRequestedAmount('');
         setNotes('');
       }
 
@@ -65,29 +61,11 @@ export default function RequestPaymentModal({
 
       setError(null);
     }
-  }, [project, isOpen]);
+  }, [project, isOpen, existingPaymentsCount]);
 
   if (!isOpen || !project) return null;
 
   const orderVal = Number(project.orderValue || 0);
-  const milestones = [
-    { label: 'Booking Advance', pct: project.advancePercentage || 30 },
-    { label: 'Production Milestone', pct: project.productionPaymentPercent || 0 },
-    { label: 'Readiness Milestone', pct: project.readinessNotificationPercent || 0 },
-    ...(Number(project.dispatchMaterialsPercent) > 0 ? [{ label: 'Dispatch Milestone', pct: project.dispatchMaterialsPercent }] : []),
-    ...(Number(project.afterInstallationPercent) > 0 ? [{ label: 'Installation Milestone', pct: project.afterInstallationPercent }] : []),
-  ];
-
-  const handleSelectMilestone = (m: { label: string; pct: number }) => {
-    setPaymentType(m.label);
-    const calculated = Math.round((orderVal * m.pct) / 100);
-    setRequestedAmount(String(calculated));
-  };
-
-  const handleSelectBalance = () => {
-    setPaymentType('Full Remaining Balance');
-    setRequestedAmount(String(project.balanceAmount || 0));
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -165,71 +143,17 @@ export default function RequestPaymentModal({
             </div>
           </div>
 
-          {/* Quick Milestone Selection */}
-          <div className="space-y-1.5">
-            <label className="block text-[11px] font-extrabold text-slate-700">
-              Select Milestone Allocation:
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {milestones.map((m, idx) => {
-                const amt = Math.round((orderVal * m.pct) / 100);
-                const isSelected = paymentType === m.label;
-                return (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleSelectMilestone(m)}
-                    className={`p-2.5 rounded-xl border text-left transition-all ${
-                      isSelected
-                        ? 'border-sky-500 bg-sky-50/80 ring-2 ring-sky-400/20 shadow-sm'
-                        : 'border-slate-200 hover:border-slate-300 bg-white'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-[11px] text-slate-800">{m.label}</span>
-                      <span className="text-[10px] font-extrabold text-sky-700 bg-sky-100/80 px-1.5 py-0.5 rounded-md">
-                        {m.pct}%
-                      </span>
-                    </div>
-                    <div className="text-[11px] font-semibold text-slate-600 mt-1">
-                      ₹{amt.toLocaleString('en-IN')}
-                    </div>
-                  </button>
-                );
-              })}
-              <button
-                type="button"
-                onClick={handleSelectBalance}
-                className={`p-2.5 rounded-xl border text-left transition-all ${
-                  paymentType === 'Full Remaining Balance'
-                    ? 'border-amber-500 bg-amber-50/80 ring-2 ring-amber-400/20 shadow-sm'
-                    : 'border-slate-200 hover:border-slate-300 bg-white'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-[11px] text-slate-800">Full Remaining Balance</span>
-                  <span className="text-[10px] font-extrabold text-amber-700 bg-amber-100/80 px-1.5 py-0.5 rounded-md">
-                    Due
-                  </span>
-                </div>
-                <div className="text-[11px] font-semibold text-rose-600 mt-1">
-                  ₹{(project.balanceAmount || 0).toLocaleString('en-IN')}
-                </div>
-              </button>
-            </div>
-          </div>
-
-          {/* Payment Type Name */}
+          {/* Payment Entry Label (Payment 1, Payment 2, ...) */}
           <div className="space-y-1">
             <label className="block text-[11px] font-bold text-slate-700">
-              Payment Stage / Description:
+              Payment Entry Label:
             </label>
             <input
               type="text"
               value={paymentType}
               onChange={(e) => setPaymentType(e.target.value)}
-              placeholder="e.g. Booking Advance or Fabrication Milestone"
-              className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none"
+              placeholder={`e.g. Payment ${nextPayNum}`}
+              className="w-full p-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none font-bold text-slate-900"
               required
             />
           </div>

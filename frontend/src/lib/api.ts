@@ -1168,10 +1168,37 @@ export const api = {
     fetchWithAuth(`/api/payments${projectId ? `?projectId=${projectId}` : ''}`),
   getPaymentById: (id: string) =>
     fetchWithAuth(`/api/payments/${id}`),
-  recordPayment: (data: any) =>
-    fetchWithAuth('/api/payments', { method: 'POST', body: JSON.stringify(data) }),
-  updatePayment: (id: string, data: any) =>
-    fetchWithAuth(`/api/payments/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  recordPayment: async (data: any) => {
+    try {
+      return await fetchWithAuth('/api/payments', { method: 'POST', body: JSON.stringify(data) });
+    } catch (err: any) {
+      // Fallback if live backend has not yet reloaded relaxed PaymentSchema enum
+      if (/not a valid enum value|paymentType/i.test(String(err?.message || ''))) {
+        const label = data?.paymentType || 'Payment 1';
+        const fallbackNotes = data?.notes ? `[${label}] ${data.notes}` : `[${label}]`;
+        return await fetchWithAuth('/api/payments', {
+          method: 'POST',
+          body: JSON.stringify({ ...data, paymentType: 'OTHER', notes: fallbackNotes }),
+        });
+      }
+      throw err;
+    }
+  },
+  updatePayment: async (id: string, data: any) => {
+    try {
+      return await fetchWithAuth(`/api/payments/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+    } catch (err: any) {
+      if (/not a valid enum value|paymentType/i.test(String(err?.message || ''))) {
+        const label = data?.paymentType || 'Payment 1';
+        const fallbackNotes = data?.notes ? `[${label}] ${String(data.notes).replace(/^\[Payment\s*\d+\]\s*/i, '')}` : `[${label}]`;
+        return await fetchWithAuth(`/api/payments/${id}`, {
+          method: 'PUT',
+          body: JSON.stringify({ ...data, paymentType: 'OTHER', notes: fallbackNotes }),
+        });
+      }
+      throw err;
+    }
+  },
   deletePayment: (id: string) =>
     fetchWithAuth(`/api/payments/${id}`, { method: 'DELETE' }),
   sendPaymentReceiptToGroup: (id: string) =>

@@ -76,13 +76,12 @@ paymentRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT'), asyn
       return res.status(404).json({ success: false, message: 'Project not found' });
     }
 
-    // Restriction: Accountant can ONLY record payment if CRM has requested it for this customer/project
-    if (req.user?.role === 'ACCOUNTANT' && project.paymentRequest?.status !== 'REQUESTED') {
-      return res.status(403).json({
-        success: false,
-        message: 'Payment recording is restricted. CRM must request payment collection for this customer before the Accountant can record payment.',
-      });
-    }
+    const existingPaymentsCount = await Payment.countDocuments({ projectId: project._id });
+    const nextPaymentNumber = existingPaymentsCount + 1;
+    const resolvedPaymentType =
+      paymentType && String(paymentType).trim()
+        ? String(paymentType).trim()
+        : `Payment ${nextPaymentNumber}`;
 
     const customer = project.customerId as any;
     const paidNum = Number(amountPaid);
@@ -92,7 +91,7 @@ paymentRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT'), asyn
     let newPaymentStatus: any = 'PARTIAL_PAID';
     if (newTotalPaid >= project.orderValue) {
       newPaymentStatus = 'FULLY_PAID';
-    } else if (newTotalPaid >= project.advanceAmount) {
+    } else if (newTotalPaid > 0 && existingPaymentsCount === 0) {
       newPaymentStatus = 'ADVANCE_PAID';
     }
 
@@ -103,10 +102,10 @@ paymentRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT'), asyn
       customerId: customer._id,
       customerName: customer.fullName,
       totalOrderValue: project.orderValue,
-      advanceRequired: project.advanceAmount,
+      advanceRequired: project.advanceAmount || 0,
       amountPaid: paidNum,
       balanceAmount: newBalance,
-      paymentType: paymentType || 'OTHER',
+      paymentType: resolvedPaymentType,
       paymentDate: new Date(),
       paymentMethod: paymentMethod || 'BANK_TRANSFER',
       transactionReference: transactionReference.trim(),
@@ -123,104 +122,28 @@ paymentRouter.post('/', authorize('ADMIN', 'CRM', 'MANAGER', 'ACCOUNTANT'), asyn
       project.paymentRequest.status = 'RECORDED';
     }
 
-    // Check if this payment fulfills or corresponds to Advance Payment
-    const isAdvancePayment =
-      (paymentType && String(paymentType).toLowerCase().includes('advance')) ||
-      (payment.paymentType && String(payment.paymentType).toLowerCase().includes('advance')) ||
-      newPaymentStatus === 'ADVANCE_PAID' ||
-      (project.paymentRequest?.paymentType && String(project.paymentRequest.paymentType).toLowerCase().includes('advance')) ||
-      (newTotalPaid >= (project.advanceAmount || 0) && (project.advanceAmount || 0) > 0);
-
+    // Mark initial PAYMENT_RECEIVED executed date on first payment if not already set
+    const isAdvancePayment = existingPaymentsCount === 0;
     if (isAdvancePayment) {
       if (!project.stageDates) {
         project.stageDates = new Map();
       }
       const paymentStage = project.stageDates.get('PAYMENT_RECEIVED') || {};
-      paymentStage.executedDate = new Date();
+      if (!paymentStage.executedDate) {
+        paymentStage.executedDate = new Date();
+      }
       if (!paymentStage.scheduleDate) {
         paymentStage.scheduleDate = new Date();
       }
       project.stageDates.set('PAYMENT_RECEIVED', paymentStage);
 
-      // Advance project status if at initial stage
       if (!project.projectStatus) {
         project.projectStatus = 'PAYMENT_RECEIVED';
       }
-      console.log(`[Payment] Marked stage "PAYMENT_RECEIVED" as EXECUTED/DONE for project ${project.projectId}`);
     }
 
-    // Check if this payment fulfills or corresponds to Production Payment
-    const isProductionPayment =
-      !isAdvancePayment &&
-      ((paymentType && String(paymentType).toLowerCase().includes('production')) ||
-        (payment.paymentType && String(payment.paymentType).toLowerCase().includes('production')) ||
-        (project.paymentRequest?.paymentType && String(project.paymentRequest.paymentType).toLowerCase().includes('production')) ||
-        project.projectStatus === 'ENGINEERING' ||
-        project.projectStatus === 'CUSTOMER_APPROVAL' ||
-        (project.productionPaymentReminderCount && project.productionPaymentReminderCount > 0 && !project.productionPaymentReminderStopped));
-
-    if (isProductionPayment) {
-      if (!project.stageDates) {
-        project.stageDates = new Map();
-      }
-      const prodStage = project.stageDates.get('ENGINEERING') || {};
-      prodStage.executedDate = new Date();
-      if (!prodStage.scheduleDate) {
-        prodStage.scheduleDate = new Date();
-      }
-      project.stageDates.set('ENGINEERING', prodStage);
-
-      // Stop production payment odd-day reminders
-      project.productionPaymentReminderStopped = true;
-      project.productionPaymentReminderSent = true;
-      project.productionPaymentReminderNextDueAt = undefined;
-      project.productionPaymentReminderScheduledAt = undefined;
-
-      // Automatically move stage to "Production in progress" (MANUFACTURING)
-      const prevStatus = project.projectStatus;
-      project.projectStatus = 'MANUFACTURING';
-      project.productionStage = 1;
-      const intervalDays = project.whatsapp?.intervalDays || project.updateFrequencyDays || 10;
-      project.nextUpdateAt = calculateNextUpdateDate(intervalDays, new Date());
-      if (project.whatsapp) {
-        project.whatsapp.lastUpdateAt = new Date();
-        project.whatsapp.nextUpdateAt = project.nextUpdateAt;
-      }
-
-      console.log(`[Payment] Marked stage "ENGINEERING" (Production Payment) as EXECUTED and moved project ${project.projectId} from ${prevStatus} to MANUFACTURING (Production in progress).`);
-    }
-
-    // Check if this payment fulfills or corresponds to Readiness Payment
-    const isReadinessPayment =
-      !isAdvancePayment &&
-      !isProductionPayment &&
-      ((paymentType && (String(paymentType).toLowerCase().includes('readiness') || String(paymentType).toLowerCase().includes('qc'))) ||
-        (payment.paymentType && (String(payment.paymentType).toLowerCase().includes('readiness') || String(payment.paymentType).toLowerCase().includes('qc'))) ||
-        (project.paymentRequest?.paymentType && (String(project.paymentRequest.paymentType).toLowerCase().includes('readiness') || String(project.paymentRequest.paymentType).toLowerCase().includes('qc'))) ||
-        project.projectStatus === 'QUALITY_CHECK' ||
-        (project.readinessPaymentReminderCount && project.readinessPaymentReminderCount > 0 && !project.readinessPaymentReminderStopped));
-
-    if (isReadinessPayment) {
-      if (!project.stageDates) {
-        project.stageDates = new Map();
-      }
-      const qcStage = project.stageDates.get('QUALITY_CHECK') || {};
-      qcStage.executedDate = new Date();
-      if (!qcStage.scheduleDate) {
-        qcStage.scheduleDate = new Date();
-      }
-      project.stageDates.set('QUALITY_CHECK', qcStage);
-
-      // Stop readiness payment odd-day reminders
-      project.readinessPaymentReminderStopped = true;
-      project.readinessPaymentReminderNextDueAt = undefined;
-
-      // Automatically move stage to "Material ready to Dispatch" (DISPATCH)
-      const prevStatus = project.projectStatus;
-      project.projectStatus = 'DISPATCH';
-
-      console.log(`[Payment] Marked stage "QUALITY_CHECK" (Readiness Payment) as EXECUTED and moved project ${project.projectId} from ${prevStatus} to DISPATCH (Material ready to Dispatch).`);
-    }
+    const isProductionPayment = false;
+    const isReadinessPayment = false;
 
     autoFillExecutedDatesForCompletedStages(project);
     await project.save();

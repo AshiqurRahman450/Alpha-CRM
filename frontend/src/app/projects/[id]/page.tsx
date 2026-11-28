@@ -28,6 +28,7 @@ import {
   Sparkles,
   Lock,
   Truck,
+  Plus,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { api, getStoredUser, getApiBaseUrl } from '../../../lib/api';
@@ -478,7 +479,7 @@ export default function ProjectDetailPage() {
             <span className="text-slate-400 block text-[11px]">Total Contract Value</span>
             <strong className="text-slate-900 text-sm">₹{project.orderValue?.toLocaleString('en-IN')}</strong>
             <span className="text-[10px] text-emerald-600 font-semibold block mt-0.5">
-              Advance: ₹{project.advanceAmount?.toLocaleString('en-IN')} {project.advancePercentage ? `(${project.advancePercentage}%)` : ''}
+              Collected: ₹{(project.totalPaid || 0).toLocaleString('en-IN')} ({payments.length} {payments.length === 1 ? 'Payment' : 'Payments'})
             </span>
           </div>
 
@@ -732,7 +733,28 @@ export default function ProjectDetailPage() {
       )}
 
       {/* SECTION 7: PAYMENT MANAGEMENT & PROGRESS */}
-      {user?.role !== 'BDM' && (
+      {user?.role !== 'BDM' && (() => {
+        const chronologicalPayments = [...payments].sort(
+          (a: any, b: any) =>
+            new Date(a.paymentDate || a.createdAt || 0).getTime() -
+            new Date(b.paymentDate || b.createdAt || 0).getTime()
+        );
+        const paymentNumberMap = new Map<string, number>();
+        chronologicalPayments.forEach((p: any, idx: number) => {
+          if (p?._id) paymentNumberMap.set(String(p._id), idx + 1);
+        });
+        const getPaymentLabel = (p: any, fallbackIdx?: number) => {
+          const noteMatch = String(p?.notes || '').match(/^\[(Payment\s*\d+)\]/i);
+          if (noteMatch) return noteMatch[1];
+          if (/^payment\s*\d+/i.test(String(p?.paymentType || ''))) {
+            return p.paymentType;
+          }
+          const num = (p?._id && paymentNumberMap.get(String(p._id))) || (fallbackIdx !== undefined ? fallbackIdx + 1 : 1);
+          return `Payment ${num}`;
+        };
+        const nextPaymentNum = chronologicalPayments.length + 1;
+
+        return (
       <React.Fragment>
       <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-200 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
@@ -741,8 +763,10 @@ export default function ProjectDetailPage() {
               <IndianRupee className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-extrabold text-slate-900">Payment Schedule & Collection</h3>
-              <p className="text-xs text-slate-500">Milestone allocation, schedule configuration & collection entries</p>
+              <h3 className="text-base font-extrabold text-slate-900">Payment Collection</h3>
+              <p className="text-xs text-slate-500">
+                Sequential customer payment entries — click the + icon to enter Payment {nextPaymentNum}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
@@ -765,46 +789,15 @@ export default function ProjectDetailPage() {
               </button>
             )}
 
-            {(!isCrm || isAccountant) && (
-              <button
-                onClick={() => setIsEditScheduleModalOpen(true)}
-                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border border-slate-200"
-              >
-                <Calendar className="w-3.5 h-3.5 text-slate-600" />
-                <span>Edit Schedule</span>
-              </button>
-            )}
-
-            {/* Record Payment Button: Enabled for Accountant ONLY IF CRM requested */}
-            {isAccountant ? (
-              project.paymentRequest?.status === 'REQUESTED' ? (
-                <button
-                  onClick={() => setIsPaymentModalOpen(true)}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5 active:scale-95 ring-2 ring-emerald-400/30"
-                  title="CRM has requested payment collection for this customer"
-                >
-                  <IndianRupee className="w-3.5 h-3.5" />
-                  <span>Record Payment</span>
-                </button>
-              ) : (
-                <button
-                  disabled
-                  className="px-4 py-2 bg-slate-100 text-slate-400 rounded-xl text-xs font-bold transition-all border border-slate-200 flex items-center gap-1.5 cursor-not-allowed opacity-75"
-                  title="Payment recording is restricted. CRM must request payment collection for this customer before you can record payment."
-                >
-                  <Lock className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Record Payment (Awaiting CRM)</span>
-                </button>
-              )
-            ) : (
-              <button
-                onClick={() => setIsPaymentModalOpen(true)}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 active:scale-95"
-              >
-                <IndianRupee className="w-3.5 h-3.5" />
-                <span>Record Payment</span>
-              </button>
-            )}
+            {/* Plus (+) Icon Button to Record Payment 1, then Payment 2, Payment 3, ... for Admin, CRM, or Accountant */}
+            <button
+              onClick={() => setIsPaymentModalOpen(true)}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5 active:scale-95 cursor-pointer"
+              title={`Click + to record Payment ${nextPaymentNum}`}
+            >
+              <Plus className="w-4 h-4 stroke-[2.5]" />
+              <span>Payment {nextPaymentNum}</span>
+            </button>
           </div>
         </div>
 
@@ -824,7 +817,7 @@ export default function ProjectDetailPage() {
                     ₹{(project.paymentRequest.requestedAmount || 0).toLocaleString('en-IN')}
                   </span>
                   <span className="text-xs font-semibold text-amber-800">
-                    ({project.paymentRequest.paymentType || 'Milestone'})
+                    ({project.paymentRequest.paymentType || `Payment ${nextPaymentNum}`})
                   </span>
                 </div>
                 <p className="text-xs text-amber-800">
@@ -847,8 +840,8 @@ export default function ProjectDetailPage() {
                   onClick={() => setIsPaymentModalOpen(true)}
                   className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold transition-all shadow-md flex items-center gap-1.5 active:scale-95"
                 >
-                  <IndianRupee className="w-4 h-4" />
-                  <span>Record This Payment</span>
+                  <Plus className="w-4 h-4" />
+                  <span>Record Payment {nextPaymentNum}</span>
                 </button>
               ) : (isCrm || user?.role === 'ADMIN' || user?.role === 'MANAGER') ? (
                 <div className="flex items-center gap-2">
@@ -871,68 +864,54 @@ export default function ProjectDetailPage() {
           </div>
         )}
 
-        {/* Accountant Restriction Notice if no request */}
-        {isAccountant && project.paymentRequest?.status !== 'REQUESTED' && (
-          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-3 text-slate-700 text-xs">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl bg-slate-200/80 text-slate-600 flex items-center justify-center shrink-0">
-                <Lock className="w-4 h-4" />
+        {/* Dynamic Sequential Payments Strip (Payment 1 -> click + for Payment 2 -> click + for Payment 3 -> ...) */}
+        <div className="flex flex-wrap items-stretch gap-3">
+          {chronologicalPayments.map((p: any, idx: number) => {
+            const label = getPaymentLabel(p, idx);
+            return (
+              <div
+                key={p._id || idx}
+                className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-3.5 min-w-[170px] flex flex-col justify-between shadow-2xs"
+              >
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <span className="text-[11px] font-black text-emerald-900 uppercase tracking-wider flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>{label}</span>
+                  </span>
+                  <span className="text-[10px] font-semibold text-slate-500 bg-white px-1.5 py-0.5 rounded border border-emerald-200/60">
+                    {new Date(p.paymentDate).toLocaleDateString('en-GB')}
+                  </span>
+                </div>
+                <div className="text-sm font-black text-emerald-700">
+                  ₹{(p.amountPaid || 0).toLocaleString('en-IN')}
+                </div>
+                <div className="text-[10px] text-slate-500 font-mono truncate mt-0.5">
+                  {p.paymentMethod} • {p.transactionReference}
+                </div>
               </div>
-              <div>
-                <span className="font-bold text-slate-800 block">Payment Recording Locked for Accountant</span>
-                <span className="text-[11px] text-slate-500">
-                  CRM must request payment collection from this customer&apos;s Payment Schedule before you can record payment and dispatch receipts.
-                </span>
-              </div>
+            );
+          })}
+
+          {/* Plus (+) Icon Card to Enter Next Payment (Payment 1, then Payment 2, Payment 3, ...) */}
+          <button
+            type="button"
+            onClick={() => setIsPaymentModalOpen(true)}
+            className="min-w-[180px] p-3.5 rounded-2xl border-2 border-dashed border-sky-300 hover:border-sky-500 bg-sky-50/40 hover:bg-sky-50 text-sky-800 transition-all flex items-center gap-3 cursor-pointer active:scale-95 group"
+            title={`Click + to enter Payment ${nextPaymentNum}`}
+          >
+            <div className="w-10 h-10 rounded-xl bg-sky-600 group-hover:bg-sky-700 text-white flex items-center justify-center shadow-sm shrink-0 transition-colors">
+              <Plus className="w-5 h-5 stroke-[2.5]" />
             </div>
-            <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-200/80 text-slate-600 uppercase tracking-wide shrink-0">
-              Awaiting CRM Request
-            </span>
-          </div>
-        )}
-
-        {/* Milestone Schedule Cards */}
-        {(() => {
-          const milestones = [
-            { label: 'Booking Advance', pct: project.advancePercentage || 30 },
-            { label: 'Production', pct: project.productionPaymentPercent || 0 },
-            { label: 'Readiness', pct: project.readinessNotificationPercent || 0 },
-            ...((Number(project.dispatchMaterialsPercent) > 0 || !isCrm) ? [
-              { label: 'Dispatch', pct: project.dispatchMaterialsPercent || 0 },
-            ] : []),
-            ...((Number(project.afterInstallationPercent) > 0 || !isCrm) ? [
-              { label: 'Installation', pct: project.afterInstallationPercent || 0 },
-            ] : []),
-          ];
-
-          const gridColsClass =
-            milestones.length >= 5
-              ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
-              : milestones.length === 4
-              ? 'grid-cols-2 sm:grid-cols-4'
-              : 'grid-cols-1 sm:grid-cols-3';
-
-          return (
-            <div className={`grid gap-3 ${gridColsClass}`}>
-              {milestones.map((m, idx) => {
-                const milestoneAmt = Math.round(((project.orderValue || 0) * m.pct) / 100);
-                return (
-                  <div key={idx} className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-3 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">{m.label}</span>
-                        <span className="text-[11px] font-extrabold text-slate-700 bg-white px-1.5 py-0.5 rounded-md border border-slate-200/60">{m.pct}%</span>
-                      </div>
-                      <div className="text-xs font-bold text-slate-900">
-                        ₹{milestoneAmt.toLocaleString('en-IN')}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="text-left">
+              <span className="block text-xs font-black text-sky-900">
+                Enter Payment {nextPaymentNum}
+              </span>
+              <span className="block text-[10px] text-sky-600 font-semibold">
+                Click + icon to add entry
+              </span>
             </div>
-          );
-        })()}
+          </button>
+        </div>
 
         {/* Visual Payment Progress Bar */}
         <div className="space-y-2 pt-1">
@@ -954,7 +933,7 @@ export default function ProjectDetailPage() {
             <thead>
               <tr className="border-b border-slate-200 text-slate-400 uppercase text-[10px]">
                 <th className="pb-2.5 font-bold">Date</th>
-                <th className="pb-2.5 font-bold">Type</th>
+                <th className="pb-2.5 font-bold">Payment Entry</th>
                 <th className="pb-2.5 font-bold">Method</th>
                 <th className="pb-2.5 font-bold">Reference</th>
                 <th className="pb-2.5 font-bold">Amount Paid</th>
@@ -963,19 +942,19 @@ export default function ProjectDetailPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {payments.length === 0 ? (
+              {chronologicalPayments.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-6 text-center text-slate-400">
-                    No payment records found. Click &quot;Record Payment&quot; to add one.
+                    No payment records found. Click the &quot;+ Payment 1&quot; icon above to enter Payment 1.
                   </td>
                 </tr>
               ) : (
-                payments.map((p: any) => (
+                chronologicalPayments.map((p: any, idx: number) => (
                   <tr key={p._id} className="text-slate-700 hover:bg-slate-50/50 transition-colors">
                     <td className="py-3 font-medium">
                       {new Date(p.paymentDate).toLocaleDateString('en-GB')}
                     </td>
-                    <td className="py-3 font-semibold text-slate-900">{p.paymentType}</td>
+                    <td className="py-3 font-extrabold text-slate-900">{getPaymentLabel(p, idx)}</td>
                     <td className="py-3">{p.paymentMethod}</td>
                     <td className="py-3 font-mono text-[11px] text-slate-500">{p.transactionReference}</td>
                     <td className="py-3 font-bold text-emerald-700">₹{p.amountPaid?.toLocaleString('en-IN')}</td>
@@ -992,19 +971,17 @@ export default function ProjectDetailPage() {
                     </td>
                     <td className="py-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        {(!isCrm || isAccountant) && (
-                          <button
-                            onClick={() => {
-                              setSelectedPaymentToEdit(p);
-                              setIsEditPaymentModalOpen(true);
-                            }}
-                            className="px-2.5 py-1 bg-white hover:bg-amber-50 hover:text-amber-700 text-slate-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1 border border-slate-200 shadow-sm"
-                            title="Edit recorded amount and payment details"
-                          >
-                            <Edit2 className="w-3 h-3 text-amber-600" />
-                            <span>Edit</span>
-                          </button>
-                        )}
+                        <button
+                          onClick={() => {
+                            setSelectedPaymentToEdit({ ...p, paymentType: getPaymentLabel(p, idx) });
+                            setIsEditPaymentModalOpen(true);
+                          }}
+                          className="px-2.5 py-1 bg-white hover:bg-amber-50 hover:text-amber-700 text-slate-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1 border border-slate-200 shadow-sm"
+                          title="Edit recorded amount and payment details"
+                        >
+                          <Edit2 className="w-3 h-3 text-amber-600" />
+                          <span>Edit</span>
+                        </button>
                         <Link
                           href={`/projects/${projectId}/invoice/${p._id}`}
                           className="p-1 hover:bg-sky-50 hover:text-sky-600 text-slate-400 rounded-lg transition-colors border border-transparent hover:border-sky-200"
@@ -1036,15 +1013,15 @@ export default function ProjectDetailPage() {
           </div>
         </div>
 
-        {payments.length === 0 ? (
+        {chronologicalPayments.length === 0 ? (
           <div className="text-center p-6 text-slate-400 text-xs">No receipts generated yet.</div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {payments.map((p: any) => (
+            {chronologicalPayments.map((p: any, idx: number) => (
               <div key={`receipt-${p._id}`} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col justify-between hover:shadow-md transition-all">
                 <div className="mb-4">
                   <div className="flex justify-between items-start mb-2">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{p.paymentType}</span>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{getPaymentLabel(p, idx)}</span>
                     <span className="text-xs font-bold text-slate-800">{new Date(p.paymentDate).toLocaleDateString('en-GB')}</span>
                   </div>
                   <h4 className="text-lg font-black text-emerald-600">₹{p.amountPaid?.toLocaleString('en-IN')}</h4>
@@ -1066,19 +1043,17 @@ export default function ProjectDetailPage() {
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    {(!isCrm || isAccountant) && (
-                      <button
-                        onClick={() => {
-                          setSelectedPaymentToEdit(p);
-                          setIsEditPaymentModalOpen(true);
-                        }}
-                        className="py-2 px-3 bg-white border border-slate-300 hover:border-amber-500 hover:text-amber-600 rounded-xl text-xs font-bold text-slate-700 transition-colors flex items-center justify-center gap-1 shadow-sm"
-                        title="Edit payment amount"
-                      >
-                        <Edit2 className="w-3.5 h-3.5 text-amber-600" />
-                        <span>Edit</span>
-                      </button>
-                    )}
+                    <button
+                      onClick={() => {
+                        setSelectedPaymentToEdit({ ...p, paymentType: getPaymentLabel(p, idx) });
+                        setIsEditPaymentModalOpen(true);
+                      }}
+                      className="py-2 px-3 bg-white border border-slate-300 hover:border-amber-500 hover:text-amber-600 rounded-xl text-xs font-bold text-slate-700 transition-colors flex items-center justify-center gap-1 shadow-sm"
+                      title="Edit payment amount"
+                    >
+                      <Edit2 className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Edit</span>
+                    </button>
                     <Link
                       href={`/projects/${projectId}/invoice/${p._id}`}
                       className="flex-1 py-2 bg-white border border-slate-300 hover:border-sky-500 hover:text-sky-600 rounded-xl text-xs font-bold text-slate-700 transition-colors flex items-center justify-center gap-2 shadow-sm"
@@ -1103,7 +1078,8 @@ export default function ProjectDetailPage() {
         )}
       </div>
       </React.Fragment>
-      )}
+        );
+      })()}
 
       {/* SECTION 22: PROJECT ACTIVITY LOG & NOTES (Hidden for Accountant & BDM) */}
       {!isAccountant && user?.role !== 'BDM' && (
@@ -1189,7 +1165,8 @@ export default function ProjectDetailPage() {
           isOpen={isPaymentModalOpen}
           onClose={() => setIsPaymentModalOpen(false)}
           project={project}
-          onSuccess={(paymentData) => {
+          existingPayments={payments}
+          onSuccess={() => {
             fetchProject();
           }}
         />
@@ -1296,6 +1273,7 @@ export default function ProjectDetailPage() {
         isOpen={isRequestPaymentModalOpen}
         onClose={() => setIsRequestPaymentModalOpen(false)}
         project={project}
+        existingPaymentsCount={payments.length}
         onSuccess={fetchProject}
       />
 

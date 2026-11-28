@@ -9,7 +9,7 @@ export interface IPayment extends Document {
   advanceRequired: number;
   amountPaid: number;
   balanceAmount: number;
-  paymentType: 'Booking Advance' | 'Production Payment' | 'Rediness Notification' | 'Dispatch Materials' | 'After Installation' | 'OTHER';
+  paymentType: string;
   paymentDate: Date;
   paymentMethod: 'BANK_TRANSFER' | 'RTGS_NEFT' | 'UPI' | 'CHEQUE' | 'CASH';
   transactionReference: string;
@@ -60,8 +60,8 @@ const PaymentSchema = new Schema<IPayment>(
     },
     paymentType: {
       type: String,
-      enum: ['Booking Advance', 'Production Payment', 'Rediness Notification', 'Dispatch Materials', 'After Installation', 'OTHER'],
-      default: 'Booking Advance',
+      trim: true,
+      default: 'Payment 1',
     },
     paymentDate: {
       type: Date,
